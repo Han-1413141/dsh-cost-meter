@@ -1,0 +1,23 @@
+# Changelog
+
+本文件按 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式维护。
+
+## [0.1.0] - 2026-08-13
+
+### 新增
+
+- 本会话费用徽章:输入区下方(dock)与会话标题栏(header)两种位置,可配置或关闭。
+- 当日费用徽章:侧边栏底部,悬停显示今日调用/token 与本、月累计费用。
+- 设置 →「费用」独立页面:今日/本月/累计汇总卡片、今日会话明细、按天历史记录。
+- 显示设置:位置、侧边栏开关、货币单位(CNY/USD/EUR)、货币符号、汇率、小数位数。
+- 峰谷计价:DeepSeek 官方 2026-08-16 生效的峰/谷时段计费(可关闭、时段可配)。
+- 价格表管理:每模型 基础/谷时/峰时 三档价格,支持增删改与默认回退。
+- 从官方文档同步价格:抓取并解析 [DeepSeek 官方定价页](https://api-docs.deepseek.com/quick_start/pricing),一键应用。
+- 账本持久化:$DSH_HOME/storages/cost-meter/ledger.json,原子写入 + 防抖,历史保留天数可配。
+- 数据通道:costUsage 会话投影(本会话)+ Typert RPC(costMeter/getState、updateConfig、fetchPrices、resetHistory)。
+
+### 已知限制
+
+- 官方页面解析依赖当前页面结构,页面改版后需手动编辑价格表兜底。
+- 会话徽章按当前价格档位估算;精确计费以账本为准。
+- 安装/更新插件后需重启 `dsh web` 生效。
