@@ -14,7 +14,8 @@
 ### 变更
 
 - 配置新增 `locale` 键(auto | zh | en,默认 auto);旧账本自动补齐默认值,无需迁移;
-- Typert 清单摘要与文档注释改为中英双语;package.json 补充 i18n/bilingual 等关键词。
+- Typert 清单摘要与文档注释改为中英双语;package.json 补充 i18n/bilingual 等关键词;
+- package.json 新增 `dshhub` 清单(DSH Hub 收录所需:displayName / summary / categories / surfaces / capabilities / compatibility / permissions)。
 
 ## [1.1.2] - 2026-08-14
 

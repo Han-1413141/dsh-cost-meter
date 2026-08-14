@@ -24,6 +24,23 @@
       "platform": "web"
     }
   },
+  "dshhub": {
+    "schemaVersion": 1,
+    "displayName": "dsh-cost-meter",
+    "summary": "DeepSeek Harness 会话费用统计:本会话费用、预算图框、官方余额、历史记录,支持峰谷计价与官方价格一键同步。",
+    "categories": ["费用", "Web UI", "观测"],
+    "surfaces": ["host", "web"],
+    "capabilities": {
+      "provides": ["service:cost-meter"]
+    },
+    "compatibility": {
+      "dsh": ">=0.1.0-rc.5",
+      "node": ">=20"
+    },
+    "permissions": {
+      "network": ["https://api.deepseek.com", "https://api-docs.deepseek.com"]
+    }
+  },
   "files": [
     "lib/index.js",
     "lib/pricing.js",
