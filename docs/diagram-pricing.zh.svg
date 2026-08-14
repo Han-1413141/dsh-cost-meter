@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 470" width="1000" height="470" role="img" aria-labelledby="title desc">
+  <title id="title">dsh-cost-meter 计费规则与峰谷计价</title>
+  <desc id="desc">成本公式、按生效时间门控的分档逻辑与 DeepSeek 官方 24 小时峰谷时段。</desc>
+  <style>
+    text { font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .mono { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; }
+  </style>
+
+  <text x="40" y="40" font-size="23" font-weight="700" fill="#1f2328">计费规则与峰谷计价</text>
+  <text x="40" y="64" font-size="13" fill="#57606a">价格单位与官方文档一致 — 美元 / 1M tokens</text>
+
+  <!-- Card 1: formula -->
+  <rect x="40" y="96" width="920" height="92" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="62" y="122" font-size="12" font-weight="600" fill="#57606a">单次模型调用成本</text>
+  <text x="62" y="152" font-size="15" font-weight="700" fill="#0969da" class="mono">成本 = 未命中输入 × cacheMiss + 输出 × output + (缓存读 + 缓存写) × cacheHit</text>
+  <text x="62" y="174" font-size="11.5" fill="#57606a">缓存写入没有单独价格,沿用官方历史规则按缓存命中价计费;缓存读与写均按命中价。</text>
+
+  <!-- Card 2: tier gating -->
+  <rect x="40" y="212" width="920" height="126" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="62" y="240" font-size="12" font-weight="600" fill="#57606a">按时点门控</text>
+  <text x="62" y="262" font-size="11.5" fill="#57606a">2026-08-16 16:00 UTC 之前一律按基础价格;之后按当前 UTC 时刻分档:</text>
+
+  <!-- 24h bar: 0..24h, 35px per hour, x = 90 + hour*35 -->
+  <rect x="90" y="282" width="840" height="30" rx="6" fill="#eaeef2"/>
+  <!-- peak window 1: hours 1-4 -->
+  <rect x="125" y="282" width="105" height="30" rx="6" fill="#4176E6"/>
+  <!-- peak window 2: hours 6-10 -->
+  <rect x="300" y="282" width="140" height="30" rx="6" fill="#4176E6"/>
+
+  <text x="90" y="332" font-size="11" fill="#57606a" text-anchor="middle">0</text>
+  <text x="300" y="332" font-size="11" fill="#57606a" text-anchor="middle">6</text>
+  <text x="510" y="332" font-size="11" fill="#57606a" text-anchor="middle">12</text>
+  <text x="720" y="332" font-size="11" fill="#57606a" text-anchor="middle">18</text>
+  <text x="930" y="332" font-size="11" fill="#57606a" text-anchor="middle">24</text>
+  <text x="62" y="332" font-size="11" fill="#57606a">UTC</text>
+
+  <rect x="90" y="348" width="12" height="12" rx="3" fill="#4176E6"/>
+  <text x="108" y="359" font-size="11.5" fill="#1f2328">峰时段 01:00–04:00 与 06:00–10:00 UTC → 峰时价</text>
+  <rect x="470" y="348" width="12" height="12" rx="3" fill="#eaeef2" stroke="#d0d7de"/>
+  <text x="488" y="359" font-size="11.5" fill="#1f2328">其余时段 → 谷时价</text>
+
+  <!-- Card 3: notes -->
+  <rect x="40" y="362" width="920" height="88" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="62" y="388" font-size="12" fill="#1f2328">• 账本金额恒以美元存储 — 币种/汇率仅影响显示(默认 1 USD = 7.2 CNY,可改)。</text>
+  <text x="62" y="410" font-size="12" fill="#1f2328">• 会话徽章按当前档位估算;当日/月度/累计与预算按调用实际时刻精确计费。</text>
+  <text x="62" y="432" font-size="12" fill="#1f2328">• 预算与超支提示仅提醒,不阻止调用。</text>
+</svg>

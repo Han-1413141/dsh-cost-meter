@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 620" width="1120" height="620" role="img" aria-labelledby="title desc">
+  <title id="title">dsh-cost-meter 架构与数据流</title>
+  <desc id="desc">浏览器客户端 bundle、宿主 cordis 插件、DeepSeek API 与本机账本文件,通过 Typert RPC、costUsage 会话投影与 HTTP 调用互联。</desc>
+  <style>
+    text { font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .mono { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; }
+  </style>
+
+  <text x="40" y="40" font-size="23" font-weight="700" fill="#1f2328">架构与数据流</text>
+  <text x="40" y="64" font-size="13" fill="#57606a">dsh-cost-meter — DeepSeek Harness Web 会话费用统计插件</text>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4176E6"/>
+    </marker>
+  </defs>
+
+  <!-- ============ Column: Browser ============ -->
+  <rect x="40" y="96" width="280" height="430" rx="12" fill="#ffffff" stroke="#d0d7de" stroke-width="1.5"/>
+  <text x="180" y="126" font-size="15" font-weight="700" fill="#4176E6" text-anchor="middle">浏览器 — lib/client.js</text>
+  <text x="180" y="146" font-size="11.5" fill="#57606a" text-anchor="middle">单文件客户端 bundle</text>
+
+  <g>
+    <rect x="58" y="170" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="74" y="194" font-size="12.5" font-weight="600" fill="#1f2328">会话费用徽章 · 预算图框</text>
+    <text x="74" y="214" font-size="11" fill="#57606a">侧边栏 / 会话标题栏实时费用</text>
+    <text x="74" y="230" font-size="11" fill="#57606a">token 分列与预算占比</text>
+  </g>
+  <g>
+    <rect x="58" y="274" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="74" y="298" font-size="12.5" font-weight="600" fill="#1f2328">设置 → 费用页</text>
+    <text x="74" y="318" font-size="11" fill="#57606a">汇总卡片 · 今日会话 · 历史记录</text>
+    <text x="74" y="334" font-size="11" fill="#57606a">价格表 · 数据与同步</text>
+  </g>
+  <g>
+    <rect x="58" y="378" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="74" y="402" font-size="12.5" font-weight="600" fill="#1f2328" class="mono">useProjection('costUsage')</text>
+    <text x="74" y="422" font-size="11" fill="#57606a">实时读取本会话费用</text>
+    <text x="74" y="438" font-size="11" fill="#57606a">按当前价格表计价</text>
+  </g>
+
+  <!-- ============ Column: Host ============ -->
+  <rect x="420" y="96" width="280" height="430" rx="12" fill="#ffffff" stroke="#d0d7de" stroke-width="1.5"/>
+  <text x="560" y="126" font-size="15" font-weight="700" fill="#4176E6" text-anchor="middle">宿主 — lib/index.js</text>
+  <text x="560" y="146" font-size="11.5" fill="#57606a" text-anchor="middle">cordis 插件 · 共享同一运行时实例</text>
+
+  <g>
+    <rect x="438" y="170" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="454" y="194" font-size="12.5" font-weight="600" fill="#1f2328">llm/stream 计费包裹</text>
+    <text x="454" y="214" font-size="11" fill="#57606a">包裹每次模型调用的 usage 块</text>
+    <text x="454" y="230" font-size="11" fill="#57606a">(含子代理、压缩、标题等辅助调用)</text>
+  </g>
+  <g>
+    <rect x="438" y="274" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="454" y="298" font-size="12.5" font-weight="600" fill="#1f2328">costMeter 服务(Typert RPC)</text>
+    <text x="454" y="318" font-size="11" fill="#57606a" class="mono">getState · updateConfig</text>
+    <text x="454" y="334" font-size="11" fill="#57606a" class="mono">fetchPrices · refreshBalance</text>
+  </g>
+  <g>
+    <rect x="438" y="378" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="454" y="402" font-size="12.5" font-weight="600" fill="#1f2328">pricing.js · store.js</text>
+    <text x="454" y="422" font-size="11" fill="#57606a">官方价格表 · 峰谷计费数学</text>
+    <text x="454" y="438" font-size="11" fill="#57606a">账本与配置持久化</text>
+  </g>
+
+  <!-- ============ Column: External ============ -->
+  <rect x="800" y="96" width="280" height="430" rx="12" fill="#ffffff" stroke="#d0d7de" stroke-width="1.5"/>
+  <text x="940" y="126" font-size="15" font-weight="700" fill="#4176E6" text-anchor="middle">DeepSeek API 与本机文件</text>
+  <text x="940" y="146" font-size="11.5" fill="#57606a" text-anchor="middle">外部服务 · 同一台机器</text>
+
+  <g>
+    <rect x="818" y="170" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="834" y="194" font-size="12.5" font-weight="600" fill="#1f2328" class="mono">GET /user/balance</text>
+    <text x="834" y="214" font-size="11" fill="#57606a">官方开放平台余额</text>
+    <text x="834" y="230" font-size="11" fill="#57606a">同一把 API Key · 按 refreshMinutes 缓存</text>
+  </g>
+  <g>
+    <rect x="818" y="274" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="834" y="298" font-size="12.5" font-weight="600" fill="#1f2328">官方定价页</text>
+    <text x="834" y="318" font-size="11" fill="#57606a">Docusaurus 服务端预渲染</text>
+    <text x="834" y="334" font-size="11" fill="#57606a" class="mono">fetchPrices 解析 HTML</text>
+  </g>
+  <g>
+    <rect x="818" y="378" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="834" y="402" font-size="12.5" font-weight="600" fill="#1f2328" class="mono">ledger.json</text>
+    <text x="834" y="422" font-size="11" fill="#57606a" class="mono">$DSH_HOME/storages/cost-meter</text>
+    <text x="834" y="438" font-size="11" fill="#57606a">原子写入 + 2 秒防抖</text>
+  </g>
+
+  <!-- ============ Arrows: Browser <-> Host ============ -->
+  <!-- RPC browser -> host -->
+  <line x1="322" y1="200" x2="418" y2="200" stroke="#4176E6" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="370" y="186" font-size="11" fill="#57606a" text-anchor="middle" class="mono">remote.costMeter.*</text>
+  <text x="370" y="200" font-size="11" fill="#57606a" text-anchor="middle">Typert 网关 RPC</text>
+
+  <!-- projection host -> browser -->
+  <line x1="420" y1="400" x2="322" y2="400" stroke="#4176E6" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="370" y="386" font-size="11" fill="#57606a" text-anchor="middle" class="mono">costUsage</text>
+  <text x="370" y="400" font-size="11" fill="#57606a" text-anchor="middle">会话投影</text>
+
+  <!-- ============ Arrows: Host -> External ============ -->
+  <!-- balance -->
+  <line x1="702" y1="200" x2="798" y2="200" stroke="#4176E6" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="750" y="186" font-size="11" fill="#57606a" text-anchor="middle" class="mono">GET /user/balance</text>
+  <text x="750" y="200" font-size="11" fill="#57606a" text-anchor="middle">官方余额</text>
+
+  <!-- pricing page -->
+  <line x1="702" y1="300" x2="798" y2="300" stroke="#4176E6" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="750" y="286" font-size="11" fill="#57606a" text-anchor="middle">官方定价页</text>
+  <text x="750" y="300" font-size="11" fill="#57606a" text-anchor="middle" class="mono">fetchPrices 抓取解析</text>
+
+  <!-- footer -->
+  <text x="40" y="560" font-size="12.5" fill="#57606a">宿主与浏览器共享同一运行时实例,无重复依赖。</text>
+  <text x="40" y="580" font-size="12.5" fill="#57606a">插件仅使用 Node 内建模块、zod、dsh-home-paths 与 dsh-credentials 的纯函数。</text>
+</svg>

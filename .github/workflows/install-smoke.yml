@@ -1,0 +1,42 @@
+name: install-smoke
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  one-click-install:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            # Windows leg exercises install.ps1 end-to-end, including its
+            # pnpm auto-provisioning (pnpm is deliberately not preinstalled).
+            install-cmd: pwsh -NoProfile -ExecutionPolicy Bypass -File install.ps1
+            verify-cmd: pwsh -NoProfile -Command "dsh --profile web --dump-config | Select-String dsh-cost-meter"
+          - os: ubuntu-latest
+            # Linux leg exercises the exact README one-liner (pnpm + git).
+            install-cmd: dsh plugin --profile web add github:Han-1413141/dsh-cost-meter
+            verify-cmd: dsh --profile web --dump-config | grep dsh-cost-meter
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install DeepSeek Harness
+        shell: bash
+        run: npm install -g @deepseek-ai/dsh
+      - name: Install pnpm (Linux leg only)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: npm install -g pnpm
+      - name: One-click install
+        shell: bash
+        run: ${{ matrix.install-cmd }}
+      - name: Verify plugin joined the bundle graph
+        shell: bash
+        run: ${{ matrix.verify-cmd }}

@@ -1,6 +1,6 @@
 {
   "name": "dsh-cost-meter",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "DeepSeek Harness 会话费用统计插件:本会话成本、当日费用、历史记录与官方价格同步",
   "type": "module",
   "main": "lib/index.js",
@@ -38,5 +38,21 @@
     "@deepseek-ai/dsh-home-paths": "^0.1.0-rc.6",
     "zod": "^4.4.3"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Han-1413141/dsh-cost-meter.git"
+  },
+  "homepage": "https://github.com/Han-1413141/dsh-cost-meter#readme",
+  "keywords": [
+    "deepseek",
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "client-plugin",
+    "cost",
+    "usage",
+    "billing",
+    "budget"
+  ],
   "license": "MIT"
 }

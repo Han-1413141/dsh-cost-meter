@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 620" width="1120" height="620" role="img" aria-labelledby="title desc">
+  <title id="title">dsh-cost-meter architecture and data flow</title>
+  <desc id="desc">Browser client bundle, host cordis plugin, DeepSeek API and local ledger file, connected by Typert RPC, costUsage projection and HTTP calls.</desc>
+  <style>
+    text { font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    .mono { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; }
+  </style>
+
+  <text x="40" y="40" font-size="23" font-weight="700" fill="#1f2328">Architecture &amp; data flow</text>
+  <text x="40" y="64" font-size="13" fill="#57606a">dsh-cost-meter — session cost tracking for the DeepSeek Harness web GUI</text>
+
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#4176E6"/>
+    </marker>
+  </defs>
+
+  <!-- ============ Column: Browser ============ -->
+  <rect x="40" y="96" width="280" height="430" rx="12" fill="#ffffff" stroke="#d0d7de" stroke-width="1.5"/>
+  <text x="180" y="126" font-size="15" font-weight="700" fill="#4176E6" text-anchor="middle">Browser — lib/client.js</text>
+  <text x="180" y="146" font-size="11.5" fill="#57606a" text-anchor="middle">single-file client bundle</text>
+
+  <g>
+    <rect x="58" y="170" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="74" y="194" font-size="12.5" font-weight="600" fill="#1f2328">Session cost badge · budget box</text>
+    <text x="74" y="214" font-size="11" fill="#57606a">live cost, token split, budget %</text>
+    <text x="74" y="230" font-size="11" fill="#57606a">in the sidebar / session header</text>
+  </g>
+  <g>
+    <rect x="58" y="274" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="74" y="298" font-size="12.5" font-weight="600" fill="#1f2328">Settings → Cost page</text>
+    <text x="74" y="318" font-size="11" fill="#57606a">summary cards · history</text>
+    <text x="74" y="334" font-size="11" fill="#57606a">price table · data &amp; sync</text>
+  </g>
+  <g>
+    <rect x="58" y="378" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="74" y="402" font-size="12.5" font-weight="600" fill="#1f2328" class="mono">useProjection('costUsage')</text>
+    <text x="74" y="422" font-size="11" fill="#57606a">live per-session cost</text>
+    <text x="74" y="438" font-size="11" fill="#57606a">priced with the current price table</text>
+  </g>
+
+  <!-- ============ Column: Host ============ -->
+  <rect x="420" y="96" width="280" height="430" rx="12" fill="#ffffff" stroke="#d0d7de" stroke-width="1.5"/>
+  <text x="560" y="126" font-size="15" font-weight="700" fill="#4176E6" text-anchor="middle">Host — lib/index.js</text>
+  <text x="560" y="146" font-size="11.5" fill="#57606a" text-anchor="middle">cordis plugin · shared runtime instance</text>
+
+  <g>
+    <rect x="438" y="170" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="454" y="194" font-size="12.5" font-weight="600" fill="#1f2328">llm/stream billing wrapper</text>
+    <text x="454" y="214" font-size="11" fill="#57606a">wraps every model call's usage block</text>
+    <text x="454" y="230" font-size="11" fill="#57606a">(incl. sub-agents, compression, titles)</text>
+  </g>
+  <g>
+    <rect x="438" y="274" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="454" y="298" font-size="12.5" font-weight="600" fill="#1f2328">costMeter service (Typert RPC)</text>
+    <text x="454" y="318" font-size="11" fill="#57606a" class="mono">getState · updateConfig</text>
+    <text x="454" y="334" font-size="11" fill="#57606a" class="mono">fetchPrices · refreshBalance</text>
+  </g>
+  <g>
+    <rect x="438" y="378" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="454" y="402" font-size="12.5" font-weight="600" fill="#1f2328">pricing.js · store.js</text>
+    <text x="454" y="422" font-size="11" fill="#57606a">official price table · peak/off-peak math</text>
+    <text x="454" y="438" font-size="11" fill="#57606a">ledger &amp; config persistence</text>
+  </g>
+
+  <!-- ============ Column: External ============ -->
+  <rect x="800" y="96" width="280" height="430" rx="12" fill="#ffffff" stroke="#d0d7de" stroke-width="1.5"/>
+  <text x="940" y="126" font-size="15" font-weight="700" fill="#4176E6" text-anchor="middle">DeepSeek API &amp; local files</text>
+  <text x="940" y="146" font-size="11.5" fill="#57606a" text-anchor="middle">external services · same machine</text>
+
+  <g>
+    <rect x="818" y="170" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="834" y="194" font-size="12.5" font-weight="600" fill="#1f2328" class="mono">GET /user/balance</text>
+    <text x="834" y="214" font-size="11" fill="#57606a">official account balance</text>
+    <text x="834" y="230" font-size="11" fill="#57606a">same API key · cached per refreshMinutes</text>
+  </g>
+  <g>
+    <rect x="818" y="274" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="834" y="298" font-size="12.5" font-weight="600" fill="#1f2328">Official pricing page</text>
+    <text x="834" y="318" font-size="11" fill="#57606a">Docusaurus server-side pre-rendered</text>
+    <text x="834" y="334" font-size="11" fill="#57606a" class="mono">parsed by fetchPrices</text>
+  </g>
+  <g>
+    <rect x="818" y="378" width="244" height="88" rx="8" fill="#f6f8fa" stroke="#d0d7de"/>
+    <text x="834" y="402" font-size="12.5" font-weight="600" fill="#1f2328" class="mono">ledger.json</text>
+    <text x="834" y="422" font-size="11" fill="#57606a" class="mono">$DSH_HOME/storages/cost-meter</text>
+    <text x="834" y="438" font-size="11" fill="#57606a">atomic write + 2s debounce</text>
+  </g>
+
+  <!-- ============ Arrows: Browser <-> Host ============ -->
+  <!-- RPC browser -> host -->
+  <line x1="322" y1="200" x2="418" y2="200" stroke="#4176E6" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="370" y="186" font-size="11" fill="#57606a" text-anchor="middle" class="mono">remote.costMeter.*</text>
+  <text x="370" y="200" font-size="11" fill="#57606a" text-anchor="middle">Typert gateway RPC</text>
+
+  <!-- projection host -> browser -->
+  <line x1="420" y1="400" x2="322" y2="400" stroke="#4176E6" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="370" y="386" font-size="11" fill="#57606a" text-anchor="middle" class="mono">costUsage</text>
+  <text x="370" y="400" font-size="11" fill="#57606a" text-anchor="middle">session projection</text>
+
+  <!-- ============ Arrows: Host -> External ============ -->
+  <!-- balance -->
+  <line x1="702" y1="200" x2="798" y2="200" stroke="#4176E6" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="750" y="186" font-size="11" fill="#57606a" text-anchor="middle" class="mono">GET /user/balance</text>
+  <text x="750" y="200" font-size="11" fill="#57606a" text-anchor="middle">official balance</text>
+
+  <!-- pricing page -->
+  <line x1="702" y1="300" x2="798" y2="300" stroke="#4176E6" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="750" y="286" font-size="11" fill="#57606a" text-anchor="middle">official pricing page</text>
+  <text x="750" y="300" font-size="11" fill="#57606a" text-anchor="middle" class="mono">fetchPrices parses</text>
+
+  <!-- footer -->
+  <text x="40" y="560" font-size="12.5" fill="#57606a">Host and browser share one runtime instance — no duplicated dependency graph.</text>
+  <text x="40" y="580" font-size="12.5" fill="#57606a">The plugin imports only Node builtins, zod, dsh-home-paths and dsh-credentials pure functions.</text>
+</svg>

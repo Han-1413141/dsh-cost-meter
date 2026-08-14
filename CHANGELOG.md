@@ -2,6 +2,19 @@
 
 本文件按 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式维护。
 
+## [1.1.2] - 2026-08-14
+
+### 新增
+
+- **一键安装**:仓库内置 `install.ps1`,支持 `irm … | iex` 远程直装(自动补齐 pnpm、自动探测 git、无 git 时退回 GitHub tarball 直链;已安装时重跑即为更新);
+- **远程直装**:支持 `dsh plugin --profile web add github:Han-1413141/dsh-cost-meter` 与 GitHub 打包直链,无需克隆仓库;
+- CI:新增 `install-smoke` 工作流,在 Windows / Linux 真机验证一键安装路径与插件图接入。
+
+### 变更
+
+- package.json 补充 `repository` / `homepage` / `keywords` 元数据。
+- README 中英双语化:新增 `README.en.md` 英文版,与中文版顶部互链可切换;新增中英双语「架构与数据流」「计费规则与峰谷计价」SVG 图示;新增 `docs/AI-PRICE-SYNC-PROMPT.en.md` 英文提示词。
+
 ## [1.1.1] - 2026-08-14
 
 ### 修复

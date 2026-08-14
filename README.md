@@ -6,15 +6,15 @@
 
 本会话费用 · 当日费用 · 预算与已用百分比 · 官方账户余额 · 历史记录 · 峰谷计价 · 官方价格一键同步
 
-[![version](https://img.shields.io/badge/version-1.1.1-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.1.2-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
+
+[English](README.en.md) | **中文**
 
 </div>
 
 ---
-
-*English: A cost-tracking plugin for the DeepSeek Harness web GUI — per-conversation cost, daily totals, budget with usage percentage, official account balance, a full history dashboard in Settings, DeepSeek peak/off-peak pricing, and one-click price sync from the official docs.*
 
 ![宣传图](docs/promo.png)
 
@@ -36,6 +36,8 @@
 | AI 价格同步 | [提示词](docs/AI-PRICE-SYNC-PROMPT.md) | 交给任意 AI 自主同步多模型、分时价格 |
 
 ## 图文演示
+
+> 截图均取自真实 DeepSeek Harness 实例。
 
 ### 主页面
 
@@ -92,9 +94,26 @@
 
 ## 安装
 
+> 需求:Node.js ≥ 20 + DeepSeek Harness(带 `dsh plugin` 命令的版本,`npm install -g @deepseek-ai/dsh`)。
+
+### 一键安装(推荐)
+
+**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库):
+
+```powershell
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/master/install.ps1 | iex
+```
+
+**或直接命令行**(机器上需已有 pnpm 与 git):
+
 ```sh
-cd <插件目录的父目录>
-dsh plugin --profile web add ./dsh-cost-meter
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter
+```
+
+没有 git 时可用 GitHub 打包直链(更新时先 remove 再 add):
+
+```sh
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/heads/master.tar.gz
 ```
 
 安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):
@@ -103,13 +122,24 @@ dsh plugin --profile web add ./dsh-cost-meter
 dsh web
 ```
 
-移除:
+### 更新 / 卸载
 
 ```sh
-dsh plugin --profile web remove dsh-cost-meter
+dsh plugin --profile web update dsh-cost-meter  # 更新到最新提交(git 方式;或重跑一键脚本)
+dsh plugin --profile web remove dsh-cost-meter  # 卸载
+```
+
+### 开发者本地调试
+
+```sh
+git clone https://github.com/Han-1413141/dsh-cost-meter.git
+cd <克隆目录的父目录>
+dsh plugin --profile web add link:./dsh-cost-meter  # 符号链接,改 lib/client.js 后刷新页面即生效
 ```
 
 ## 计费规则
+
+![计费规则与峰谷计价](docs/diagram-pricing.zh.svg)
 
 - 价格单位与官方文档一致:**美元 / 1M tokens**;
 - 成本 = 未命中输入 × cache-miss + 输出 × output + (缓存读 + 缓存写) × cache-hit(缓存写沿用官方历史规则按命中价计费);
@@ -127,9 +157,13 @@ dsh plugin --profile web remove dsh-cost-meter
 
 ## 架构
 
+![架构与数据流](docs/diagram-architecture.zh.svg)
+
 ```
 dsh-cost-meter
 ├── cordis.patch.yml        # bundle 补丁:向 web profile 插入 cost-meter 行
+├── install.ps1             # 一键安装/更新脚本(irm … | iex)
+├── .github/workflows/      # CI:install-smoke 一键安装冒烟验证
 ├── package.json            # dsh.bundle 补丁声明 + dsh.client 浏览器声明
 └── lib/
     ├── index.js            # 宿主插件:llm/stream 计费包裹、costUsage 会话投影、
@@ -160,7 +194,7 @@ dsh-cost-meter
 
 ## AI 价格同步
 
-[docs/AI-PRICE-SYNC-PROMPT.md](docs/AI-PRICE-SYNC-PROMPT.md) 提供可直接复制给任意 AI 的提示词:
+[docs/AI-PRICE-SYNC-PROMPT.md](docs/AI-PRICE-SYNC-PROMPT.md)(中文)与 [docs/AI-PRICE-SYNC-PROMPT.en.md](docs/AI-PRICE-SYNC-PROMPT.en.md)(English) 提供可直接复制给任意 AI 的提示词:
 AI 自主读取官方定价 → 输出多模型、分时(基础/谷时/峰时 + 生效时间)价格 JSON → 人工核对后应用(设置页 / RPC / 文件三选一)。适合官方价格变动时自主同步。
 
 ## 开发与验证
