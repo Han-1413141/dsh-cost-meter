@@ -1,43 +1,98 @@
 # dsh-cost-meter
 
-DeepSeek Harness 会话费用统计插件:在页面上显示**本会话费用**、**当日费用**,并在设置中提供**累计费用与历史记录**页面,支持通过官方文档一键同步价格。
+<div align="center">
 
-*A cost-tracking plugin for the DeepSeek Harness web GUI: per-conversation cost, daily totals, a full history dashboard in Settings, DeepSeek peak/off-peak pricing, and one-click price sync from the official docs.*
+**DeepSeek Harness 会话费用统计插件**
+
+本会话费用 · 当日费用 · 预算与已用百分比 · 官方账户余额 · 历史记录 · 峰谷计价 · 官方价格一键同步
+
+[![version](https://img.shields.io/badge/version-1.0.0-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
+
+</div>
+
+---
+
+*English: A cost-tracking plugin for the DeepSeek Harness web GUI — per-conversation cost, daily totals, budget with usage percentage, official account balance, a full history dashboard in Settings, DeepSeek peak/off-peak pricing, and one-click price sync from the official docs.*
 
 ![宣传图](docs/promo.png)
 
-## 截图
+## 功能总览
 
-| 侧边栏预算图框 | 设置 →「费用」页面 |
-|---|---|
-| ![sidebar-badge](docs/sidebar-badge.png) | ![settings-section](docs/settings-section.png) |
+| 功能 | 位置 | 说明 |
+|---|---|---|
+| 本会话费用 | 输入区下方 / 会话标题栏 | 实时累计费用 + 输入/缓存/输出 token,位置可配 |
+| 当日费用 | 侧边栏底部(设置按钮上方) | 「今日 ¥x」,悬停见调用次数与 token 明细 |
+| 预算图框 | 侧边栏底部(设置按钮上方) | 圆角方形图框:预算、已用%、进度条、已用/额度,≥80% 预警、≥100% 超支 |
+| 官方余额 | 侧边栏 / 设置页(可配) | 总余额 / 赠送 / 充值,自动刷新 + 手动刷新 |
+| 汇总卡片 | 设置页 | 今日 / 本月 / 累计费用与调用次数 |
+| 今日会话明细 | 设置页 | 每个会话的调用次数、输入/缓存/输出 token 与费用 |
+| 历史记录 | 设置页 | 按天汇总,保留天数可配(默认 180 天) |
+| 预算设置 | 设置页顶部 | 额度、周期(今日/本月/累计/自定义日期区间)、已用% |
+| 价格表 | 设置页 | 每模型 基础/谷时/峰时 三档价格,增删改自由 |
+| 峰谷计价 | 设置页 | DeepSeek 官方峰谷方案,带生效时间门控与当前档位状态 |
+| 官方价格同步 | 设置页 | 抓取解析官方定价页,一键应用 |
+| AI 价格同步 | [提示词](docs/AI-PRICE-SYNC-PROMPT.md) | 交给任意 AI 自主同步多模型、分时价格 |
 
-## 功能
+## 图文演示
 
-- **本会话费用**:在输入区下方(默认)或会话标题栏显示当前会话的累计费用与 token 用量(输入/缓存/输出分开);位置可在设置中切换或关闭。
-- **当日费用**:侧边栏底部实时显示「今日 ¥x.xx」,悬停可见今日调用次数、输入/缓存/输出 token、本月与累计费用。
-- **预算图框(主页面)**:启用预算后,侧边栏底部、**设置按钮上方**显示圆角方形图框,内含「预算」标签、已用百分比、进度条与 已用/额度 金额;窄栏模式显示百分比方块;≥80% 预警、≥100% 超支。
-- **官方账户余额**:调用官方开放平台 `GET /user/balance`(与模型请求同一把 API Key),显示总余额/赠送/充值;显示位置可配(主页面侧边栏 / 设置页 / 两者 / 关闭),自动刷新间隔可配(默认 5 分钟),设置页可手动刷新。
-- **设置 → 费用** 独立页面(所有配置**修改即自动保存**):
-  - **预算(顶部)**:启用后设置预算额度与周期(今日/本月/累计/**自定义日期区间**),显示已用金额与已用百分比进度条,≥80% 预警、≥100% 超支;
-  - **余额(顶部)**:总余额/赠送/充值与「刷新余额」按钮;
-  - 汇总卡片:今日 / 本月 / 累计费用(含调用次数与输入/缓存/输出 token);
-  - 今日会话明细:每个会话的调用次数、输入/缓存/输出 token 与费用;
-  - 历史记录:按天汇总(日期、调用、输入/缓存/输出 token、费用);
-  - 显示设置:会话徽章位置(dock / header / 关闭)、侧边栏开关、余额显示位置、余额刷新间隔、货币单位(CNY/USD/EUR)、货币符号、汇率、小数位数;
-  - 价格表:每个模型的 基础/谷时/峰时 三档价格(美元 / 1M tokens),支持手动增删改;
-  - 峰谷计价开关与**当前状态提示**(未生效按基础价 / 峰时段 / 谷时段);
-  - **从官方文档同步价格**:抓取并解析 [DeepSeek 官方定价页](https://api-docs.deepseek.com/quick_start/pricing),一键应用全部模型价格(含峰谷档与生效时间);
-  - 清除全部历史。
-- **AI 价格同步提示词**:[docs/AI-PRICE-SYNC-PROMPT.md](docs/AI-PRICE-SYNC-PROMPT.md) 提供可直接复制给任意 AI 的提示词,让 AI 自主读取官方定价、同步不同模型不同时间的价格,便于自主更改模型与定价。
+### 主页面
+
+**侧边栏**(预算图框 + 官方余额,位于设置按钮上方):
+
+![侧边栏](docs/screenshot-sidebar.png)
+
+- 启用预算后,圆角方形图框显示「预算 · 已用% · 进度条 · 已用/额度」;窄栏(rail)模式收窄为百分比方块;
+- 余额行显示官方开放平台总余额,悬停可见赠送/充值拆分;
+- 未启用预算时,该位置显示「今日 ¥x」徽章。
+
+**会话页**(输入区下方的本会话费用):
+
+![会话 dock](docs/screenshot-session-dock.png)
+
+> 本会话 ¥5.5939 · 输入 321K · 缓存 119M · 输出 235K(真实会话截图)
+
+![会话页](docs/screenshot-session.png)
+
+### 设置 → 费用
+
+**概览**(预算 → 余额 → 汇总卡片 → 今日会话 → 历史记录 → 显示设置 → 价格表 → 数据与同步):
+
+![设置页](docs/screenshot-settings.png)
+
+**预算面板**(顶部,含自定义日期区间):
+
+![预算](docs/screenshot-budget-panel.png)
+
+**余额面板**(总余额/赠送/充值 + 手动刷新):
+
+![余额](docs/screenshot-balance-panel.png)
+
+**汇总卡片**:
+
+![卡片](docs/screenshot-cards.png)
+
+**今日会话 / 历史记录**(输入、缓存、输出 token 分列):
+
+![今日会话](docs/screenshot-table-1.png) ![历史记录](docs/screenshot-table-2.png)
+
+**价格表**(基础/谷时/峰时三档,美元 / 1M tokens):
+
+![价格表](docs/screenshot-price-card.png)
+
+**数据与同步**(配置即时自动保存 + 官方价格同步 + 清除历史):
+
+![同步](docs/screenshot-sync.png)
 
 ## 安装
 
 ```sh
+cd <插件目录的父目录>
 dsh plugin --profile web add ./dsh-cost-meter
 ```
 
-安装后**必须重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):
+安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):
 
 ```sh
 dsh web
@@ -51,18 +106,19 @@ dsh plugin --profile web remove dsh-cost-meter
 
 ## 计费规则
 
-- 价格单位与官方文档一致:美元 / 1M tokens。
-- 成本 = 未命中输入 × cache-miss + 输出 × output + (缓存读 + 缓存写) × cache-hit。官方页面未单列缓存写价格,沿用官方历史规则按缓存命中价计费。
-- 峰谷计价:自 `peakEffectiveAt`(默认 2026-08-16 16:00 UTC)起,峰时段(默认 01:00–04:00、06:00–10:00 UTC)按峰时价,其余按谷时价;**生效时间之前一律按基础价格计费**(按官方时点门控,设置页显示当前档位状态);可在设置中关闭。
-- 账本中的金额恒以**美元**存储;币种/汇率仅影响显示(`exchangeRate` 默认按 1 USD = 7.2 CNY 换算,可改)。
-- 会话徽章按**当前档位价格估算**本会话费用(会话投影只含 token 桶);当日/月度/累计为按每次调用实际时刻精确计费的账本数据。
-- 计费来源是每次模型调用的 usage 块(包括子代理、压缩、标题等辅助调用),与账单口径一致;失败的请求若携带 usage 也会计入(与 token-meter 的保守口径相同)。
-- 预算:额度按**显示币种**设置,已用金额 = 对应周期美元成本 × `exchangeRate`,与账本同口径;周期可选 今日/本月/累计/**自定义日期区间**(宿主按天聚合,结束日期留空 = 今日);进度条 ≥80% 预警、≥100% 提示超支(仅提醒,不阻止调用)。
+- 价格单位与官方文档一致:**美元 / 1M tokens**;
+- 成本 = 未命中输入 × cache-miss + 输出 × output + (缓存读 + 缓存写) × cache-hit(缓存写沿用官方历史规则按命中价计费);
+- **峰谷计价按时点门控**:`peakEffectiveAt`(默认 2026-08-16 16:00 UTC)之前一律按基础价格;之后峰时段(01:00–04:00、06:00–10:00 UTC)按峰时价、其余按谷时价;设置页实时显示当前档位(未生效/峰时段/谷时段);
+- 账本金额恒以**美元**存储,币种/汇率仅影响显示(默认 1 USD = 7.2 CNY,可改);
+- 会话徽章按当前档位**估算**,当日/月度/累计与预算为按调用实际时刻**精确计费**;
+- 计费来源为每次模型调用的 usage 块(含子代理、压缩、标题等辅助调用),与账单口径一致;
+- 预算与超支提示**仅提醒,不阻止调用**。
 
 ## 数据存储
 
-- 账本:`$DSH_HOME/storages/cost-meter/ledger.json`(原子写入、2 秒防抖;按 `historyDays` 保留最近 180 天,每日最多保留 200 个会话明细)。
-- 删除账本文件即可清零;或在设置页点「清除全部历史」。
+- 账本:`$DSH_HOME/storages/cost-meter/ledger.json`(原子写入 + 2 秒防抖;按 `historyDays` 保留,每日最多 200 个会话明细);
+- 所有设置修改**即时自动保存**(600ms 防抖),无需手动保存;
+- 删除账本文件即可清零,或使用设置页「清除全部历史」。
 
 ## 架构
 
@@ -72,54 +128,57 @@ dsh-cost-meter
 ├── package.json            # dsh.bundle 补丁声明 + dsh.client 浏览器声明
 └── lib/
     ├── index.js            # 宿主插件:llm/stream 计费包裹、costUsage 会话投影、
-    │                       #   costMeter 服务(手写 typertRemote 绑定)
+    │                       #   costMeter 服务(手写 typertRemote 绑定)、余额查询
     ├── pricing.js          # 官方价格表、官方页面 HTML 解析、峰谷计费数学
     ├── store.js            # 账本持久化与配置管理($DSH_HOME/storages/cost-meter)
     ├── typert.host.js      # ./typert 导出:Typert 清单(typert-loader 自动注册)
-    └── client.js           # ./client 导出:浏览器单文件 bundle(徽章/侧边栏/设置页)
+    └── client.js           # ./client 导出:浏览器单文件 bundle(徽章/图框/设置页)
 ```
 
 数据通道:
 
 - **本会话费用**:宿主注册 `costUsage` 会话投影(纯 token 桶 + 按模型拆分),浏览器经 `useProjection('costUsage')` 读取并按当前价格表计价;
-- **全局账本与配置**:`costMeter/getState | updateConfig | fetchPrices | resetHistory`,经 Typert 网关 RPC(`remote.costMeter.*`)。
+- **全局账本 / 预算 / 余额 / 配置**:`costMeter/getState | updateConfig | fetchPrices | refreshBalance | resetHistory`,经 Typert 网关 RPC(`remote.costMeter.*`);
+- **余额**:调用官方 `GET {baseURL}/user/balance`,复用模型请求的同一把 API Key(凭证服务/环境变量),进程内缓存按 `refreshMinutes` 过期。
 
-插件不导入任何 cordis/dsh 运行时包(仅 Node 内建模块、zod、dsh-home-paths),宿主与浏览器两端均与 Harness 共享同一运行时实例,无重复依赖风险。
+插件不导入 cordis/dsh 的 Service/Context 运行时类(仅 Node 内建模块、zod、dsh-home-paths、dsh-credentials 的纯函数),与宿主共享同一运行时实例,无重复依赖风险。
 
-### 官方价格同步原理
+## 官方价格同步原理
 
-`fetchPrices` 抓取官方定价页(Docusaurus 服务端预渲染,可直接解析 HTML 表格),按当前页面结构解析:
+`fetchPrices` 抓取官方定价页(Docusaurus 服务端预渲染),解析:
 
 1. 基础价格表(转置布局:首行 MODEL + 模型 id,价格行标签后紧跟价格);
 2. 峰谷价格表(每模型两行:OFF-PEAK / PEAK);
 3. 生效时间(take effect at …)与峰时段窗口(Peak hours are …)。
 
-解析结果写入价格表并持久化;页面结构变化时同步会报错并保留原价格,可手动编辑兜底。
+解析结果写入价格表并持久化;页面结构变化时同步报错并保留原价格,可手动编辑兜底。
+
+## AI 价格同步
+
+[docs/AI-PRICE-SYNC-PROMPT.md](docs/AI-PRICE-SYNC-PROMPT.md) 提供可直接复制给任意 AI 的提示词:
+AI 自主读取官方定价 → 输出多模型、分时(基础/谷时/峰时 + 生效时间)价格 JSON → 人工核对后应用(设置页 / RPC / 文件三选一)。适合官方价格变动时自主同步。
 
 ## 开发与验证
 
 ```sh
-# 依赖安装(插件目录)
-corepack pnpm install
-
-# 语法检查
-node --check lib/index.js && node --check lib/pricing.js && node --check lib/store.js && node --check lib/typert.host.js && node --check lib/client.js
-
-# 纯模块验证:官方页面解析、峰谷计费、账本读写、配置校验
-node test/verify.mjs
-
-# 组合验证:安装到 web profile 后
-dsh --profile web --dump-config   # 组合树校验
-dsh --profile web --port 3099     # 真机启动(观察启动日志与浏览器 UI)
+corepack pnpm install                                   # 依赖
+node --check lib/index.js && node --check lib/pricing.js \
+  && node --check lib/store.js && node --check lib/typert.host.js \
+  && node --check lib/client.js                         # 语法检查
+node test/verify.mjs                                    # 纯模块验证(解析/计费/账本/配置)
+node test/mock-balance.mjs                              # (可选)本地余额接口模拟:3101
+dsh --profile web --dump-config                         # 组合树校验
+dsh --profile web --port 3099                           # 真机启动(观察启动日志与 UI)
 ```
 
 ## 已知限制
 
-- 官方页面解析依赖当前页面结构;页面改版后「从官方文档同步价格」会报错,可手动编辑价格表兜底。
-- 会话徽章按当前价格档位估算,不做历史时刻回放;精确费用以账本为准。
-- 价格同步会覆盖官方页面列出的同名模型价格;自定义模型条目不受影响。
-- 安装/更新插件后需重启 `dsh web` 生效(客户端 bundle 按启动时扫描缓存)。
+- 官方页面解析依赖当前页面结构;改版后「从官方文档同步价格」会报错,可手动编辑价格表兜底;
+- 会话徽章按当前价格档位估算,精确费用以账本为准;
+- 价格同步会覆盖官方页面列出的同名模型价格,自定义模型条目不受影响;
+- 余额查询需要可访问 api.deepseek.com 的网络与有效 API Key;
+- 安装/更新插件后需重启 `dsh web` 生效。
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) © 2026 dsh-cost-meter contributors
