@@ -4,3 +4,5 @@ minimumReleaseAgeExclude:
   - '@deepseek-ai/dsh-home-paths@0.1.0-rc.6'
   - '@deepseek-ai/dsh-invariants@0.1.0-rc.6'
   - '@deepseek-ai/schemastery@3.18.1'
+  - '@deepseek-ai/dsh-brand@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-credentials@0.1.0-rc.6'

@@ -1,6 +1,6 @@
 {
   "name": "dsh-cost-meter",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "DeepSeek Harness 会话费用统计插件:本会话成本、当日费用、历史记录与官方价格同步",
   "type": "module",
   "main": "lib/index.js",
@@ -34,6 +34,7 @@
     "README.md"
   ],
   "dependencies": {
+    "@deepseek-ai/dsh-credentials": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-home-paths": "^0.1.0-rc.6",
     "zod": "^4.4.3"
   },
