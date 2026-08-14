@@ -6,7 +6,7 @@
 
 本会话费用 · 当日费用 · 预算与已用百分比 · 官方账户余额 · 历史记录 · 峰谷计价 · 官方价格一键同步
 
-[![version](https://img.shields.io/badge/version-1.1.0-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.1.1-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
 
@@ -39,9 +39,9 @@
 
 ### 主页面
 
-**侧边栏**(自上而下:官方余额 → 预算图框 → 设置按钮;关闭预算时余额仍显示在设置按钮上方):
+**侧边栏底部**(自上而下:官方余额 → 预算图框 → 设置按钮;关闭预算时余额仍显示在设置按钮上方):
 
-![侧边栏](docs/screenshot-sidebar.png)
+![侧边栏底部](docs/screenshot-sidebar-footer.png)
 
 - 余额行显示官方开放平台总余额,悬停可见赠送/充值拆分;
 - 启用预算后,圆角方形图框显示「预算 · 已用% · 进度条 · 今日费用与占预算% · 已用/额度」;窄栏(rail)模式收窄为百分比方块;
