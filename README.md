@@ -2,11 +2,11 @@
 
 <div align="center">
 
-**DeepSeek Harness 会话费用统计插件**
+**DeepSeek Harness 会话费用统计插件(界面中英双语)**
 
 本会话费用 · 当日费用 · 预算与已用百分比 · 官方账户余额 · 历史记录 · 峰谷计价 · 官方价格一键同步
 
-[![version](https://img.shields.io/badge/version-1.1.2-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.2.0-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
 
@@ -33,11 +33,21 @@
 | 价格表 | 设置页 | 每模型 基础/谷时/峰时 三档价格,增删改自由 |
 | 峰谷计价 | 设置页 | DeepSeek 官方峰谷方案,带生效时间门控与当前档位状态 |
 | 官方价格同步 | 设置页 | 抓取解析官方定价页,一键应用 |
+| 界面语言 | 设置页 → 显示设置 | 简体中文 / English / 跟随浏览器(自动);切换即时生效并自动保存 |
 | AI 价格同步 | [提示词](docs/AI-PRICE-SYNC-PROMPT.md) | 交给任意 AI 自主同步多模型、分时价格 |
+
+## 双语界面
+
+插件界面(会话徽章、侧边栏余额与预算图框、设置页全部文案)支持**简体中文**与**English**:
+
+- 语言可选 **简体中文** / **English** / **跟随浏览器(自动)**;
+- 默认「跟随浏览器」:自动探测浏览器语言(`zh*` → 中文,其余 → 英文),并把探测结果写回配置,服务端消息(余额查询、价格同步等)与界面语言保持一致;
+- 在 **设置 → 费用 → 显示设置 → 界面语言** 中切换,切换后整个插件界面即时生效并自动保存;设置页左侧的分节标签也随之切换(费用 / Cost);
+- 服务端返回的提示(余额刷新、官方价格同步、配置校验错误等)同样按当前语言输出。
 
 ## 图文演示
 
-> 截图均取自真实 DeepSeek Harness 实例。
+> 截图均取自真实 DeepSeek Harness 实例,默认以中文界面展示;插件界面本身中英双语,可在设置中切换为 English。
 
 ### 主页面
 

@@ -2,11 +2,11 @@
 
 <div align="center">
 
-**Session cost tracking plugin for the DeepSeek Harness web GUI**
+**Session cost tracking plugin for the DeepSeek Harness web GUI (bilingual UI)**
 
 Per-conversation cost · daily totals · budget with usage percentage · official account balance · history · peak/off-peak pricing · one-click price sync from the official docs
 
-[![version](https://img.shields.io/badge/version-1.1.2-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.2.0-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
 
@@ -33,11 +33,21 @@ English | [中文](README.md)
 | Price table | Settings page | Per-model base / off-peak / peak prices; fully editable |
 | Peak/off-peak pricing | Settings page | Official DeepSeek peak/off-peak scheme with effective-time gating and live tier status |
 | Official price sync | Settings page | Fetches and parses the official pricing page, applies with one click |
+| UI language | Settings → Display settings | Simplified Chinese / English / Follow browser (auto); switches instantly and auto-saves |
 | AI price sync | [prompt](docs/AI-PRICE-SYNC-PROMPT.en.md) | Hand it to any AI to sync per-model, time-of-day prices on its own |
+
+## Bilingual UI
+
+The plugin UI (session badge, sidebar balance row & budget box, and the entire Settings page) supports **Simplified Chinese** and **English**:
+
+- Language options: **Simplified Chinese** / **English** / **Follow browser (auto)**;
+- Default is “Follow browser”: the browser language is auto-detected (`zh*` → Chinese, otherwise English), and the detected value is written back into the config so server-side messages (balance query, price sync, etc.) match the UI language;
+- Switch it under **Settings → Cost → Display settings → Language** — the whole plugin UI updates instantly and auto-saves; the section label in the Settings sidebar switches too (费用 / Cost);
+- Server-generated notices (balance refresh, official price sync, config validation errors, …) are also output in the current language.
 
 ## Screenshots & walkthrough
 
-> All screenshots were captured on a live DeepSeek Harness instance. The plugin UI currently renders in Chinese, so the labels inside the screenshots are Chinese; the caption above each image explains what you are looking at.
+> All screenshots were captured on a live DeepSeek Harness instance. They show the Chinese UI by default; the plugin UI itself is bilingual (Simplified Chinese / English) — switch to English under Settings → Cost → Display settings → Language.
 
 ### Main page
 
