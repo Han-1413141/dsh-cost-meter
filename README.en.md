@@ -25,7 +25,7 @@ English | [中文](README.md)
 |---|---|---|
 | Per-conversation cost | Below the composer / session title bar | Live accumulated cost + input/cache/output tokens; position configurable |
 | Official balance | Sidebar top / Settings page (configurable) | Total / granted / topped-up balance, auto-refresh + manual refresh |
-| OpenCode Go quota | Sidebar / Settings page (configurable) | Rolling-5h / weekly / monthly usage percent and reset times; key auto-discovered (opencode login / OPENCODE_API_KEY) or entered manually |
+| OpenCode Go quota | Sidebar / Settings / bottom-right dock (configurable) | Rolling-5h / weekly / monthly usage percent and reset times, each window toggleable independently, budget used % can show alongside; key auto-discovered (opencode login / OPENCODE_API_KEY) or entered manually |
 | Today's cost | Sidebar bottom (above the settings button) | “Today ¥x”, hover for call count and token details |
 | Budget box | Sidebar bottom (between the balance row and the settings button) | Rounded-square frame: budget, used %, progress bar, today's cost & share of budget, used/limit; ≥80% warning, ≥100% over-budget |
 | Summary cards | Settings page | Today / this month / cumulative cost and call counts |
