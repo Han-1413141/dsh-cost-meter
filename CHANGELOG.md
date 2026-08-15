@@ -2,6 +2,12 @@
 
 本文件按 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式维护。
 
+## [Unreleased]
+
+### 变更
+
+- 侧边栏 rail 模式:余额行与今日行的文本符号(¥)改为官方风格钱包图标(16×16 填充式 SVG,currentColor,跟随主题色);宽栏文案、悬停明细与错误态(⚠)不变。
+
 ## [1.2.0] - 2026-08-14
 
 ### 新增
