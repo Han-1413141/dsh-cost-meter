@@ -109,22 +109,22 @@ The plugin UI (session badge, sidebar balance row & budget box, and the entire S
 
 ### One-click install (recommended)
 
-**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed):
+**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.2.0`** — review the script before running):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/master/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.2.0/install.ps1 | iex
 ```
 
-**Or a plain command line** (the machine must already have pnpm and git):
+**Or a plain command line** (the machine must already have pnpm and git; also pinned to the tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.2.0
 ```
 
-Without git, use the GitHub archive tarball (update by remove-then-add):
+Without git, use the GitHub tag archive:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/heads/master.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.2.0.tar.gz
 ```
 
 After installing, **restart** `dsh web` (plugin rows, the Typert manifest and the client bundle are all scanned at startup):
@@ -136,7 +136,7 @@ dsh web
 ### Update / Uninstall
 
 ```sh
-dsh plugin --profile web update dsh-cost-meter  # update to the latest commit (git form; or re-run the one-click script)
+# update: re-run the new release's install.ps1 (the pinned tag inside it moves with the release)
 dsh plugin --profile web remove dsh-cost-meter  # uninstall
 ```
 
@@ -227,7 +227,7 @@ dsh --profile web --port 3099                           # real startup (watch lo
 - Official-page parsing depends on the current page structure; after a redesign, “Sync prices from official docs” fails — edit the price table manually as a fallback;
 - The session badge is estimated at the current price tier; exact figures come from the ledger;
 - Price sync overwrites the same-named models listed on the official page; custom model entries are unaffected;
-- Balance lookup needs network access to api.deepseek.com and a valid API key;
+- Balance lookup needs network access to api.deepseek.com and a valid API key; **the API key is only ever sent to the official domain** (if baseURL points at a non-official host, balance queries refuse to run — model requests are unaffected);
 - A restart of `dsh web` is required after installing/updating the plugin.
 
 ## License

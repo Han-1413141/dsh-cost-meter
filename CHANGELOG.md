@@ -17,6 +17,11 @@
 - Typert 清单摘要与文档注释改为中英双语;package.json 补充 i18n/bilingual 等关键词;
 - package.json 新增 `dshhub` 清单(DSH Hub 收录所需:displayName / summary / categories / surfaces / capabilities / compatibility / permissions)。
 
+### 修复(安全)
+
+- **余额查询凭据收紧**:`balanceEndpoint` 仅允许官方域名 `api.deepseek.com`;`llm-deepseek.baseURL` / `DEEPSEEK_BASE_URL` 指向非官方域名时,余额查询直接拒绝发请求(中英双语报错),API Key 不再有被发往非官方端点的风险;
+- **可审计的固定安装链**:`install.ps1` 固定发布 tag(v1.2.0)与 pnpm 版本(11.21.0),git/tarball 两种来源均按 tag 安装,`irm` 一键行也固定到 tag URL;README 安装说明同步更新,并注明"先审阅再运行"。
+
 ## [1.1.2] - 2026-08-14
 
 ### 新增

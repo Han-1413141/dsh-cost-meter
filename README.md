@@ -109,22 +109,22 @@
 
 ### 一键安装(推荐)
 
-**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库):
+**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.2.0`**,建议先下载审阅再运行):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/master/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.2.0/install.ps1 | iex
 ```
 
-**或直接命令行**(机器上需已有 pnpm 与 git):
+**或直接命令行**(机器上需已有 pnpm 与 git;同样固定到 tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.2.0
 ```
 
-没有 git 时可用 GitHub 打包直链(更新时先 remove 再 add):
+没有 git 时可用 GitHub tag 打包直链:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/heads/master.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.2.0.tar.gz
 ```
 
 安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):
@@ -136,7 +136,7 @@ dsh web
 ### 更新 / 卸载
 
 ```sh
-dsh plugin --profile web update dsh-cost-meter  # 更新到最新提交(git 方式;或重跑一键脚本)
+# 更新:发布新版后用新版 install.ps1 重跑(脚本内固定版本随之更新)
 dsh plugin --profile web remove dsh-cost-meter  # 卸载
 ```
 
@@ -226,7 +226,7 @@ dsh --profile web --port 3099                           # 真机启动(观察启
 - 官方页面解析依赖当前页面结构;改版后「从官方文档同步价格」会报错,可手动编辑价格表兜底;
 - 会话徽章按当前价格档位估算,精确费用以账本为准;
 - 价格同步会覆盖官方页面列出的同名模型价格,自定义模型条目不受影响;
-- 余额查询需要可访问 api.deepseek.com 的网络与有效 API Key;
+- 余额查询需要可访问 api.deepseek.com 的网络与有效 API Key;**API Key 只会发往官方域名**(baseURL 指向非官方域名时余额查询拒绝请求,模型请求不受影响);
 - 安装/更新插件后需重启 `dsh web` 生效。
 
 ## License
