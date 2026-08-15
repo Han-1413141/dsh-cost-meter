@@ -25,6 +25,7 @@ English | [中文](README.md)
 |---|---|---|
 | Per-conversation cost | Below the composer / session title bar | Live accumulated cost + input/cache/output tokens; position configurable |
 | Official balance | Sidebar top / Settings page (configurable) | Total / granted / topped-up balance, auto-refresh + manual refresh |
+| OpenCode Go quota | Sidebar / Settings page (configurable) | Rolling-5h / weekly / monthly usage percent and reset times; key auto-discovered (opencode login / OPENCODE_API_KEY) or entered manually |
 | Today's cost | Sidebar bottom (above the settings button) | “Today ¥x”, hover for call count and token details |
 | Budget box | Sidebar bottom (between the balance row and the settings button) | Rounded-square frame: budget, used %, progress bar, today's cost & share of budget, used/limit; ≥80% warning, ≥100% over-budget |
 | Summary cards | Settings page | Today / this month / cumulative cost and call counts |
@@ -228,6 +229,7 @@ dsh --profile web --port 3099                           # real startup (watch lo
 - The session badge is estimated at the current price tier; exact figures come from the ledger;
 - Price sync overwrites the same-named models listed on the official page; custom model entries are unaffected;
 - Balance lookup needs network access to api.deepseek.com and a valid API key; **the API key is only ever sent to the official domain** (if baseURL points at a non-official host, balance queries refuse to run — model requests are unaffected);
+- The OpenCode Go quota endpoint is the official opencode.ai endpoint (community-documented); if its response shape changes, the Settings page shows an error and the display can be turned off in Display settings;
 - A restart of `dsh web` is required after installing/updating the plugin.
 
 ## License
