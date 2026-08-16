@@ -6,7 +6,7 @@
 
 Per-conversation cost · daily totals · budget with usage percentage · official account balance · history · peak/off-peak pricing · one-click price sync from the official docs
 
-[![version](https://img.shields.io/badge/version-1.2.0-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.3.0-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
 [![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
@@ -25,7 +25,7 @@ English | [中文](README.md)
 |---|---|---|
 | Per-conversation cost | Below the composer / session title bar | Live accumulated cost + input/cache/output tokens; position configurable |
 | Official balance | Sidebar top / Settings page (configurable) | Total / granted / topped-up balance, auto-refresh + manual refresh |
-| OpenCode Go quota | Sidebar / Settings / bottom-right dock (configurable) | Rolling-5h / weekly / monthly usage percent and reset times, each window toggleable independently, budget used % can show alongside; key auto-discovered (opencode login / OPENCODE_API_KEY) or entered manually |
+| OpenCode Go quota | Sidebar / Settings / bottom-right dock (configurable) | Rolling-5h / weekly / monthly usage percent and reset times, each window toggleable independently, budget used % can show alongside; key auto-discovered (DSH credential store OPENCODE_GO_API_KEY / env / opencode login) or entered manually |
 | Today's cost | Sidebar bottom (above the settings button) | “Today ¥x”, hover for call count and token details |
 | Budget box | Sidebar bottom (between the balance row and the settings button) | Rounded-square frame: budget, used %, progress bar, today's cost & share of budget, used/limit; ≥80% warning, ≥100% over-budget |
 | Summary cards | Settings page | Today / this month / cumulative cost and call counts |
@@ -64,6 +64,18 @@ The plugin UI (session badge, sidebar balance row & budget box, and the entire S
 
 - With no budget enabled, that spot shows the “Today ¥x” badge.
 
+**OpenCode Go quota** (same rounded style as the budget box; when both appear they merge into one card — Go on top, budget below; the “Go box details” toggle collapses secondary rows to just label + used % + progress bar):
+
+![Sidebar Go quota merged card](docs/screenshot-sidebar-footer-v2.png)
+
+- The box shows the main window's used % and progress bar (default rolling 5h; switchable to weekly/monthly in Display settings), with the other two windows and reset times in a row below; rail mode narrows to a tile:
+
+![Rail mode](docs/screenshot-sidebar-rail-v2.png)
+
+**Bottom-right (dock) quota / budget chips** (enabled in Display settings; four independent toggles: 5h / weekly / monthly quota + budget used %):
+
+![Corner chips](docs/screenshot-display-corner-v2.png)
+
 **Per-conversation cost** (two positions, switchable in Settings):
 
 | Below the composer | Session title bar |
@@ -76,17 +88,25 @@ The plugin UI (session badge, sidebar balance row & budget box, and the entire S
 
 ### Settings → Cost
 
-**Overview** (budget → balance → summary cards → today's sessions → history → display settings → price table → data & sync):
+**Overview** (OpenCode Go quota → budget → balance → summary cards → today's sessions → history → display settings → price table → data & sync):
 
 ![Settings page](docs/screenshot-settings.png)
 
-**Budget panel** (top, including custom date ranges):
+**OpenCode Go quota panel** (very top of the Settings page: three progress bars, main window highlighted, manual refresh; a neutral hint when there is no subscription, one-click disable):
+
+![Go quota panel](docs/screenshot-settings-top-v2.png)
+
+**Budget panel** (including custom date ranges):
 
 ![Budget](docs/screenshot-budget-panel.png)
 
 **Balance panel** (total/granted/topped-up + manual refresh):
 
 ![Balance](docs/screenshot-balance-panel.png)
+
+**Display settings** (Go main window & key, corner chips, box details, …):
+
+![Display settings](docs/screenshot-display-settings-v2.png)
 
 **Summary cards**:
 
@@ -110,22 +130,22 @@ The plugin UI (session badge, sidebar balance row & budget box, and the entire S
 
 ### One-click install (recommended)
 
-**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.2.0`** — review the script before running):
+**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.3.0`** — review the script before running):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.2.0/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.3.0/install.ps1 | iex
 ```
 
 **Or a plain command line** (the machine must already have pnpm and git; also pinned to the tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.2.0
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.3.0
 ```
 
 Without git, use the GitHub tag archive:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.2.0.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.3.0.tar.gz
 ```
 
 After installing, **restart** `dsh web` (plugin rows, the Typert manifest and the client bundle are all scanned at startup):

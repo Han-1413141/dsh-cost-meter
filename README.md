@@ -6,7 +6,7 @@
 
 本会话费用 · 当日费用 · 预算与已用百分比 · 官方账户余额 · 历史记录 · 峰谷计价 · 官方价格一键同步
 
-[![version](https://img.shields.io/badge/version-1.2.0-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.3.0-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
 [![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
@@ -25,7 +25,7 @@
 |---|---|---|
 | 本会话费用 | 输入区下方 / 会话标题栏 | 实时累计费用 + 输入/缓存/输出 token,位置可配 |
 | 官方余额 | 侧边栏顶部 / 设置页(可配) | 总余额 / 赠送 / 充值,自动刷新 + 手动刷新 |
-| OpenCode Go 额度 | 侧边栏 / 设置页 / 右下角(dock,可配) | 滚动 5 小时 / 本周 / 本月用量百分比与重置时间,三档可分别开关,可同时显示预算已用%;Key 自动发现(opencode 登录态 / OPENCODE_API_KEY)或手动填写 |
+| OpenCode Go 额度 | 侧边栏 / 设置页 / 右下角(dock,可配) | 滚动 5 小时 / 本周 / 本月用量百分比与重置时间,三档可分别开关,可同时显示预算已用%;Key 自动发现(DSH 凭据库 OPENCODE_GO_API_KEY / 环境变量 / opencode 登录态)或手动填写 |
 | 当日费用 | 侧边栏底部(设置按钮上方) | 「今日 ¥x」,悬停见调用次数与 token 明细 |
 | 预算图框 | 侧边栏底部(余额行与设置按钮之间) | 圆角方形图框:预算、已用%、进度条、今日费用与占预算%、已用/额度,≥80% 预警、≥100% 超支 |
 | 汇总卡片 | 设置页 | 今日 / 本月 / 累计费用与调用次数 |
@@ -64,6 +64,18 @@
 
 - 未启用预算时,该位置显示「今日 ¥x」徽章。
 
+**OpenCode Go 额度**(与预算图框同款圆角样式;两者同时出现时自动合并为一张卡片,Go 在上、预算在下;「Go 图框详细信息」开关可收起次要行,只保留 标签 + 已用% + 进度条):
+
+![侧边栏 Go 额度合并卡片](docs/screenshot-sidebar-footer-v2.png)
+
+- 图框按主档位(默认滚动 5 小时,可在显示设置切换周/月)显示已用% 与进度条,下方一行展示其余两档与重置时间;窄栏(rail)模式收窄为方块:
+
+![窄栏 rail](docs/screenshot-sidebar-rail-v2.png)
+
+**右下角(dock)额度 / 预算 chips**(显示设置中开启,四项独立开关:5h / 周 / 月额度 + 预算已用%):
+
+![右下角 chips](docs/screenshot-display-corner-v2.png)
+
 **本会话费用**(两个位置,可在设置中切换):
 
 | 输入区下方 | 会话标题栏 |
@@ -76,17 +88,25 @@
 
 ### 设置 → 费用
 
-**概览**(预算 → 余额 → 汇总卡片 → 今日会话 → 历史记录 → 显示设置 → 价格表 → 数据与同步):
+**概览**(OpenCode Go 额度 → 预算 → 余额 → 汇总卡片 → 今日会话 → 历史记录 → 显示设置 → 价格表 → 数据与同步):
 
 ![设置页](docs/screenshot-settings.png)
 
-**预算面板**(顶部,含自定义日期区间):
+**OpenCode Go 额度面板**(设置页最顶部:三档进度条,主档位高亮,手动刷新;未订阅时为中性提示,可一键关闭):
+
+![Go 额度面板](docs/screenshot-settings-top-v2.png)
+
+**预算面板**(含自定义日期区间):
 
 ![预算](docs/screenshot-budget-panel.png)
 
 **余额面板**(总余额/赠送/充值 + 手动刷新):
 
 ![余额](docs/screenshot-balance-panel.png)
+
+**显示设置**(Go 主档位与 Key、右下角 chips、图框详细信息等):
+
+![显示设置](docs/screenshot-display-settings-v2.png)
 
 **汇总卡片**:
 
@@ -110,22 +130,22 @@
 
 ### 一键安装(推荐)
 
-**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.2.0`**,建议先下载审阅再运行):
+**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.3.0`**,建议先下载审阅再运行):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.2.0/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.3.0/install.ps1 | iex
 ```
 
 **或直接命令行**(机器上需已有 pnpm 与 git;同样固定到 tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.2.0
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.3.0
 ```
 
 没有 git 时可用 GitHub tag 打包直链:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.2.0.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.3.0.tar.gz
 ```
 
 安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):
