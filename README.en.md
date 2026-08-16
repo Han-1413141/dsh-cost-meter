@@ -4,9 +4,9 @@
 
 **Session cost tracking plugin for the DeepSeek Harness web GUI (bilingual UI)**
 
-Per-conversation cost · daily totals · budget with usage percentage · official account balance · history · peak/off-peak pricing · one-click price sync from the official docs
+Per-conversation cost · daily totals · budget with usage percentage · official account balance · history · peak/off-peak pricing · one-click price sync from the official docs · OpenCode Go subscription quota · Codex-style token usage heat grid
 
-[![version](https://img.shields.io/badge/version-1.3.0-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.3.1-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
 [![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
@@ -29,6 +29,7 @@ English | [中文](README.md)
 | Today's cost | Sidebar bottom (above the settings button) | “Today ¥x”, hover for call count and token details |
 | Budget box | Sidebar bottom (between the balance row and the settings button) | Rounded-square frame: budget, used %, progress bar, today's cost & share of budget, used/limit; ≥80% warning, ≥100% over-budget |
 | Summary cards | Settings page | Today / this month / cumulative cost and call counts |
+| Token usage stats | Settings page (Cost section) | All-time token totals (input/cache/output/calls) + a Codex-style 26-week daily usage heat grid that fills the settings width; hover a cell for that day's detail |
 | Today's sessions | Settings page | Per-session call count, input/cache/output tokens and cost |
 | History | Settings page | Per-day totals; retention days configurable (default 180) |
 | Budget settings | Settings page, top | Limit, period (today / month / cumulative / custom date range), used % |
@@ -111,6 +112,10 @@ The plugin UI (session badge, sidebar balance row & budget box, and the entire S
 
 ![Cards](docs/screenshot-cards.png)
 
+**Token usage stats** (all-time totals + a Codex-style 26-week heat grid filling the settings width; translucent glass cells for unused days):
+
+![Token usage stats](docs/screenshot-usage-grid.png)
+
 **Today's sessions / history** (input, cache and output tokens in separate columns):
 
 ![Today's sessions](docs/screenshot-table-1.png) ![History](docs/screenshot-table-2.png)
@@ -132,13 +137,13 @@ The plugin UI (session badge, sidebar balance row & budget box, and the entire S
 **PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.3.0`** — review the script before running):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.3.0/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.3.1/install.ps1 | iex
 ```
 
 **Or a plain command line** (the machine must already have pnpm and git; also pinned to the tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.3.0
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.3.1
 ```
 
 Without git, use the GitHub tag archive:

@@ -4,9 +4,9 @@
 
 **DeepSeek Harness 会话费用统计插件(界面中英双语)**
 
-本会话费用 · 当日费用 · 预算与已用百分比 · 官方账户余额 · 历史记录 · 峰谷计价 · 官方价格一键同步
+本会话费用 · 当日费用 · 预算与已用百分比 · 官方账户余额 · 历史记录 · 峰谷计价 · 官方价格一键同步 · OpenCode Go 订阅额度 · 类 Codex Token 用量热图
 
-[![version](https://img.shields.io/badge/version-1.3.0-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.3.1-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
 [![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
@@ -29,6 +29,7 @@
 | 当日费用 | 侧边栏底部(设置按钮上方) | 「今日 ¥x」,悬停见调用次数与 token 明细 |
 | 预算图框 | 侧边栏底部(余额行与设置按钮之间) | 圆角方形图框:预算、已用%、进度条、今日费用与占预算%、已用/额度,≥80% 预警、≥100% 超支 |
 | 汇总卡片 | 设置页 | 今日 / 本月 / 累计费用与调用次数 |
+| Token 用量统计 | 设置页(费用设置) | 历史累计 token 总量(输入/缓存/输出/调用)+ 类 Codex 的 26 周每日用量方格热图,横向铺满设置页宽度,悬停见当日明细 |
 | 今日会话明细 | 设置页 | 每个会话的调用次数、输入/缓存/输出 token 与费用 |
 | 历史记录 | 设置页 | 按天汇总,保留天数可配(默认 180 天) |
 | 预算设置 | 设置页顶部 | 额度、周期(今日/本月/累计/自定义日期区间)、已用% |
@@ -111,6 +112,10 @@
 
 ![卡片](docs/screenshot-cards.png)
 
+**Token 用量统计**(历史累计总量 + 类 Codex 的 26 周方格热图,横向铺满设置页宽度;无用量日为半透明玻璃格):
+
+![Token 用量统计](docs/screenshot-usage-grid.png)
+
 **今日会话 / 历史记录**(输入、缓存、输出 token 分列):
 
 ![今日会话](docs/screenshot-table-1.png) ![历史记录](docs/screenshot-table-2.png)
@@ -132,13 +137,13 @@
 **PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.3.0`**,建议先下载审阅再运行):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.3.0/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.3.1/install.ps1 | iex
 ```
 
 **或直接命令行**(机器上需已有 pnpm 与 git;同样固定到 tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.3.0
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.3.1
 ```
 
 没有 git 时可用 GitHub tag 打包直链:
