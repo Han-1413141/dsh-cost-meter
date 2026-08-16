@@ -251,6 +251,10 @@ dsh --profile web --port 3099                           # real startup (watch lo
 - The OpenCode Go quota endpoint is the official opencode.ai endpoint (community-documented); if its response shape changes, the Settings page shows an error and the display can be turned off in Display settings;
 - A restart of `dsh web` is required after installing/updating the plugin.
 
+## Update history
+
+A per-version overview and the community-issue resolution log live in [docs/UPDATE-HISTORY.md](docs/UPDATE-HISTORY.md) (中文); the itemized changelog is [CHANGELOG.md](CHANGELOG.md).
+
 ## License
 
 [MIT](LICENSE) © 2026 dsh-cost-meter contributors

@@ -250,6 +250,10 @@ dsh --profile web --port 3099                           # 真机启动(观察启
 - OpenCode Go 额度接口为 opencode.ai 官方端点(社区文档);接口结构变化时设置页会显示错误,可在显示设置中关闭该显示;
 - 安装/更新插件后需重启 `dsh web` 生效。
 
+## 更新历史
+
+各版本更新总览与社区 issue 处理记录见 [docs/UPDATE-HISTORY.md](docs/UPDATE-HISTORY.md);逐条开发记录见 [CHANGELOG.md](CHANGELOG.md)。
+
 ## License
 
 [MIT](LICENSE) © 2026 dsh-cost-meter contributors
