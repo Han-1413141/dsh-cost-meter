@@ -134,7 +134,7 @@ The plugin UI (session badge, sidebar balance row & budget box, and the entire S
 
 ### One-click install (recommended)
 
-**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.3.0`** — review the script before running):
+**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.3.1`** — review the script before running):
 
 ```powershell
 irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.3.1/install.ps1 | iex
@@ -149,7 +149,7 @@ dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.3.1
 Without git, use the GitHub tag archive:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.3.0.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.3.1.tar.gz
 ```
 
 After installing, **restart** `dsh web` (plugin rows, the Typert manifest and the client bundle are all scanned at startup):
