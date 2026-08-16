@@ -53,22 +53,21 @@ The plugin UI (session badge, sidebar balance row & budget box, and the entire S
 
 ### Main page
 
-**Sidebar bottom** (top to bottom: official balance → budget box → settings button; with the budget disabled, the balance row still sits above the settings button):
+**Sidebar bottom** (top to bottom: official balance → quota/budget box → settings button):
 
 ![Sidebar footer](docs/screenshot-sidebar-footer.png)
 
 - The balance row shows the official open-platform total balance; hovering reveals the granted/topped-up split;
-- With a budget enabled, the rounded-square frame shows “budget · used % · progress bar · today's cost & share of budget · used/limit”; in rail mode it narrows to a percentage tile;
-
-![Budget box](docs/screenshot-budget-box.png)
-
 - With no budget enabled, that spot shows the “Today ¥x” badge.
 
-**OpenCode Go quota** (same rounded style as the budget box; when both appear they merge into one card — Go on top, budget below; the “Go box details” toggle collapses secondary rows to just label + used % + progress bar):
+**Quota / budget box — three states** (OpenCode Go quota and the budget each toggle independently in the same rounded style; with both on they **merge into one card** — Go on top, budget below, thin divider, each keeps its own warning colors; the “box details” toggle collapses secondary rows to just label + used % + progress bar):
 
-![Sidebar Go quota merged card](docs/screenshot-sidebar-footer-v2.png)
+| Go quota only | Budget only | Merged |
+|---|---|---|
+| ![Go quota only](docs/screenshot-go-box.png) | ![Budget only](docs/screenshot-budget-box.png) | ![Merged card](docs/screenshot-sidebar-footer-v2.png) |
 
-- The box shows the main window's used % and progress bar (default rolling 5h; switchable to weekly/monthly in Display settings), with the other two windows and reset times in a row below; rail mode narrows to a tile:
+- The budget box shows “budget · used % · progress bar · today's cost & share of budget · used/limit”; ≥80% warning, ≥100% over-budget; rail mode narrows to a percentage tile;
+- The Go box shows the main window's used % and progress bar (default rolling 5h; switchable to weekly/monthly in Display settings), with the other two windows and reset times in a row below:
 
 ![Rail mode](docs/screenshot-sidebar-rail-v2.png)
 
