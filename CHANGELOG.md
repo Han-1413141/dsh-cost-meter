@@ -1,5 +1,58 @@
 # Changelog
 
+## [1.5.0] - 2026-08-18
+
+### 新增
+
+- **多厂商 Coding Plan 额度查询**:新增 `lib/coding-plans.js` adapter 框架,首批接入三家(均经端点存活实测):Anthropic Claude Pro/Max(`api.anthropic.com/api/oauth/usage`,OAuth token,5 小时/7 天窗口)、Z.ai/智谱 GLM Coding Plan(`api.z.ai` 与 `open.bigmodel.cn` 国际/国内双端点,兼容 plans 数组与扁平窗口两种响应)、MiniMax Token Plan(`minimaxi.com`/`minimax.io` 双域,旧 Coding Plan 计数制端点兼容回退)。
+- **Kimi / Moonshot 额度接入(第四家)**:官方 PAYG 余额端点 `api.moonshot.cn/v1/users/me/balance`(未授权实测 401 存活,官方文档明确),显示人民币余额文本窗口;额度窗口新增 `text` 形态(无百分比的量直接显示文本,strict codec 同步放宽);Kimi Code 订阅周窗/5小时窗暂无 API-Key 化公开端点(仅控制台),已在面板与文档中如实注明。
+- **OpenRouter / SiliconFlow 额度接入(第五、六家)**:OpenRouter `openrouter.ai/api/v1/credits` 预付 credits 已用%(官方文档端点,实测 401 存活);SiliconFlow 硅基流动 `api.siliconflow.cn/v1/user/info` 账户余额文本窗口(实测 30014 存活);白名单断言入 verify。至此覆盖 Anthropic / Z.ai·智谱 / MiniMax / Kimi / OpenRouter / SiliconFlow 六家;百炼 / OpenAI Codex / Gemini Code Assist / GitHub Copilot 个人版经调研无 API-Key 化公开用量端点,如实注明不接入。
+- **「账本不可用」根治与兼容性加固**:修复拓展价格目录经 `priceSchema`(要求三桶数字)下发导致未核价/两档简写条目击穿 strict codec 的问题(新增 `catalogEntrySchema` 兼容三桶/两档/未核价);新增 `sanitizeConfig` 在账本加载边界清洗非法配置值(类型/枚举/嵌套面板定向回落,随下次落盘覆盖);`buildState` 增加 stateSchema 自检与逐级降级兑底(剔目录 → 空额度状态),漂移时保核心可用性而非整体拒绝;verify.mjs 第 7 节固化回归(含完整快照过 strict codec 的漂移哨兵测试)。
+- **模型名自动匹配计费**:未知模型 id 按 精确 → 手动覆盖 → 去日期/版本后缀 → 前缀(最长) → 家族 token 相似(≥2 前缀 token,阈值防误配) 解析价格;`priceMatch` 配置(auto/exact,默认 auto)可在设置中关闭;宿主账本入账与客户端估算同口径(pricing.js `matchModelId` + bundle 镜像双实现,注释标明同步要求)。
+- **手动匹配指定**:设置页新增「最近出现但未精确命中的模型」列表,可为每个模型下拉指定计费所用的价格条目(含跨 provider 引用与 DeepSeek 默认价),写入 `priceOverrides` 手动覆盖(优先级最高,支持移除);配置经校验与 strict codec。
+- **拓展价格表目录**:设置页新增「拓展价格表」面板(点开展开)——内置只读目录按 厂商 → 模型家族 分类展示全部内置价格(含 DeepSeek 峰谷两档与 13 家第三方);支持一键挂载到费用设置价格表参与计费,DeepSeek 模型可取消挂载回退默认价后重新挂载;目录由宿主 `buildPriceCatalog()` 经状态下发(`PROVIDER_MODEL_FAMILIES` 家族分组),缺失时面板自动隐藏。
+- 凭据发现链与余额/Go 额度一致:面板显式 Key → DSH 凭据库 → 环境变量 → CLI 登录态兜底(Anthropic 自动读 `~/.claude/.credentials.json`);Key 只发往各家硬编码官方域名(白名单断言入 verify)。
+- 设置页新增「Coding Plan 额度」面板:各家独立启用开关/Key 输入/手动刷新/进度条与重置时间;无凭据/无订阅为软失败中性提示;新增 `refreshCodingPlan(provider)` RPC 与状态 `codingPlans` 字段(strict codec)。
+- Kimi Code 订阅窗口 / 阿里云百炼 Coding Plan / OpenAI Codex / Gemini Code Assist / GitHub Copilot 暂无 API-Key 化公开用量端点,交接文档记录调研结论不接入(Kimi 仅接入 PAYG 余额)。
+- 测试:`verify.mjs` 新增第 5 节(归一化/三家解析器/软失败/官方域名白名单/配置清洗/清单断言)。
+- **价格目录大扩充(含 OpenCode Go 全部模型)**:内置目录从 ~30 个模型扩充至 90+:OpenAI GPT-5.6 Sol/Terra/Luna、GPT-5.5、5.4 全系、5.3 Codex、5.2、5.1 全系,Anthropic Fable 5/Opus 5/4.8/4.7/4.6/Sonnet 5/4.6,Gemini 3.7/3.6/3.5 Flash、3.1 Pro、2.5 全系,Grok 4.6,GLM-5.3/5,Qwen3.8/3.6/3.5,Kimi K2.5,MiniMax M2.5,MiMo V2.5,Hy3 等;价格以 OpenCode Zen/Go 官方价目(cost-pass-through)与各厂官方定价页交叉核对,无法核价的(GLM-5.3 等)标 unpriced 不编造;新增 `opencode-go` 目录含订阅全部 18 个模型的官方参考单价;`docs/provider-pricing.json` 由代码自动再生成。
+- **挂载即在费用设置直接显示**:拓展价格表挂载的第三方模型在「价格表」区以可编辑卡片直接展示(与 DeepSeek 价格同区,按厂商分组,含输入/缓存/输出三栏与取消挂载);未核价条目禁止挂载。
+- **拓展价格表厂商默认折叠**:点开面板后各厂商默认收起(▸ 标题含模型数),点击单个厂商展开,互不影响。
+- 修复:客户端 parseConfig 的 codingPlans 硬编码三家白名单导致 kimi/openrouter/siliconflow 配置被丢弃,改为通用遍历校验。
+
+## [1.4.1] - 2026-08-18
+
+### 新增
+
+- **峰时/平价时段条(适配 PR #9 并修复)**:展开态将峰时提示升级为单行紧凑时段条——细轨道左橙右蓝、标记线指向当前时段,右侧文字显示当前时段与距下次切换的倒计时(30 秒刷新),竖向占用约一行;峰时橙色文字、平价蓝色文字,不显示价格;预算框、今日费用与设置页预算面板三处生效;仍遵循 `peakNotice` / `peakEnabled` / `peakEffectiveAt` / `peakWindows` 门控。
+- **收起态竖向峰谷时段条**:侧边栏收起(rail)时显示与展开态同构的竖向时段条——竖轨道上橙(峰)下蓝(平价)、标记线指向当前时段,下方横排短词,悬停查看完整中英文计费提示(不采纳 PR #9 「rail 窄栏隐藏」的方案,满足收起时可见的需求)。
+- **峰谷相位纯函数与边界测试**:`lib/pricing.js` 新增 `peakPhaseAt`(相位与相邻切换点,客户端 bundle 镜像同逻辑);`test/verify.mjs` 补充峰始/峰终半开边界、跨日回绕、跨午夜窗口、空窗口/非法输入断言。
+- 收起态竖向条截图源文件 `docs/peak-notice-rail.html`(旧 ⚡ 版已替换)。
+- **峰谷时段条样式可切换(`peakStyle`)**:设置 → 费用 → 峰谷计价 下新增「峰谷时段条样式」,可选简洁(单行紧凑,默认)与经典(分段轨道 + 箭头旗标 + 胶囊芯片;收起态为文字分段 + 进度填充),展开/收起两态同步切换;配置经 `applyConfigPatch` 校验(compact / classic)与 strict codec(optional 枚举),旧账本自动补默认值。
+- **峰时色改为亮橙色**:时段条/竖向条的峰时色由主题警示黄(`--dsw-alias-state-warn-primary`)改为固定亮橙色 #ff9800(段落、文字、经典样式旗标均适用),与平价蓝对比更明确。
+- **收起态短词改横排**:简洁样式收起态不再竖排文字,轨道下方横排单行短词「峰时 / 平价」,倒计时与完整计费提示移入悬停提示,不拥挤。
+- **取消非当前段淡化**:简洁样式时段条/竖向条不再对非当前段加透明度(浅色背景下橙色被稀释成浅黄,误观感为颜色未改),两段恒定满色,当前时段由标记线与文字色指示。
+
+### 变更(设置页整理)
+
+- **峰谷设置与预算分离**:新增独立「峰谷计价与提示」面板(紧随预算面板)——启用开关、显著提示开关、时段条样式切换与实时时段条预览(随草稿即时刷新)、峰窗/生效时间/当前档位状态行;预算面板不再内嵌时段条,「显示设置」网格不再混入峰谷控件。
+- **显示设置分组重排**:字段按「常规 / 金额与币种 / 侧边栏显示 / 右下角角标 / 图框详细信息」五组加分隔标题展示,同组字段相邻;清理无引用的旧文案键。
+- **Coding Plan 面板默认折叠**:设置页「Coding Plan 额度」默认收起,仅显示标题与一段说明;标题旁提供展开/折叠按钮,展开后显示完整说明与三家配置卡,展开/收起状态经 localStorage 记住(刷新页面保持,存储不可用时仅本会话生效)。
+
+### 修复(PR #9 审查)
+
+- 修复收起态引用未定义的 `peakShort` / `offPeakShort` 文案键导致显示原始键名的问题(中英文文案已补齐,含倒计时系列键)。
+- 峰谷门控与窗口判定收敛为单一 `peakView` / `peakPhaseAt` 路径,展开/收起两处共享,时钟源唯一(组件内 `useState` 定时刷新),消除原先三处重复的 `now` 计算与门控拷贝。
+- 移除不再渲染的 `.cm-peak-notice` 死样式;时段条/竖向条样式选择器按最终 DOM 结构核对无误。
+- 修复**启用预算时收起侧边栏不显示竖向峰谷时段条**:竖向条原只在「未启用预算的今日徽章」分支渲染,启用预算后 rail 模式只有百分比方块;现将竖向条移至侧边栏底部堆叠末尾,收起态无论预算 / Go 额度开关状态均统一显示(仍受 `peakNotice` 等门控),居中对齐百分比方块。
+
+### 修复(账本/额度)
+
+- **账本不可用**:历史中间版本曾向账本写入 `reasoning: null` 等非法数值,Typert strict 状态 codec(zod `number()` 拒绝 null)拒绝整个 `getState` 响应,设置页显示「账本不可用」;现在 `Ledger.open()` 在加载边界用 `sanitizeDays()` 清洗全部数值字段(非有限/负数/缺失归 0,非法 byProviderModel 条目剔除),随下次落盘覆盖旧数据。
+- **OpenCode Go 额度无法查询**:与上同根——`refreshGoQuota` 返回体携带的账本状态同样击穿 strict codec,网关拒绝整个响应;随账本清洗一并修复(额度端点 `opencode.ai/zen/go/v1/usage` 与 Key 发现链实测正常,真实 Key 返回 200)。
+- 测试:`verify.mjs` 新增旧账本兼容回归(含 `reasoning: null`/缺失字段/非法条目的 fixture + strict codec `safeParse` 断言)。
+
+
 本文件按 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 格式维护。
 
 ## [1.4.0] - 2026-08-17
@@ -12,6 +65,8 @@
 
 ### 变更
 
+- **非 DeepSeek provider 计费适配**:按 provider + model 隔离价格与账本明细,支持 OpenAI、Anthropic、Google Gemini、Mistral 的 flat input/output/cache/reasoning token 价格;非 DeepSeek 未配置模型不再静默套用 DeepSeek 默认价。
+- **官方价格目录**:新增 `docs/provider-pricing.json`,首批记录 OpenAI、Anthropic、Gemini、Mistral 官方 API 价格、来源 URL、核对日期与限制说明;未确认的官方型号不编造价格。
 - **价格表适配更多模型计费方式**:支持 `input`/`output` 两档简写(Anthropic / Gemini / Mistral 等无缓存折扣模型)与任意子集——`cacheMiss` 缺省取 `input`、`cacheHit` 缺省取 `cacheMiss`(无缓存折扣时命中价 = 未命中价),峰谷子档同样适用;此前两档写法会被误判为非法、缺省命中价会被按 0 计费。
 - 账本入账 token 归一化:非数字/负数 token 按 0 处理,防止污染聚合(计费数学本身已有防护,此变更覆盖账本累加)。
 - 修复:设置页编辑价格表保存会把模型的 `legacyBase` 抹掉(客户端解析未保留该字段),现已在客户端解析与草稿回传中完整保留。

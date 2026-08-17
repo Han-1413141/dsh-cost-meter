@@ -6,7 +6,7 @@
 
 本会话费用 · 当日费用 · OpenCode Go 订阅额度显示 · 预算与已用百分比 · 官方账户余额 · 历史记录 · 峰谷计价时段显示(UTC 01:00–04:00、06:00–10:00 为峰时段) · 官方价格一键同步 · 类 Codex Token 用量热图
 
-[![version](https://img.shields.io/badge/version-1.4.0-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.4.1-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
 [![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
@@ -27,6 +27,7 @@
 | 本会话费用 | 输入区下方 / 会话标题栏 | 实时累计费用 + 输入/缓存/输出 token,位置可配 |
 | 官方余额 | 侧边栏顶部 / 设置页(可配) | 总余额 / 赠送 / 充值,自动刷新 + 手动刷新 |
 | OpenCode Go 额度 | 侧边栏 / 设置页 / 右下角(dock,可配) | 滚动 5 小时 / 本周 / 本月用量百分比与重置时间,三档可分别开关,可同时显示预算已用%;Key 自动发现(DSH 凭据库 OPENCODE_GO_API_KEY / 环境变量 / opencode 登录态)或手动填写 |
+| Coding Plan 额度 | 设置页 | 多厂商 coding plan 订阅额度查询(Anthropic Claude Pro/Max、Z.ai/智谱 GLM、MiniMax Token Plan、Kimi/Moonshot 余额、OpenRouter credits、SiliconFlow 余额),各家独立启用开关与 Key,凭据只发往官方端点;无凭据/无订阅为中性提示 |
 | 当日费用 | 侧边栏底部(设置按钮上方) | 「今日 ¥x」,悬停见调用次数与 token 明细 |
 | 预算图框 | 侧边栏底部(余额行与设置按钮之间) | 圆角方形图框:预算、已用%、进度条、今日费用与占预算%、已用/额度,≥80% 预警、≥100% 超支 |
 | 汇总卡片 | 设置页 | 今日 / 本月 / 累计费用与调用次数 |
@@ -35,10 +36,14 @@
 | 历史记录 | 设置页 | 按天汇总,保留天数可配(默认 180 天) |
 | 预算设置 | 设置页顶部 | 额度、周期(今日/本月/累计/自定义日期区间)、已用% |
 | 价格表 | 设置页 | 每模型 谷时/峰时 两档价格(支持 input/output 简写,缓存价自动补齐),增删改自由 |
-| 峰谷计价时段显示 | 设置页 / 预算 / 今日费用 | 显示 UTC 峰时段 01:00–04:00、06:00–10:00 与当前档位;峰时高价时段在预算与今日费用区域显示显著提示,可单独开关 |
+| 峰谷计价时段显示 | 设置页 / 预算 / 今日费用 | 显示 UTC 峰时段 01:00–04:00、06:00–10:00 与当前档位;展开态显示峰时/平价时段条(当前时段 + 倒计时),收起(rail)态显示竖向峰谷进度条,可单独开关 |
 | 官方价格同步 | 设置页 | 抓取解析官方定价页,一键应用 |
 | 界面语言 | 设置页 → 显示设置 | 简体中文 / English / 跟随浏览器(自动);切换即时生效并自动保存 |
-| AI 价格同步 | [提示词](docs/AI-PRICE-SYNC-PROMPT.md) | 交给任意 AI 自主同步多模型、分时价格 |
+| AI 价格同步 | [提示词](docs/AI-PRICE-SYNC-PROMPT.md) | DeepSeek 官方同步;其他 provider 使用已核对的官方价格目录与手动配置 |
+| 模型与 Plan 适配说明 | [适配文档](docs/model-and-plan-adaptation.md) | 各厂商模型计费与 6 家 Coding Plan 的适配矩阵、自动匹配机制与价格来源([English](docs/model-and-plan-adaptation.en.md)) |
+| 多 provider 计费 | 设置页 / 账本 | 支持 OpenAI、Anthropic、Google Gemini、Mistral 等 provider 的 input/output、缓存与 reasoning token 价格,按 provider+model 隔离计费 |
+| 模型名自动匹配 | 设置页 / 账本 | 未知模型 id 自动匹配价格表(去日期/版本后缀 → 前缀 → 家族相似),可关闭为仅精确;未命中模型可在设置中手动指定用哪个条目的价格 |
+| 拓展价格表 | 设置页 → 拓展价格表 | 内置各厂商、按模型家族分类的参考价格目录(点开展开);一键挂载到费用设置参与计费,DeepSeek 模型可取消挂载回退默认价 |
 
 ## 双语界面
 
@@ -69,17 +74,21 @@
 | ![仅 Go 额度](docs/screenshot-go-box.png) | ![仅预算](docs/screenshot-budget-box.png) | ![合并卡片](docs/screenshot-sidebar-footer-v2.png) |
 
 - 预算图框显示「预算 · 已用% · 进度条 · 今日费用与占预算% · 已用/额度」,≥80% 预警、≥100% 超支;窄栏(rail)模式收窄为百分比方块;
-- 峰谷计价时段显示 UTC 峰时段 01:00–04:00、06:00–10:00 与当前档位;当前处于 DeepSeek 峰时高价时段时,预算框与今日费用区域显示「当前为 DeepSeek 峰时高价时段,按峰时价计费」显著提示;可在设置中单独关闭,rail 窄栏不显示;
+- 峰谷计价时段显示 UTC 峰时段 01:00–04:00、06:00–10:00 与当前档位;预算框与今日费用区域显示单行紧凑时段条——细轨道左橙右蓝、标记线指向当前时段,右侧文字为当前时段与距下次切换的倒计时(30 秒刷新),不显示价格;可在设置中单独关闭,并在「峰谷时段条样式」中切换简洁/经典两种样式;rail 窄栏显示同构的竖向时段条,下方横排短词「峰时 / 平价」,倒计时与完整文案悬停可见;
 
-**峰时高价时段提示**:
+**峰时/平价时段条与收起态竖向进度条**:
 
-| 侧边栏峰时提示 | 设置页峰时提示开关 |
+| 侧边栏峰时提示(v1.4.0 文案提示样式) | 设置页峰时提示开关 |
 |---|---|
 | ![侧边栏峰时提示](docs/peak-notice-zh.png) | ![设置页峰时提示开关](docs/peak-notice-settings-zh.png) |
 
-- 提示遵循 `peakEnabled` / `peakEffectiveAt` / `peakWindows` 门控,按 UTC 峰时窗口显示;
-- 设置 → 费用 → 峰谷计价 下可单独开关「峰时高价时段显著提示」;
-- 配图展示侧边栏今日费用、预算框和设置页开关三处效果。
+v1.4.1+ 时段条与收起态竖向条实拍对比(① 展开态·简洁 ② 展开态·经典 ③ 收起 rail 态·左:简洁 / 右:经典,图示为峰时):
+
+![峰谷时段条(中文)](docs/peak-strip-zh.png)
+
+- 提示遵循 `peakNotice` / `peakEnabled` / `peakEffectiveAt` / `peakWindows` 门控,按 UTC 峰时窗口显示;
+- 设置 → 费用 → 峰谷计价 下可单独开关「峰时高价时段显著提示」,关闭后展开态时段条与收起态竖向条同时隐藏;
+- 上方第一组配图取自 v1.4.0 的一行文案提示;时段条与收起态竖向条的效果见第二张配图(截图源为 `docs/peak-shots-zh.html`,由真实组件 SSR 生成)。
 
 - Go 图框按主档位(默认滚动 5 小时,可在显示设置切换周/月)显示已用% 与进度条,下方一行展示其余两档与重置时间:
 
@@ -147,22 +156,22 @@
 
 ### 一键安装(推荐)
 
-**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.4.0`**,建议先下载审阅再运行):
+**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.4.1`**,建议先下载审阅再运行):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.4.0/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.4.1/install.ps1 | iex
 ```
 
 **或直接命令行**(机器上需已有 pnpm 与 git;同样固定到 tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.4.0
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.4.1
 ```
 
 没有 git 时可用 GitHub tag 打包直链:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.4.0.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.4.1.tar.gz
 ```
 
 安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):
@@ -192,7 +201,7 @@ dsh plugin --profile web add link:./dsh-cost-meter  # 符号链接,改 lib/clien
 
 - 价格单位与官方文档一致:**美元 / 1M tokens**;
 - 成本 = 未命中输入 × cache-miss + 输出 × output + (缓存读 + 缓存写) × cache-hit(缓存写沿用官方历史规则按命中价计费);
-- **纯峰谷两档计价**(2026-08 起官方方案):峰时段(01:00–04:00、06:00–10:00 UTC)按峰时价,其余按谷时价(谷时价 = 峰时价的一半);基础档与谷时档同价,未启用峰谷时按谷时价计;设置页实时显示当前档位(峰时段/谷时段);当前处于峰时段时,预算与今日费用区域显示一行显著提示;
+- **纯峰谷两档计价**(2026-08 起官方方案):峰时段(01:00–04:00、06:00–10:00 UTC)按峰时价,其余按谷时价(谷时价 = 峰时价的一半);基础档与谷时档同价,未启用峰谷时按谷时价计;设置页实时显示当前档位(峰时段/谷时段);预算与今日费用区域显示峰时/平价时段条(当前/下一时段与倒计时),收起态显示竖向峰谷进度条;
 - **历史计费正确性**:2026-08-16 16:00 UTC(峰谷时代分界)之前的调用按当时的基础价计费,之后的调用按峰谷两档;
 - 账本金额恒以**美元**存储,币种/汇率仅影响显示(默认 1 USD = 7.2 CNY,可改);
 - 会话徽章与当日/月度/累计、预算一样,按每次调用的**实际时刻精确计费**(宿主导出的逐次成本);

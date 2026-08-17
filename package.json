@@ -1,6 +1,6 @@
 {
   "name": "dsh-cost-meter",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "DeepSeek Harness 会话费用统计插件:本会话成本、当日费用、历史记录与官方价格同步,界面中英双语。Session cost tracking plugin for DeepSeek Harness: per-conversation cost, daily totals, history and official price sync, with a bilingual (Chinese/English) UI.",
   "type": "module",
   "main": "lib/index.js",
@@ -48,7 +48,8 @@
     "lib/typert.host.js",
     "lib/client.js",
     "cordis.patch.yml",
-    "README.md"
+    "README.md",
+    "docs/provider-pricing.json"
   ],
   "dependencies": {
     "@deepseek-ai/dsh-credentials": "^0.1.0-rc.6",

@@ -1,0 +1,795 @@
+{
+  "generatedAt": "2026-08-17",
+  "note": "Auto-generated from lib/pricing.js DEFAULT_PROVIDER_PRICE_TABLE. USD per 1M tokens; unpriced entries have no verified official price.",
+  "providers": {
+    "openai": {
+      "models": {
+        "gpt-5.6-sol": {
+          "input": 5,
+          "cachedInput": 0.5,
+          "output": 30,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "≤272K 档;超过 272K 输入按 $10/$45 计;缓存写入 $6.25"
+        },
+        "gpt-5.6-terra": {
+          "input": 2,
+          "cachedInput": 0.2,
+          "output": 12,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "≤272K 档;超过 272K 按 $4/$18 计;缓存写入 $2.50"
+        },
+        "gpt-5.6-luna": {
+          "input": 0.2,
+          "cachedInput": 0.02,
+          "output": 1.2,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "≤272K 档;超过 272K 按 $0.40/$1.80 计;缓存写入 $0.25"
+        },
+        "gpt-5.5": {
+          "input": 5,
+          "cachedInput": 0.5,
+          "output": 30,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "≤272K 档;超过 272K 按 $10/$45 计"
+        },
+        "gpt-5.5-pro": {
+          "input": 30,
+          "output": 180,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "gpt-5.4": {
+          "input": 2.5,
+          "cachedInput": 0.25,
+          "output": 15,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "≤272K 档;超过 272K 按 $5/$22.5 计"
+        },
+        "gpt-5.4-pro": {
+          "input": 30,
+          "output": 180,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "gpt-5.4-mini": {
+          "input": 0.75,
+          "cachedInput": 0.075,
+          "output": 4.5,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "gpt-5.4-nano": {
+          "input": 0.2,
+          "cachedInput": 0.02,
+          "output": 1.25,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "gpt-5.3-codex": {
+          "input": 1.75,
+          "cachedInput": 0.175,
+          "output": 14,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "gpt-5.3-codex-spark": {
+          "input": 1.75,
+          "cachedInput": 0.175,
+          "output": 14,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "gpt-5.2": {
+          "input": 1.75,
+          "cachedInput": 0.175,
+          "output": 14,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "gpt-5.2-codex": {
+          "input": 1.75,
+          "cachedInput": 0.175,
+          "output": 14,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "2026-07-23 起弃用"
+        },
+        "gpt-5.1": {
+          "input": 1.07,
+          "cachedInput": 0.107,
+          "output": 8.5,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "gpt-5.1-codex": {
+          "input": 1.07,
+          "cachedInput": 0.107,
+          "output": 8.5,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "2026-07-23 起弃用"
+        },
+        "gpt-5.1-codex-max": {
+          "input": 1.25,
+          "cachedInput": 0.125,
+          "output": 10,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "2026-07-23 起弃用"
+        },
+        "gpt-5.1-codex-mini": {
+          "input": 0.25,
+          "cachedInput": 0.025,
+          "output": 2,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "2026-07-23 起弃用"
+        },
+        "gpt-5": {
+          "input": 1.07,
+          "cachedInput": 0.107,
+          "output": 8.5,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "gpt-5-codex": {
+          "input": 1.07,
+          "cachedInput": 0.107,
+          "output": 8.5,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "2026-07-23 起弃用"
+        },
+        "gpt-5-nano": {
+          "input": 0.05,
+          "cachedInput": 0.005,
+          "output": 0.4,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "gpt-5-2025-08-07": {
+          "input": 1.25,
+          "cachedInput": 0.13,
+          "output": 10,
+          "billingMode": "flat",
+          "notes": "2025-08 首发价;当前同名 gpt-5 已调价,历史 id 保留"
+        },
+        "gpt-4.1-2025-04-14": {
+          "input": 2,
+          "cachedInput": 0.5,
+          "output": 8,
+          "billingMode": "flat"
+        },
+        "gpt-4.1-mini-2025-04-14": {
+          "input": 0.4,
+          "cachedInput": 0.1,
+          "output": 1.6,
+          "billingMode": "flat"
+        }
+      }
+    },
+    "anthropic": {
+      "models": {
+        "claude-fable-5": {
+          "input": 10,
+          "cachedInput": 1,
+          "output": 50,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "缓存写入 $12.50"
+        },
+        "claude-opus-5": {
+          "input": 5,
+          "cachedInput": 0.5,
+          "output": 25,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "缓存写入 $6.25"
+        },
+        "claude-opus-4-8": {
+          "input": 5,
+          "cachedInput": 0.5,
+          "output": 25,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "缓存写入 $6.25"
+        },
+        "claude-opus-4-7": {
+          "input": 5,
+          "cachedInput": 0.5,
+          "output": 25,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "claude-opus-4-6": {
+          "input": 5,
+          "cachedInput": 0.5,
+          "output": 25,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "claude-opus-4-5": {
+          "input": 5,
+          "cachedInput": 0.5,
+          "output": 25,
+          "billingMode": "flat",
+          "notes": "缓存写入 $6.25"
+        },
+        "claude-sonnet-5": {
+          "input": 2,
+          "cachedInput": 0.2,
+          "output": 10,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "早鸟价(至 2026-08-31);标准价 $3/$15"
+        },
+        "claude-sonnet-4-6": {
+          "input": 3,
+          "cachedInput": 0.3,
+          "output": 15,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "缓存写入 $3.75"
+        },
+        "claude-sonnet-4-5": {
+          "input": 3,
+          "cachedInput": 0.3,
+          "output": 15,
+          "billingMode": "flat",
+          "notes": "≤200K 档;>200K 按 $6/$22.5 计;缓存写入 $3.75"
+        },
+        "claude-haiku-4-5": {
+          "input": 1,
+          "cachedInput": 0.1,
+          "output": 5,
+          "billingMode": "flat",
+          "notes": "缓存写入 $1.25"
+        }
+      }
+    },
+    "google": {
+      "models": {
+        "gemini-3.7-flash": {
+          "input": 0.75,
+          "output": 3.75,
+          "billingMode": "flat",
+          "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+          "checkedAt": "2026-08-17",
+          "notes": "2026 年底前促销价;2027 起 $1.5/$7.5;Zen 网关按 $1.5/$7.5"
+        },
+        "gemini-3.6-flash": {
+          "input": 1.5,
+          "cachedInput": 0.15,
+          "output": 7.5,
+          "billingMode": "flat",
+          "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+          "checkedAt": "2026-08-17"
+        },
+        "gemini-3.5-flash": {
+          "input": 1.5,
+          "cachedInput": 0.15,
+          "output": 9,
+          "billingMode": "flat",
+          "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+          "checkedAt": "2026-08-17"
+        },
+        "gemini-3.5-flash-lite": {
+          "input": 0.3,
+          "cachedInput": 0.03,
+          "output": 2.5,
+          "billingMode": "flat",
+          "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+          "checkedAt": "2026-08-17"
+        },
+        "gemini-3.1-pro-preview": {
+          "input": 2,
+          "cachedInput": 0.2,
+          "output": 12,
+          "billingMode": "flat",
+          "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+          "checkedAt": "2026-08-17",
+          "notes": "≤200K 档;>200K 按 $4/$18 计"
+        },
+        "gemini-3-flash": {
+          "input": 0.5,
+          "cachedInput": 0.05,
+          "output": 3,
+          "billingMode": "flat",
+          "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+          "checkedAt": "2026-08-17",
+          "notes": "Preview"
+        },
+        "gemini-2.5-pro": {
+          "input": 1.25,
+          "cachedInput": 0.125,
+          "output": 10,
+          "billingMode": "flat",
+          "notes": "≤200K 档;>200K 按 $2.5/$15 计"
+        },
+        "gemini-2.5-flash": {
+          "input": 0.3,
+          "cachedInput": 0.03,
+          "output": 2.5,
+          "billingMode": "flat",
+          "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+          "checkedAt": "2026-08-17"
+        },
+        "gemini-2.5-flash-lite": {
+          "input": 0.1,
+          "cachedInput": 0.01,
+          "output": 0.4,
+          "billingMode": "flat",
+          "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+          "checkedAt": "2026-08-17"
+        }
+      }
+    },
+    "moonshot": {
+      "models": {
+        "kimi-k3": {
+          "input": 3,
+          "cachedInput": 0.3,
+          "output": 15,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "官方人民币价 ¥20/¥100/缓存¥2 每百万;此处为 Zen 网关美元价"
+        },
+        "kimi-k2.7-code": {
+          "input": 0.95,
+          "cachedInput": 0.19,
+          "output": 4,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "kimi-k2.6": {
+          "input": 0.95,
+          "cachedInput": 0.16,
+          "output": 4,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "kimi-k2.5": {
+          "input": 0.6,
+          "cachedInput": 0.1,
+          "output": 3,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "2026-08-05 起弃用"
+        }
+      }
+    },
+    "z-ai": {
+      "models": {
+        "glm-5.3": {
+          "unpriced": true,
+          "billingMode": "flat",
+          "notes": "OpenCode Go 目录在册;官方/Zen 均未公布单价,不编造价格"
+        },
+        "glm-5.2": {
+          "input": 1.4,
+          "cachedInput": 0.26,
+          "output": 4.4,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "glm-5.1": {
+          "input": 1.4,
+          "cachedInput": 0.26,
+          "output": 4.4,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "glm-5": {
+          "input": 1,
+          "cachedInput": 0.2,
+          "output": 3.2,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "2026-05-14 起弃用"
+        }
+      }
+    },
+    "xai": {
+      "models": {
+        "grok-4.6": {
+          "input": 2,
+          "cachedInput": 0.5,
+          "output": 6,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "≤200K 档;>200K 按 $4/$12 计"
+        },
+        "grok-4.5": {
+          "input": 2,
+          "cachedInput": 0.3,
+          "output": 6,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "≤200K 档;>200K 按 $4/$12 计"
+        },
+        "grok-4.3": {
+          "input": 1.25,
+          "output": 2.5,
+          "billingMode": "flat",
+          "sourceUrl": "https://docs.x.ai/developers/models/grok-4.3"
+        },
+        "grok-build-0.1": {
+          "input": 1,
+          "cachedInput": 0.2,
+          "output": 2,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        }
+      }
+    },
+    "alibaba": {
+      "models": {
+        "qwen3.8-max": {
+          "input": 2,
+          "cachedInput": 0.25,
+          "output": 6,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17",
+          "notes": "缓存写入 $2.50"
+        },
+        "qwen3.7-max": {
+          "input": 2.5,
+          "cachedInput": 0.5,
+          "output": 7.5,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17",
+          "notes": "缓存写入 $3.125"
+        },
+        "qwen3.7-plus": {
+          "input": 0.4,
+          "cachedInput": 0.04,
+          "output": 1.6,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17",
+          "notes": "≤256K 档;>256K 按 $1.2/$4.8 计;缓存写入 $0.50"
+        },
+        "qwen3.6-plus": {
+          "input": 0.5,
+          "cachedInput": 0.05,
+          "output": 3,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17",
+          "notes": "≤256K 档;>256K 按 $2/$6 计;缓存写入 $0.625"
+        },
+        "qwen3.5-plus": {
+          "input": 0.2,
+          "cachedInput": 0.02,
+          "output": 1.2,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "缓存写入 $0.25"
+        },
+        "qwen3-plus": {
+          "input": 0.4,
+          "output": 1.2,
+          "billingMode": "flat",
+          "sourceUrl": "https://www.alibabacloud.com/help/en/model-studio/model-pricing"
+        }
+      }
+    },
+    "minimax": {
+      "models": {
+        "minimax-m3": {
+          "input": 0.3,
+          "cachedInput": 0.06,
+          "output": 1.2,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "minimax-m2.7": {
+          "input": 0.3,
+          "cachedInput": 0.06,
+          "output": 1.2,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17"
+        },
+        "minimax-m2.5": {
+          "input": 0.3,
+          "cachedInput": 0.06,
+          "output": 1.2,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-17",
+          "notes": "2026-08-05 起弃用"
+        }
+      }
+    },
+    "tencent": {
+      "models": {
+        "hunyuan-a13b": {
+          "input": 0.5,
+          "output": 2,
+          "billingMode": "flat",
+          "notes": "Official price is CNY; catalog value requires currency conversion before use."
+        },
+        "hy3": {
+          "input": 0.14,
+          "cachedInput": 0.035,
+          "output": 0.58,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17",
+          "notes": "OpenCode Go 目录价;厂商归属未官宣"
+        }
+      }
+    },
+    "xiaomi": {
+      "models": {
+        "mimo-v2.5": {
+          "input": 0.14,
+          "cachedInput": 0.0028,
+          "output": 0.28,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "mimo-v2.5-pro": {
+          "input": 0.435,
+          "cachedInput": 0.003625,
+          "output": 0.87,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        }
+      }
+    },
+    "upstage": {
+      "models": {
+        "solar-pro4": {
+          "input": 0.3,
+          "cachedInput": 0.06,
+          "output": 1.2,
+          "billingMode": "flat",
+          "sourceUrl": "https://www.upstage.ai/pricing/api"
+        },
+        "solar-pro3": {
+          "input": 0.15,
+          "cachedInput": 0.015,
+          "output": 0.6,
+          "billingMode": "flat",
+          "sourceUrl": "https://www.upstage.ai/pricing/api"
+        }
+      }
+    },
+    "nvidia": {
+      "models": {
+        "nvidia/nemotron-3-ultra-550b-a55b": {
+          "unpriced": true,
+          "billingMode": "flat",
+          "notes": "Official catalog does not publish token price."
+        }
+      }
+    },
+    "mistral": {
+      "models": {
+        "mistral-large-2512": {
+          "input": 0.5,
+          "cachedInput": 0.05,
+          "output": 1.5,
+          "billingMode": "flat"
+        },
+        "mistral-medium-3.5": {
+          "input": 1.5,
+          "cachedInput": 0.15,
+          "output": 7.5,
+          "billingMode": "flat"
+        },
+        "mistral-small-4.0": {
+          "input": 0.15,
+          "cachedInput": 0.015,
+          "output": 0.6,
+          "billingMode": "flat"
+        }
+      }
+    },
+    "opencode-go": {
+      "models": {
+        "grok-4.5": {
+          "input": 2,
+          "cachedInput": 0.3,
+          "output": 6,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "glm-5.3": {
+          "unpriced": true,
+          "billingMode": "flat",
+          "notes": "Go 目录在册;官方未公布单价"
+        },
+        "glm-5.2": {
+          "input": 1.4,
+          "cachedInput": 0.26,
+          "output": 4.4,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "glm-5.1": {
+          "input": 1.4,
+          "cachedInput": 0.26,
+          "output": 4.4,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "gpt-5.6-luna": {
+          "input": 0.2,
+          "cachedInput": 0.02,
+          "output": 1.2,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "kimi-k3": {
+          "input": 3,
+          "cachedInput": 0.3,
+          "output": 15,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "kimi-k2.7-code": {
+          "input": 0.95,
+          "cachedInput": 0.19,
+          "output": 4,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "kimi-k2.6": {
+          "input": 0.95,
+          "cachedInput": 0.16,
+          "output": 4,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "mimo-v2.5": {
+          "input": 0.14,
+          "cachedInput": 0.0028,
+          "output": 0.28,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "mimo-v2.5-pro": {
+          "input": 0.435,
+          "cachedInput": 0.003625,
+          "output": 0.87,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "minimax-m3": {
+          "input": 0.3,
+          "cachedInput": 0.06,
+          "output": 1.2,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "minimax-m2.7": {
+          "input": 0.3,
+          "cachedInput": 0.06,
+          "output": 1.2,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "qwen3.8-max": {
+          "input": 2,
+          "cachedInput": 0.25,
+          "output": 6,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "qwen3.7-max": {
+          "input": 2.5,
+          "cachedInput": 0.5,
+          "output": 7.5,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "qwen3.7-plus": {
+          "input": 0.4,
+          "cachedInput": 0.04,
+          "output": 1.6,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "qwen3.6-plus": {
+          "input": 0.5,
+          "cachedInput": 0.05,
+          "output": 3,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        },
+        "deepseek-v4-pro": {
+          "input": 0.66,
+          "cachedInput": 0.022,
+          "output": 1.98,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17",
+          "notes": "Go 目录为谷时价参考;官方峰时翻倍"
+        },
+        "deepseek-v4-flash": {
+          "input": 0.22,
+          "cachedInput": 0.007,
+          "output": 0.66,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17",
+          "notes": "Go 目录为谷时价参考;官方峰时翻倍"
+        },
+        "hy3": {
+          "input": 0.14,
+          "cachedInput": 0.035,
+          "output": 0.58,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-17"
+        }
+      }
+    }
+  }
+}
