@@ -102,6 +102,33 @@ const stripped = normalizePrice({ cacheHit: 0.1, cacheMiss: 0.2, output: 0.3 })
 assert.equal(stripped.legacyBase, undefined, '无 legacyBase 的输入不产生该字段')
 console.log('[ok] normalizePrice legacyBase 通过')
 
+// 2.5) normalizePrice 多模型计费方式适配(两档简写/缺省补齐)。
+// 两档写法:{ input, output } → 命中价与未命中价都取 input。
+assert.deepEqual(normalizePrice({ input: 5, output: 10 }), { cacheHit: 5, cacheMiss: 5, output: 10 }, '两档 input/output 写法补齐')
+// 只给未命中价:命中价自动取未命中价(无缓存折扣模型)。
+assert.deepEqual(normalizePrice({ cacheMiss: 5, output: 10 }), { cacheHit: 5, cacheMiss: 5, output: 10 }, 'cacheHit 缺省取 cacheMiss')
+// 显式命中价优先。
+assert.deepEqual(normalizePrice({ cacheHit: 3, cacheMiss: 5, output: 10 }), { cacheHit: 3, cacheMiss: 5, output: 10 }, '显式三桶保持')
+// 只有输出价:输入侧为 0。
+assert.deepEqual(normalizePrice({ output: 10 }), { cacheHit: 0, cacheMiss: 0, output: 10 }, '仅 output 时输入侧补 0')
+// 子档同样支持两档简写与补齐。
+assert.deepEqual(normalizePrice({ cacheHit: 3, cacheMiss: 5, output: 10, offPeak: { input: 2, output: 4 } }), {
+  cacheHit: 3, cacheMiss: 5, output: 10, offPeak: { cacheHit: 2, cacheMiss: 2, output: 4 },
+}, 'offPeak 子档两档简写补齐')
+// 空对象/非对象拒绝。
+assert.equal(normalizePrice({}), null, '空对象拒绝')
+assert.equal(normalizePrice('x'), null, '非对象拒绝')
+console.log('[ok] normalizePrice 两档/补齐规则通过')
+
+// 2.6) 两档模型的成本核算(Anthropic/Gemini 风格:无缓存折扣,缓存按输入价)。
+const twoTier = normalizePrice({ input: 3, output: 15 }) // $3/M input, $15/M output
+const manualTwoTier = (10000 * 3 + 5000 * 15 + (90000 + 10000) * 3) / 1_000_000
+assert.ok(Math.abs(costOf(tokens, twoTier, offMs, peakCfg) - manualTwoTier) < 1e-12, '两档模型成本 = 输入价计缓存')
+// 两档模型无 legacyBase/峰谷档:分界前后都按自身基础价。
+assert.deepEqual(tierFor(twoTier, preMs, peakCfg), twoTier, '两档模型分界前按自身价')
+assert.deepEqual(tierFor(twoTier, peakMs, peakCfg), twoTier, '两档模型分界后按自身价')
+console.log('[ok] 两档模型成本/档位断言通过')
+
 // 3) 账本:临时 DSH_HOME;入账分界前调用应记 legacyBase 成本。
 // 每次运行前清空临时账本,避免跨运行累积污染断言。
 process.env.DSH_HOME = process.env.TEMP + '\\dsh-cost-meter-test-home'
@@ -111,6 +138,8 @@ ledger.account({ input: 10000, output: 5000, cacheRead: 90000, cacheWrite: 10000
 ledger.account({ input: 100, output: 50, cacheRead: 0, cacheWrite: 0 }, 'deepseek-v4-pro', 'session-a', Date.now())
 ledger.account({ input: 200, output: 80, cacheRead: 10, cacheWrite: 0 }, 'deepseek-v4-flash', 'session-b', Date.now())
 ledger.account({ input: 300, output: 90, cacheRead: 0, cacheWrite: 0 }, 'unknown-model-x', undefined, Date.now())
+// NaN/负数 token 防护:非数字/负数按 0 处理,不污染账本聚合(该调用成本为 0)。
+ledger.account({ input: -100, output: 'not-a-number', cacheRead: null, cacheWrite: undefined }, 'deepseek-v4-pro', 'session-legacy', preMs)
 ledger.flush()
 const reloaded = Ledger.open()
 const legacyDay = Object.values(reloaded.days).find(d => Array.isArray(d.sessions) && d.sessions.some(s => s.id === 'session-legacy'))
@@ -129,6 +158,15 @@ const patchBad = applyConfigPatch(reloaded.config, { position: 'nowhere' })
 console.log('[ok] 非法补丁被拒:', patchBad.errors.join(';'))
 const patchBad2 = applyConfigPatch(reloaded.config, { unknownKey: 1 })
 console.log('[ok] 未知键被拒:', patchBad2.errors.join(';'))
+
+// 4.1) peakNotice 开关:默认开启,非法值拒绝,合法值生效。
+assert.equal(reloaded.config.peakNotice, true, '默认 peakNotice 开启')
+const patchNoticeBad = applyConfigPatch(reloaded.config, { peakNotice: 'yes' })
+assert.ok(patchNoticeBad.errors.length > 0, 'peakNotice 非布尔被拒')
+const patchNoticeOk = applyConfigPatch(reloaded.config, { peakNotice: false })
+assert.equal(patchNoticeOk.errors.length, 0, 'peakNotice=false 合法')
+assert.equal(patchNoticeOk.config.peakNotice, false, 'peakNotice=false 生效')
+console.log('[ok] peakNotice 配置校验通过')
 
 console.log('[ok] 金额格式:', formatMoney(0.012345, { exchangeRate: 7.2, symbol: '¥', decimals: 4 }), formatMoney(0.0000012, { exchangeRate: 1, symbol: '$', decimals: 6 }), formatMoney(123.456, { exchangeRate: 7.2, symbol: '¥', decimals: 4 }))
 console.log('[ok] 全部验证通过')

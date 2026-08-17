@@ -34,7 +34,7 @@ English | [中文](README.md)
 | Today's sessions | Settings page | Per-session call count, input/cache/output tokens and cost |
 | History | Settings page | Per-day totals; retention days configurable (default 180) |
 | Budget settings | Settings page, top | Limit, period (today / month / cumulative / custom date range), used % |
-| Price table | Settings page | Per-model base / off-peak / peak prices; fully editable |
+| Price table | Settings page | Per-model off-peak / peak prices (input/output shorthand supported; cache prices derived automatically); fully editable |
 | Peak/off-peak pricing | Settings / budget / today | Official DeepSeek pure two-tier scheme (off-peak = half of peak) with live tier status; a prominent notice is shown near budget and today's cost during peak hours |
 | Official price sync | Settings page | Fetches and parses the official pricing page, applies with one click |
 | UI language | Settings → Display settings | Simplified Chinese / English / Follow browser (auto); switches instantly and auto-saves |
