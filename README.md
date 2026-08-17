@@ -69,6 +69,18 @@
 | ![仅 Go 额度](docs/screenshot-go-box.png) | ![仅预算](docs/screenshot-budget-box.png) | ![合并卡片](docs/screenshot-sidebar-footer-v2.png) |
 
 - 预算图框显示「预算 · 已用% · 进度条 · 今日费用与占预算% · 已用/额度」,≥80% 预警、≥100% 超支;窄栏(rail)模式收窄为百分比方块;
+- 当前处于 DeepSeek 峰时高价时段时,预算框与今日费用区域显示「当前为 DeepSeek 峰时高价时段,按峰时价计费」显著提示;可在设置中单独关闭,rail 窄栏不显示;
+
+**峰时高价时段提示**:
+
+| 侧边栏峰时提示 | 设置页峰时提示开关 |
+|---|---|
+| ![侧边栏峰时提示](docs/peak-notice-zh.png) | ![设置页峰时提示开关](docs/peak-notice-settings-zh.png) |
+
+- 提示遵循 `peakEnabled` / `peakEffectiveAt` / `peakWindows` 门控,按 UTC 峰时窗口显示;
+- 设置 → 费用 → 峰谷计价 下可单独开关「峰时高价时段显著提示」;
+- 配图展示侧边栏今日费用、预算框和设置页开关三处效果。
+
 - Go 图框按主档位(默认滚动 5 小时,可在显示设置切换周/月)显示已用% 与进度条,下方一行展示其余两档与重置时间:
 
 ![窄栏 rail](docs/screenshot-sidebar-rail-v2.png)
@@ -121,7 +133,7 @@
 
 ![今日会话](docs/screenshot-table-1.png) ![历史记录](docs/screenshot-table-2.png)
 
-**价格表**(基础/谷时/峰时三档,美元 / 1M tokens):
+**价格表**(谷时/峰时两档,支持 input/output 简写,美元 / 1M tokens):
 
 ![价格表](docs/screenshot-price-card.png)
 

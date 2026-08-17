@@ -166,7 +166,13 @@ assert.ok(patchNoticeBad.errors.length > 0, 'peakNotice 非布尔被拒')
 const patchNoticeOk = applyConfigPatch(reloaded.config, { peakNotice: false })
 assert.equal(patchNoticeOk.errors.length, 0, 'peakNotice=false 合法')
 assert.equal(patchNoticeOk.config.peakNotice, false, 'peakNotice=false 生效')
-console.log('[ok] peakNotice 配置校验通过')
+// prices.models 使用替换语义,删除模型后不会被 mergeDeep 恢复。
+const priceDeletePatch = applyConfigPatch(reloaded.config, {
+  prices: { ...reloaded.config.prices, models: { 'deepseek-v4-flash': reloaded.config.prices.models['deepseek-v4-flash'] } },
+})
+assert.equal(priceDeletePatch.errors.length, 0, '价格模型删除补丁合法')
+assert.deepEqual(Object.keys(priceDeletePatch.config.prices.models), ['deepseek-v4-flash'], '删除模型后服务端不恢复旧模型')
+console.log('[ok] peakNotice 配置与价格模型删除校验通过')
 
 console.log('[ok] 金额格式:', formatMoney(0.012345, { exchangeRate: 7.2, symbol: '¥', decimals: 4 }), formatMoney(0.0000012, { exchangeRate: 1, symbol: '$', decimals: 6 }), formatMoney(123.456, { exchangeRate: 7.2, symbol: '¥', decimals: 4 }))
 console.log('[ok] 全部验证通过')

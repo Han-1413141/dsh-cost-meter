@@ -69,6 +69,18 @@ The plugin UI (session badge, sidebar balance row & budget box, and the entire S
 | ![Go quota only](docs/screenshot-go-box.png) | ![Budget only](docs/screenshot-budget-box.png) | ![Merged card](docs/screenshot-sidebar-footer-v2.png) |
 
 - The budget box shows “budget · used % · progress bar · today's cost & share of budget · used/limit”; ≥80% warning, ≥100% over-budget; rail mode narrows to a percentage tile;
+- When DeepSeek peak-hour pricing is active, the budget box and today's cost area show a prominent “DeepSeek peak-hour pricing is active; current calls are billed at peak prices” notice; it can be disabled independently in Settings and is hidden in rail mode;
+
+**Peak-hour pricing notice**:
+
+| Sidebar peak-hour notice | Settings peak-hour notice toggle |
+|---|---|
+| ![Sidebar peak-hour notice](docs/peak-notice-en.png) | ![Settings peak-hour notice](docs/peak-notice-settings-en.png) |
+
+- The notice follows the `peakEnabled` / `peakEffectiveAt` / `peakWindows` gates and uses the configured UTC peak windows;
+- Settings → Cost → Peak/off-peak pricing includes an independent “Prominent notice during peak hours” toggle;
+- The illustration shows the sidebar today's cost area, budget box, and Settings toggle together.
+
 - The Go box shows the main window's used % and progress bar (default rolling 5h; switchable to weekly/monthly in Display settings), with the other two windows and reset times in a row below:
 
 ![Rail mode](docs/screenshot-sidebar-rail-v2.png)
@@ -121,7 +133,7 @@ The plugin UI (session badge, sidebar balance row & budget box, and the entire S
 
 ![Today's sessions](docs/screenshot-table-1.png) ![History](docs/screenshot-table-2.png)
 
-**Price table** (base / off-peak / peak tiers, USD / 1M tokens):
+**Price table** (off-peak / peak tiers, with input/output shorthand support, USD / 1M tokens):
 
 ![Price table](docs/screenshot-price-card.png)
 
