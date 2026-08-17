@@ -35,7 +35,7 @@ English | [中文](README.md)
 | History | Settings page | Per-day totals; retention days configurable (default 180) |
 | Budget settings | Settings page, top | Limit, period (today / month / cumulative / custom date range), used % |
 | Price table | Settings page | Per-model off-peak / peak prices (input/output shorthand supported; cache prices derived automatically); fully editable |
-| Peak/off-peak pricing | Settings / budget / today | Official DeepSeek pure two-tier scheme (off-peak = half of peak) with live tier status; a prominent notice is shown near budget and today's cost during peak hours |
+| Peak/off-peak hours display | Settings / budget / today | Shows UTC peak hours 01:00–04:00 and 06:00–10:00 with the current tier; prominent peak-hour notice near budget and today's cost, independently toggleable |
 | Official price sync | Settings page | Fetches and parses the official pricing page, applies with one click |
 | UI language | Settings → Display settings | Simplified Chinese / English / Follow browser (auto); switches instantly and auto-saves |
 | AI price sync | [prompt](docs/AI-PRICE-SYNC-PROMPT.en.md) | Hand it to any AI to sync per-model, time-of-day prices on its own |
@@ -69,7 +69,7 @@ The plugin UI (session badge, sidebar balance row & budget box, and the entire S
 | ![Go quota only](docs/screenshot-go-box.png) | ![Budget only](docs/screenshot-budget-box.png) | ![Merged card](docs/screenshot-sidebar-footer-v2.png) |
 
 - The budget box shows “budget · used % · progress bar · today's cost & share of budget · used/limit”; ≥80% warning, ≥100% over-budget; rail mode narrows to a percentage tile;
-- When DeepSeek peak-hour pricing is active, the budget box and today's cost area show a prominent “DeepSeek peak-hour pricing is active; current calls are billed at peak prices” notice; it can be disabled independently in Settings and is hidden in rail mode;
+- The peak/off-peak hours display shows UTC peak hours 01:00–04:00 and 06:00–10:00 with the current tier; when DeepSeek peak-hour pricing is active, the budget box and today's cost area show a prominent “DeepSeek peak-hour pricing is active; current calls are billed at peak prices” notice; it can be disabled independently in Settings and is hidden in rail mode;
 
 **Peak-hour pricing notice**:
 
