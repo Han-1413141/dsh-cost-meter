@@ -486,6 +486,15 @@ const patchOverrideBad = applyConfigPatch(reloaded.config, { priceOverrides: { '
 assert.ok(patchOverrideBad.errors.length > 0, 'priceOverrides 非字符串值被拒')
 const patchMatchOk = applyConfigPatch(reloaded.config, { priceMatch: 'exact', priceOverrides: { 'deepseek:x': 'deepseek-v4-flash' } })
 assert.equal(patchMatchOk.errors.length, 0, 'priceMatch/priceOverrides 合法补丁通过')
+// 6.6 配置校验:priceTableDisplay(费用设置直接显示开关,精确到单个模型,纯展示语义不影响计费)。
+assert.deepEqual(reloaded.config.priceTableDisplay, {}, 'priceTableDisplay 默认空(DeepSeek 模型直接显示,第三方收入拓展表)')
+const patchDisplayOk = applyConfigPatch(reloaded.config, { priceTableDisplay: { 'deepseek:deepseek-v4-flash': false, 'anthropic:claude-x': true } })
+assert.equal(patchDisplayOk.errors.length, 0, 'priceTableDisplay 合法补丁通过')
+assert.equal(patchDisplayOk.config.priceTableDisplay['deepseek:deepseek-v4-flash'], false, '单个 DeepSeek 模型可收入拓展价格表')
+assert.equal(patchDisplayOk.config.priceTableDisplay['anthropic:claude-x'], true, '单个第三方模型可切换直接显示')
+const patchDisplayCoerce = applyConfigPatch(reloaded.config, { priceTableDisplay: { 'deepseek:a': 'yes', 'xai:b': 1 } })
+assert.equal(patchDisplayCoerce.errors.length, 0, 'priceTableDisplay 非布尔值定向收敛不拒绝')
+assert.equal(patchDisplayCoerce.config.priceTableDisplay['deepseek:a'], false, '非布尔值收敛为 false')
 console.log('[ok] 模型名匹配/手动覆盖/拓展目录/Kimi 解析断言通过')
 
 // 7) 兼容性回归:配置清洗 + state codec 漂移防护(「账本不可用」根治)。
@@ -494,6 +503,7 @@ const dirty = sanitizeConfig({
   locale: 'fr', position: 'nowhere', decimals: 'many', exchangeRate: -1,
   peakStyle: 'fancy', priceMatch: 'guess', peakWindows: [{ start: 'x', end: 1 }],
   priceOverrides: { 'deepseek:a': 1, ok: 'deepseek-v4-flash' },
+  priceTableDisplay: { 'deepseek:x': 'x', 'anthropic:y': true },
   budget: { enabled: 'yes', amount: null, period: 'year' },
   codingPlans: { anthropic: { enabled: true, display: 'dock', refreshMinutes: 0, apiKey: 5 } },
   corner: { enabled: 'x' },
@@ -506,6 +516,8 @@ assert.equal(dirty.peakStyle, 'compact', '非法 peakStyle 回落')
 assert.equal(dirty.priceMatch, 'auto', '非法 priceMatch 回落')
 assert.equal(dirty.peakWindows.length, 0, '非法峰窗条目被过滤')
 assert.deepEqual(dirty.priceOverrides, { ok: 'deepseek-v4-flash' }, '非字符串覆盖被剔除')
+assert.equal(dirty.priceTableDisplay['deepseek:x'], false, '非法 priceTableDisplay 值收敛为收入拓展表')
+assert.equal(dirty.priceTableDisplay['anthropic:y'], true, '合法 priceTableDisplay 值保留')
 assert.equal(dirty.budget.enabled, false, '预算开关回落')
 assert.equal(dirty.budget.period, 'month', '预算周期回落')
 assert.equal(dirty.budget.amount, 100, '预算额度回落')

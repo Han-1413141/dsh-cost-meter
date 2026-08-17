@@ -63,10 +63,11 @@ Price sources: cross-checked against the **OpenCode Zen/Go official price list**
 
 ### 1.4 Mounting
 
-- **Mount** = copy a catalog entry into "Settings → Cost → Price table", shown directly alongside the DeepSeek prices (editable cards grouped by vendor with input/cached/output fields), immediately participating in billing;
+- **Mount** = copy a catalog entry into the billing price table so it immediately participates in billing; where it is shown is decided by the vendor's “Show directly in Cost settings” toggle (see below);
 - **Unmount** (DeepSeek models only): revert to the default price; re-mounting is always available from the catalog;
 - `unpriced` entries cannot be mounted;
-- In the extended price catalog panel, each vendor section is **collapsed by default**; click a vendor to expand it.
+- In the extended price catalog panel, each vendor section is **collapsed by default**; click a vendor to expand it. Mounted third-party models live inside the catalog by default, shown as editable cards (expand the vendor to edit prices / unmount);
+- **“Show directly in Cost settings” toggle (per model)**: every mounted model in the catalog has its own toggle deciding whether its price card appears directly in the Cost settings price table; DeepSeek models default to direct display (each can be moved into the catalog), third-party models default to the catalog once mounted (each can be promoted to direct display). The toggle only decides placement — mounting and billing are unaffected.
 
 ---
 
