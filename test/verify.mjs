@@ -3,7 +3,7 @@
  * 计费数学部分基于内置价格表,离线可跑;官方页面解析失败时仅告警不中断。
  */
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, rmSync } from 'node:fs'
 import {
   parsePricingHtml,
   costOf,
@@ -103,7 +103,9 @@ assert.equal(stripped.legacyBase, undefined, '无 legacyBase 的输入不产生�
 console.log('[ok] normalizePrice legacyBase 通过')
 
 // 3) 账本:临时 DSH_HOME;入账分界前调用应记 legacyBase 成本。
+// 每次运行前清空临时账本,避免跨运行累积污染断言。
 process.env.DSH_HOME = process.env.TEMP + '\\dsh-cost-meter-test-home'
+rmSync(process.env.DSH_HOME, { recursive: true, force: true })
 const ledger = Ledger.open()
 ledger.account({ input: 10000, output: 5000, cacheRead: 90000, cacheWrite: 10000 }, 'deepseek-v4-pro', 'session-legacy', preMs)
 ledger.account({ input: 100, output: 50, cacheRead: 0, cacheWrite: 0 }, 'deepseek-v4-pro', 'session-a', Date.now())

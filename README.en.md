@@ -35,7 +35,7 @@ English | [中文](README.md)
 | History | Settings page | Per-day totals; retention days configurable (default 180) |
 | Budget settings | Settings page, top | Limit, period (today / month / cumulative / custom date range), used % |
 | Price table | Settings page | Per-model base / off-peak / peak prices; fully editable |
-| Peak/off-peak pricing | Settings page | Official DeepSeek pure two-tier scheme (off-peak = half of peak) with live tier status |
+| Peak/off-peak pricing | Settings / budget / today | Official DeepSeek pure two-tier scheme (off-peak = half of peak) with live tier status; a prominent notice is shown near budget and today's cost during peak hours |
 | Official price sync | Settings page | Fetches and parses the official pricing page, applies with one click |
 | UI language | Settings → Display settings | Simplified Chinese / English / Follow browser (auto); switches instantly and auto-saves |
 | AI price sync | [prompt](docs/AI-PRICE-SYNC-PROMPT.en.md) | Hand it to any AI to sync per-model, time-of-day prices on its own |
@@ -180,7 +180,7 @@ dsh plugin --profile web add link:./dsh-cost-meter  # symlink; edit lib/client.j
 
 - Price units match the official docs: **USD / 1M tokens**;
 - cost = cache-missed input × cache-miss + output × output + (cache read + cache write) × cache-hit (cache writes follow the legacy official rule and are billed at the hit price);
-- **Pure two-tier peak/off-peak pricing** (the official scheme since 2026-08): peak hours (01:00–04:00, 06:00–10:00 UTC) bill at the peak price and all other hours at the off-peak price (off-peak = half of peak). The base tier equals the off-peak tier, and billing falls back to off-peak when peak/off-peak is disabled; the Settings page shows the live tier (peak / off-peak);
+- **Pure two-tier peak/off-peak pricing** (the official scheme since 2026-08): peak hours (01:00–04:00, 06:00–10:00 UTC) bill at the peak price and all other hours at the off-peak price (off-peak = half of peak). The base tier equals the off-peak tier, and billing falls back to off-peak when peak/off-peak is disabled; the Settings page shows the live tier (peak / off-peak), and a prominent notice appears near budget/today's cost while peak pricing is active;
 - **Historical billing correctness**: calls before 2026-08-16 16:00 UTC (the peak-era boundary) are billed at the base prices of that time, and later calls at the two-tier scheme;
 - The ledger always stores amounts in **USD**; currency and FX rate only affect display (default 1 USD = 7.2 CNY, configurable);
 - The session badge is **billed exactly** at the moment each call is made (host-exported per-call cost), just like daily/monthly/cumulative totals and the budget;
