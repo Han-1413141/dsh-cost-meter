@@ -35,7 +35,7 @@ English | [中文](README.md)
 | History | Settings page | Per-day totals; retention days configurable (default 180) |
 | Budget settings | Settings page, top | Limit, period (today / month / cumulative / custom date range), used % |
 | Price table | Settings page | Per-model base / off-peak / peak prices; fully editable |
-| Peak/off-peak pricing | Settings page | Official DeepSeek peak/off-peak scheme with effective-time gating and live tier status |
+| Peak/off-peak pricing | Settings / budget / today | Official DeepSeek peak/off-peak scheme with effective-time gating and live tier status; a prominent notice is shown near budget and today's cost during peak hours |
 | Official price sync | Settings page | Fetches and parses the official pricing page, applies with one click |
 | UI language | Settings → Display settings | Simplified Chinese / English / Follow browser (auto); switches instantly and auto-saves |
 | AI price sync | [prompt](docs/AI-PRICE-SYNC-PROMPT.en.md) | Hand it to any AI to sync per-model, time-of-day prices on its own |
@@ -180,7 +180,7 @@ dsh plugin --profile web add link:./dsh-cost-meter  # symlink; edit lib/client.j
 
 - Price units match the official docs: **USD / 1M tokens**;
 - cost = cache-missed input × cache-miss + output × output + (cache read + cache write) × cache-hit (cache writes follow the legacy official rule and are billed at the hit price);
-- **Peak/off-peak pricing is gated by effective time**: before `peakEffectiveAt` (default 2026-08-16 16:00 UTC) the base price always applies; afterwards, peak hours (01:00–04:00, 06:00–10:00 UTC) bill at the peak price and all other hours at the off-peak price. The Settings page shows the live tier (not effective / peak / off-peak);
+- **Peak/off-peak pricing is gated by effective time**: before `peakEffectiveAt` (default 2026-08-16 16:00 UTC) the base price always applies; afterwards, peak hours (01:00–04:00, 06:00–10:00 UTC) bill at the peak price and all other hours at the off-peak price. The Settings page shows the live tier (not effective / peak / off-peak), and a prominent notice appears near budget/today's cost while peak pricing is active;
 - The ledger always stores amounts in **USD**; currency and FX rate only affect display (default 1 USD = 7.2 CNY, configurable);
 - The session badge is **estimated** at the current tier; daily/monthly/cumulative totals and the budget are **billed exactly** at the moment each call is made;
 - Billing sources are the `usage` block of every model call (including sub-agents, compression, title generation and other auxiliary calls), matching the billable view;
