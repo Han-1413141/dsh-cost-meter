@@ -4,7 +4,7 @@
 
 **Session cost tracking plugin for the DeepSeek Harness web GUI (bilingual UI)**
 
-Per-conversation cost · daily totals · OpenCode Go subscription quota display · budget with usage percentage · official account balance · history · peak/off-peak pricing · one-click price sync from the official docs · Codex-style token usage heat grid
+Per-conversation cost · daily totals · OpenCode Go subscription quota display · budget with usage percentage · official account balance · history · peak/off-peak pricing (peak hours UTC 01:00–04:00, 06:00–10:00) · one-click price sync from the official docs · Codex-style token usage heat grid
 
 [![version](https://img.shields.io/badge/version-1.4.0-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)

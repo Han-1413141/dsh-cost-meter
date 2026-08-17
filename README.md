@@ -4,7 +4,7 @@
 
 **DeepSeek Harness 会话费用统计插件(界面中英双语)**
 
-本会话费用 · 当日费用 · OpenCode Go 订阅额度显示 · 预算与已用百分比 · 官方账户余额 · 历史记录 · 峰谷计价 · 官方价格一键同步 · 类 Codex Token 用量热图
+本会话费用 · 当日费用 · OpenCode Go 订阅额度显示 · 预算与已用百分比 · 官方账户余额 · 历史记录 · 峰谷计价(UTC 01:00–04:00、06:00–10:00 为峰时段) · 官方价格一键同步 · 类 Codex Token 用量热图
 
 [![version](https://img.shields.io/badge/version-1.4.0-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
