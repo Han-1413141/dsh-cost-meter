@@ -23,16 +23,18 @@ Supported billing buckets: `input` / `cacheMiss`, `cachedInput` / `cacheHit` / `
 Unknown model ids are resolved in this order:
 
 ```
-exact match → manual override (priceOverrides) → strip date/version suffix → prefix (longest) → family-token similarity (≥2 leading tokens)
+exact match → manual override (priceOverrides) → normalized-equal → containing match → strip date/version suffix → prefix (longest) → family-token similarity (≥2 leading tokens)
 ```
+
+Normalization: lowercased; case / spaces / hyphens / underscores / dots are ignored, and bracketed annotations (e.g. `(go)`) are dropped. Containing match: a hit when the normalized request name **contains** a table model name (longest candidate wins; overly short candidates are skipped to prevent mis-matches). Router providers (opencode / zen etc., not registered in the price table) trigger a cross-vendor search over the whole catalog, with DeepSeek models keeping their peak/off-peak tiers.
 
 Examples:
 
 | Model id in the request | Match result |
 |---|---|
+| `gpt5.6 luna(go)` | `gpt-5.6-luna` (containing match) |
+| `DeepSeek V4 Flash` | `deepseek-v4-flash` (normalized-equal) |
 | `deepseek-v4-flash-2026-08-01` | `deepseek-v4-flash` (date suffix stripped) |
-| `gpt-5.6-luna-2026-08-15` | `gpt-5.6-luna` (date suffix stripped) |
-| `gpt-5-mini-2026-01-01` | `gpt-5-2025-08-07` (family similarity) |
 | `deepseek-chat` and other legacy aliases | never guessed; falls back to the DeepSeek default price |
 
 - Config `priceMatch`: `auto` (default) / `exact` (exact match only), switchable under Settings → Cost → Price table;
@@ -63,7 +65,8 @@ Price sources: cross-checked against the **OpenCode Zen/Go official price list**
 
 ### 1.4 Mounting
 
-- **Mount** = copy a catalog entry into the billing price table so it immediately participates in billing; where it is shown is decided by the vendor's “Show directly in Cost settings” toggle (see below);
+- **All catalog models are mounted by default** (since v1.5.2): `prices.providers` contains the whole built-in catalog (`unpriced` entries never get billed), and existing ledgers are topped up on load; **mounted ≠ shown directly** — mounting only makes billing available; direct display in the price table is controlled by the per-model toggle;
+- **Mount** = copy a catalog entry into the billing price table so it immediately participates in billing; where it is shown is decided by the model's “Show directly in Cost settings” toggle (see below);
 - **Unmount** (DeepSeek models only): revert to the default price; re-mounting is always available from the catalog;
 - `unpriced` entries cannot be mounted;
 - In the extended price catalog panel, each vendor section is **collapsed by default**; click a vendor to expand it. Mounted third-party models live inside the catalog by default, shown as editable cards (expand the vendor to edit prices / unmount);

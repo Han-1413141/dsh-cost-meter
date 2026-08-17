@@ -6,7 +6,7 @@
 
 本会话费用 · 当日费用 · OpenCode Go 订阅额度显示 · 预算与已用百分比 · 官方账户余额 · 历史记录 · 峰谷计价时段显示(UTC 01:00–04:00、06:00–10:00 为峰时段) · 官方价格一键同步 · 类 Codex Token 用量热图
 
-[![version](https://img.shields.io/badge/version-1.5.1-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.5.2-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
 [![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
@@ -42,7 +42,7 @@
 | AI 价格同步 | [提示词](docs/AI-PRICE-SYNC-PROMPT.md) | DeepSeek 官方同步;其他 provider 使用已核对的官方价格目录与手动配置 |
 | 模型与 Plan 适配说明 | [适配文档](docs/model-and-plan-adaptation.md) | 各厂商模型计费与 6 家 Coding Plan 的适配矩阵、自动匹配机制与价格来源([English](docs/model-and-plan-adaptation.en.md)) |
 | 多 provider 计费 | 设置页 / 账本 | 支持 OpenAI、Anthropic、Google Gemini、Mistral 等 provider 的 input/output、缓存与 reasoning token 价格,按 provider+model 隔离计费 |
-| 模型名自动匹配 | 设置页 / 账本 | 未知模型 id 自动匹配价格表(去日期/版本后缀 → 前缀 → 家族相似),可关闭为仅精确;未命中模型可在设置中手动指定用哪个条目的价格 |
+| 模型名自动匹配 | 设置页 / 账本 | 未知模型 id 自动匹配价格表:忽略大小写/空格/横杠/点号与括号附注,归一化等价或请求名包含表内模型名即命中(如 `gpt5.6 luna(go)`);路由 provider(opencode/zen 等)下跨厂商全库查找;可关闭为仅精确;未命中模型可手动指定计费条目 |
 | 拓展价格表 | 设置页 → 拓展价格表 | 内置各厂商、按模型家族分类的参考价格目录(点开展开,厂商默认折叠);一键挂载参与计费,挂载的第三方模型默认收入表内可编辑;逐模型「在费用设置直接显示」开关自选哪些模型(含 DeepSeek)在「价格表」区直接显示 |
 
 ## 双语界面
@@ -174,22 +174,22 @@
 
 ### 一键安装(推荐)
 
-**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.5.1`**,建议先下载审阅再运行):
+**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.5.2`**,建议先下载审阅再运行):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.1/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.2/install.ps1 | iex
 ```
 
 **或直接命令行**(机器上需已有 pnpm 与 git;同样固定到 tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.1
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.2
 ```
 
 没有 git 时可用 GitHub tag 打包直链:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.1.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.2.tar.gz
 ```
 
 安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):

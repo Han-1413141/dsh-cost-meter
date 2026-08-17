@@ -13,6 +13,7 @@ import {
   isPeakHour,
   peakPhaseAt,
   matchModelId,
+  canonModelId,
   buildPriceCatalog,
   normalizePrice,
   DEFAULT_PRICE_TABLE,
@@ -197,7 +198,9 @@ assert.equal(openaiSame.priced, true, 'OpenAI 模型有价')
 assert.equal(anthropicSame.priced, true, 'Anthropic 模型有价')
 assert.equal(openaiSame.entry.cacheMiss, 2, '同名 OpenAI 模型使用自身价格')
 assert.equal(anthropicSame.entry.cacheMiss, 3, '同名 Anthropic 模型使用自身价格')
-assert.equal(unknownProvider.priced, false, '未知 provider 不套 DeepSeek 默认价')
+assert.equal(unknownProvider.priced, true, '未知 provider 经跨厂商兑底按模型名命中(v1.5.2)')
+assert.equal(unknownProvider.entry.cacheMiss, 2, '跨厂商命中用目录价而非 DeepSeek 默认价')
+assert.equal(providerPriceEntryFor('gemini', 'no-such-model-anywhere', providerPrices).priced, false, '全库无此模型时不套价')
 const reasoningPrice = normalizePrice({ input: 1, output: 2, reasoning: 4 })
 assert.equal(reasoningPrice.reasoning, 4, 'reasoning 价格保留')
 assert.equal(costOf({ input: 1000, output: 1000, reasoning: 1000 }, reasoningPrice, offMs, { enabled: false }), 0.007, 'reasoning 独立计价')
@@ -496,6 +499,22 @@ const patchDisplayCoerce = applyConfigPatch(reloaded.config, { priceTableDisplay
 assert.equal(patchDisplayCoerce.errors.length, 0, 'priceTableDisplay 非布尔值定向收敛不拒绝')
 assert.equal(patchDisplayCoerce.config.priceTableDisplay['deepseek:a'], false, '非布尔值收敛为 false')
 console.log('[ok] 模型名匹配/手动覆盖/拓展目录/Kimi 解析断言通过')
+
+// 6.7 宽泛匹配(归一化 + 包含)与跨厂商兑底(v1.5.2:修复路由 provider 下费用为零)。
+assert.equal(canonModelId('GPT-5.6 Luna (Go)'), 'gpt56luna', '归一化:大小写/空格/横杠/点号/括号附注均忽略')
+assert.equal(matchModelId('gpt5.6 luna(go)', ['gpt-5.6-luna', 'gpt-5.6-sol']), 'gpt-5.6-luna', '包含匹配:请求名含候选名即命中')
+assert.equal(matchModelId('DeepSeek V4 Flash', ['deepseek-v4-flash']), 'deepseek-v4-flash', '归一化等价匹配')
+assert.equal(matchModelId('totally-unknown-xyz', ['gpt-5.6-luna', 'deepseek-v4-flash']), null, '未知模型不误配')
+const fullPrices = sanitizeConfig({}).prices
+assert.ok(Object.keys(fullPrices.providers).length >= 10, '默认配置挂载全部目录厂商(挂载≠直接显示)')
+const lunaViaRouter = providerPriceEntryFor('opencode', 'gpt5.6 luna(go)', fullPrices)
+assert.equal(lunaViaRouter.priced, true, '路由 provider 下宽泛名跨厂商命中')
+assert.equal(lunaViaRouter.entry.output, 1.2, '跨厂商命中取正确价格')
+const dsViaRouter = providerPriceEntryFor('zen', 'deepseek-v4-flash', fullPrices)
+assert.equal(dsViaRouter.billingMode, 'deepseek-peak', '路由 provider 下 DeepSeek 模型保留峰谷两档')
+assert.equal(providerPriceEntryFor('opencode', 'totally-unknown-xyz', fullPrices).priced, false, '跨厂商兑底不误配未知模型')
+assert.equal(providerPriceEntryFor('openai', 'GPT-5.6 LUNA', fullPrices).priced, true, '同厂商大小写/空格差异命中')
+console.log('[ok] 宽泛匹配与跨厂商兑底(路由 provider 费用为零修复)断言通过')
 
 // 7) 兼容性回归:配置清洗 + state codec 漂移防护(「账本不可用」根治)。
 // 7.1 sanitizeConfig:历史/手改账本的非法配置值回落收敛。
