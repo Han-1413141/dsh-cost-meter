@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 470" width="1000" height="470" role="img" aria-labelledby="title desc">
   <title id="title">dsh-cost-meter billing rules and peak/off-peak pricing</title>
-  <desc id="desc">Cost formula, effective-time tier gating and 24-hour peak windows for DeepSeek official pricing.</desc>
+  <desc id="desc">Cost formula, time-of-day tiers (official pure two-tier scheme) and 24-hour peak windows for DeepSeek official pricing.</desc>
   <style>
     text { font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; }
     .mono { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; }
@@ -17,8 +17,8 @@
 
   <!-- Card 2: tier gating -->
   <rect x="40" y="212" width="920" height="126" rx="12" fill="#f6f8fa" stroke="#d0d7de"/>
-  <text x="62" y="240" font-size="12" font-weight="600" fill="#57606a">Tier gating by effective time</text>
-  <text x="62" y="262" font-size="11.5" fill="#57606a">Before 2026-08-16 16:00 UTC, the base price always applies. After that, the tier follows the current UTC hour:</text>
+  <text x="62" y="240" font-size="12" font-weight="600" fill="#57606a">Time-of-day tiers (official pure two-tier scheme)</text>
+  <text x="62" y="262" font-size="11.5" fill="#57606a">The tier follows the current UTC hour — off-peak rates are half of peak rates; with peak/off-peak disabled, the off-peak tier applies:</text>
 
   <!-- 24h bar: 0..24h, 35px per hour, x = 90 + hour*35 -->
   <rect x="90" y="282" width="840" height="30" rx="6" fill="#eaeef2"/>
