@@ -35,7 +35,7 @@ English | [中文](README.md)
 | History | Settings page | Per-day totals; retention days configurable (default 180) |
 | Budget settings | Settings page, top | Limit, period (today / month / cumulative / custom date range), used % |
 | Price table | Settings page | Per-model off-peak / peak prices (input/output shorthand supported; cache prices derived automatically); fully editable |
-| Peak/off-peak hours display | Settings / budget / today | Shows UTC peak hours 01:00–04:00 and 06:00–10:00 with the current tier; prominent peak-hour notice near budget and today's cost, independently toggleable |
+| Peak/off-peak hours display | Settings / budget / today | Shows UTC peak hours 01:00–04:00 and 06:00–10:00 with the current tier; a peak/off-peak period strip with current/next period and countdown appears near budget and today's cost, independently toggleable |
 | Official price sync | Settings page | Fetches and parses the official pricing page, applies with one click |
 | UI language | Settings → Display settings | Simplified Chinese / English / Follow browser (auto); switches instantly and auto-saves |
 | AI price sync | [prompt](docs/AI-PRICE-SYNC-PROMPT.en.md) | Hand it to any AI to sync per-model, time-of-day prices on its own |
@@ -69,17 +69,17 @@ The plugin UI (session badge, sidebar balance row & budget box, and the entire S
 | ![Go quota only](docs/screenshot-go-box.png) | ![Budget only](docs/screenshot-budget-box.png) | ![Merged card](docs/screenshot-sidebar-footer-v2.png) |
 
 - The budget box shows “budget · used % · progress bar · today's cost & share of budget · used/limit”; ≥80% warning, ≥100% over-budget; rail mode narrows to a percentage tile;
-- The peak/off-peak hours display shows UTC peak hours 01:00–04:00 and 06:00–10:00 with the current tier; when DeepSeek peak-hour pricing is active, the budget box and today's cost area show a prominent “DeepSeek peak-hour pricing is active; current calls are billed at peak prices” notice; it can be disabled independently in Settings and is hidden in rail mode;
+- The peak/off-peak hours display shows UTC peak hours 01:00–04:00 and 06:00–10:00 with the current tier; the budget box and today's cost area show a fixed orange/blue peak/off-peak period strip, with a vertical marker for the current period and a chip showing the current period and countdown (refreshed every 30 seconds); it can be disabled independently in Settings and is hidden in rail mode;
 
-**Peak-hour pricing notice**:
+**Peak/off-peak period strip**:
 
-| Sidebar peak-hour notice | Settings peak-hour notice toggle |
-|---|---|
-| ![Sidebar peak-hour notice](docs/peak-notice-en.png) | ![Settings peak-hour notice](docs/peak-notice-settings-en.png) |
+| English sidebar budget box |
+|---|
+| ![English sidebar budget box](docs/screenshots/peak-period-strip-en.png) |
 
-- The notice follows the `peakEnabled` / `peakEffectiveAt` / `peakWindows` gates and uses the configured UTC peak windows;
+- The strip follows the `peakNotice` / `peakEnabled` / `peakEffectiveAt` / `peakWindows` gates and uses the configured UTC peak windows;
 - Settings → Cost → Peak/off-peak pricing includes an independent “Prominent notice during peak hours” toggle;
-- The illustration shows the sidebar today's cost area, budget box, and Settings toggle together.
+- The bar is fixed orange/blue with a vertical marker for the current period; peak text is orange and off-peak text is blue, and no prices are shown.
 
 - The Go box shows the main window's used % and progress bar (default rolling 5h; switchable to weekly/monthly in Display settings), with the other two windows and reset times in a row below:
 
@@ -192,7 +192,7 @@ dsh plugin --profile web add link:./dsh-cost-meter  # symlink; edit lib/client.j
 
 - Price units match the official docs: **USD / 1M tokens**;
 - cost = cache-missed input × cache-miss + output × output + (cache read + cache write) × cache-hit (cache writes follow the legacy official rule and are billed at the hit price);
-- **Pure two-tier peak/off-peak pricing** (the official scheme since 2026-08): peak hours (01:00–04:00, 06:00–10:00 UTC) bill at the peak price and all other hours at the off-peak price (off-peak = half of peak). The base tier equals the off-peak tier, and billing falls back to off-peak when peak/off-peak is disabled; the Settings page shows the live tier (peak / off-peak), and a prominent notice appears near budget/today's cost while peak pricing is active;
+- **Pure two-tier peak/off-peak pricing** (the official scheme since 2026-08): peak hours (01:00–04:00, 06:00–10:00 UTC) bill at the peak price and all other hours at the off-peak price (off-peak = half of peak). The base tier equals the off-peak tier, and billing falls back to off-peak when peak/off-peak is disabled; the Settings page shows the live tier (peak / off-peak), and a peak/off-peak period strip with current/next period and countdown appears near budget/today's cost;
 - **Historical billing correctness**: calls before 2026-08-16 16:00 UTC (the peak-era boundary) are billed at the base prices of that time, and later calls at the two-tier scheme;
 - The ledger always stores amounts in **USD**; currency and FX rate only affect display (default 1 USD = 7.2 CNY, configurable);
 - The session badge is **billed exactly** at the moment each call is made (host-exported per-call cost), just like daily/monthly/cumulative totals and the budget;
