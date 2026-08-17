@@ -6,7 +6,7 @@
 
 本会话费用 · 当日费用 · OpenCode Go 订阅额度显示 · 预算与已用百分比 · 官方账户余额 · 历史记录 · 峰谷计价时段显示(UTC 01:00–04:00、06:00–10:00 为峰时段) · 官方价格一键同步 · 类 Codex Token 用量热图
 
-[![version](https://img.shields.io/badge/version-1.4.1-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.5.1-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
 [![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
@@ -82,7 +82,7 @@
 |---|---|
 | ![峰谷计价与提示面板](docs/peak-panel-settings-zh.png) | ![右下角与图框详细设置](docs/dock-display-settings-zh.png) |
 
-v1.4.1+ 时段条与收起态竖向条真实 DSH 侧边栏实拍,按 UI 类型分组(图示为峰时):
+时段条与收起态竖向条真实 DSH 侧边栏实拍(现行样式),按 UI 类型分组(图示为峰时):
 
 **不收起(展开态)**——预算框 / 今日费用区域显示单行时段条:
 

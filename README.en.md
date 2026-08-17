@@ -6,7 +6,7 @@
 
 Per-conversation cost · daily totals · OpenCode Go subscription quota display · budget with usage percentage · official account balance · history · peak/off-peak pricing hours display (peak hours UTC 01:00–04:00, 06:00–10:00) · one-click price sync from the official docs · Codex-style token usage heat grid
 
-[![version](https://img.shields.io/badge/version-1.4.0-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.5.1-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
 [![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
@@ -82,7 +82,7 @@ The plugin UI (session badge, sidebar balance row & budget box, and the entire S
 |---|---|
 | ![Peak/off-peak pricing & notice panel](docs/peak-panel-settings-en.png) | ![Dock display & box details settings](docs/dock-display-settings-en.png) |
 
-Real captures from an actual DSH sidebar of the period strip and collapsed vertical bar since v1.4.1, grouped by UI type (shown during peak hours):
+Real captures from an actual DSH sidebar of the period strip and collapsed vertical bar (current looks), grouped by UI type (shown during peak hours):
 
 **Expanded** — the budget box / today's cost area shows a one-line period strip:
 
