@@ -2,3 +2,4 @@ node_modules/
 bin/
 .audit-tmp/
 .qoder/
+HANDOFF.md

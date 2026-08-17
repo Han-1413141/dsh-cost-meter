@@ -43,6 +43,7 @@
   },
   "files": [
     "lib/index.js",
+    "lib/coding-plans.js",
     "lib/pricing.js",
     "lib/store.js",
     "lib/typert.host.js",
