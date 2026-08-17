@@ -43,7 +43,7 @@ English | [中文](README.md)
 | Model & Plan adaptation guide | [adaptation doc](docs/model-and-plan-adaptation.en.md) | Adaptation matrix for per-model billing and the 6 Coding Plan vendors, the auto-matching mechanism and price sources ([中文](docs/model-and-plan-adaptation.md)) |
 | Multi-provider billing | Settings / ledger | OpenAI, Anthropic, Google Gemini, Mistral and other providers with input/output, cache and reasoning-token pricing isolated by provider + model |
 | Model-name auto-matching | Settings / ledger | Unknown model ids are matched against the price table (strip date/version suffix → prefix → family similarity); can be restricted to exact match, and unmatched models can be pinned to a specific entry in Settings |
-| Extended price catalog | Settings → Extended price catalog | Built-in reference catalog grouped by vendor and model family (expandable); mount entries into the billing price table with one click, DeepSeek models can be unmounted back to the default price |
+| Extended price catalog | Settings → Extended price catalog | Built-in reference catalog grouped by vendor and model family (expandable; vendors collapsed by default); mount entries into billing with one click — mounted third-party models live inside the catalog and stay editable; a per-model “Show directly in Cost settings” toggle chooses which models (DeepSeek included) appear directly in the price table |
 
 ## Bilingual UI
 
@@ -78,9 +78,9 @@ The plugin UI (session badge, sidebar balance row & budget box, and the entire S
 
 **Peak/off-peak period strip & collapsed vertical progress bar**:
 
-| Settings peak-hour notice toggle |
-|---|
-| ![Settings peak-hour notice](docs/peak-notice-settings-en.png) |
+| Settings peak panel (notice toggle / style switch / preview) | Settings bottom-right (dock) display & box details |
+|---|---|
+| ![Peak/off-peak pricing & notice panel](docs/peak-panel-settings-en.png) | ![Dock display & box details settings](docs/dock-display-settings-en.png) |
 
 Real captures from an actual DSH sidebar of the period strip and collapsed vertical bar since v1.4.1, grouped by UI type (shown during peak hours):
 
@@ -104,7 +104,7 @@ Real captures from an actual DSH sidebar of the period strip and collapsed verti
 
 - The display follows the `peakNotice` / `peakEnabled` / `peakEffectiveAt` / `peakWindows` gates and uses the configured UTC peak windows;
 - Settings → Cost → Peak/off-peak pricing includes an independent “Prominent notice during peak hours” toggle; turning it off hides both the expanded strip and the collapsed vertical bar;
-- The image above is the Settings toggle screenshot; see the grouped captures above for the strip and collapsed vertical bar.
+- The first image above is the Settings peak panel (notice toggle, style switch and live preview); see the grouped captures for the strip and collapsed vertical bar; the dock toggles and box-details switches are shown in the second image.
 
 - The Go box shows the main window's used % and progress bar (default rolling 5h; switchable to weekly/monthly in Display settings), with the other two windows and reset times in a row below:
 
@@ -112,7 +112,9 @@ Real captures from an actual DSH sidebar of the period strip and collapsed verti
 
 **Bottom-right (dock) quota / budget chips** (enabled in Display settings; four independent toggles: 5h / weekly / monthly quota + budget used %):
 
-![Corner chips](docs/screenshot-display-corner-v2.png)
+| Corner chips in action | Display settings (where the toggles live) |
+|---|---|
+| ![Corner chips](docs/screenshot-display-corner-v2.png) | ![Dock display settings](docs/dock-display-settings-en.png) |
 
 **Per-conversation cost** (two positions, switchable in Settings):
 
@@ -172,22 +174,22 @@ Real captures from an actual DSH sidebar of the period strip and collapsed verti
 
 ### One-click install (recommended)
 
-**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.5.0`** — review the script before running):
+**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.5.1`** — review the script before running):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.0/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.1/install.ps1 | iex
 ```
 
 **Or a plain command line** (the machine must already have pnpm and git; also pinned to the tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.0
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.1
 ```
 
 Without git, use the GitHub tag archive:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.0.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.1.tar.gz
 ```
 
 After installing, **restart** `dsh web` (plugin rows, the Typert manifest and the client bundle are all scanned at startup):

@@ -43,7 +43,7 @@
 | 模型与 Plan 适配说明 | [适配文档](docs/model-and-plan-adaptation.md) | 各厂商模型计费与 6 家 Coding Plan 的适配矩阵、自动匹配机制与价格来源([English](docs/model-and-plan-adaptation.en.md)) |
 | 多 provider 计费 | 设置页 / 账本 | 支持 OpenAI、Anthropic、Google Gemini、Mistral 等 provider 的 input/output、缓存与 reasoning token 价格,按 provider+model 隔离计费 |
 | 模型名自动匹配 | 设置页 / 账本 | 未知模型 id 自动匹配价格表(去日期/版本后缀 → 前缀 → 家族相似),可关闭为仅精确;未命中模型可在设置中手动指定用哪个条目的价格 |
-| 拓展价格表 | 设置页 → 拓展价格表 | 内置各厂商、按模型家族分类的参考价格目录(点开展开);一键挂载到费用设置参与计费,DeepSeek 模型可取消挂载回退默认价 |
+| 拓展价格表 | 设置页 → 拓展价格表 | 内置各厂商、按模型家族分类的参考价格目录(点开展开,厂商默认折叠);一键挂载参与计费,挂载的第三方模型默认收入表内可编辑;逐模型「在费用设置直接显示」开关自选哪些模型(含 DeepSeek)在「价格表」区直接显示 |
 
 ## 双语界面
 
@@ -78,9 +78,9 @@
 
 **峰时/平价时段条与收起态竖向进度条**:
 
-| 设置页峰时提示开关 |
-|---|
-| ![设置页峰时提示开关](docs/peak-notice-settings-zh.png) |
+| 设置页峰谷面板(提示开关/样式切换/预览) | 设置页右下角(dock)显示与图框详细信息 |
+|---|---|
+| ![峰谷计价与提示面板](docs/peak-panel-settings-zh.png) | ![右下角与图框详细设置](docs/dock-display-settings-zh.png) |
 
 v1.4.1+ 时段条与收起态竖向条真实 DSH 侧边栏实拍,按 UI 类型分组(图示为峰时):
 
@@ -104,7 +104,7 @@ v1.4.1+ 时段条与收起态竖向条真实 DSH 侧边栏实拍,按 UI 类型�
 
 - 提示遵循 `peakNotice` / `peakEnabled` / `peakEffectiveAt` / `peakWindows` 门控,按 UTC 峰时窗口显示;
 - 设置 → 费用 → 峰谷计价 下可单独开关「峰时高价时段显著提示」,关闭后展开态时段条与收起态竖向条同时隐藏;
-- 上方配图为设置页开关截图;时段条与收起态竖向条的实拍效果见上述分组配图。
+- 上方第一张为设置页峰谷面板截图(提示开关、样式切换与实时预览);时段条与收起态竖向条的实拍效果见上述分组配图;右下角(dock)各项开关与图框详细信息开关见第二张截图。
 
 - Go 图框按主档位(默认滚动 5 小时,可在显示设置切换周/月)显示已用% 与进度条,下方一行展示其余两档与重置时间:
 
@@ -112,7 +112,9 @@ v1.4.1+ 时段条与收起态竖向条真实 DSH 侧边栏实拍,按 UI 类型�
 
 **右下角(dock)额度 / 预算 chips**(显示设置中开启,四项独立开关:5h / 周 / 月额度 + 预算已用%):
 
-![右下角 chips](docs/screenshot-display-corner-v2.png)
+| 右下角实际显示 | 显示设置(开关位置) |
+|---|---|
+| ![右下角 chips](docs/screenshot-display-corner-v2.png) | ![右下角显示设置](docs/dock-display-settings-zh.png) |
 
 **本会话费用**(两个位置,可在设置中切换):
 
@@ -172,22 +174,22 @@ v1.4.1+ 时段条与收起态竖向条真实 DSH 侧边栏实拍,按 UI 类型�
 
 ### 一键安装(推荐)
 
-**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.5.0`**,建议先下载审阅再运行):
+**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.5.1`**,建议先下载审阅再运行):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.0/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.1/install.ps1 | iex
 ```
 
 **或直接命令行**(机器上需已有 pnpm 与 git;同样固定到 tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.0
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.1
 ```
 
 没有 git 时可用 GitHub tag 打包直链:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.0.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.1.tar.gz
 ```
 
 安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):
