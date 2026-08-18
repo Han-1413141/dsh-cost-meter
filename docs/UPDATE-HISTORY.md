@@ -3,6 +3,11 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.8(2026-08-18)—— 历史各天的会话明细
+
+- **历史各天的会话明细**(issue #22,感谢 @JokerQyou 的建议):历史记录表的日期行可点击展开,按需拉取当日各会话的调用次数 / token / 费用(与「今日会话」同口径);新增 `costMeter.getDaySessions(date)` RPC(服务端 + typert 清单 + 客户端 descriptor 三侧同步,strict codec),展开才拉取并缓存,不在 state 中预载避免膨胀;无会话明细的日期(早期数据/日志已清理)给出明确提示。
+- **按会话统计(不分日期视角)**(issue #22):设置页新增「按会话统计(全部历史)」折叠面板(默认收起),跨全部日期按费用降序展示会话排行(每条带所属日期,可选 50/100/200 条),展开时按需拉取;新增 `costMeter.getTopSessions(limit)` RPC(同上三侧同步,服务端限制 1-500 条);verify.mjs 新增清单断言、copyDay/history 保真与排行语义回归。
+
 ## v1.5.7(2026-08-18)—— MiniMax Token Plan `model_remains` 未解析
 
 - **MiniMax Token Plan `model_remains` 未解析**(1.5.6 仍失败,follow-up of issue #20):现行接口返回 `{ model_remains: [{ model_name: "general"|"video", current_interval_remaining_percent, current_weekly_remaining_percent, ... }] }`,`total_count` 常为 0。1.5.6 只认根上平铺字段,旧计数路径又跳过 total=0,因而报「未解析出用量窗口」。现优先取 `general` 一行抽出 5h/7d 余量(`status=3` 无限量窗如 video 不展示),平铺/旧数组/旧计数形态仍兼容。

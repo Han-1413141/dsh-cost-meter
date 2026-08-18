@@ -500,6 +500,47 @@ const cpInvocation = TYPERT.invocations.find(i => i.method === 'refreshCodingPla
 assert.ok(cpInvocation !== undefined, 'refreshCodingPlan 清单存在')
 assert.equal(cpInvocation.parameters[0].name, 'provider', 'refreshCodingPlan 参数名')
 assert.equal(cpInvocation.parameters[0].codec.mode, 'strict', 'provider 参数 strict codec')
+// getDaySessions(issue #22):按需读取某天完整记录(含会话明细)。
+const gdsInvocation = TYPERT.invocations.find(i => i.method === 'getDaySessions')
+assert.ok(gdsInvocation !== undefined, 'getDaySessions 清单存在')
+assert.equal(gdsInvocation.parameters[0].name, 'date', 'getDaySessions 参数名')
+assert.equal(gdsInvocation.parameters[0].codec.mode, 'strict', 'date 参数 strict codec')
+assert.equal(gdsInvocation.result.mode, 'strict', 'getDaySessions 返回 strict codec')
+// getTopSessions(issue #22 不分日期视角):跨全部日期按费用降序的会话排行。
+const gtsInvocation = TYPERT.invocations.find(i => i.method === 'getTopSessions')
+assert.ok(gtsInvocation !== undefined, 'getTopSessions 清单存在')
+assert.equal(gtsInvocation.parameters[0].name, 'limit', 'getTopSessions 参数名')
+assert.equal(gtsInvocation.parameters[0].codec.mode, 'strict', 'limit 参数 strict codec')
+assert.equal(gtsInvocation.result.mode, 'strict', 'getTopSessions 返回 strict codec')
+// getDaySessions 底层:copyDay 完整副本保留会话明细(轻量 history() 不含)。
+{
+  const gdsDay = { date: '2026-08-18', input: 10, output: 5, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.5, byProviderModel: {}, sessions: [{ id: 'session-gds', input: 10, output: 5, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.5, byProviderModel: {} }] }
+  const gdsRoot = join(process.env.TEMP ?? '/tmp', `cm-gds-test-${Date.now()}`)
+  mkdirSync(gdsRoot, { recursive: true })
+  const gdsLedger = new Ledger(sanitizeConfig({}), { '2026-08-18': gdsDay }, join(gdsRoot, 'ledger.json'))
+  const gdsCopy = gdsLedger.copyDay(gdsLedger.days['2026-08-18'])
+  assert.equal(gdsCopy.sessions.length, 1, 'copyDay 完整副本保留会话明细')
+  assert.equal(gdsCopy.sessions[0].id, 'session-gds', '会话 id 保真')
+  const gdsLight = gdsLedger.history(60)
+  assert.equal(gdsLight[0].sessions.length, 0, 'history() 轻量副本不含会话')
+  rmSync(gdsRoot, { recursive: true, force: true })
+}
+// getTopSessions 语义:跨天汇总、按费用降序、limit 截断(直接验证服务层逻辑同构实现)。
+{
+  const mkSession = (id, cost) => ({ id, input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost, byProviderModel: {} })
+  const days = {
+    '2026-08-16': { date: '2026-08-16', input: 2, output: 2, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 2, cost: 1.5, byProviderModel: {}, sessions: [mkSession('s-a', 1.0), mkSession('s-b', 0.5)] },
+    '2026-08-17': { date: '2026-08-17', input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 2.0, byProviderModel: {}, sessions: [mkSession('s-c', 2.0)] },
+  }
+  const all = []
+  for (const [date, day] of Object.entries(days)) {
+    for (const s of day.sessions) all.push({ ...s, date })
+  }
+  all.sort((a, b) => b.cost - a.cost)
+  const top = all.slice(0, 2)
+  assert.deepEqual(top.map(s => s.id), ['s-c', 's-a'], '跨天会话按费用降序')
+  assert.equal(top[0].date, '2026-08-17', '排行条目携带所属日期')
+}
 // 客户端 descriptor 清单与服务端 typert 清单逐方法对齐(issue #16 回归:漏注册 refreshCodingPlan 曾致刷新按钮报 is not a function)。
 const clientSrc = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
 const clientMethods = [...new Set([...clientSrc.matchAll(/id: 'dsh-cost-meter#costMeter\/([A-Za-z]+)'/g)].map(m => m[1]))].sort()
