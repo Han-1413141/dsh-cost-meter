@@ -18,7 +18,7 @@
 
 | 版本 | 安全修复支持 |
 |---|---|
-| 最新 Release(当前 v1.5.4) | ✅ |
+| 最新 Release(见 [Releases](https://github.com/Han-1413141/dsh-cost-meter/releases)) | ✅ |
 | 更早版本 | ❌ 请升级到最新版 |
 
 Only the latest release receives security fixes — please upgrade.
