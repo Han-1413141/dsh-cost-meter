@@ -1,0 +1,28 @@
+{
+  "customBalance": {
+    "enabled": true,
+    "label": "LiteLLM",
+    "labelEn": "LiteLLM",
+    "display": "both",
+    "unit": "USD",
+    "refreshMinutes": 15,
+    "request": {
+      "url": "https://your-litellm.example.com/key/info",
+      "method": "GET",
+      "headers": {
+        "Authorization": "Bearer {{LITELLM_API_KEY}}",
+        "User-Agent": "dsh-cost-meter/1.5"
+      }
+    },
+    "extract": {
+      "remaining": { "op": "subtract", "paths": ["info.max_budget", "info.spend"] },
+      "maxBudget": "info.max_budget",
+      "spend": "info.spend",
+      "unit": "USD"
+    }
+  },
+  "balance": {
+    "showProgressBar": true,
+    "budgetCap": null
+  }
+}

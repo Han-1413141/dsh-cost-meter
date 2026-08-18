@@ -4,7 +4,7 @@
 
 **DeepSeek Harness 会话费用统计插件(界面中英双语)**
 
-本会话费用 · 当日费用 · OpenCode Go 订阅额度显示 · 预算与已用百分比 · 官方账户余额 · 历史记录 · 峰谷计价时段显示(UTC 01:00–04:00、06:00–10:00 为峰时段) · 官方价格一键同步 · 类 Codex Token 用量热图 · 多厂商多模型价格计费(内置 90+ 模型价格目录与自动匹配) · 主流 Coding Plan 额度显示(Anthropic / Z.ai / MiniMax / Kimi / OpenRouter / SiliconFlow 六家)
+本会话费用 · 当日费用 · OpenCode Go 订阅额度显示 · 预算与已用百分比 · 官方账户余额 · 历史记录 · 峰谷计价时段显示(UTC 01:00–04:00、06:00–10:00 为峰时段) · 官方价格一键同步 · 类 Codex Token 用量热图
 
 [![version](https://img.shields.io/badge/version-1.5.3-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -25,7 +25,8 @@
 | 功能 | 位置 | 说明 |
 |---|---|---|
 | 本会话费用 | 输入区下方 / 会话标题栏 | 实时累计费用 + 输入/缓存/输出 token,位置可配 |
-| 官方余额 | 侧边栏顶部 / 设置页(可配) | 总余额 / 赠送 / 充值,自动刷新 + 手动刷新 |
+| 官方余额 | 侧边栏顶部 / 设置页(可配) | 总余额 / 赠送 / 充值,自动刷新 + 手动刷新;可选三段进度条(蓝/橙/灰) |
+| 自定义 Provider 余额 | 侧边栏 / 设置页(可配) | 可配置 HTTP 查询任意 Provider 余额(LiteLLM 等);中/英名称、币种、extract 规则;与 Coding Plan 同区可折叠配置 |
 | OpenCode Go 额度 | 侧边栏 / 设置页 / 右下角(dock,可配) | 滚动 5 小时 / 本周 / 本月用量百分比与重置时间,三档可分别开关,可同时显示预算已用%;Key 自动发现(DSH 凭据库 OPENCODE_GO_API_KEY / 环境变量 / opencode 登录态)或手动填写 |
 | Coding Plan 额度 | 设置页 | 多厂商 coding plan 订阅额度查询(Anthropic Claude Pro/Max、Z.ai/智谱 GLM、MiniMax Token Plan、Kimi/Moonshot 余额、OpenRouter credits、SiliconFlow 余额),各家独立启用开关与 Key,凭据只发往官方端点;无凭据/无订阅为中性提示 |
 | 当日费用 | 侧边栏底部(设置按钮上方) | 「今日 ¥x」,悬停见调用次数与 token 明细 |
@@ -65,8 +66,18 @@
 
 ![侧边栏底部](docs/screenshot-sidebar-footer.png)
 
-- 余额行显示官方开放平台总余额,悬停可见赠送/充值拆分;
+- 余额行显示官方开放平台总余额,悬停可见赠送/充值拆分;开启「余额进度条」后以三段图框展示(蓝=余额,橙=当日,灰=已用);
+- 自定义 Provider 余额(如 LiteLLM)可配置 HTTP 查询,侧边栏与设置页同图框样式;
 - 未启用预算时,该位置显示「今日 ¥x」徽章。
+
+**余额进度条与自定义 Provider 配置**:
+
+| 侧边栏进度条 + 显示设置 | 自定义 Provider 余额面板 |
+|---|---|
+| ![余额进度条](docs/screenshot-balance-progress-bar-zh.png) | ![自定义 Provider 配置](docs/screenshot-custom-balance-settings-zh.png) |
+
+- 显示设置 →「余额进度条」全局开关;可选「额度上限」覆盖 API 的 `max_budget`;
+- 设置 → 费用 →「自定义 Provider 余额」:展开后编辑 URL / Headers(JSON) / extract(JSON)、中/英名称与币种。
 
 **额度 / 预算图框三态**(OpenCode Go 额度与预算各自独立开关,同款圆角图框;两者同时开启时自动**合并为一张卡片**,Go 在上、预算在下,细分隔线、各自保留预警色;「图框详细信息」开关可收起次要行,只保留 标签 + 已用% + 进度条):
 

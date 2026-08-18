@@ -4,7 +4,7 @@
 
 **Session cost tracking plugin for the DeepSeek Harness web GUI (bilingual UI)**
 
-Per-conversation cost · daily totals · OpenCode Go subscription quota display · budget with usage percentage · official account balance · history · peak/off-peak pricing hours display (peak hours UTC 01:00–04:00, 06:00–10:00) · one-click price sync from the official docs · Codex-style token usage heat grid · multi-vendor model pricing (built-in 90+ model price catalog with auto-matching) · mainstream Coding Plan quota display (Anthropic / Z.ai / MiniMax / Kimi / OpenRouter / SiliconFlow)
+Per-conversation cost · daily totals · OpenCode Go subscription quota display · budget with usage percentage · official account balance · custom provider balance · balance progress bar · history · peak/off-peak pricing hours display (peak hours UTC 01:00–04:00, 06:00–10:00) · one-click price sync from the official docs · Codex-style token usage heat grid
 
 [![version](https://img.shields.io/badge/version-1.5.3-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -25,7 +25,8 @@ English | [中文](README.md)
 | Feature | Location | Description |
 |---|---|---|
 | Per-conversation cost | Below the composer / session title bar | Live accumulated cost + input/cache/output tokens; position configurable |
-| Official balance | Sidebar top / Settings page (configurable) | Total / granted / topped-up balance, auto-refresh + manual refresh |
+| Official balance | Sidebar top / Settings page (configurable) | Total / granted / topped-up balance, auto-refresh + manual refresh; optional three-segment progress bar (blue/orange/gray) |
+| Custom provider balance | Sidebar / Settings page (configurable) | Configurable HTTP balance lookup (e.g. LiteLLM); bilingual labels, currency, extract rules; collapsible panel alongside Coding Plan quotas |
 | OpenCode Go quota | Sidebar / Settings / bottom-right dock (configurable) | Rolling-5h / weekly / monthly usage percent and reset times, each window toggleable independently, budget used % can show alongside; key auto-discovered (DSH credential store OPENCODE_GO_API_KEY / env / opencode login) or entered manually |
 | Coding plan quotas | Settings page | Multi-vendor coding-plan quota queries (Anthropic Claude Pro/Max, Z.ai / Zhipu GLM Coding Plan, MiniMax Token Plan, Kimi/Moonshot balance, OpenRouter credits, SiliconFlow balance); per-vendor enable switch and key, credentials only sent to official endpoints; neutral hints when no credentials/subscription |
 | Today's cost | Sidebar bottom (above the settings button) | “Today ¥x”, hover for call count and token details |
@@ -64,8 +65,17 @@ The plugin UI (session badge, sidebar balance row & budget box, and the entire S
 
 ![Sidebar footer](docs/screenshot-sidebar-footer.png)
 
-- The balance row shows the official open-platform total balance; hovering reveals the granted/topped-up split;
+- The balance row shows the official open-platform total balance; hovering reveals the granted/topped-up split; with “Balance progress bar” enabled, both official and custom balances use the same three-segment box (blue = remaining, orange = today, gray = spent);
 - With no budget enabled, that spot shows the “Today ¥x” badge.
+
+**Balance progress bar & custom provider settings**:
+
+| Sidebar progress bar + display settings | Custom provider balance panel |
+|---|---|
+| ![Balance progress bar](docs/screenshot-balance-progress-bar-zh.png) | ![Custom provider settings](docs/screenshot-custom-balance-settings-zh.png) |
+
+- Display settings → global “Balance progress bar” toggle; optional “Budget cap” overrides API `max_budget`;
+- Settings → Cost → “Custom provider balance”: expand to edit URL / headers (JSON) / extract (JSON), bilingual names, and currency.
 
 **Quota / budget box — three states** (OpenCode Go quota and the budget each toggle independently in the same rounded style; with both on they **merge into one card** — Go on top, budget below, thin divider, each keeps its own warning colors; the “box details” toggle collapses secondary rows to just label + used % + progress bar):
 
