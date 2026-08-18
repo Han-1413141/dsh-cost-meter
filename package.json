@@ -42,15 +42,8 @@
     }
   },
   "files": [
-    "lib/custom-balance.js",
-    "lib/index.js",
-    "lib/coding-plans.js",
-    "lib/pricing.js",
-    "lib/store.js",
-    "lib/typert.host.js",
-    "lib/client.js",
+    "lib",
     "cordis.patch.yml",
-    "README.md",
     "docs/provider-pricing.json"
   ],
   "dependencies": {
