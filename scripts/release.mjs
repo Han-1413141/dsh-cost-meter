@@ -97,7 +97,7 @@ if (!hasHistory) {
 }
 
 // Release 标题取自 UPDATE-HISTORY 的「## v<V>(日期)—— 标题」行
-const vEsc = V.replace(/\./g, '\\.')
+const vEsc = V.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const histTitle = history.match(new RegExp(`^## v${vEsc}\\([^)]*\\)—— (.+)$`, 'm'))?.[1]
 const releaseTitle = `v${V}${histTitle ? ' — ' + histTitle : ''}`
 
