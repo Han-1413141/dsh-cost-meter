@@ -435,6 +435,11 @@ const cpInvocation = TYPERT.invocations.find(i => i.method === 'refreshCodingPla
 assert.ok(cpInvocation !== undefined, 'refreshCodingPlan 清单存在')
 assert.equal(cpInvocation.parameters[0].name, 'provider', 'refreshCodingPlan 参数名')
 assert.equal(cpInvocation.parameters[0].codec.mode, 'strict', 'provider 参数 strict codec')
+// 客户端 descriptor 清单与服务端 typert 清单逐方法对齐(issue #16 回归:漏注册 refreshCodingPlan 曾致刷新按钮报 is not a function)。
+const clientSrc = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+const clientMethods = [...new Set([...clientSrc.matchAll(/id: 'dsh-cost-meter#costMeter\/([A-Za-z]+)'/g)].map(m => m[1]))].sort()
+const serverMethods = TYPERT.invocations.map(i => i.method).sort()
+assert.deepEqual(clientMethods, serverMethods, '客户端 descriptor 与服务端 typert 清单方法一一对齐')
 console.log('[ok] coding plan adapter/解析器/软失败/配置清洗/清单断言通过')
 
 console.log('[ok] 金额格式:', formatMoney(0.012345, { exchangeRate: 7.2, symbol: '¥', decimals: 4 }), formatMoney(0.0000012, { exchangeRate: 1, symbol: '$', decimals: 6 }), formatMoney(123.456, { exchangeRate: 7.2, symbol: '¥', decimals: 4 }))
@@ -585,6 +590,9 @@ assert.equal(parseSiliconFlowInfo({ code: 0, data: { balance: 12.345 } }).balanc
 assert.equal(parseSiliconFlowInfo({ data: { name: 'x' } }), null, 'SiliconFlow 无余额字段安全')
 assert.ok(CODING_PLAN_ENDPOINTS.openrouter.every(u => new URL(u).host.endsWith('openrouter.ai')), 'OpenRouter 官方域名')
 assert.ok(CODING_PLAN_ENDPOINTS.siliconflow.every(u => new URL(u).host.endsWith('siliconflow.cn')), 'SiliconFlow 官方域名')
+// Z.ai 双域名白名单 + v3 优先(issue #17:v4 带有效 Key 返 404,v3 存活)。
+assert.ok(CODING_PLAN_ENDPOINTS.zai.every(u => new URL(u).host.endsWith('z.ai') || new URL(u).host.endsWith('bigmodel.cn')), 'Z.ai 官方双域名')
+assert.ok(CODING_PLAN_ENDPOINTS.zai[0].includes('/v3/') && CODING_PLAN_ENDPOINTS.zai[1].includes('/v3/'), 'Z.ai v3 端点优先')
 console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
 
 // 8) 历史账本按模型回填:回放会话日志重建旧账本缺失的 byProviderModel。
