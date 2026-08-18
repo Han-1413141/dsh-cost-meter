@@ -3,6 +3,12 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.7(2026-08-18)—— MiniMax Token Plan `model_remains` 未解析
+
+- **MiniMax Token Plan `model_remains` 未解析**(1.5.6 仍失败,follow-up of issue #20):现行接口返回 `{ model_remains: [{ model_name: "general"|"video", current_interval_remaining_percent, current_weekly_remaining_percent, ... }] }`,`total_count` 常为 0。1.5.6 只认根上平铺字段,旧计数路径又跳过 total=0,因而报「未解析出用量窗口」。现优先取 `general` 一行抽出 5h/7d 余量(`status=3` 无限量窗如 video 不展示),平铺/旧数组/旧计数形态仍兼容。
+- **MiniMax 额度条改为一框两条**:侧边栏与设置页用同一个大框展示 **MiniMax Plan** 标题 + **5h / 7d** 两条余量进度条(小标题在条左侧,百分比在右侧),不再按模型各画一框;重置时间改为悬停 tooltip。
+- **图框标题字重统一**:官方余额、自定义余额与 MiniMax Plan 标题均为 12px / 600。
+
 ## v1.5.6(2026-08-18)—— MiniMax Token Plan 额度「未解析出用量窗口」
 
 - **MiniMax Token Plan 额度「未解析出用量窗口」**(issue #20,感谢 @hi-wenw 的报告):接口现行响应为平铺结构(根节点或 `data.data` 直含 `current_interval_*` 5小时窗与 `current_weekly_*` 周窗字段、无窗口数组),旧解析器只认数组形态;修复:平铺形态优先(计数推导→剩余百分比反推,`*_remaining_percent` 为剩余口径、`status=3` 不限量窗不展示),旧数组/计数形态保留兜底(对照 OpenClaw 同端点实现);verify.mjs 新增 7 组断言。
