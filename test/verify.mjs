@@ -391,7 +391,7 @@ const mmCoding = parseMiniMaxRemains({
     { current_interval_total_count: 0, current_interval_usage_count: 5 },
   ],
 })
-assert.equal(mmCoding.current.percent, 30, 'MiniMax 计数制汇总百分比(忽略零额度行)')
+assert.equal(mmCoding['5h'].percent, 30, 'MiniMax 计数制 5h 百分比(忽略零额度行)')
 assert.equal(parseMiniMaxRemains({ base_resp: { status_code: 1004 } }), null, 'MiniMax 未登录响应拒绝')
 // 5.4b) MiniMax Token Plan 现行平铺形态(issue #20):根节点直含 current_interval_* / current_weekly_*。
 const mmFlat = parseMiniMaxRemains({
@@ -406,7 +406,7 @@ const mmFlat = parseMiniMaxRemains({
   weekly_end_time: Math.floor((nowMs + 86400_000) / 1000),
 })
 assert.equal(mmFlat['5h'].percent, 25, 'MiniMax 平铺 5 小时窗按计数推导')
-assert.equal(mmFlat.week.percent, 80, 'MiniMax 平铺周窗按计数推导')
+assert.equal(mmFlat['7d'].percent, 80, 'MiniMax 平铺周窗按计数推导')
 assert.ok(mmFlat['5h'].resetsAt.length > 0, 'MiniMax 平铺窗携带重置时刻')
 // 无计数只有剩余百分比(嵌套 data.data + 比例形态)。
 const mmFlatPct = parseMiniMaxRemains({
@@ -414,7 +414,7 @@ const mmFlatPct = parseMiniMaxRemains({
   data: { current_interval_remaining_percent: 0.6, current_weekly_remaining_percent: 20 },
 })
 assert.equal(mmFlatPct['5h'].percent, 40, 'MiniMax 剩余比例反推已用(<=1 视为比例)')
-assert.equal(mmFlatPct.week.percent, 80, 'MiniMax 剩余百分比反推已用')
+assert.equal(mmFlatPct['7d'].percent, 80, 'MiniMax 剩余百分比反推已用')
 // status=3 不限量窗不展示。
 const mmUnlimited = parseMiniMaxRemains({
   base_resp: { status_code: 0 },
@@ -425,7 +425,39 @@ const mmUnlimited = parseMiniMaxRemains({
   current_weekly_usage_count: 100,
 })
 assert.equal(mmUnlimited['5h'], undefined, 'MiniMax 不限量 5 小时窗不展示')
-assert.equal(mmUnlimited.week.percent, 10, 'MiniMax 周窗照常展示')
+assert.equal(mmUnlimited['7d'].percent, 10, 'MiniMax 周窗照常展示')
+// 5.4c) 现行 Token Plan:model_remains + remaining_percent,total=0;取 general,跳过 video 无限量行。
+const mmModelRemains = parseMiniMaxRemains({
+  model_remains: [
+    {
+      model_name: 'general',
+      current_interval_total_count: 0,
+      current_interval_usage_count: 0,
+      current_interval_remaining_percent: 100,
+      current_interval_status: 1,
+      end_time: 1787068800000,
+      current_weekly_total_count: 0,
+      current_weekly_usage_count: 0,
+      current_weekly_remaining_percent: 97,
+      current_weekly_status: 1,
+      weekly_end_time: 1787500800000,
+    },
+    {
+      model_name: 'video',
+      current_interval_remaining_percent: 100,
+      current_interval_status: 3,
+      current_weekly_remaining_percent: 100,
+      current_weekly_status: 3,
+    },
+  ],
+  base_resp: { status_code: 0, status_msg: 'success' },
+})
+assert.equal(mmModelRemains['5h'].percent, 0, 'MiniMax general 5h 余量 100% → 已用 0')
+assert.equal(mmModelRemains['7d'].percent, 3, 'MiniMax general 7d 余量 97% → 已用 3')
+assert.equal(mmModelRemains.video, undefined, 'MiniMax 不按 video 模型拆条')
+assert.equal(mmModelRemains.general, undefined, 'MiniMax 不按 general 模型拆条')
+assert.ok(mmModelRemains['5h'].resetsAt.length > 0, 'MiniMax model_remains 5h 携带重置时刻')
+assert.equal(parseMiniMaxRemains({ base_resp: { status_code: 0 }, model_remains: [{ model_name: 'video', current_interval_status: 3, current_weekly_status: 3 }] }), null, 'MiniMax 仅无限量行拒绝')
 
 // 5.5) 凭据缺失为软失败(面板中性提示而非红错);未知提供商直接拒绝。
 const stubT = (_locale, code) => code
