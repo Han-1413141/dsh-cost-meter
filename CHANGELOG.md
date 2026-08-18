@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### 修复
+
+- **自定义余额 headers 值类型防击穿**(代码审查发现):`customBalance.request.headers` 值非字符串时写入拒绝、加载剔除(此前会击穿 strict configSchema 导致所有 RPC 被拒、「账本不可用」);客户端 Headers JSON 输入同步前置校验;verify.mjs 新增回归。
+- **自定义余额刷新按钮门控改用服务端已保存配置**:修复刚勾选启用未过防抖保存时点刷新被拒的时序错位。
+- **`extract` 规则 `subtract` 空 paths 防 TypeError**(返回 null 而非抛 Reduce of empty array)。
+- **历史回填改为异步分片**:每 8 份会话日志让出一次事件循环,会话多的用户启动后不再被同步卡住数秒。
+
 ## [1.5.4] - 2026-08-18
 
 ### 新增

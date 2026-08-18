@@ -550,6 +550,15 @@ assert.equal(dirty.corner.enabled, false, 'corner 开关回落')
 assert.equal(dirty.corner.goRolling, true, 'corner 子项保持默认真')
 console.log('[ok] sanitizeConfig 非法配置清洗收敛通过')
 
+// 7.1b customBalance.headers 值类型:非字符串值写入拒绝、加载剔除(防击穿 strict configSchema 致「账本不可用」)。
+const cbBadHeaders = applyConfigPatch(sanitizeConfig({}), { customBalance: { enabled: true, display: 'both', refreshMinutes: 15, label: 'x', request: { url: 'http://a', headers: { retry: 3 } }, extract: {} } })
+assert.ok(cbBadHeaders.errors.length > 0, 'headers 非字符串值被拒绝')
+const cbGood = applyConfigPatch(sanitizeConfig({}), { customBalance: { enabled: false, display: 'both', refreshMinutes: 15, label: 'x', request: { url: '', headers: { Authorization: 'Bearer k' } }, extract: {} } })
+assert.equal(cbGood.errors.length, 0, 'headers 字符串值通过且禁用态 url 可空')
+const cbDirtyCfg = sanitizeConfig({ customBalance: { enabled: true, display: 'both', refreshMinutes: 15, label: 'x', request: { url: 'http://a', headers: { ok: 'v', bad: 5 } }, extract: {} } })
+assert.deepEqual(cbDirtyCfg.customBalance.request.headers, { ok: 'v' }, '加载边界剔除非字符串 header 值')
+console.log('[ok] customBalance headers 值类型校验(防击穿 strict configSchema)通过')
+
 // 7.2 stateSchema 漂移回归:含未核价目录条目/文本窗口/新配置键的完整快照必须通过 strict codec。
 const day0 = { date: '2026-08-17', input: 0, output: 0, cacheRead: 0, cacheWrite: 0, calls: 0, cost: 0, sessions: [] }
 const sampleState = {
@@ -620,7 +629,7 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   const ledger = new Ledger(cfg, { [dayKey]: day }, join(root, 'ledger.json'))
   let writeScheduled = false
   ledger.scheduleWrite = () => { writeScheduled = true }
-  const filled = backfillLegacyLedger(ledger, root)
+  const filled = await backfillLegacyLedger(ledger, root)
   assert.equal(filled.days, 1, '回填一个日期')
   assert.ok(filled.sessions >= 1, '回填会话明细')
   assert.ok(writeScheduled, '回填后调度落盘')
@@ -644,7 +653,7 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   assert.equal(sumCalls, day.calls, '按模型 calls 合计与当日总量对齐')
   assert.equal(day.sessions[0].byProviderModel['deepseek:deepseek-v4-flash'].calls, 1, '会话级拆分回填')
   // 幂等:再次回填不重复计数。
-  const again = backfillLegacyLedger(ledger, root)
+  const again = await backfillLegacyLedger(ledger, root)
   assert.equal(again.days, 0, '幂等:日期级不重复回填')
   assert.equal(again.sessions, 0, '幂等:会话级不重复回填')
   assert.equal(pm['deepseek:deepseek-v4-flash'].calls, 1, '幂等后数值不变')
