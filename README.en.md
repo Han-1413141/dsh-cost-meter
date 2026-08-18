@@ -185,7 +185,7 @@ Real captures from an actual DSH sidebar of the period strip and collapsed verti
 
 ### One-click install (recommended)
 
-**npm package name** (published to the npm registry since v1.5.5, tracks the latest version; no git needed):
+**npm package name** (published to the npm registry, always tracks the latest version; no git needed):
 
 ```sh
 dsh plugin --profile web add dsh-cost-meter

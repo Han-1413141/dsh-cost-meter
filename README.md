@@ -187,7 +187,7 @@
 
 ### 一键安装(推荐)
 
-**npm 包名安装**(自 v1.5.5 起已发布到 npm registry,跟随最新版本;无需 git):
+**npm 包名安装**(已发布到 npm registry,始终跟随最新版本;无需 git):
 
 ```sh
 dsh plugin --profile web add dsh-cost-meter
