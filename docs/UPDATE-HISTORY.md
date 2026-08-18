@@ -3,6 +3,10 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.6(2026-08-18)—— MiniMax Token Plan 额度「未解析出用量窗口」
+
+- **MiniMax Token Plan 额度「未解析出用量窗口」**(issue #20,感谢 @hi-wenw 的报告):接口现行响应为平铺结构(根节点或 `data.data` 直含 `current_interval_*` 5小时窗与 `current_weekly_*` 周窗字段、无窗口数组),旧解析器只认数组形态;修复:平铺形态优先(计数推导→剩余百分比反推,`*_remaining_percent` 为剩余口径、`status=3` 不限量窗不展示),旧数组/计数形态保留兜底(对照 OpenClaw 同端点实现);verify.mjs 新增 7 组断言。
+
 ## v1.5.5(2026-08-18)—— 余额差交叉对账
 
 - **余额差交叉对账**(issue #18 讨论,感谢 @Fantasymax 的设计建议):每日首次余额拉取打基准,之后用「官方余额当日变动」反推消费与本地账本今日合计比对,偏差超阈值(max($0.30, 15%))时展示对账提示(侧边栏余额 tooltip + ⚠、设置页余额面板警告行);充值/授信变动自动重置基准防误判;订阅/Coding Plan 消费不动官方余额时静默不对账(故不采用余额差替代今日费用的方案);开关 `balance.reconcile`(默认开启);基准随账本落盘、跨重启续对;verify.mjs 新增 8 组断言。
