@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.4] - 2026-08-18
+
+### 新增
+
+- **自定义 Provider 余额查询**:可配置 HTTP 请求 URL / Headers / 声明式 `extract` 规则查询第三方余额(凭证占位符 `{{ENV_VAR}}` 从 DSH 凭据库或环境变量解析);设置页可编辑中/英名称、币种(USD/CNY/EUR)、显示位置与刷新间隔;服务端 `refreshCustomBalance` RPC + strict config/state codec 全链路。
+- **余额三段进度条(全局)**:`balance.showProgressBar` 开启后,官方余额与自定义余额在侧边栏均以预算图框同款进度条展示(蓝=剩余余额,橙=当日已用,灰=历史已用);可选 `balance.budgetCap` 手动额度上限,未配置时优先 API `max_budget`,仍无则整条蓝色。
+
 ## [1.5.3] - 2026-08-18
 
 ### 变更
