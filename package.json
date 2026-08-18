@@ -1,7 +1,7 @@
 {
   "name": "dsh-cost-meter",
   "version": "1.5.3",
-  "description": "DeepSeek Harness 会话费用统计插件:本会话成本、当日费用、历史记录与官方价格同步,界面中英双语。Session cost tracking plugin for DeepSeek Harness: per-conversation cost, daily totals, history and official price sync, with a bilingual (Chinese/English) UI.",
+  "description": "DeepSeek Harness 会话费用统计插件:本会话成本、当日费用、历史记录与官方价格同步,支持多厂商多模型价格计费(内置 90+ 模型价格目录与自动匹配)与主流 Coding Plan 订阅额度显示(6 家),界面中英双语。Session cost tracking plugin for DeepSeek Harness: per-conversation cost, daily totals, history and official price sync, with multi-vendor model pricing (built-in 90+ model catalog with auto-matching) and Coding Plan quota display for 6 vendors, in a bilingual (Chinese/English) UI.",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
