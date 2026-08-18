@@ -506,11 +506,12 @@ assert.ok(gdsInvocation !== undefined, 'getDaySessions 清单存在')
 assert.equal(gdsInvocation.parameters[0].name, 'date', 'getDaySessions 参数名')
 assert.equal(gdsInvocation.parameters[0].codec.mode, 'strict', 'date 参数 strict codec')
 assert.equal(gdsInvocation.result.mode, 'strict', 'getDaySessions 返回 strict codec')
-// getTopSessions(issue #22 不分日期视角):跨全部日期按费用降序的会话排行。
+// getTopSessions(issue #22 不分日期视角):跨全部日期的会话排行,支持排序参数。
 const gtsInvocation = TYPERT.invocations.find(i => i.method === 'getTopSessions')
 assert.ok(gtsInvocation !== undefined, 'getTopSessions 清单存在')
 assert.equal(gtsInvocation.parameters[0].name, 'limit', 'getTopSessions 参数名')
 assert.equal(gtsInvocation.parameters[0].codec.mode, 'strict', 'limit 参数 strict codec')
+assert.deepEqual(gtsInvocation.parameters.map(p => p.name), ['limit', 'sort', 'dir'], 'getTopSessions 三参数(limit/sort/dir)')
 assert.equal(gtsInvocation.result.mode, 'strict', 'getTopSessions 返回 strict codec')
 // getDaySessions 底层:copyDay 完整副本保留会话明细(轻量 history() 不含)。
 {
@@ -525,21 +526,31 @@ assert.equal(gtsInvocation.result.mode, 'strict', 'getTopSessions 返回 strict 
   assert.equal(gdsLight[0].sessions.length, 0, 'history() 轻量副本不含会话')
   rmSync(gdsRoot, { recursive: true, force: true })
 }
-// getTopSessions 语义:跨天汇总、按费用降序、limit 截断(直接验证服务层逻辑同构实现)。
+// getTopSessions 语义:跨天汇总、排序模式、title/at 透传(与服务端同构实现验证)。
 {
-  const mkSession = (id, cost) => ({ id, input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost, byProviderModel: {} })
+  const mkSession = (id, cost, at) => ({ id, title: 'T-' + id, at, input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost, byProviderModel: {} })
   const days = {
-    '2026-08-16': { date: '2026-08-16', input: 2, output: 2, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 2, cost: 1.5, byProviderModel: {}, sessions: [mkSession('s-a', 1.0), mkSession('s-b', 0.5)] },
-    '2026-08-17': { date: '2026-08-17', input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 2.0, byProviderModel: {}, sessions: [mkSession('s-c', 2.0)] },
+    '2026-08-16': { date: '2026-08-16', input: 2, output: 2, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 2, cost: 1.5, byProviderModel: {}, sessions: [mkSession('s-a', 1.0, 100), mkSession('s-b', 0.5, 300)] },
+    '2026-08-17': { date: '2026-08-17', input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 2.0, byProviderModel: {}, sessions: [mkSession('s-c', 2.0, 200)] },
   }
   const all = []
   for (const [date, day] of Object.entries(days)) {
-    for (const s of day.sessions) all.push({ ...s, date })
+    for (const s of day.sessions) all.push({ date, id: s.id, title: s.title, at: s.at, cost: s.cost })
   }
-  all.sort((a, b) => b.cost - a.cost)
-  const top = all.slice(0, 2)
-  assert.deepEqual(top.map(s => s.id), ['s-c', 's-a'], '跨天会话按费用降序')
-  assert.equal(top[0].date, '2026-08-17', '排行条目携带所属日期')
+  const byCostDesc = all.slice().sort((a, b) => b.cost - a.cost)
+  assert.deepEqual(byCostDesc.map(s => s.id), ['s-c', 's-a', 's-b'], '费用降序')
+  const byCostAsc = all.slice().sort((a, b) => a.cost - b.cost)
+  assert.deepEqual(byCostAsc.map(s => s.id), ['s-b', 's-a', 's-c'], '费用升序')
+  const byTimeDesc = all.slice().sort((a, b) => b.at - a.at)
+  assert.deepEqual(byTimeDesc.map(s => s.id), ['s-b', 's-c', 's-a'], '时间降序(新→旧)')
+  const recentDesc = []
+  for (const date of Object.keys(days).slice().reverse()) {
+    for (const s of days[date].sessions.slice().reverse()) recentDesc.push(s.id)
+  }
+  assert.deepEqual(recentDesc, ['s-c', 's-b', 's-a'], '实时顺序降序(新会话在前)')
+  assert.equal(byCostDesc[0].title, 'T-s-c', '排行条目透传标题')
+  assert.equal(byCostDesc[0].at, 200, '排行条目透传时间戳')
+  assert.equal(byCostDesc[0].date, '2026-08-17', '排行条目携带所属日期')
 }
 // 客户端 descriptor 清单与服务端 typert 清单逐方法对齐(issue #16 回归:漏注册 refreshCodingPlan 曾致刷新按钮报 is not a function)。
 const clientSrc = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
@@ -784,6 +795,7 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   const replayed = replaySessionRecords(JSON.parse('[' + sessionA.split('\n').filter(Boolean).join(',') + ']'), cfg, new Set([dayKey]))
   assert.equal(replayed.sessionId, 'session-a', '回放器读取会话 id')
   assert.equal(replayed.title, 'Test Session Alpha', '回放器捕获会话标题')
+  assert.equal(replayed.createdAt, legacyAt, '回放器捕获会话创建时刻')
   assert.deepEqual(Object.keys(replayed.days), [dayKey], '回放结果按本地日期归组')
   // 8a-bis) 纯标题补齐通道:拆分已有、仅缺标题的会话也能补(实时会话下次启动补齐标题的路径)。
   const rootT = join(process.env.TEMP ?? '/tmp', `cm-backfill-titles-${Date.now()}`)
@@ -800,6 +812,7 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   assert.equal(filledT.sessions, 0, '纯标题通道不动会话拆分')
   assert.equal(filledT.titles, 1, '纯标题通道补齐标题')
   assert.equal(dayT.sessions[0].title, 'Test Session Alpha', '已有拆分的会话也补标题')
+  assert.equal(dayT.sessions[0].at, legacyAt, '纯标题通道同时补齐时间戳')
   rmSync(rootT, { recursive: true, force: true })
   // 8b) 完整覆盖重算:修正旧版本误计费导致的历史虚高(issue #18)。
   const root2 = join(process.env.TEMP ?? '/tmp', `cm-backfill-recost-${Date.now()}`)
@@ -828,9 +841,9 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   const gdsSchema = TYPERT.invocations.find(i => i.method === 'getDaySessions').result.schema
   const withTitle = gdsSchema.safeParse({
     date: '2026-08-18', input: 0, output: 0, cacheRead: 0, cacheWrite: 0, calls: 1, cost: 0.1,
-    sessions: [{ id: 's-1', title: '标题示例', input: 1, output: 1, cacheRead: 0, cacheWrite: 0, calls: 1, cost: 0.1 }],
+    sessions: [{ id: 's-1', title: '标题示例', at: 1755500000000, input: 1, output: 1, cacheRead: 0, cacheWrite: 0, calls: 1, cost: 0.1 }],
   })
-  assert.ok(withTitle.success, 'sessionSchema 接受可选 title')
+  assert.ok(withTitle.success, 'sessionSchema 接受可选 title 与 at')
   const dirtyDay = sanitizeDays(JSON.parse(JSON.stringify({ '2026-08-18': { date: '2026-08-18', input: 0, output: 0, cacheRead: 0, cacheWrite: 0, calls: 1, cost: 0.1, sessions: [{ id: 's-1', title: 123, input: 1, output: 1, cacheRead: 0, cacheWrite: 0, calls: 1, cost: 0.1 }] } })))
   assert.equal(dirtyDay['2026-08-18'].sessions[0].title, undefined, '非字符串标题加载时剔除')
 }
