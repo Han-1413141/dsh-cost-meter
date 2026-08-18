@@ -1,0 +1,66 @@
+name: Bug 报告 · Bug Report
+description: 功能异常、启动崩溃、数据/金额不对 · Something isn't working
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢报告问题!带复现步骤和日志的 issue 通常当天就能定位。安全漏洞请勿公开提交,请走 Security → Report a vulnerability。
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 现象与期望 · What happened?
+      description: 实际看到什么?期望看到什么?
+      placeholder: 例:点击 Coding Plan 刷新后提示「同步失败:…」;期望正常显示额度。
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤 · Steps to reproduce
+      description: 从干净状态到出错的最小步骤。
+      placeholder: |
+        1. 安装插件:…
+        2. 配置 …
+        3. 点击 …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 插件版本 · Plugin version
+      description: Release tag 或 commit(`git log -1`);一键安装则为 install.ps1 里的 $Rev。
+      placeholder: v1.5.4
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: 安装方式 · Installation
+      options:
+        - 一键脚本 install.ps1
+        - dsh plugin add(git/tag)
+        - link 本地目录
+        - 其他
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: 环境 · Environment
+      description: dsh 版本、Node 版本、操作系统;若与模型/价格相关,附上相关 provider 与模型名。
+      placeholder: |
+        dsh: @deepseek-ai/dsh …
+        Node: v24.x
+        OS: Windows 11 / Ubuntu …
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志与截图 · Logs & screenshots
+      description: 浏览器控制台报错、`dsh web` 启动日志、相关截图(请脱敏 API Key 与余额等敏感信息)。
+      placeholder: 粘贴日志或拖入截图
+    validations:
+      required: false

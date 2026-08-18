@@ -1,0 +1,32 @@
+name: 功能建议 · Feature Request
+description: 新功能想法、改进建议 · Suggest an idea
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢提出想法!请先确认 [CHANGELOG](https://github.com/Han-1413141/dsh-cost-meter/blob/master/CHANGELOG.md) 与已有 issue 中没有相同/相近的内容。较大的功能建议先在这里讨论清楚再动手实现。
+  - type: textarea
+    id: problem
+    attributes:
+      label: 想解决的问题 · Problem
+      description: 这个功能解决什么痛点?没有它时你怎么绕过?
+      placeholder: 例:无法看到 …,每次都要 …
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: 期望的方案 · Proposed solution
+      description: 你希望它以什么形式工作?界面放在哪、数据从哪来、怎么展示?
+      placeholder: 描述交互/数据来源/展示形式
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 备选方案与补充 · Alternatives & context
+      description: 考虑过的替代方案、截图/线框图、相关接口文档链接等。
+    validations:
+      required: false

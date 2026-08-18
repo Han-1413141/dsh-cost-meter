@@ -11,6 +11,10 @@
 - **`extract` 规则 `subtract` 空 paths 防 TypeError**(返回 null 而非抛 Reduce of empty array)。
 - **历史回填改为异步分片**:每 8 份会话日志让出一次事件循环,会话多的用户启动后不再被同步卡住数秒。
 
+### 其他
+
+- **补齐 GitHub 社区标准文件**:新增 CODE_OF_CONDUCT(Contributor Covenant 2.1)、CONTRIBUTING(含本项目的 strict codec / descriptor 对齐 / 发布产物 / 双语等集成坑位清单)、SECURITY(私有漏洞报告通道)、Issue 表单模板(bug/feature)与 PR 模板(自检清单)。
+
 ## [1.5.4] - 2026-08-18
 
 ### 新增

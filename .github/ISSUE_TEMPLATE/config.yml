@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 安全漏洞 · Security vulnerability
+    url: https://github.com/Han-1413141/dsh-cost-meter/security/advisories/new
+    about: 请勿公开报告安全漏洞,请走私有通道 · Please report security vulnerabilities privately
