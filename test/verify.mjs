@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync, rmSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import * as zlib from 'node:zlib'
 import {
   parsePricingHtml,
   costOf,
@@ -24,6 +25,7 @@ import {
   providerPriceEntryFor,
 } from '../lib/pricing.js'
 import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig } from '../lib/store.js'
+import { backfillLegacyLedger, replaySessionRecords, scanZstdFrames } from '../lib/backfill.js'
 import { TYPERT, stateSchema } from '../lib/typert.host.js'
 import {
   CODING_PLAN_PROVIDERS,
@@ -575,5 +577,83 @@ assert.equal(parseSiliconFlowInfo({ data: { name: 'x' } }), null, 'SiliconFlow �
 assert.ok(CODING_PLAN_ENDPOINTS.openrouter.every(u => new URL(u).host.endsWith('openrouter.ai')), 'OpenRouter 官方域名')
 assert.ok(CODING_PLAN_ENDPOINTS.siliconflow.every(u => new URL(u).host.endsWith('siliconflow.cn')), 'SiliconFlow 官方域名')
 console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
+
+// 8) 历史账本按模型回填:回放会话日志重建旧账本缺失的 byProviderModel。
+{
+  const cfg = sanitizeConfig({})
+  // 峰谷时代前的两个时刻(legacyBase 历史价);两者间隔不跨本地午夜,保证同属一天。
+  const legacyAt = Date.parse(LEGACY_BASE_BOUNDARY) - 3 * 3600_000
+  const legacyAt2 = Date.parse(LEGACY_BASE_BOUNDARY) - 60_000
+  const dayKey = localDayKey(legacyAt)
+  const mkSessionLog = (id, events) => [JSON.stringify({ type: 'session', version: 0, id, createdAt: legacyAt, delegationDepth: 0 }), ...events.map(e => JSON.stringify(e))].join('\n') + '\n'
+  const usageEvent = (turn, step, time, usage, kind = 'message') => kind === 'message'
+    ? { type: 'assistant/message', seq: 0, time, data: { turn, step, usage } }
+    : { type: 'assistant/chunk', seq: 0, time, data: { turn, step, chunk: { type: 'usage', usage } } }
+  const header = (provider, model) => ({ type: 'request/header', seq: 0, time: legacyAt, data: { header: { config: { provider, model } } } })
+  const flashUsage = { inputTokens: 1000, outputTokens: 500, cacheReadTokens: 2000, cacheWriteTokens: 0 }
+  const proUsage = { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0 }
+  const sessionA = mkSessionLog('session-a', [
+    header('deepseek', 'deepseek-v4-flash'),
+    // 同 (turn, step) 的流式样本被最终样本替换:只计一次。
+    usageEvent(1, 1, legacyAt, { inputTokens: 10, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 }, 'chunk'),
+    usageEvent(1, 1, legacyAt, flashUsage),
+    header('deepseek', 'deepseek-v4-pro'),
+    usageEvent(1, 2, legacyAt2, proUsage),
+  ])
+  const root = join(process.env.TEMP ?? '/tmp', `cm-backfill-test-${Date.now()}`)
+  mkdirSync(join(root, '--proj--', 'session-a'), { recursive: true })
+  writeFileSync(join(root, '--proj--', 'session-a', 'session.jsonl'), sessionA)
+  // zstd 压缩会话(运行时支持时):同一会话不重复建目录,另建一个会话。
+  if (typeof zlib.zstdCompressSync === 'function') {
+    const sessionB = mkSessionLog('session-b', [
+      header('zen', 'deepseek-v4-flash'),
+      usageEvent(1, 1, legacyAt2, flashUsage),
+    ])
+    mkdirSync(join(root, '--proj--', 'session-b'), { recursive: true })
+    writeFileSync(join(root, '--proj--', 'session-b', 'session.jsonl.zstd'), zlib.zstdCompressSync(Buffer.from(sessionB, 'utf8')))
+    const frames = scanZstdFrames(readFileSync(join(root, '--proj--', 'session-b', 'session.jsonl.zstd')))
+    assert.equal(frames.length, 1, 'zstd frame 扫描命中单帧')
+  }
+  // 旧账本:当日只有合计,无 byProviderModel;总量略大于日志可回放部分(验证 legacy 残差行)。
+  const day = { date: dayKey, input: 20000, output: 6000, cacheRead: 30000, cacheWrite: 0, reasoning: 0, calls: 5, cost: 1,
+    sessions: [{ id: 'session-a', input: 1100, output: 550, cacheRead: 2000, cacheWrite: 0, reasoning: 0, calls: 2, cost: 0.5, byProviderModel: {} }] }
+  const ledger = new Ledger(cfg, { [dayKey]: day }, join(root, 'ledger.json'))
+  let writeScheduled = false
+  ledger.scheduleWrite = () => { writeScheduled = true }
+  const filled = backfillLegacyLedger(ledger, root)
+  assert.equal(filled.days, 1, '回填一个日期')
+  assert.ok(filled.sessions >= 1, '回填会话明细')
+  assert.ok(writeScheduled, '回填后调度落盘')
+  const pm = day.byProviderModel
+  assert.ok(pm['deepseek:deepseek-v4-flash'] !== undefined, 'flash 按 provider:model 拆分')
+  assert.equal(pm['deepseek:deepseek-v4-flash'].calls, 1, '同键流式/最终样本去重后只计一次')
+  assert.equal(pm['deepseek:deepseek-v4-flash'].input, 1000, '去重后取最终样本')
+  assert.ok(pm['deepseek:deepseek-v4-pro'] !== undefined, 'pro 独立拆分')
+  // 历史价:峰谷时代前按 legacyBase 计费,与 costOf 独立计算一致。
+  const peakForExpect = { enabled: true, effectiveAtMs: Date.parse(DEFAULT_PEAK_EFFECTIVE_AT), windows: DEFAULT_PEAK_WINDOWS }
+  const flashBuckets = { input: flashUsage.inputTokens, output: flashUsage.outputTokens, cacheRead: flashUsage.cacheReadTokens, cacheWrite: flashUsage.cacheWriteTokens }
+  const proBuckets = { input: proUsage.inputTokens, output: proUsage.outputTokens, cacheRead: proUsage.cacheReadTokens, cacheWrite: proUsage.cacheWriteTokens }
+  const expectFlash = costOf(flashBuckets, DEFAULT_PRICE_TABLE.models['deepseek-v4-flash'], legacyAt, peakForExpect)
+  assert.ok(Math.abs(pm['deepseek:deepseek-v4-flash'].cost - expectFlash) < 1e-12, 'flash 按 legacyBase 历史价计费')
+  const expectPro = costOf(proBuckets, DEFAULT_PRICE_TABLE.models['deepseek-v4-pro'], legacyAt2, peakForExpect)
+  assert.ok(Math.abs(pm['deepseek:deepseek-v4-pro'].cost - expectPro) < 1e-12, 'pro 按 legacyBase 历史价计费')
+  // 日志缺失的调用归入 deepseek:legacy 残差行,合计与账本总量对齐。
+  const legacy = pm['deepseek:legacy']
+  assert.ok(legacy !== undefined, '无法回放部分归入 legacy 行')
+  const sumCalls = Object.values(pm).reduce((s, b) => s + b.calls, 0)
+  assert.equal(sumCalls, day.calls, '按模型 calls 合计与当日总量对齐')
+  assert.equal(day.sessions[0].byProviderModel['deepseek:deepseek-v4-flash'].calls, 1, '会话级拆分回填')
+  // 幂等:再次回填不重复计数。
+  const again = backfillLegacyLedger(ledger, root)
+  assert.equal(again.days, 0, '幂等:日期级不重复回填')
+  assert.equal(again.sessions, 0, '幂等:会话级不重复回填')
+  assert.equal(pm['deepseek:deepseek-v4-flash'].calls, 1, '幂等后数值不变')
+  // 回放器直检:只统计目标日期,外部日期事件不污染。
+  const replayed = replaySessionRecords(JSON.parse('[' + sessionA.split('\n').filter(Boolean).join(',') + ']'), cfg, new Set([dayKey]))
+  assert.equal(replayed.sessionId, 'session-a', '回放器读取会话 id')
+  assert.deepEqual(Object.keys(replayed.days), [dayKey], '回放结果按本地日期归组')
+  rmSync(root, { recursive: true, force: true })
+  console.log('[ok] 历史账本按模型回填(会话日志回放/legacyBase 历史价/legacy 残差/幂等)通过')
+}
 
 console.log('[ok] 全部验证通过')
