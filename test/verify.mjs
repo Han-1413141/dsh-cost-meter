@@ -24,7 +24,7 @@ import {
   LEGACY_BASE_PRICES,
   providerPriceEntryFor,
 } from '../lib/pricing.js'
-import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta } from '../lib/store.js'
+import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, sanitizeDays } from '../lib/store.js'
 import { backfillLegacyLedger, replaySessionRecords, scanZstdFrames } from '../lib/backfill.js'
 import { TYPERT, stateSchema } from '../lib/typert.host.js'
 import {
@@ -717,9 +717,11 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
     ? { type: 'assistant/message', seq: 0, time, data: { turn, step, usage } }
     : { type: 'assistant/chunk', seq: 0, time, data: { turn, step, chunk: { type: 'usage', usage } } }
   const header = (provider, model) => ({ type: 'request/header', seq: 0, time: legacyAt, data: { header: { config: { provider, model } } } })
+  const titleEvent = title => ({ type: 'session/title', seq: 1, time: legacyAt, data: { title, messageSeqs: [], source: { kind: 'fallback' } } })
   const flashUsage = { inputTokens: 1000, outputTokens: 500, cacheReadTokens: 2000, cacheWriteTokens: 0 }
   const proUsage = { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0 }
   const sessionA = mkSessionLog('session-a', [
+    titleEvent('Test Session Alpha'),
     header('deepseek', 'deepseek-v4-flash'),
     // 同 (turn, step) 的流式样本被最终样本替换:只计一次。
     usageEvent(1, 1, legacyAt, { inputTokens: 10, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 }, 'chunk'),
@@ -750,6 +752,8 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   const filled = await backfillLegacyLedger(ledger, root)
   assert.equal(filled.days, 1, '回填一个日期')
   assert.ok(filled.sessions >= 1, '回填会话明细')
+  assert.ok(filled.titles >= 1, '补齐会话标题')
+  assert.equal(day.sessions[0].title, 'Test Session Alpha', '会话标题从 session/title 事件补齐')
   assert.ok(writeScheduled, '回填后调度落盘')
   const pm = day.byProviderModel
   assert.ok(pm['deepseek:deepseek-v4-flash'] !== undefined, 'flash 按 provider:model 拆分')
@@ -774,11 +778,29 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   const again = await backfillLegacyLedger(ledger, root)
   assert.equal(again.days, 0, '幂等:日期级不重复回填')
   assert.equal(again.sessions, 0, '幂等:会话级不重复回填')
+  assert.equal(again.titles, 0, '幂等:标题不重复补齐')
   assert.equal(pm['deepseek:deepseek-v4-flash'].calls, 1, '幂等后数值不变')
   // 回放器直检:只统计目标日期,外部日期事件不污染。
   const replayed = replaySessionRecords(JSON.parse('[' + sessionA.split('\n').filter(Boolean).join(',') + ']'), cfg, new Set([dayKey]))
   assert.equal(replayed.sessionId, 'session-a', '回放器读取会话 id')
+  assert.equal(replayed.title, 'Test Session Alpha', '回放器捕获会话标题')
   assert.deepEqual(Object.keys(replayed.days), [dayKey], '回放结果按本地日期归组')
+  // 8a-bis) 纯标题补齐通道:拆分已有、仅缺标题的会话也能补(实时会话下次启动补齐标题的路径)。
+  const rootT = join(process.env.TEMP ?? '/tmp', `cm-backfill-titles-${Date.now()}`)
+  mkdirSync(join(rootT, '--proj--', 'session-a'), { recursive: true })
+  writeFileSync(join(rootT, '--proj--', 'session-a', 'session.jsonl'), sessionA)
+  const filledBuckets = { input: 1100, output: 550, cacheRead: 2000, cacheWrite: 0, reasoning: 0, calls: 2, cost: 0.5 }
+  const dayT = { date: dayKey, input: 1100, output: 550, cacheRead: 2000, cacheWrite: 0, reasoning: 0, calls: 2, cost: 0.5,
+    byProviderModel: { 'deepseek:deepseek-v4-flash': { ...filledBuckets } },
+    sessions: [{ id: 'session-a', input: 1100, output: 550, cacheRead: 2000, cacheWrite: 0, reasoning: 0, calls: 2, cost: 0.5, byProviderModel: { 'deepseek:deepseek-v4-flash': { ...filledBuckets } } }] }
+  const ledgerT = new Ledger(cfg, { [dayKey]: dayT }, join(rootT, 'ledger.json'))
+  ledgerT.scheduleWrite = () => {}
+  const filledT = await backfillLegacyLedger(ledgerT, rootT)
+  assert.equal(filledT.days, 0, '纯标题通道不动日期级')
+  assert.equal(filledT.sessions, 0, '纯标题通道不动会话拆分')
+  assert.equal(filledT.titles, 1, '纯标题通道补齐标题')
+  assert.equal(dayT.sessions[0].title, 'Test Session Alpha', '已有拆分的会话也补标题')
+  rmSync(rootT, { recursive: true, force: true })
   // 8b) 完整覆盖重算:修正旧版本误计费导致的历史虚高(issue #18)。
   const root2 = join(process.env.TEMP ?? '/tmp', `cm-backfill-recost-${Date.now()}`)
   mkdirSync(join(root2, '--proj--', 'session-a'), { recursive: true })
@@ -795,7 +817,22 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   assert.equal(day2.byProviderModel['deepseek:legacy'], undefined, '完整覆盖不产生残差桶')
   rmSync(root2, { recursive: true, force: true })
   rmSync(root, { recursive: true, force: true })
-  console.log('[ok] 历史账本按模型回填(会话日志回放/legacyBase 历史价/legacy 残差/幂等)通过')
+  console.log('[ok] 历史账本按模型回填(会话日志回放/legacyBase 历史价/legacy 残差/幂等/会话标题)通过')
+}
+
+// 8c) 会话标题配置链与 schema:showSessionId 三处齐全;sessionSchema 接受可选 title。
+{
+  assert.ok(applyConfigPatch(sanitizeConfig({}), { showSessionId: 'yes' }).errors.length > 0, 'showSessionId 非布尔被拒绝')
+  assert.equal(sanitizeConfig({}).showSessionId, false, 'showSessionId 默认关闭')
+  assert.equal(applyConfigPatch(sanitizeConfig({}), { showSessionId: true }).errors.length, 0, 'showSessionId 可开启')
+  const gdsSchema = TYPERT.invocations.find(i => i.method === 'getDaySessions').result.schema
+  const withTitle = gdsSchema.safeParse({
+    date: '2026-08-18', input: 0, output: 0, cacheRead: 0, cacheWrite: 0, calls: 1, cost: 0.1,
+    sessions: [{ id: 's-1', title: '标题示例', input: 1, output: 1, cacheRead: 0, cacheWrite: 0, calls: 1, cost: 0.1 }],
+  })
+  assert.ok(withTitle.success, 'sessionSchema 接受可选 title')
+  const dirtyDay = sanitizeDays(JSON.parse(JSON.stringify({ '2026-08-18': { date: '2026-08-18', input: 0, output: 0, cacheRead: 0, cacheWrite: 0, calls: 1, cost: 0.1, sessions: [{ id: 's-1', title: 123, input: 1, output: 1, cacheRead: 0, cacheWrite: 0, calls: 1, cost: 0.1 }] } })))
+  assert.equal(dirtyDay['2026-08-18'].sessions[0].title, undefined, '非字符串标题加载时剔除')
 }
 
 // 9) 余额差交叉校验(issue #18 讨论):官方余额当日变动 vs 本地今日合计。
