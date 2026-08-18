@@ -453,6 +453,10 @@ assert.equal(matchModelId('deepseek-v4-pro-v2', dsCandidates), 'deepseek-v4-pro'
 assert.equal(matchModelId('deepseek-v4-flash-128k', dsCandidates), 'deepseek-v4-flash', '前缀匹配')
 assert.equal(matchModelId('gpt-5-mini-2026-01-01', ['gpt-5-2025-08-07', 'gpt-4.1-2025-04-14']), 'gpt-5-2025-08-07', '家族 token 相似')
 assert.equal(matchModelId('totally-unknown-model', dsCandidates), null, '阈值防误配')
+// 防跨版本家族误配(issue #18:订阅制 glm-5.3 曾被匹配到 glm-5.2 付费价实时虚增)。
+assert.equal(matchModelId('glm-5.3', ['glm-5.2', 'glm-5.1']), null, '分歧位为版本号时拒绝跨版本匹配')
+assert.equal(matchModelId('claude-opus-4-9', ['claude-opus-4-8']), null, '同家族不同版本不误配')
+assert.equal(matchModelId('glm-5', ['glm-5.3', 'glm-5.2']), 'glm-5.3', '前缀式家族匹配保留(请求名更泛)')
 assert.equal(matchModelId('', dsCandidates), null, '空 id 安全')
 // 6.2 providerPriceEntryFor:auto/exact 与手动覆盖。
 const dsPrices = { models: DEFAULT_PRICE_TABLE.models, default: DEFAULT_PRICE_TABLE.default }
@@ -669,6 +673,21 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   const replayed = replaySessionRecords(JSON.parse('[' + sessionA.split('\n').filter(Boolean).join(',') + ']'), cfg, new Set([dayKey]))
   assert.equal(replayed.sessionId, 'session-a', '回放器读取会话 id')
   assert.deepEqual(Object.keys(replayed.days), [dayKey], '回放结果按本地日期归组')
+  // 8b) 完整覆盖重算:修正旧版本误计费导致的历史虚高(issue #18)。
+  const root2 = join(process.env.TEMP ?? '/tmp', `cm-backfill-recost-${Date.now()}`)
+  mkdirSync(join(root2, '--proj--', 'session-a'), { recursive: true })
+  writeFileSync(join(root2, '--proj--', 'session-a', 'session.jsonl'), sessionA)
+  const inflatedCost = 999
+  const day2 = { date: dayKey, input: 1100, output: 550, cacheRead: 2000, cacheWrite: 0, reasoning: 0, calls: 2, cost: inflatedCost,
+    sessions: [{ id: 'session-a', input: 1100, output: 550, cacheRead: 2000, cacheWrite: 0, reasoning: 0, calls: 2, cost: inflatedCost, byProviderModel: {} }] }
+  const ledger2 = new Ledger(cfg, { [dayKey]: day2 }, join(root2, 'ledger.json'))
+  ledger2.scheduleWrite = () => {}
+  const filled2 = await backfillLegacyLedger(ledger2, root2)
+  assert.equal(filled2.recosted, 1, '完整覆盖的日期触发金额重算')
+  assert.ok(Math.abs(day2.cost - (expectFlash + expectPro)) < 1e-12, '当日总额按回放历史价重算(修正虚高)')
+  assert.ok(Math.abs(day2.sessions[0].cost - (expectFlash + expectPro)) < 1e-12, '会话金额同步重算')
+  assert.equal(day2.byProviderModel['deepseek:legacy'], undefined, '完整覆盖不产生残差桶')
+  rmSync(root2, { recursive: true, force: true })
   rmSync(root, { recursive: true, force: true })
   console.log('[ok] 历史账本按模型回填(会话日志回放/legacyBase 历史价/legacy 残差/幂等)通过')
 }

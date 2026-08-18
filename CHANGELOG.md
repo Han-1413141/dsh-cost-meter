@@ -6,6 +6,8 @@
 
 - **Coding Plan 「刷新」报 `refreshCodingPlan is not a function`**(issue #16,感谢 @Hchunjun 的精准诊断):客户端 CONTRIBUTION descriptor 漏注册该方法,已补齐(含 provider 参数 strict codec);verify.mjs 新增「客户端 descriptor 与服务端 typert 清单逐方法对齐」静态回归断言。
 - **Z.ai / 智谱 GLM 额度查询 404**(issue #17,感谢 @Hchunjun 的报告与排查):接口已变更——带有效 Key 请求 v4 返 404、v3 存活;端点改为 z.ai / bigmodel.cn 双域 v3 优先、v4 保留兑底;非 2xx 错误信息带上实际请求 URL;200 但业务失败(如 `{code:1001,msg:...}` 错误信封)时透出服务端 msg;verify.mjs 新增双域白名单 + v3 优先断言。
+- **订阅制模型被模糊匹配到同家族付费价导致费用虚增**(issue #18,感谢 @Fantasymax 的报告与高质量排查):模型名去后缀曾把裸数字后缀当版本后缀剥离(`glm-5.3`/`glm-5.2` 都退化成 `glm` 而互配),免费 GLM Coding Plan 调用被按 glm-5.2 单价实时记账;修复:仅剥带 v 的版本后缀(-v2),模型名本体的数字后缀(-5.3)保留;家族相似匹配在分歧位两侧均为数字 token 时也拒绝匹配(pricing.js/client.js 双实现同步);verify.mjs 新增跨版本误配/前缀式家族匹配回归。
+- **历史回填对回放完整覆盖的日期重算金额**(issue #18):某日调用与 token 能被会话日志完整回放时,按事件时刻正确价重算当日总额与会话金额,修正旧版本误计费造成的历史虚高;`deepseek:legacy` 差额桶仅保留部分覆盖的差额,客户端文案改为「未分模型(早期数据 · 按当时记录计费)」;verify.mjs 新增完整覆盖重算回归。
 - **自定义余额 headers 值类型防击穿**(代码审查发现):`customBalance.request.headers` 值非字符串时写入拒绝、加载剔除(此前会击穿 strict configSchema 导致所有 RPC 被拒、「账本不可用」);客户端 Headers JSON 输入同步前置校验;verify.mjs 新增回归。
 - **自定义余额刷新按钮门控改用服务端已保存配置**:修复刚勾选启用未过防抖保存时点刷新被拒的时序错位。
 - **`extract` 规则 `subtract` 空 paths 防 TypeError**(返回 null 而非抛 Reduce of empty array)。
