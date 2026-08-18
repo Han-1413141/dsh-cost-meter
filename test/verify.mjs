@@ -24,7 +24,7 @@ import {
   LEGACY_BASE_PRICES,
   providerPriceEntryFor,
 } from '../lib/pricing.js'
-import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig } from '../lib/store.js'
+import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta } from '../lib/store.js'
 import { backfillLegacyLedger, replaySessionRecords, scanZstdFrames } from '../lib/backfill.js'
 import { TYPERT, stateSchema } from '../lib/typert.host.js'
 import {
@@ -690,6 +690,47 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   rmSync(root2, { recursive: true, force: true })
   rmSync(root, { recursive: true, force: true })
   console.log('[ok] 历史账本按模型回填(会话日志回放/legacyBase 历史价/legacy 残差/幂等)通过')
+}
+
+// 9) 余额差交叉校验(issue #18 讨论):官方余额当日变动 vs 本地今日合计。
+{
+  const day = '2026-08-18'
+  const t0 = Date.parse(day + 'T08:00:00')
+  const t1 = Date.parse(day + 'T20:00:00')
+  const bal = (total, granted = 1, topped = total - granted) => ({ totalBalance: total, grantedBalance: granted, toppedUpBalance: topped })
+  // 首次拉取:打基准,不对账。
+  let r = reconcileBalanceDelta(null, bal(10), 0, day, t0)
+  assert.equal(r.event.kind, 'baseline', '首次拉取打基准')
+  assert.equal(r.ref.total, 10, '基准快照记录总额')
+  const base = r.ref
+  // 余额未减少(订阅用户场景):静默不告警。
+  r = reconcileBalanceDelta(base, bal(10), 3.2, day, t1)
+  assert.equal(r.event.kind, 'flat', '余额未减少不对账')
+  assert.equal(r.ref, base, 'flat 保留早间基准')
+  // 余额减少且与账本一致:ok。
+  r = reconcileBalanceDelta(base, bal(9), 0.95, day, t1)
+  assert.equal(r.event.kind, 'ok', '偏差在阈值内为 ok')
+  assert.equal(r.ref, base, 'ok 保留早间基准继续比对')
+  // 余额减少但账本严重偏低(误计费漏记场景):drift。
+  r = reconcileBalanceDelta(base, bal(5), 1.0, day, t1)
+  assert.equal(r.event.kind, 'drift', '偏差超阈报 drift')
+  assert.equal(r.event.spent, 5, 'drift 携带余额差')
+  assert.equal(r.event.todayCost, 1.0, 'drift 携带账本合计')
+  // 充值/额度结构变动:重置参考点不告警。
+  r = reconcileBalanceDelta(base, bal(20, 1, 19), 1.0, day, t1)
+  assert.equal(r.event.kind, 'structure-reset', '充值重置参考点')
+  assert.equal(r.ref.total, 20, '重置后基准为新余额')
+  // 跨天:重新打基准。
+  r = reconcileBalanceDelta(base, bal(10), 0, '2026-08-19', t1)
+  assert.equal(r.event.kind, 'baseline', '跨天重新打基准')
+  // 非法余额输入:不产生事件。
+  r = reconcileBalanceDelta(base, { totalBalance: Number.NaN }, 0, day, t1)
+  assert.equal(r.event, null, '非法余额输入静默')
+  // 配置链路:非布尔拒绝、默认开启、可关闭。
+  assert.ok(applyConfigPatch(sanitizeConfig({}), { balance: { reconcile: 'yes' } }).errors.length > 0, 'reconcile 非布尔被拒绝')
+  assert.equal(sanitizeConfig({}).balance.reconcile, true, 'reconcile 默认开启')
+  assert.equal(applyConfigPatch(sanitizeConfig({}), { balance: { reconcile: false } }).errors.length, 0, 'reconcile 可关闭')
+  console.log('[ok] 余额差交叉校验(基准/flat/ok/drift/充值重置/跨天/配置链路)通过')
 }
 
 console.log('[ok] 全部验证通过')

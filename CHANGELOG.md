@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### 新增
+
+- **余额差交叉对账**(issue #18 讨论,感谢 @Fantasymax 的设计建议):每日首次余额拉取打基准,之后用「官方余额当日变动」反推消费与本地账本今日合计比对,偏差超阈值(max($0.30, 15%))时展示对账提示(侧边栏余额 tooltip + ⚠、设置页余额面板警告行);充值/授信变动自动重置基准防误判;订阅/Coding Plan 消费不动官方余额时静默不对账(故不采用余额差替代今日费用的方案);开关 `balance.reconcile`(默认开启);基准随账本落盘、跨重启续对;verify.mjs 新增 8 组断言。
+
 ### 修复
 
 - **Coding Plan 「刷新」报 `refreshCodingPlan is not a function`**(issue #16,感谢 @Hchunjun 的精准诊断):客户端 CONTRIBUTION descriptor 漏注册该方法,已补齐(含 provider 参数 strict codec);verify.mjs 新增「客户端 descriptor 与服务端 typert 清单逐方法对齐」静态回归断言。
