@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-17",
+  "generatedAt": "2026-08-18",
   "note": "Auto-generated from lib/pricing.js DEFAULT_PROVIDER_PRICE_TABLE. USD per 1M tokens; unpriced entries have no verified official price.",
   "providers": {
     "openai": {
@@ -762,24 +762,6 @@
           "billingMode": "flat",
           "sourceUrl": "https://opencode.ai/docs/go",
           "checkedAt": "2026-08-17"
-        },
-        "deepseek-v4-pro": {
-          "input": 0.66,
-          "cachedInput": 0.022,
-          "output": 1.98,
-          "billingMode": "flat",
-          "sourceUrl": "https://opencode.ai/docs/go",
-          "checkedAt": "2026-08-17",
-          "notes": "Go 目录为谷时价参考;官方峰时翻倍"
-        },
-        "deepseek-v4-flash": {
-          "input": 0.22,
-          "cachedInput": 0.007,
-          "output": 0.66,
-          "billingMode": "flat",
-          "sourceUrl": "https://opencode.ai/docs/go",
-          "checkedAt": "2026-08-17",
-          "notes": "Go 目录为谷时价参考;官方峰时翻倍"
         },
         "hy3": {
           "input": 0.14,

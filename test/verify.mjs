@@ -467,9 +467,10 @@ assert.ok(Object.keys(catalog).length >= 10, '目录含全部内置厂商')
 assert.ok(catalog.deepseek['DeepSeek v4']['deepseek-v4-flash']?.peak !== undefined, 'DeepSeek 目录含峰谷两档')
 assert.ok(catalog.moonshot['Kimi K2']['kimi-k2.6'] !== undefined, 'Kimi 家族分组')
 assert.ok(catalog.anthropic['Claude 4.5']['claude-opus-4-5'] !== undefined, 'Claude 家族分组')
-// 6.3.1 OpenCode Go 订阅全部 18 个模型在册,关键模型有价。
+// 6.3.1 OpenCode Go 订阅非 DeepSeek 的 17 个模型在册,关键模型有价;DeepSeek 以官方主表为准不重复收录。
 const goModels = Object.values(catalog['opencode-go']).reduce((acc, fam) => acc.concat(Object.keys(fam)), [])
-assert.ok(goModels.length >= 18, 'OpenCode Go 目录 ≥18 个模型: ' + goModels.length)
+assert.ok(goModels.length >= 17, 'OpenCode Go 目录 ≥17 个模型: ' + goModels.length)
+assert.equal(catalog['opencode-go'] && Object.values(catalog['opencode-go']).flatMap(fam => Object.keys(fam)).includes('deepseek-v4-flash'), false, 'Go 目录不重复收录 DeepSeek V4(以官方为准)')
 assert.equal(catalog.openai['GPT-5.6']['gpt-5.6-luna'].input, 0.2, 'GPT-5.6 Luna 输入价')
 assert.equal(catalog['opencode-go']['GPT']['gpt-5.6-luna'].output, 1.2, 'Go 目录 GPT-5.6 Luna 输出价')
 assert.equal(catalog['z-ai']['GLM-5']['glm-5.3'].unpriced, true, 'GLM-5.3 无官方价不编造')

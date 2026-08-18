@@ -59,7 +59,7 @@ The built-in read-only catalog is grouped by **vendor → model family**, coveri
 | Xiaomi MiMo | V2.5 (+Pro) |
 | Tencent Hunyuan | Hy3 |
 | OpenRouter / Mistral / NVIDIA / Upstage | common models |
-| **OpenCode Go (subscription)** | official reference prices for **all 18 models** included in the subscription |
+| **OpenCode Go (subscription)** | official reference prices for the **17 non-DeepSeek models** included in the subscription (DeepSeek V4 Flash/Pro follow the official main table and are not duplicated) |
 
 Price sources: cross-checked against the **OpenCode Zen/Go official price list** (officially stated as cost-pass-through, identical to each vendor's own prices) and each vendor's official pricing pages; entries without a verifiable price (e.g. GLM-5.3) are marked `unpriced` — **prices are never invented**. A machine-readable copy is [`provider-pricing.json`](./provider-pricing.json) (auto-generated from code).
 

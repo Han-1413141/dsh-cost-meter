@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.3] - 2026-08-18
+
+### 变更
+
+- **opencode-go 目录去重**:Go 目录中的 DeepSeek V4 Flash/Pro 参考价与官方主表重复,以官方为准(含峰谷两档),从目录与家族分组移除(17 个非 DeepSeek 模型保留);旧账本已挂载的这两条经 `sanitizeConfig` 迁移自动剔除;`docs/provider-pricing.json` 同步再生成。
+
 ## [1.5.2] - 2026-08-18
 
 ### 新增

@@ -59,7 +59,7 @@
 | 小米 MiMo | V2.5(+Pro) |
 | 腾讯混元 | Hy3 |
 | OpenRouter / Mistral / NVIDIA / Upstage | 常用模型 |
-| **OpenCode Go(订阅)** | 订阅包含的**全部 18 个模型**的官方参考单价 |
+| **OpenCode Go(订阅)** | 订阅包含的非 DeepSeek **17 个模型**的官方参考单价(DeepSeek V4 Flash/Pro 以官方主表为准,不重复收录) |
 
 价格来源:以 **OpenCode Zen/Go 官方价目**(官方声明 cost-pass-through、与各厂原价一致)与各厂官方定价页交叉核对;无法核价的(如 GLM-5.3)标 `unpriced`,**不编造价格**。机器可读副本见 [`provider-pricing.json`](./provider-pricing.json)(由代码自动生成)。
 

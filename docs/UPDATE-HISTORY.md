@@ -3,6 +3,10 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.3(2026-08-18)—— opencode-go 目录去重
+
+- Go 目录中的 DeepSeek V4 Flash/Pro 参考价与官方主表重复,以官方为准(含峰谷两档),从目录移除;旧账本挂载自动剔除;17 个非 DeepSeek 模型保留。
+
 ## v1.5.2(2026-08-18)—— 修复路由模型费用为零 + 匹配放宽 + 默认全部挂载
 
 - **修复:路由 provider(opencode/zen 等)下本会话费用为零**——按模型名跨厂商全库查找,DeepSeek 模型保留峰谷两档;宿主入账同步手动覆盖与匹配模式;
