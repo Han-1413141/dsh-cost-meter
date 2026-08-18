@@ -6,13 +6,13 @@
 .DESCRIPTION
   无需克隆仓库:自动补齐 pnpm,再经 dsh plugin 把插件装进 web profile。
   安装链全程固定到 $Rev 发布 tag(pnpm 版本同样固定),可审计、可复现:
-   - git 源固定到 tag:  github:Han-1413141/dsh-cost-meter#v1.5.4
+   - git 源固定到 tag:  github:Han-1413141/dsh-cost-meter#v1.5.5
    - 无 git 时用 tag 打包直链(内容与 tag 一一对应)
    - pnpm 固定版本:     11.21.0(corepack prepare / npm i -g pnpm@11.21.0)
   已安装时重跑本脚本即可对齐到当前脚本固定的版本。
 
   一键用法(复制整行到 PowerShell 粘贴回车;先审阅再运行):
-    irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.4/install.ps1 | iex
+    irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.5/install.ps1 | iex
 
   手动用法(先下载本文件审阅):
     powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
@@ -27,7 +27,7 @@ $ErrorActionPreference = 'Stop'
 $Package      = 'dsh-cost-meter'
 $Owner        = 'Han-1413141'
 $Repo         = 'dsh-cost-meter'
-$Rev          = 'v1.5.4'   # 固定发布 tag:发布新版本时同步更新此值与 README 中的安装行
+$Rev          = 'v1.5.5'   # 固定发布 tag:发布新版本时同步更新此值与 README 中的安装行
 $PnpmVersion  = '11.21.0'   # 固定 pnpm 版本,保证安装链可复现
 $GitSpec = "github:$Owner/$Repo#$Rev"
 $TarSpec = "https://github.com/$Owner/$Repo/archive/refs/tags/$Rev.tar.gz"
