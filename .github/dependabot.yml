@@ -1,0 +1,49 @@
+# Dependabot 配置:dsh-cost-meter 是寄生在 DeepSeek Harness 宿主内的插件,
+# 运行时依赖与宿主共享解析,升级策略偏保守——月度检查、小版本合组、大版本单独评审。
+version: 2
+updates:
+  # npm 依赖(package.json + pnpm-lock.yaml)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      timezone: "Asia/Shanghai"
+    # 与宿主环境强相关,限制并发 PR 数量,避免 PR 噪音。
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+    # 小版本/补丁合为一组 PR;大版本各自单独提,便于逐个评审兼容性。
+    groups:
+      npm-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      # @deepseek-ai 官方辅助包目前处于 0.1.0-rc 阶段,semver 大版本跳跃
+      # 可能伴随宿主协议变化,忽略自动升级,改由发版时人工对齐宿主版本。
+      - dependency-name: "@deepseek-ai/*"
+        update-types:
+          - "version-update:semver-major"
+
+  # GitHub Actions 工作流
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+      day: "monday"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"
+    groups:
+      actions:
+        patterns:
+          - "*"
