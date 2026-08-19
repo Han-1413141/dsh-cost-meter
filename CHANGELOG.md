@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.22] - 2026-08-20
+
+### 修复
+
+- **Go 订阅额度面板偶发 `fetch failed`(issue #28)**:`opencode.ai/zen/go/v1/usage` 部署在 Cloudflare 之后会**间歇性重置连接**(ECONNRESET,单次失败率可高达 30%~70%),此前 `queryGoQuota` 单次 fetch 无重试,瞬断错误直接透传到面板。新增统一网络封装 `lib/net.js`:仅对**瞬时网络错误**(ECONNRESET/ECONNREFUSED/ETIMEDOUT/EAI_AGAIN/undici 超时码等,以及无具体 code 的纯 `fetch failed`)自动重试——默认共 4 次尝试、指数退避 300/600/1200ms;有具体 `cause.code` 但不在白名单(如证书错误)不重试;**每次尝试新建超时信号**(复用已中止的 AbortSignal.timeout 会让重试形同虚设)。401/403 等业务状态与解析错误不重试,`goQuotaNoSub`/`goQuotaHttp` 软提示语义不变。
+- **同一封装应用于全部对外请求**:官方余额(queryBalance)、官方定价页抓取(fetchPricingHtml)、coding plan 额度(单端点先重试、仍失败再换端点变体)、自定义 Provider 余额(body 为字符串可安全重放)——同类 Cloudflare/网关瞬断一律自愈。
+
 ## [1.5.21] - 2026-08-19
 
 ### 修复

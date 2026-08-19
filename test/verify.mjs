@@ -27,6 +27,7 @@ import {
 import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays } from '../lib/store.js'
 import { backfillLegacyLedger, importLegacyHistory, replaySessionRecords, scanZstdFrames } from '../lib/backfill.js'
 import { TYPERT, stateSchema } from '../lib/typert.host.js'
+import { isTransientFetchError, fetchWithRetry } from '../lib/net.js'
 import {
   CODING_PLAN_PROVIDERS,
   CODING_PLAN_PROVIDER_IDS,
@@ -707,6 +708,65 @@ const serverMethods = TYPERT.invocations.map(i => i.method).sort()
 assert.deepEqual(clientMethods, serverMethods, '客户端 descriptor 与服务端 typert 清单方法一一对齐')
 console.log('[ok] coding plan adapter/解析器/软失败/配置清洗/清单断言通过')
 
+// 网络重试封装(issue #28):仅瞬时网络错误重试,每次尝试新建超时信号。
+{
+  // 分类:issue 观测形态(TypeError fetch failed + cause.code=ECONNRESET)与超时均瞬时。
+  const mkFetchFailed = code => {
+    const error = new TypeError('fetch failed')
+    error.cause = { code }
+    return error
+  }
+  assert.equal(isTransientFetchError(mkFetchFailed('ECONNRESET')), true, 'ECONNRESET 判瞬时')
+  assert.equal(isTransientFetchError(mkFetchFailed('UND_ERR_CONNECT_TIMEOUT')), true, 'undici 连接超时判瞬时')
+  assert.equal(isTransientFetchError(mkFetchFailed('ETIMEDOUT')), true, 'ETIMEDOUT 判瞬时')
+  assert.equal(isTransientFetchError(new TypeError('fetch failed')), true, '无 code 的纯 fetch failed 判瞬时')
+  const timeoutLike = new Error('The operation was aborted due to timeout')
+  timeoutLike.name = 'TimeoutError'
+  assert.equal(isTransientFetchError(timeoutLike), true, 'AbortSignal.timeout 的 TimeoutError 判瞬时')
+  assert.equal(isTransientFetchError(mkFetchFailed('EPERM')), false, '非白名单 code 不判瞬时')
+  assert.equal(isTransientFetchError(new TypeError('terminating, destruct')), false, '其它 TypeError 不判瞬时')
+  assert.equal(isTransientFetchError(null), false, 'null 不判瞬时')
+
+  // 重试:瞬时失败两次后成功 → 共 3 次尝试、每次拿到未中止的新信号。
+  const prevFetch = globalThis.fetch
+  const signals = []
+  let calls = 0
+  globalThis.fetch = async (_url, init = {}) => {
+    calls += 1
+    signals.push(init.signal ?? null)
+    if (calls < 3) throw mkFetchFailed('ECONNRESET')
+    return { ok: true, status: 200 }
+  }
+  const ok = await fetchWithRetry('https://example.test/usage', { headers: { a: 'b' } }, { timeoutMs: 10_000, backoffMs: 1 })
+  assert.equal(ok.status, 200, '瞬时失败后重试成功返回响应')
+  assert.equal(calls, 3, '两次瞬时失败后第三次成功(共 3 次尝试)')
+  assert.equal(signals.length, 3, '每次尝试都携带信号')
+  assert.equal(new Set(signals).size, 3, '每次尝试新建信号(不复用已中止信号)')
+  assert.ok(signals.every(s => s !== null && s.aborted === false), '调用时刻信号均未中止')
+
+  // 非瞬时错误立即抛出,不重试。
+  calls = 0
+  globalThis.fetch = async () => {
+    calls += 1
+    throw new Error('CERT_HAS_EXPIRED')
+  }
+  await assert.rejects(() => fetchWithRetry('https://example.test/x', {}, { timeoutMs: 10_000, backoffMs: 1 }),
+    /CERT_HAS_EXPIRED/, '非瞬时错误原样抛出')
+  assert.equal(calls, 1, '非瞬时错误不重试(仅 1 次调用)')
+
+  // 持续瞬时失败:恰好尝试 attempts 次后抛出最后一个错误。
+  calls = 0
+  globalThis.fetch = async () => {
+    calls += 1
+    throw mkFetchFailed('ECONNRESET')
+  }
+  await assert.rejects(() => fetchWithRetry('https://example.test/x', {}, { attempts: 2, timeoutMs: 10_000, backoffMs: 1 }),
+    /fetch failed/, '持续瞬断在尝试上限后抛出')
+  assert.equal(calls, 2, '尝试次数不超过 attempts 上限')
+  globalThis.fetch = prevFetch
+  console.log('[ok] fetchWithRetry/isTransientFetchError(分类/重试/退避信号/不重试业务错误)通过')
+}
+
 console.log('[ok] 金额格式:', formatMoney(0.012345, { exchangeRate: 7.2, symbol: '¥', decimals: 4 }), formatMoney(0.0000012, { exchangeRate: 1, symbol: '$', decimals: 6 }), formatMoney(123.456, { exchangeRate: 7.2, symbol: '¥', decimals: 4 }))
 
 // 6) 模型名自动匹配、手动覆盖与拓展价格目录。
@@ -1319,6 +1379,83 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   if (prevHome === undefined) delete process.env.DSH_HOME
   else process.env.DSH_HOME = prevHome
   console.log('[ok] apply() 真实路径 queryBalance/refreshBalance(多币种五场景/网关 JSON 安全)通过')
+}
+
+// 真实 refreshGoQuota 链路的重试回归(issue #28):首次 ECONNRESET 重试后成功;
+// 401 业务错误不重试、仍落 soft/off 中性提示。
+{
+  const prevHome = process.env.DSH_HOME
+  const prevFetch = globalThis.fetch
+  const mkHome = tag => {
+    const home = join(process.env.TEMP ?? '/tmp', `cm-e2e-goquota-${tag}-${Date.now()}`)
+    mkdirSync(join(home, 'storages', 'cost-meter'), { recursive: true })
+    writeFileSync(join(home, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({
+      version: 1,
+      config: { goQuota: { apiKey: 'sk-go-e2e' } },
+      days: {},
+    }))
+    process.env.DSH_HOME = home
+    return home
+  }
+  const usageBody = JSON.stringify({
+    usage: {
+      rolling: { percent: 42.5, resetsAt: '2026-08-19T12:00:00Z' },
+      weekly: { percent: 10, resetsAt: '2026-08-24T00:00:00Z' },
+      monthly: { percent: 7.25, resetsAt: '2026-09-01T00:00:00Z' },
+    },
+  })
+  const scenarios = [
+    {
+      tag: 'retry', // 首次瞬断、重试成功:响应正常、恰好 2 次网络调用、UA 头仍在。
+      script: [null, { ok: true, status: 200, json: async () => JSON.parse(usageBody) }],
+      wantOk: true, wantStatus: 'ok', wantCalls: 2, wantPercent: 42.5,
+    },
+    {
+      tag: 'http401', // 业务错误不重试:soft → off 中性提示,仅 1 次网络调用。
+      script: [{ ok: false, status: 401 }],
+      wantOk: false, wantStatus: 'off', wantCalls: 1,
+    },
+  ]
+  for (const { tag, script, wantOk, wantStatus, wantCalls, wantPercent } of scenarios) {
+    const home = mkHome(tag)
+    let calls = 0
+    let sawBrowserUa = false
+    globalThis.fetch = async (url, init = {}) => {
+      const step = script[Math.min(calls, script.length - 1)]
+      calls += 1
+      if (init.headers?.['user-agent']?.includes('Mozilla/5.0')) sawBrowserUa = true
+      if (step === null) {
+        const error = new TypeError('fetch failed')
+        error.cause = { code: 'ECONNRESET' }
+        throw error
+      }
+      return step
+    }
+    const { apply } = await import('../lib/index.js')
+    const provided = {}
+    apply({
+      on: () => () => {},
+      effect: () => {},
+      inject: () => {},
+      provide: (k, v) => { provided[k] = v },
+      logger: console,
+      get: () => undefined,
+    })
+    const res = await provided.costMeter.refreshGoQuota()
+    assert.equal(res.ok, wantOk, tag + ':刷新结果')
+    assert.equal(res.state.goQuota.status, wantStatus, tag + ':面板状态')
+    assert.equal(calls, wantCalls, tag + ':网络调用次数(瞬时重试/业务不重试)')
+    if (wantPercent !== undefined) {
+      assert.equal(res.state.goQuota.rolling.percent, wantPercent, 'retry:rolling 用量百分比')
+      assert.equal(res.state.goQuota.monthly.percent, 7.25, 'retry:monthly 用量百分比')
+    }
+    assert.equal(sawBrowserUa, true, tag + ':浏览器 UA 头保留(Cloudflare error 1010 防护)')
+    rmSync(home, { recursive: true, force: true })
+  }
+  globalThis.fetch = prevFetch
+  if (prevHome === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = prevHome
+  console.log('[ok] apply() 真实路径 refreshGoQuota(ECONNRESET 重试成功/401 不重试/UA 保留)通过')
 }
 
 // 真实 apply() 路径的 SCNet 本地 Credits 计量(issue #26):启用 scnet 后 getState

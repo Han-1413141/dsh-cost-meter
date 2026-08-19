@@ -3,6 +3,11 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.22(2026-08-20)—— Go 额度面板偶发 fetch failed 自动重试
+
+- **Go 订阅额度面板偶发 `fetch failed`(issue #28)**:`opencode.ai` 的 Go 用量端点部署在 Cloudflare 之后会间歇性重置连接(ECONNRESET),此前插件单次请求无重试,瞬断错误直接透传到面板。现仅对瞬时网络错误自动重试(默认共 4 次尝试、指数退避 300/600/1200ms,每次尝试新建超时信号);401/403(无订阅/Key 无效)等业务状态不重试,软提示语义不变。
+- **全部对外请求统一接入同一重试封装**:官方余额、官方定价页抓取、7 家 coding plan 额度、自定义 Provider 余额——同类网关/Cloudflare 瞬断一律自愈,面板不再残留 `fetch failed`。
+
 ## v1.5.21(2026-08-19)—— 设置页「预览弹窗」按钮点了没反应
 
 - **设置页「预览弹窗」按钮点了没反应**(1.5.20 引入):弹窗组件此前挂在 `conversation.composer.dock` 插槽——该插槽**仅在有活跃会话的页面渲染**(宿主源码 `footer: !hero && zone !== void 0 ? renderSlot(...)`),在 hero/欢迎页与设置页组件未挂载、`window.cmPeakAlertPreview` 未注册,按钮可选链静默跳过。现改挂常驻的 `sidebar.footer.action` 插槽(fixed 定位弹窗与宿主位置无关),并顺带修复**真实提醒在无会话页面不弹**的同源缺陷;`window.cmPeakAlertPreview` API 挪到插件 activate 顶层注册(不依赖插槽),组件挂载期间置 `__cmPeakAlertLive` 在线标志,未挂载时 API 输出可诊断的 console 提示;预览脚本 `ready()` 同步改为校验在线标志,版本提示更新为 ≥ 1.5.21。
