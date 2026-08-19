@@ -3,6 +3,10 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.21(2026-08-19)—— 设置页「预览弹窗」按钮点了没反应
+
+- **设置页「预览弹窗」按钮点了没反应**(1.5.20 引入):弹窗组件此前挂在 `conversation.composer.dock` 插槽——该插槽**仅在有活跃会话的页面渲染**(宿主源码 `footer: !hero && zone !== void 0 ? renderSlot(...)`),在 hero/欢迎页与设置页组件未挂载、`window.cmPeakAlertPreview` 未注册,按钮可选链静默跳过。现改挂常驻的 `sidebar.footer.action` 插槽(fixed 定位弹窗与宿主位置无关),并顺带修复**真实提醒在无会话页面不弹**的同源缺陷;`window.cmPeakAlertPreview` API 挪到插件 activate 顶层注册(不依赖插槽),组件挂载期间置 `__cmPeakAlertLive` 在线标志,未挂载时 API 输出可诊断的 console 提示;预览脚本 `ready()` 同步改为校验在线标志,版本提示更新为 ≥ 1.5.21。
+
 ## v1.5.20(2026-08-19)—— 峰/谷弹窗一键预览
 
 - **峰/谷弹窗一键预览(真实组件)**:设置页「峰谷计价与提示」面板新增**预览弹窗**按钮(预览 进入峰 / 预览 进入谷),直接调用真实 PeakAlert 组件渲染——文案语言跟随插件语言设置、位置跟随弹窗位置配置、系统通知遵循 Web 通知开关与浏览器授权(标题带「(预览)」标记),与实际触发时完全一致;提醒开关关闭时也可预览(组件改为仅由峰谷计价开关控制挂载);同时暴露 `window.cmPeakAlertPreview('peak'|'offpeak')` 控制台 API。
