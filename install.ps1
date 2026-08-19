@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   dsh-cost-meter 一键安装 / 更新脚本(DeepSeek Harness 插件)。
@@ -71,12 +71,27 @@ $spec = if ($useGit) { $GitSpec } else { $TarSpec }
 $dshHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' }
 $profileManifest = Join-Path $dshHome "profiles\$Profile\package.json"
 $installed = $false
+$devLink = $null
 if (Test-Path $profileManifest) {
   $manifest = Get-Content $profileManifest -Raw | ConvertFrom-Json
   if ($manifest.dependencies) {
-    $depNames = @($manifest.dependencies.PSObject.Properties | ForEach-Object { $_.Name })
-    $installed = $depNames -contains $Package
+    $dep = $manifest.dependencies.PSObject.Properties | Where-Object { $_.Name -eq $Package }
+    if ($dep) {
+      $installed = $true
+      # link: 指向本地目录的开发安装:直接跑仓库代码,重新 add 固定版会要求
+      # 跨盘 symlink(Windows 非管理员 EPERM),跳过对齐并提示重启即可。
+      if ($dep.Value -is [string] -and $dep.Value.StartsWith('link:')) { $devLink = $dep.Value }
+    }
   }
+}
+if ($devLink) {
+  Ok @"
+检测到开发模式安装:dependencies 里 $Package = $devLink(link: 指向本地目录)。
+本脚本面向最终用户(从 GitHub 固定 tag 安装),已跳过版本对齐以免破坏 link: 结构。
+  - 本地目录就是运行代码:git pull / 切换分支后重启 dsh web 即生效
+  - 如需改为正式固定版安装:先执行  dsh plugin --profile $Profile remove $Package,再重跑本脚本
+"@
+  exit 0
 }
 
 # 4. 安装或更新(更新 = 按本脚本固定的 $Rev 重新 add,保证只装到固定版本)
