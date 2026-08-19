@@ -3,6 +3,11 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.18(2026-08-19)—— 开启系统通知开关在旧版 Safari 可能抛错
+
+- **开启系统通知开关在旧版 Safari 可能抛错**:`Notification.requestPermission()` 在旧 Safari 不返回 Promise,直接 `.catch` 会 TypeError;现以 `Promise.resolve(...)` 包裹,拒绝时静默。
+- **清理 PeakAlert 遗留死代码**(1.5.17 开发过程中废弃的游离快照变量,无功能影响)。
+
 ## v1.5.17(2026-08-19)—— 峰/谷切换弹窗改为原生 dsh 提醒风格
 
 - **峰/谷切换弹窗改为原生 dsh 提醒风格**:全屏色条徽标弹窗(进入峰琥珀警示色 / 进入谷信息蓝 + 圆点状态徽标),圆角/阴影/动效对齐 dsh 设计 token;弹窗位置可选**右下角 / 屏幕中心**(新增 `peakAlertPosition`,默认右下角),同步更新 `scripts/peak-alert-preview.js` 预览脚本(支持切换峰/谷与位置)。
