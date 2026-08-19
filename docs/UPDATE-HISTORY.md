@@ -3,6 +3,11 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.19(2026-08-19)—— README×2 简介行补上峰/谷切换提醒
+
+- **README×2 简介行补上峰/谷切换提醒**:中英简介此前只提"峰谷计价时段显示",现补齐"切换前弹窗与系统通知提醒(位置/提前量/提醒类型可配)";顺带把 Coding Plan 列表从旧的"六家(无 SCNet)"更正为七家(与 1.5.13 起 package.json 描述一致)。
+- **package.json `description`(npm/插件 about)与 `dshhub.summary`(插件市场副标题)同步补上该功能**,中英双份。
+
 ## v1.5.18(2026-08-19)—— 开启系统通知开关在旧版 Safari 可能抛错
 
 - **开启系统通知开关在旧版 Safari 可能抛错**:`Notification.requestPermission()` 在旧 Safari 不返回 Promise,直接 `.catch` 会 TypeError;现以 `Promise.resolve(...)` 包裹,拒绝时静默。
