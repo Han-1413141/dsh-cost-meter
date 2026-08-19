@@ -602,9 +602,9 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   const clientSource = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
   assert.ok(clientSource.includes('function PeakAlert('), '客户端 PeakAlert 组件存在')
   assert.ok(clientSource.includes("'cost-meter-peak-alert'"), '浮层注册 id 存在')
-  assert.ok(clientSource.includes("target !== 'both' && target !== (view.nextIntoPeak ? 'peak' : 'offpeak')"), '提醒类型过滤逻辑存在')
-  assert.ok(clientSource.includes('now < view.nextAtMs - aheadMs || now >= view.nextAtMs'), '提醒窗口边界(提前量内、切换前)存在')
-  assert.ok(clientSource.includes('dismissedAt === view.nextAtMs'), '同一切换点只提醒一次(关闭记点)')
+  assert.ok(clientSource.includes("target === 'both' || target === (view.nextIntoPeak ? 'peak' : 'offpeak')"), '提醒类型过滤逻辑存在')
+  assert.ok(clientSource.includes('now >= view.nextAtMs - aheadMs && now < view.nextAtMs'), '提醒窗口边界(提前量内、切换前)存在')
+  assert.ok(clientSource.includes('dismissedAt !== view.nextAtMs'), '同一切换点只提醒一次(关闭记点)')
   assert.ok(clientSource.includes("setField('peakAlertTarget'"), '设置 UI 含提醒类型控件')
   // 1.5.17 扩展:弹窗位置(corner/center)与 Web(系统)通知开关的默认值/校验/清洗。
   assert.equal(base.peakAlertPosition, 'corner', '弹窗默认右下角')
@@ -629,7 +629,17 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   assert.ok(clientSource.includes('peakAlertWebNotifyLabel'), '设置 UI 含 Web 通知开关')
   assert.ok(clientSource.includes('Notification.requestPermission()'), '开启通知时申请权限')
   assert.ok(clientSource.includes('peakAlertBadgePeak') && clientSource.includes('peakAlertBadgeOffPeak'), '徽标文案存在')
-  console.log('[ok] 峰/谷切换弹窗提醒配置(默认值/校验/清洗/双端声明/组件接线)通过')
+  // 1.5.20 真实预览通道:window 事件 + cmPeakAlertPreview API + 设置页按钮 + 常驻挂载。
+  assert.ok(clientSource.includes("const PEAK_ALERT_PREVIEW_EVENT = 'cm-peak-alert-preview'"), '预览事件常量存在')
+  assert.ok(clientSource.includes('window.cmPeakAlertPreview = kind =>'), 'window.cmPeakAlertPreview API 注册')
+  assert.ok(clientSource.includes('window.addEventListener(PEAK_ALERT_PREVIEW_EVENT, onPreview)'), '组件监听预览事件')
+  assert.ok(clientSource.includes("window.cmPeakAlertPreview?.('peak')") && clientSource.includes("window.cmPeakAlertPreview?.('offpeak')"), '设置页预览按钮接线')
+  assert.ok(clientSource.includes('peakAlertPreviewLabel') && clientSource.includes('peakAlertPreviewPeak') && clientSource.includes('peakAlertPreviewOffPeak'), '预览按钮文案(zh/en)存在')
+  assert.ok(clientSource.includes('peakAlertPreviewTag'), '预览通知标题标记文案存在')
+  assert.ok(clientSource.includes('const peakAlertOn = state?.config?.peakEnabled === true'), '提醒组件仅由峰谷计价控制挂载(提醒开关关闭也可预览)')
+  assert.ok(clientSource.includes('setPreview(kind)'), '预览状态可设置')
+  assert.ok(clientSource.includes('dismiss = () => setPreview(null)'), '预览弹窗关闭清除预览态')
+  console.log('[ok] 峰/谷切换弹窗提醒配置(默认值/校验/清洗/双端声明/组件接线/真实预览通道)通过')
 }
 // getDaySessions(issue #22):按需读取某天完整记录(含会话明细)。
 const gdsInvocation = TYPERT.invocations.find(i => i.method === 'getDaySessions')

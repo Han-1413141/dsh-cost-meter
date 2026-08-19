@@ -6,7 +6,7 @@
 
 本会话费用 · 当日费用 · OpenCode Go 订阅额度显示 · 预算与已用百分比 · 官方账户余额 · 自定义 Provider 余额查询(可配任意 HTTP 端点) · 余额三段进度条 · 历史记录 · 峰谷计价时段显示(UTC 01:00–04:00、06:00–10:00 为峰时段) · 峰/谷切换前弹窗与系统通知提醒(位置/提前量/提醒类型可配) · 官方价格一键同步 · 类 Codex Token 用量热图 · 多厂商多模型价格计费(内置 90+ 模型价格目录与自动匹配) · 主流 Coding Plan 额度查询与显示(Anthropic / Z.ai / MiniMax / Kimi / OpenRouter / SiliconFlow / SCNet 七家)
 
-[![version](https://img.shields.io/badge/version-1.5.19-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.5.20-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm)](https://www.npmjs.com/package/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
@@ -41,7 +41,7 @@
 | 预算设置 | 设置页顶部 | 额度、周期(今日/本月/累计/自定义日期区间)、已用% |
 | 价格表 | 设置页 | 每模型 谷时/峰时 两档价格(支持 input/output 简写,缓存价自动补齐),增删改自由 |
 | 峰谷计价时段显示 | 设置页 / 预算 / 今日费用 | 显示 UTC 峰时段 01:00–04:00、06:00–10:00 与当前档位;展开态显示峰时/平价时段条(当前时段 + 倒计时),收起(rail)态显示竖向峰谷进度条,可单独开关 |
-| 峰/谷切换弹窗提醒 | 全局浮层 | 距进入峰/谷时段不足设定提前量(默认 2 分钟,1-30 可配)时全屏色条徽标弹窗(提醒色区分进入峰/谷);弹窗位置可选**右下角 / 屏幕中心**,提醒类型可选(进入峰 / 进入谷 / 峰和谷),同一切换点只提醒一次;可选**同步发送浏览器(系统)通知**(页面最小化也能收到,需授权通知权限),设置页峰谷计价面板内配置 |
+| 峰/谷切换弹窗提醒 | 全局浮层 | 距进入峰/谷时段不足设定提前量(默认 2 分钟,1-30 可配)时全屏色条徽标弹窗(提醒色区分进入峰/谷);弹窗位置可选**右下角 / 屏幕中心**,提醒类型可选(进入峰 / 进入谷 / 峰和谷),同一切换点只提醒一次;可选**同步发送浏览器(系统)通知**(页面最小化也能收到,需授权通知权限);设置页峰谷计价面板内配置,并可**一键预览弹窗效果**(真实组件渲染,文案/位置/通知与实际触发完全一致) |
 | 官方价格同步 | 设置页 | 抓取解析官方定价页,一键应用 |
 | 界面语言 | 设置页 → 显示设置 | 简体中文 / English / 跟随浏览器(自动);切换即时生效并自动保存 |
 | AI 价格同步 | [提示词](docs/AI-PRICE-SYNC-PROMPT.md) | DeepSeek 官方同步;其他 provider 使用已核对的官方价格目录与手动配置 |
@@ -195,22 +195,22 @@
 dsh plugin --profile web add dsh-cost-meter
 ```
 
-**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.5.19`**,建议先下载审阅再运行):
+**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.5.20`**,建议先下载审阅再运行):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.19/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.20/install.ps1 | iex
 ```
 
 **或直接命令行**(机器上需已有 pnpm 与 git;同样固定到 tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.19
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.20
 ```
 
 没有 git 时可用 GitHub tag 打包直链:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.19.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.20.tar.gz
 ```
 
 安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):
