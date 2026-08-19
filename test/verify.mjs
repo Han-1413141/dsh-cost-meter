@@ -574,6 +574,40 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   assert.equal(result.windows.monthly.percent, result.percent, 'monthly 窗口与百分比一致')
   assert.equal(scnetTokenPlanWindows(days, { planCredits: 0 }, nowMs), null, '非法 planCredits 返回 null')
 }
+
+// 5.9) 峰/谷切换前弹窗提醒配置:默认开 / 提前 2 分钟 / 峰和谷都提醒;
+// 校验(applyConfigPatch)与清洗(sanitizeConfig)链 + 双端声明与客户端组件接线断言。
+{
+  const base = sanitizeConfig({})
+  assert.equal(base.peakAlertEnabled, true, '弹窗提醒默认开启')
+  assert.equal(base.peakAlertAhead, 2, '默认提前 2 分钟')
+  assert.equal(base.peakAlertTarget, 'both', '默认提醒峰和谷')
+  const patched = applyConfigPatch(base, { peakAlertEnabled: false, peakAlertAhead: 5, peakAlertTarget: 'peak' })
+  assert.equal(patched.errors.length, 0, '合法提醒配置通过')
+  assert.equal(patched.config.peakAlertEnabled, false, '开关可关闭')
+  assert.equal(patched.config.peakAlertAhead, 5, '提前量可更新')
+  assert.equal(patched.config.peakAlertTarget, 'peak', '提醒类型可更新')
+  assert.ok(applyConfigPatch(base, { peakAlertAhead: 0 }).errors.length > 0, '提前量 0 被拒')
+  assert.ok(applyConfigPatch(base, { peakAlertAhead: 31 }).errors.length > 0, '提前量 31 被拒')
+  assert.ok(applyConfigPatch(base, { peakAlertAhead: 2.5 }).errors.length > 0, '非整数提前量被拒')
+  assert.ok(applyConfigPatch(base, { peakAlertTarget: 'nope' }).errors.length > 0, '非法提醒类型被拒')
+  assert.ok(applyConfigPatch(base, { peakAlertEnabled: 'yes' }).errors.length > 0, '非布尔开关被拒')
+  const conv = sanitizeConfig({ ...base, peakAlertEnabled: 'x', peakAlertAhead: 99, peakAlertTarget: 'y' })
+  assert.equal(conv.peakAlertEnabled, true, '非法开关清洗为开(默认)')
+  assert.equal(conv.peakAlertAhead, 2, '越界提前量收敛回 2')
+  assert.equal(conv.peakAlertTarget, 'both', '非法类型收敛 both')
+  // 双端声明与客户端接线:typert config schema、PeakAlert 组件、浮层注册、类型过滤逻辑、设置 UI。
+  const hostTypert = readFileSync(new URL('../lib/typert.host.js', import.meta.url), 'utf8')
+  assert.ok(hostTypert.includes('peakAlertEnabled') && hostTypert.includes("z.enum(['peak', 'offpeak', 'both'])"), 'typert config 声明提醒字段')
+  const clientSource = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.ok(clientSource.includes('function PeakAlert('), '客户端 PeakAlert 组件存在')
+  assert.ok(clientSource.includes("'cost-meter-peak-alert'"), '浮层注册 id 存在')
+  assert.ok(clientSource.includes("target !== 'both' && target !== (view.nextIntoPeak ? 'peak' : 'offpeak')"), '提醒类型过滤逻辑存在')
+  assert.ok(clientSource.includes('now < view.nextAtMs - aheadMs || now >= view.nextAtMs'), '提醒窗口边界(提前量内、切换前)存在')
+  assert.ok(clientSource.includes('dismissedAt === view.nextAtMs'), '同一切换点只提醒一次(关闭记点)')
+  assert.ok(clientSource.includes("setField('peakAlertTarget'"), '设置 UI 含提醒类型控件')
+  console.log('[ok] 峰/谷切换弹窗提醒配置(默认值/校验/清洗/双端声明/组件接线)通过')
+}
 // getDaySessions(issue #22):按需读取某天完整记录(含会话明细)。
 const gdsInvocation = TYPERT.invocations.find(i => i.method === 'getDaySessions')
 assert.ok(gdsInvocation !== undefined, 'getDaySessions 清单存在')
