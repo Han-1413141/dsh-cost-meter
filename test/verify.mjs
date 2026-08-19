@@ -606,6 +606,29 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   assert.ok(clientSource.includes('now < view.nextAtMs - aheadMs || now >= view.nextAtMs'), '提醒窗口边界(提前量内、切换前)存在')
   assert.ok(clientSource.includes('dismissedAt === view.nextAtMs'), '同一切换点只提醒一次(关闭记点)')
   assert.ok(clientSource.includes("setField('peakAlertTarget'"), '设置 UI 含提醒类型控件')
+  // 1.5.17 扩展:弹窗位置(corner/center)与 Web(系统)通知开关的默认值/校验/清洗。
+  assert.equal(base.peakAlertPosition, 'corner', '弹窗默认右下角')
+  assert.equal(base.peakAlertWebNotify, false, 'Web 通知默认关闭')
+  const posPatched = applyConfigPatch(base, { peakAlertPosition: 'center', peakAlertWebNotify: true })
+  assert.equal(posPatched.errors.length, 0, '合法位置/通知配置通过')
+  assert.equal(posPatched.config.peakAlertPosition, 'center', '位置可设为屏幕中心')
+  assert.equal(posPatched.config.peakAlertWebNotify, true, 'Web 通知开关可开启')
+  assert.ok(applyConfigPatch(base, { peakAlertPosition: 'nope' }).errors.length > 0, '非法位置被拒')
+  assert.ok(applyConfigPatch(base, { peakAlertWebNotify: 'yes' }).errors.length > 0, '非布尔通知开关被拒')
+  const posConv = sanitizeConfig({ ...base, peakAlertPosition: 'x', peakAlertWebNotify: 'y' })
+  assert.equal(posConv.peakAlertPosition, 'corner', '非法位置清洗回右下角')
+  assert.equal(posConv.peakAlertWebNotify, false, '非法通知开关清洗为关')
+  // 双端声明与接线:typert 位置/通知枚举、parseConfig 收敛、PeakAlert 位置类、
+  // Web 通知 effect(权限门控 + 每切换点一次)、设置 UI 位置选择 + 通知开关申请权限。
+  assert.ok(hostTypert.includes("z.enum(['corner', 'center'])") && hostTypert.includes('peakAlertWebNotify'), 'typert 声明位置/通知字段')
+  assert.ok(clientSource.includes("peakAlertPosition: v.peakAlertPosition === 'center' ? 'center' : 'corner'"), 'parseConfig 位置收敛')
+  assert.ok(clientSource.includes('cm-peak-alert-center') && clientSource.includes('cm-peak-alert-corner'), '弹窗位置 CSS 类存在')
+  assert.ok(clientSource.includes("position = config.peakAlertPosition === 'center' ? 'cm-peak-alert-center' : 'cm-peak-alert-corner'"), 'PeakAlert 应用位置类')
+  assert.ok(clientSource.includes('Notification.permission !== \'granted\''), 'Web 通知权限门控存在')
+  assert.ok(clientSource.includes('new Notification('), 'Web 通知通过 Notification 发送')
+  assert.ok(clientSource.includes('peakAlertWebNotifyLabel'), '设置 UI 含 Web 通知开关')
+  assert.ok(clientSource.includes('Notification.requestPermission()'), '开启通知时申请权限')
+  assert.ok(clientSource.includes('peakAlertBadgePeak') && clientSource.includes('peakAlertBadgeOffPeak'), '徽标文案存在')
   console.log('[ok] 峰/谷切换弹窗提醒配置(默认值/校验/清洗/双端声明/组件接线)通过')
 }
 // getDaySessions(issue #22):按需读取某天完整记录(含会话明细)。
