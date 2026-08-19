@@ -1405,4 +1405,43 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   console.log('[ok] apply() 真实路径导入安装前历史(RPC/明细拉取/幂等/网关 JSON 安全)通过')
 }
 
+// 启动期自动导入(issue #27 改进):runStartupImports 在首次启动(标记为 0)时
+// 自动导入一次并打标 legacyAutoImportedAt;第二次启动不再重扫。手动按钮仍可重跑。
+{
+  const prevHome = process.env.DSH_HOME
+  const autoRoot = join(process.env.TEMP ?? '/tmp', `cm-e2e-autoimport-${Date.now()}`)
+  mkdirSync(join(autoRoot, 'storages', 'cost-meter'), { recursive: true })
+  const oldAt = Date.parse(LEGACY_BASE_BOUNDARY) - 21 * 86400_000
+  const oldKey = localDayKey(oldAt)
+  const events = [
+    { type: 'session', version: 0, id: 'auto-import', createdAt: oldAt, delegationDepth: 0 },
+    { type: 'request/header', seq: 0, time: oldAt, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } },
+    { type: 'assistant/message', seq: 0, time: oldAt, data: { turn: 1, step: 1, usage: { inputTokens: 2000, outputTokens: 800, cacheReadTokens: 0, cacheWriteTokens: 0 } } },
+  ]
+  mkdirSync(join(autoRoot, 'sessions', '--proj--', 'auto-import'), { recursive: true })
+  writeFileSync(join(autoRoot, 'sessions', '--proj--', 'auto-import', 'session.jsonl'), events.map(e => JSON.stringify(e)).join('\n') + '\n')
+  writeFileSync(join(autoRoot, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({ version: 1, config: {}, days: {} }))
+  process.env.DSH_HOME = autoRoot
+  const { runStartupImports } = await import('../lib/index.js')
+  const ledger = Ledger.open()
+  assert.equal(ledger.config.legacyAutoImportedAt, 0, '初始标记为 0(未导入)')
+  await runStartupImports(ledger, join(autoRoot, 'sessions'))
+  assert.ok(ledger.days[oldKey] !== undefined && ledger.days[oldKey].calls > 0, '首次启动自动导入缺失日期')
+  assert.ok(ledger.config.legacyAutoImportedAt > 0, '导入后打标完成时刻')
+  // 模拟后续启动:清空 days 后重跑,标记已置 → 不再自动导入。
+  ledger.days = {}
+  await runStartupImports(ledger, join(autoRoot, 'sessions'))
+  assert.equal(Object.keys(ledger.days).length, 0, '标记已置后不再自动导入')
+  // 标记随 sanitizeConfig 保真(配置补丁后不丢)。
+  const patched = applyConfigPatch(ledger.config, { locale: 'en' })
+  assert.ok(patched.config.legacyAutoImportedAt > 0, '配置补丁后标记保真')
+  // 宿主接线:apply 的启动定时器调用 runStartupImports。
+  const hostSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.ok(hostSource.includes('runStartupImports(ledger, join(resolveDshHome(), \'sessions\'))'), 'apply 启动定时器接线自动导入')
+  rmSync(autoRoot, { recursive: true, force: true })
+  if (prevHome === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = prevHome
+  console.log('[ok] 启动期自动导入(首次启动导入/打标/后续启动跳过/配置保真/接线)通过')
+}
+
 console.log('[ok] 全部验证通过')

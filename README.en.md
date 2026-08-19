@@ -6,7 +6,7 @@
 
 Per-conversation cost · daily totals · OpenCode Go subscription quota display · budget with usage percentage · official account balance · custom provider balance · balance progress bar · history · peak/off-peak pricing hours display (peak hours UTC 01:00–04:00, 06:00–10:00) · one-click price sync from the official docs · Codex-style token usage heat grid · multi-vendor model pricing (built-in 90+ model price catalog with auto-matching) · mainstream Coding Plan quota queries & display (Anthropic / Z.ai / MiniMax / Kimi / OpenRouter / SiliconFlow)
 
-[![version](https://img.shields.io/badge/version-1.5.14-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.5.15-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm)](https://www.npmjs.com/package/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
@@ -36,7 +36,7 @@ English | [中文](README.md)
 | Token usage stats | Settings page (Cost section) | All-time token totals (input/cache/output/calls) + a Codex-style 26-week daily usage heat grid that fills the settings width; hover a cell for that day's detail |
 | Today's sessions | Settings page | Per-session call count, input/cache/output tokens and cost |
 | History | Settings page | Per-day totals; retention days configurable (default 180) |
-| Pre-install history import | Settings page (Data & sync) | One-click replay of all host session logs to import conversations from before the plugin was installed (missing dates are rebuilt whole; existing dates only gain previously unknown sessions; idempotent and never double-counts live metering; costs priced at per-event historical rates) |
+| Pre-install history import | Automatic on first launch | After install/upgrade, the first launch automatically replays all host session logs to import conversations from before the plugin was installed (missing dates are rebuilt whole; existing dates only gain previously unknown sessions; idempotent and never double-counts live metering; costs priced at per-event historical rates); a manual re-run entry remains in Settings |
 | Budget settings | Settings page, top | Limit, period (today / month / cumulative / custom date range), used % |
 | Price table | Settings page | Per-model off-peak / peak prices (input/output shorthand supported; cache prices derived automatically); fully editable |
 | Peak/off-peak hours display | Settings / budget / today | Shows UTC peak hours 01:00–04:00 and 06:00–10:00 with the current tier; expanded view shows a peak/off-peak period strip (current period + countdown), collapsed (rail) view shows a vertical peak/off-peak progress bar; independently toggleable |
@@ -192,22 +192,22 @@ Real captures from an actual DSH sidebar of the period strip and collapsed verti
 dsh plugin --profile web add dsh-cost-meter
 ```
 
-**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.5.14`** — review the script before running):
+**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.5.15`** — review the script before running):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.14/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.15/install.ps1 | iex
 ```
 
 **Or a plain command line** (the machine must already have pnpm and git; also pinned to the tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.14
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.15
 ```
 
 Without git, use the GitHub tag archive:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.14.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.15.tar.gz
 ```
 
 After installing, **restart** `dsh web` (plugin rows, the Typert manifest and the client bundle are all scanned at startup):
