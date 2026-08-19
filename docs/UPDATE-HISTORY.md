@@ -3,6 +3,10 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.14(2026-08-19)—— 导入安装前历史
+
+- **导入安装前历史**(issue #27):设置页「数据与同步」新增「导入安装前历史」按钮(带确认),一键回放宿主全部会话日志(`$DSH_HOME/sessions`,明文/zstd 双格式),把**未装插件时期**的对话导入账本——dsh 原生日志完整记录了每次调用的 provider/model 与 token 用量,数据一直在磁盘上,本功能把它变成费用条目。规则(幂等,绝不与实时计费重复计数):缺失日期(账本无条目或为无用量空日)整日重建(合计 + 会话明细含标题/创建时间 + 按模型拆分);已有日期只追加账本完全未知的会话(安装前活跃、安装后未再用的「幽灵会话」),既有会话条目与合计结构绝不动;金额按事件时刻计价(峰谷分界前自动落 legacyBase 历史价);导入后日期键升序重排,重复点击无新增。已知局限(界面注明):历史价格按当前价目表回推,厂商中途调价会有偏差;已清理的日志无法回放;同一会话跨安装时刻时其安装前用量不计入(实时条目已存在,无法安全拆分)。新增 `costMeter.importLegacyHistory()` RPC(服务端 + typert 清单 + 客户端 descriptor 三侧同步,strict codec);verify.mjs 新增单测(缺失日期重建/未知会话追加/已知会话不动/幂等/升序)与真实 `apply()` 路径 e2e(RPC/明细拉取/幂等/网关 JSON 安全/双端清单断言)。
+
 ## v1.5.13(2026-08-19)—— SCNet 超算互联网 Token Plan 本地 Credits 计量
 
 - **SCNet 超算互联网 Token Plan 本地 Credits 计量**(issue #26):SCNet Token Plan 为 Credits 包月订阅(基础 60,000 / 标准 240,000 / 高级 600,000),平台仅有 `sk-tp-` 专属推理端点、额度用量只在控制台可见,**无 API-Key 化额度查询端点**——插件按**官方 Credits 抵扣表**(2026-08-11 生效)对本地账本当前计费周期的用量折算 Credits(未命中输入 = input+cacheWrite、命中缓存输入 = cacheRead、输出 = output;覆盖 GLM-5.x / DeepSeek-V4 / Kimi-K2.x/K3 / MiniMax-M2.x/M3 / Qwen3.8-max 等主力量型,模型名归一化匹配、跨 provider 归并)。Coding Plan 面板新增 SCNet 卡片:月度已用% 进度条 + 「已用 / 总额 Credits(est.)」文本;计费周期自「订阅起始日」(可配 `YYYY-MM-DD`,月末日期自动钳制)每月重置,留空按自然月;**无需任何凭据、不走网络**(端点白名单为空数组),本地纯函数同步重算随账本实时更新,实际消耗以控制台账单为准,抵扣表未覆盖的模型不计入。verify.mjs 新增抵扣表碰撞/折算数学/周期推进(含月末钳制与跨年)/跨 provider 归并/非法额度拒绝单测与真实 `apply()` 路径 e2e(getState 快照、refreshCodingPlan 幂等、网关 JSON 安全、planCredits 配置保真)。
