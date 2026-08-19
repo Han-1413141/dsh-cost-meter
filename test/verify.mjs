@@ -25,7 +25,7 @@ import {
   providerPriceEntryFor,
 } from '../lib/pricing.js'
 import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays } from '../lib/store.js'
-import { backfillLegacyLedger, replaySessionRecords, scanZstdFrames } from '../lib/backfill.js'
+import { backfillLegacyLedger, importLegacyHistory, replaySessionRecords, scanZstdFrames } from '../lib/backfill.js'
 import { TYPERT, stateSchema } from '../lib/typert.host.js'
 import {
   CODING_PLAN_PROVIDERS,
@@ -911,6 +911,78 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   console.log('[ok] 历史账本按模型回填(会话日志回放/legacyBase 历史价/legacy 残差/幂等/会话标题)通过')
 }
 
+// 8d) 导入安装前历史(issue #27):回放全部会话日志,补账本缺失日期与未知会话,
+// 已有会话条目绝不动(幂等,不与实时计费重复)。
+{
+  const cfg = sanitizeConfig({})
+  const oldAt = Date.parse(LEGACY_BASE_BOUNDARY) - 9 * 86400_000 // 安装前的缺失日期(峰谷前)
+  const oldKey = localDayKey(oldAt)
+  const nearAt = Date.parse(LEGACY_BASE_BOUNDARY) - 3 * 3600_000 // 已有日期(与已知会话混合)
+  const nearKey = localDayKey(nearAt)
+  const mkLog = (id, createdAt, events) => [JSON.stringify({ type: 'session', version: 0, id, createdAt, delegationDepth: 0 }), ...events.map(e => JSON.stringify(e))].join('\n') + '\n'
+  const usage = (turn, step, time, u) => ({ type: 'assistant/message', seq: 0, time, data: { turn, step, usage: u } })
+  const headerEv = (provider, model, time) => ({ type: 'request/header', seq: 0, time, data: { header: { config: { provider, model } } } })
+  const flashU = { inputTokens: 1000, outputTokens: 500, cacheReadTokens: 2000, cacheWriteTokens: 0 }
+  const root = join(process.env.TEMP ?? '/tmp', `cm-import-legacy-${Date.now()}`)
+  // 缺失日期的安装前会话(含标题)。
+  mkdirSync(join(root, '--proj--', 'old-sess'), { recursive: true })
+  writeFileSync(join(root, '--proj--', 'old-sess', 'session.jsonl'), mkLog('old-sess', oldAt, [
+    { type: 'session/title', seq: 1, time: oldAt, data: { title: 'Pre-install chat' } },
+    headerEv('deepseek', 'deepseek-v4-flash', oldAt),
+    usage(1, 1, oldAt, flashU),
+  ]))
+  // 已有日期:账本已知会话(回放 2 次调用但账本只实时记了 1 次,断言不被改动)。
+  mkdirSync(join(root, '--proj--', 'known-sess'), { recursive: true })
+  writeFileSync(join(root, '--proj--', 'known-sess', 'session.jsonl'), mkLog('known-sess', nearAt, [
+    headerEv('deepseek', 'deepseek-v4-pro', nearAt),
+    usage(1, 1, nearAt, { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0 }),
+    usage(1, 2, nearAt, { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0 }),
+  ]))
+  // 已有日期:账本完全未知的会话(安装前活跃、安装后未再用的「幽灵会话」)。
+  mkdirSync(join(root, '--proj--', 'ghost-sess'), { recursive: true })
+  writeFileSync(join(root, '--proj--', 'ghost-sess', 'session.jsonl'), mkLog('ghost-sess', nearAt, [
+    headerEv('deepseek', 'deepseek-v4-flash', nearAt),
+    usage(1, 1, nearAt, flashU),
+  ]))
+  const nearDay = { date: nearKey, input: 100, output: 50, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.123, byProviderModel: {},
+    sessions: [{ id: 'known-sess', input: 100, output: 50, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.123, byProviderModel: {} }] }
+  const ledger = new Ledger(cfg, { [nearKey]: nearDay }, join(root, 'ledger.json'))
+  let scheduled = 0
+  ledger.scheduleWrite = () => { scheduled += 1 }
+  const imported = await importLegacyHistory(ledger, root)
+  assert.equal(imported.scanned, 3, '扫描全部三份会话日志')
+  assert.equal(imported.days, 2, '重建缺失日期 + 追加已有日期各计一次')
+  assert.equal(imported.sessions, 2, '缺失日期一个会话 + 已有日期追加一个未知会话')
+  assert.ok(scheduled >= 1, '导入后调度落盘')
+  // 缺失日期:整日重建,含标题与创建时间。
+  const oldDay = ledger.days[oldKey]
+  assert.ok(oldDay !== undefined, '缺失日期被重建')
+  assert.equal(oldDay.calls, 1, '回放 calls 写入日期合计')
+  assert.equal(oldDay.input, 1000, '回放 token 写入日期合计')
+  assert.equal(oldDay.sessions.length, 1, '缺失日期含会话明细')
+  assert.equal(oldDay.sessions[0].title, 'Pre-install chat', '会话标题导入')
+  assert.equal(oldDay.sessions[0].at, oldAt, '会话创建时间导入')
+  assert.ok(oldDay.byProviderModel['deepseek:deepseek-v4-flash'] !== undefined, '按模型拆分导入')
+  // 已有日期:已知会话条目不动(回放多出的那次调用不计),未知会话追加。
+  assert.equal(nearDay.sessions[0].calls, 1, '已知会话 calls 不被改动')
+  assert.equal(nearDay.sessions[0].cost, 0.123, '已知会话金额不被改动')
+  const ghost = nearDay.sessions.find(s => s.id === 'ghost-sess')
+  assert.ok(ghost !== undefined, '未知会话追加进已有日期')
+  assert.equal(ghost.calls, 1, '追加会话 calls')
+  assert.ok(ghost.byProviderModel['deepseek:deepseek-v4-flash'] !== undefined, '追加会话带按模型拆分')
+  assert.equal(nearDay.calls, 2, '日期合计并入追加会话(1+1)')
+  assert.ok(nearDay.byProviderModel['deepseek:deepseek-v4-flash'] !== undefined, '追加桶并入日期按模型拆分')
+  // 日期键按升序重建。
+  assert.deepEqual(Object.keys(ledger.days), [oldKey, nearKey].sort(), '日期键升序')
+  // 幂等:再次导入无新增。
+  const again = await importLegacyHistory(ledger, root)
+  assert.equal(again.days, 0, '幂等:无新增日期')
+  assert.equal(again.sessions, 0, '幂等:无新增会话')
+  assert.equal(nearDay.sessions.length, 2, '幂等:会话数不变')
+  rmSync(root, { recursive: true, force: true })
+  console.log('[ok] 导入安装前历史(缺失日期重建/未知会话追加/已知会话不动/幂等/升序)通过')
+}
+
 // 8c) 会话标题配置链与 schema:showSessionId 三处齐全;sessionSchema 接受可选 title。
 {
   assert.ok(applyConfigPatch(sanitizeConfig({}), { showSessionId: 'yes' }).errors.length > 0, 'showSessionId 非布尔被拒绝')
@@ -1253,6 +1325,84 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   if (prevHome === undefined) delete process.env.DSH_HOME
   else process.env.DSH_HOME = prevHome
   console.log('[ok] apply() 真实路径 SCNet 本地 Credits 计量(月度窗口/refreshCodingPlan/网关 JSON 安全/配置保真)通过')
+}
+
+// 真实 apply() 路径的「导入安装前历史」(issue #27):RPC 走宿主服务对象,
+// 回放 $DSH_HOME/sessions 下的会话日志,导入结果通过返回 state 与 getState 一致,
+// 重复调用幂等;返回值过网关 strict codec + JSON 安全校验。
+{
+  const prevHome = process.env.DSH_HOME
+  const importRoot = join(process.env.TEMP ?? '/tmp', `cm-e2e-import-${Date.now()}`)
+  mkdirSync(join(importRoot, 'storages', 'cost-meter'), { recursive: true })
+  // 安装前的会话日志(峰谷时代前,按 legacyBase 历史价计费)。
+  const oldAt = Date.parse(LEGACY_BASE_BOUNDARY) - 15 * 86400_000
+  const oldKey = localDayKey(oldAt)
+  const events = [
+    { type: 'session', version: 0, id: 'pre-install', createdAt: oldAt, delegationDepth: 0 },
+    { type: 'session/title', seq: 1, time: oldAt, data: { title: 'Before plugin' } },
+    { type: 'request/header', seq: 0, time: oldAt, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } },
+    { type: 'assistant/message', seq: 0, time: oldAt, data: { turn: 1, step: 1, usage: { inputTokens: 1000, outputTokens: 500, cacheReadTokens: 2000, cacheWriteTokens: 0 } } },
+  ]
+  mkdirSync(join(importRoot, 'sessions', '--proj--', 'pre-install'), { recursive: true })
+  writeFileSync(join(importRoot, 'sessions', '--proj--', 'pre-install', 'session.jsonl'), events.map(e => JSON.stringify(e)).join('\n') + '\n')
+  writeFileSync(join(importRoot, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({ version: 1, config: {}, days: {} }))
+  process.env.DSH_HOME = importRoot
+  const { apply } = await import('../lib/index.js')
+  const provided = {}
+  apply({
+    on: () => () => {},
+    effect: () => {},
+    inject: () => {},
+    provide: (key, value) => { provided[key] = value },
+    logger: console,
+  })
+  const svc = provided.costMeter
+  const result = await svc.importLegacyHistory()
+  assert.equal(result.ok, true, '导入 RPC 成功')
+  assert.ok(result.message.includes('1'), '导入文案含统计')
+  assert.ok(result.message.includes('1 天') || result.message.includes('1 day'), '导入文案含天数')
+  // 返回 state 的 history 轻量副本含导入日期;getState 快照一致。
+  assert.ok(result.state.history.some(h => h.date === oldKey && h.calls > 0), '返回 state 含导入日期')
+  const state = await svc.getState()
+  assert.ok(state.history.some(h => h.date === oldKey && h.calls > 0), 'getState 含导入日期')
+  // 会话明细按需拉取:导入日期可展开。
+  const daySessions = await svc.getDaySessions(oldKey)
+  assert.equal(daySessions.sessions.length, 1, '导入日期含会话明细')
+  assert.equal(daySessions.sessions[0].title, 'Before plugin', '导入会话标题')
+  assert.ok(daySessions.sessions[0].cost > 0, '导入会话按历史价计费')
+  // 幂等:重复导入无新增。
+  const again = await svc.importLegacyHistory()
+  assert.equal(again.ok, true, '重复导入仍成功')
+  assert.ok(!again.message.includes('1 天') && !again.message.includes('1 day'), '重复导入无新增(文案为空导入)')
+  // 网关边界:返回值过 strict fetch codec + JSON 安全校验(无 undefined 键)。
+  const importCodec = TYPERT.invocations.find(i => i.method === 'importLegacyHistory').result
+  function assertJsonSafeImport(value, ancestors) {
+    if (value === undefined) throw new TypeError('undefined is not JSON-safe')
+    if (value === null || ['string', 'boolean'].includes(typeof value)) return
+    if (typeof value === 'number') { if (Number.isFinite(value)) return; throw new TypeError('non-finite number') }
+    if (typeof value !== 'object' || value === null) throw new TypeError(`${typeof value} is not JSON-safe`)
+    if (ancestors.has(value)) throw new TypeError('cyclic')
+    ancestors.add(value)
+    try {
+      if (Array.isArray(value)) { for (const item of value) assertJsonSafeImport(item, ancestors); return }
+      const proto = Object.getPrototypeOf(value)
+      if (!(proto === null || proto === Object.prototype)) throw new TypeError('non-plain object')
+      for (const key of Reflect.ownKeys(value)) {
+        const d = Object.getOwnPropertyDescriptor(value, key)
+        if (!d.enumerable || !('value' in d)) throw new TypeError('non-data property')
+        assertJsonSafeImport(d.value, ancestors)
+      }
+    } finally { ancestors.delete(value) }
+  }
+  assertJsonSafeImport(importCodec.schema.parse(again), new Set())
+  assertJsonSafeImport(importCodec.schema.parse(result), new Set())
+  // 客户端 descriptor 清单与方法名对齐(双端 invocation 一致)。
+  const clientSource = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.ok(clientSource.includes("method: 'importLegacyHistory'"), '客户端 descriptor 声明 importLegacyHistory')
+  rmSync(importRoot, { recursive: true, force: true })
+  if (prevHome === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = prevHome
+  console.log('[ok] apply() 真实路径导入安装前历史(RPC/明细拉取/幂等/网关 JSON 安全)通过')
 }
 
 console.log('[ok] 全部验证通过')
