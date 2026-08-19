@@ -40,6 +40,11 @@ import {
   parseOpenRouterCredits,
   parseSiliconFlowInfo,
   queryCodingPlan,
+  scnetCanonModelId,
+  scnetModelCredits,
+  scnetPlanPeriod,
+  scnetTokenPlanWindows,
+  SCNET_CREDIT_RATES,
 } from '../lib/coding-plans.js'
 
 const BOUNDARY_MS = Date.parse(LEGACY_BASE_BOUNDARY)
@@ -500,6 +505,75 @@ const cpInvocation = TYPERT.invocations.find(i => i.method === 'refreshCodingPla
 assert.ok(cpInvocation !== undefined, 'refreshCodingPlan 清单存在')
 assert.equal(cpInvocation.parameters[0].name, 'provider', 'refreshCodingPlan 参数名')
 assert.equal(cpInvocation.parameters[0].codec.mode, 'strict', 'provider 参数 strict codec')
+
+// 5.8) SCNet(超算互联网)Token Plan 本地 Credits 计量(issue #26):
+// 无 API 额度端点(端点白名单为空,不走网络),按官方抵扣表由本地账本估算。
+assert.ok(CODING_PLAN_PROVIDERS.scnet !== undefined, 'scnet 已注册')
+assert.deepEqual(CODING_PLAN_ENDPOINTS.scnet, [], 'scnet 无网络端点(本地计量)')
+assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需要凭据')
+// 抵扣表键全部能被归一化函数唯一索引(GLM-5.2 → glm52)。
+{
+  const canonIds = Object.keys(SCNET_CREDIT_RATES).map(scnetCanonModelId)
+  assert.equal(new Set(canonIds).size, canonIds.length, '抵扣表模型名归一化后无碰撞')
+  assert.equal(scnetCanonModelId('GLM-5.2'), 'glm52', '模型名归一:小写剔符号')
+  assert.equal(scnetCanonModelId('deepseek_v4_flash'), scnetCanonModelId('DeepSeek-V4-Flash'), '大小写/连接符差异等价')
+}
+// Credits 折算数学:input+cacheWrite 计未命中、cacheRead 计命中、output 计输出(每百万 token)。
+{
+  const rate = { input: 7543, cachedInput: 189, output: 26400 }
+  const credits = scnetModelCredits({ input: 1_000_000, cacheWrite: 500_000, cacheRead: 2_000_000, output: 1_000_000 }, rate)
+  const expected = (1_500_000 * rate.input + 2_000_000 * rate.cachedInput + 1_000_000 * rate.output) / 1_000_000
+  assert.ok(Math.abs(credits - expected) < 1e-9, 'Credits 折算:未命中= input+cacheWrite')
+  assert.equal(scnetModelCredits({ input: -5, output: NaN, cacheRead: 'x' }, rate), 0, '非法 token 计 0')
+}
+// 计费周期:planStart 每月重置、自然月缺省、月末日期跨月钳制。
+{
+  const p1 = scnetPlanPeriod(Date.parse('2026-08-19T10:00:00+08:00'), '2026-08-05')
+  assert.equal(p1.fromKey, '2026-08-05', '周期起点为订阅日')
+  assert.equal(p1.toKeyInclusive, '2026-09-04', '周期末日为次月对应日的前一天')
+  const p2 = scnetPlanPeriod(Date.parse('2026-08-01T00:00:00+08:00'), '')
+  assert.equal(p2.fromKey, '2026-08-01', '无订阅日起点按自然月')
+  assert.equal(p2.toKeyInclusive, '2026-08-31', '自然月末')
+  const p3 = scnetPlanPeriod(Date.parse('2026-02-10T12:00:00+08:00'), '2026-01-31')
+  assert.equal(p3.fromKey.startsWith('2026-01-31'), true, '1/31 订阅在 2 月仍属上一周期')
+  assert.equal(p3.toKeyInclusive, '2026-02-27', '1/31 订阅的 2 月周期末钳制到 27(23:59:59)')
+  const p4 = scnetPlanPeriod(Date.parse('2027-01-15T00:00:00+08:00'), '2026-08-05')
+  assert.equal(p4.fromKey, '2027-01-05', '跨年多周期推进')
+}
+// 用量汇总:只计当前周期内、抵扣表覆盖的模型;provider:model 键跨 provider 归并。
+{
+  const nowMs = Date.parse('2026-08-19T10:00:00+08:00')
+  const mkDay = (date, pm) => ({ date, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 0, cost: 0, byProviderModel: pm, sessions: [] })
+  const glm = SCNET_CREDIT_RATES['GLM-5.2']
+  const days = {
+    '2026-08-10': mkDay('2026-08-10', {
+      'scnet:GLM-5.2': { input: 1_000_000, output: 1_000_000, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0 },
+      'other:glm-5.2': { input: 1_000_000, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0 },
+      'scnet:Not-In-Table': { input: 5_000_000, output: 5_000_000, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0 },
+    }),
+    '2026-08-18': mkDay('2026-08-18', {
+      'scnet:DeepSeek-V4-Flash': { input: 2_000_000, output: 1_000_000, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0 },
+    }),
+    '2026-07-30': mkDay('2026-07-30', {
+      'scnet:GLM-5.2': { input: 9_000_000, output: 9_000_000, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0 },
+    }),
+    '2020-01-01': mkDay('2020-01-01', {
+      'scnet:GLM-5.2': { input: 9_000_000, output: 9_000_000, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0 },
+    }),
+  }
+  const result = scnetTokenPlanWindows(days, { planCredits: 240000, planStart: '2026-08-05' }, nowMs)
+  const flash = SCNET_CREDIT_RATES['DeepSeek-V4-Flash']
+  const expectedUsed = (1_000_000 * glm.input + 1_000_000 * glm.output + 1_000_000 * glm.input) / 1_000_000
+    + (2_000_000 * flash.input + 1_000_000 * flash.output) / 1_000_000
+  assert.ok(Math.abs(result.used - expectedUsed) < 1e-9, '周期内覆盖模型跨 provider 归并折算')
+  assert.ok(Math.abs(result.byModel.glm52 - (2_000_000 * glm.input + 1_000_000 * glm.output) / 1_000_000) < 1e-9, '按归一化模型名分桶(大小写/provider 变体归并)')
+  assert.equal(result.byModel['Not-In-Table'], undefined, '未覆盖模型不计入')
+  assert.equal(result.total, 240000, '总额度透传')
+  assert.equal(result.percent, Math.min(100, Math.round((expectedUsed / 240000) * 1000) / 10), '已用百分比')
+  assert.ok(result.windows.credits.text.includes('/ 240,000 Credits (est.)'), '文本窗口含估算标注')
+  assert.equal(result.windows.monthly.percent, result.percent, 'monthly 窗口与百分比一致')
+  assert.equal(scnetTokenPlanWindows(days, { planCredits: 0 }, nowMs), null, '非法 planCredits 返回 null')
+}
 // getDaySessions(issue #22):按需读取某天完整记录(含会话明细)。
 const gdsInvocation = TYPERT.invocations.find(i => i.method === 'getDaySessions')
 assert.ok(gdsInvocation !== undefined, 'getDaySessions 清单存在')
@@ -1103,6 +1177,82 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   if (prevHome === undefined) delete process.env.DSH_HOME
   else process.env.DSH_HOME = prevHome
   console.log('[ok] apply() 真实路径 queryBalance/refreshBalance(多币种五场景/网关 JSON 安全)通过')
+}
+
+// 真实 apply() 路径的 SCNet 本地 Credits 计量(issue #26):启用 scnet 后 getState
+// 快照应含按官方抵扣表折算的月度窗口;refreshCodingPlan('scnet') 走同一条本地路径。
+{
+  const prevHome = process.env.DSH_HOME
+  const scnetRoot = join(process.env.TEMP ?? '/tmp', `cm-e2e-scnet-${Date.now()}`)
+  mkdirSync(join(scnetRoot, 'storages', 'cost-meter'), { recursive: true })
+  // 账本日键取「今天」(自然月周期必然覆盖),避免测试运行日期漂移导致窗口为空。
+  const todayKey = localDayKey(Date.now())
+  const glm = SCNET_CREDIT_RATES['GLM-5.2']
+  writeFileSync(join(scnetRoot, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({
+    version: 1,
+    config: { codingPlans: { scnet: { enabled: true, planCredits: 60000, planStart: '' } } },
+    days: {
+      [todayKey]: {
+        date: todayKey, input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0,
+        byProviderModel: {
+          'scnet:GLM-5.2': { input: 1_000_000, output: 1_000_000, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0 },
+          'scnet:Not-In-Table': { input: 8_000_000, output: 8_000_000, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0 },
+        },
+        sessions: [],
+      },
+    },
+  }))
+  process.env.DSH_HOME = scnetRoot
+  const { apply } = await import('../lib/index.js')
+  const provided = {}
+  apply({
+    on: () => () => {},
+    effect: () => {},
+    inject: () => {},
+    provide: (key, value) => { provided[key] = value },
+    logger: console,
+  })
+  const svc = provided.costMeter
+  const state = await svc.getState()
+  const scnet = state.codingPlans.scnet
+  assert.ok(scnet !== undefined, 'getState 快照含 scnet 条目')
+  assert.equal(scnet.enabled, true, 'scnet 启用状态透传')
+  assert.equal(scnet.status, 'ok', '本地计量恒为 ok(无网络)')
+  const expectedUsed = (1_000_000 * glm.input + 1_000_000 * glm.output) / 1_000_000
+  assert.equal(scnet.windows.credits.text.indexOf(`${Math.round(expectedUsed).toLocaleString('en-US')} / 60,000`), 0, 'credits 文本窗口按抵扣表折算')
+  assert.equal(scnet.windows.monthly.percent, Math.min(100, Math.round((expectedUsed / 60000) * 1000) / 10), 'monthly 已用百分比')
+  assert.ok(scnet.windows.monthly.resetsAt.length > 0, 'monthly 携带周期重置时刻')
+  // 手动刷新 RPC:provider='scnet' 走本地分支,不触网即返回 ok。
+  const refreshed = await svc.refreshCodingPlan('scnet')
+  assert.equal(refreshed.ok, true, 'refreshCodingPlan(scnet) 本地刷新成功')
+  assert.equal(refreshed.state.codingPlans.scnet.windows.monthly.percent, scnet.windows.monthly.percent, '刷新结果幂等')
+  // 网关 JSON 安全校验 + strict 状态 codec:全量快照不得含 undefined 键。
+  const stateCodec = TYPERT.invocations.find(i => i.method === 'getState').result
+  function assertJsonSafeScnet(value, ancestors) {
+    if (value === undefined) throw new TypeError('undefined is not JSON-safe')
+    if (value === null || ['string', 'boolean'].includes(typeof value)) return
+    if (typeof value === 'number') { if (Number.isFinite(value)) return; throw new TypeError('non-finite number') }
+    if (typeof value !== 'object' || value === null) throw new TypeError(`${typeof value} is not JSON-safe`)
+    if (ancestors.has(value)) throw new TypeError('cyclic')
+    ancestors.add(value)
+    try {
+      if (Array.isArray(value)) { for (const item of value) assertJsonSafeScnet(item, ancestors); return }
+      const proto = Object.getPrototypeOf(value)
+      if (!(proto === null || proto === Object.prototype)) throw new TypeError('non-plain object')
+      for (const key of Reflect.ownKeys(value)) {
+        const d = Object.getOwnPropertyDescriptor(value, key)
+        if (!d.enumerable || !('value' in d)) throw new TypeError('non-data property')
+        assertJsonSafeScnet(d.value, ancestors)
+      }
+    } finally { ancestors.delete(value) }
+  }
+  assertJsonSafeScnet(stateCodec.schema.parse(state), new Set())
+  // 配置链:scnet 专用字段经 sanitize 后保留(编码往返不丢)。
+  assert.equal(state.config.codingPlans.scnet.planCredits, 60000, 'planCredits 配置保真')
+  rmSync(scnetRoot, { recursive: true, force: true })
+  if (prevHome === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = prevHome
+  console.log('[ok] apply() 真实路径 SCNet 本地 Credits 计量(月度窗口/refreshCodingPlan/网关 JSON 安全/配置保真)通过')
 }
 
 console.log('[ok] 全部验证通过')
