@@ -24,7 +24,7 @@ import {
   LEGACY_BASE_PRICES,
   providerPriceEntryFor,
 } from '../lib/pricing.js'
-import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, sanitizeDays } from '../lib/store.js'
+import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays } from '../lib/store.js'
 import { backfillLegacyLedger, replaySessionRecords, scanZstdFrames } from '../lib/backfill.js'
 import { TYPERT, stateSchema } from '../lib/typert.host.js'
 import {
@@ -512,6 +512,10 @@ assert.ok(gtsInvocation !== undefined, 'getTopSessions 清单存在')
 assert.equal(gtsInvocation.parameters[0].name, 'limit', 'getTopSessions 参数名')
 assert.equal(gtsInvocation.parameters[0].codec.mode, 'strict', 'limit 参数 strict codec')
 assert.deepEqual(gtsInvocation.parameters.map(p => p.name), ['limit', 'sort', 'dir'], 'getTopSessions 三参数(limit/sort/dir)')
+// sort/dir 必须声明可缺省(与服务端函数默认值对应):网关对 args 字段精确匹配,
+// 漏声明时旧客户端单参数调用会被 missing "sort"/"dir" 拒绝,会话排行面板加载失败。
+assert.equal(gtsInvocation.parameters[1].acceptsUndefined, true, 'sort 参数声明 acceptsUndefined(旧客户端兼容)')
+assert.equal(gtsInvocation.parameters[2].acceptsUndefined, true, 'dir 参数声明 acceptsUndefined(旧客户端兼容)')
 assert.equal(gtsInvocation.result.mode, 'strict', 'getTopSessions 返回 strict codec')
 // getDaySessions 底层:copyDay 完整副本保留会话明细(轻量 history() 不含)。
 {
@@ -882,11 +886,81 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   // 非法余额输入:不产生事件。
   r = reconcileBalanceDelta(base, { totalBalance: Number.NaN }, 0, day, t1)
   assert.equal(r.event, null, '非法余额输入静默')
+  // 币种切换(#24/#25):选中条目币种变化时金额不可比,重置基准不告警。
+  const cnyBase = reconcileBalanceDelta(null, { ...bal(97), currency: 'CNY' }, 0, day, t0).ref
+  assert.equal(cnyBase.currency, 'CNY', '基准快照记录币种')
+  r = reconcileBalanceDelta(cnyBase, { ...bal(0), currency: 'USD' }, 0.5, day, t1)
+  assert.equal(r.event.kind, 'structure-reset', '币种切换重置参考点(USD 0.00 误读不再触发 drift)')
+  assert.equal(r.ref.currency, 'USD', '重置后基准带新币种')
+  r = reconcileBalanceDelta(cnyBase, { ...bal(96), currency: 'CNY' }, 0.9, day, t1)
+  assert.equal(r.event.kind, 'ok', '同币种正常对账不受影响')
+  // 旧参考点无币种标记(升级前账本):重置一次基准。
+  const legacyBase = { date: day, total: 10, granted: 1, topped: 9, at: t0 }
+  r = reconcileBalanceDelta(legacyBase, { ...bal(9), currency: 'CNY' }, 0.95, day, t1)
+  assert.equal(r.event.kind, 'structure-reset', '旧参考点无币种标记时重置基准')
   // 配置链路:非布尔拒绝、默认开启、可关闭。
   assert.ok(applyConfigPatch(sanitizeConfig({}), { balance: { reconcile: 'yes' } }).errors.length > 0, 'reconcile 非布尔被拒绝')
   assert.equal(sanitizeConfig({}).balance.reconcile, true, 'reconcile 默认开启')
-  assert.equal(applyConfigPatch(sanitizeConfig({}), { balance: { reconcile: false } }).errors.length, 0, 'reconcile 可关闭')
-  console.log('[ok] 余额差交叉校验(基准/flat/ok/drift/充值重置/跨天/配置链路)通过')
+  assert.equal(applyConfigPatch(sanitizeConfig({}), { balance: { reconcile: false } }).errors.length === 0, true, 'reconcile 可关闭')
+
+  // 多币种条目挑选(#24/#25):balance_infos 顺序不稳定,必须确定性选中有效余额。
+  const usd0 = { currency: 'USD', total_balance: '0.00', granted_balance: '0.00', topped_up_balance: '0.00' }
+  const usd3 = { currency: 'USD', total_balance: '3.00', granted_balance: '0.00', topped_up_balance: '3.00' }
+  const cny97 = { currency: 'CNY', total_balance: '97.68', granted_balance: '0.00', topped_up_balance: '97.68' }
+  const cny0 = { currency: 'CNY', total_balance: '0.00', granted_balance: '0.00', topped_up_balance: '0.00' }
+  assert.equal(pickBalanceInfo([usd0, cny97]).currency, 'CNY', 'USD 排前时选中 CNY 正余额(#24 形态)')
+  assert.equal(pickBalanceInfo([cny97, usd0]).currency, 'CNY', 'CNY 排前时同样选中 CNY(顺序无关)')
+  assert.equal(pickBalanceInfo([cny0, usd0]).currency, 'CNY', '全为零时优先 CNY(确定性,不随顺序跳变,#25 形态)')
+  assert.equal(pickBalanceInfo([usd0]).currency, 'USD', '单币种账号行为不变')
+  assert.equal(pickBalanceInfo([usd3, usd0]).currency, 'USD', '仅 USD 有余额时选中 USD(国际账号)')
+  assert.equal(pickBalanceInfo([usd3, cny97]).currency, 'CNY', '双币种均有余额时优先 CNY(主币种确定性)')
+  assert.equal(pickBalanceInfo([]), undefined, '空列表返回 undefined')
+  assert.equal(pickBalanceInfo(null), undefined, '非数组输入返回 undefined')
+  assert.equal(pickBalanceInfo([usd0, null, 'x']), usd0, '跳过非法条目后兜底首条')
+  console.log('[ok] 余额差交叉校验(基准/flat/ok/drift/充值与币种重置/跨天/多币种挑选/配置链路)通过')
+}
+
+// 真实 apply() 路径的 getTopSessions 回归(会话排行面板加载失败问题):
+// 用临时 DSH_HOME + 假宿主 ctx 走完整插件装配,验证单参数调用(旧客户端形态)
+// 依赖函数默认值正常出榜,三参数调用各排序模式语义正确。
+{
+  const prevHome = process.env.DSH_HOME
+  const e2eRoot = join(process.env.TEMP ?? '/tmp', `cm-e2e-gts-${Date.now()}`)
+  mkdirSync(join(e2eRoot, 'storages', 'cost-meter'), { recursive: true })
+  const mkE2E = (id, cost, at) => ({ id, title: 'T-' + id, at, input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost, byProviderModel: {} })
+  writeFileSync(join(e2eRoot, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({
+    version: 1,
+    config: {},
+    days: {
+      '2026-08-16': { date: '2026-08-16', input: 2, output: 2, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 2, cost: 1.5, byProviderModel: {}, sessions: [mkE2E('s-a', 1.0, 100), mkE2E('s-b', 0.5, 300)] },
+      '2026-08-17': { date: '2026-08-17', input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 2.0, byProviderModel: {}, sessions: [mkE2E('s-c', 2.0, 200)] },
+    },
+  }))
+  process.env.DSH_HOME = e2eRoot
+  const { apply } = await import('../lib/index.js')
+  const provided = {}
+  const fakeCtx = {
+    on: () => () => {},
+    effect: () => {},
+    inject: () => {},
+    provide: (key, value) => { provided[key] = value },
+    logger: console,
+  }
+  apply(fakeCtx)
+  const svc = provided.costMeter
+  assert.ok(svc !== undefined && typeof svc.getTopSessions === 'function', 'apply() 注册 costMeter 服务')
+  const oneArg = await svc.getTopSessions(100)
+  assert.deepEqual(oneArg.sessions.map(s => s.id), ['s-c', 's-a', 's-b'], '单参数调用走默认 cost-desc(旧客户端兼容,面板可加载)')
+  const asc = await svc.getTopSessions(100, 'cost', 'asc')
+  assert.deepEqual(asc.sessions.map(s => s.id), ['s-b', 's-a', 's-c'], 'cost-asc 费用升序')
+  const timeDesc = await svc.getTopSessions(100, 'time', 'desc')
+  assert.deepEqual(timeDesc.sessions.map(s => s.id), ['s-b', 's-c', 's-a'], 'time-desc 时间降序')
+  const recent = await svc.getTopSessions(100, 'recent', 'desc')
+  assert.deepEqual(recent.sessions.map(s => s.id), ['s-c', 's-b', 's-a'], 'recent 实时顺序降序')
+  rmSync(e2eRoot, { recursive: true, force: true })
+  if (prevHome === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = prevHome
+  console.log('[ok] apply() 真实路径 getTopSessions(单参数默认/排序语义)通过')
 }
 
 console.log('[ok] 全部验证通过')
