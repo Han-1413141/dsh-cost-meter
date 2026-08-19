@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.12] - 2026-08-19
+
+### 修复
+
+- **按会话统计面板「会话排行加载失败」(真正根因)**:Typert 网关对 RPC **返回值**做 JSON 安全校验,含 `undefined` 值的自有属性会以 `undefined is not JSON-safe` 被拒(RPC result-invalid)。而 `getTopSessions` 组装行时对未命名会话/无时间戳(旧账本)会话写入 `title: undefined` / `at: undefined` 键——zod 会原样保留已声明 optional 键的 undefined 值,因此排行内只要混入任一未命名或无时间戳会话,整个面板即加载失败。现改为**缺席时完全不写该键**(条件添加);`buildState` 的 codec 漂移降级路径同步改为解构剔除 `priceCatalog`(原 `priceCatalog: undefined` 同样会被网关拒绝)。verify.mjs 固化三层回归:网关 `assertJsonValue` 逐字复刻校验全部 RPC 返回值、真实 `apply()` 路径含未命名/无时间戳会话的四种排序、网关 `assertExactArguments` 复刻的参数校验。
+
 ## [1.5.11] - 2026-08-19
 
 ### 修复

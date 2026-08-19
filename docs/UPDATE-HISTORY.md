@@ -3,6 +3,10 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.12(2026-08-19)—— 会话排行加载失败(真正根因)
+
+- **按会话统计面板「会话排行加载失败」**:Typert 网关对 RPC **返回值**做 JSON 安全校验,含 `undefined` 值的自有属性会被 `undefined is not JSON-safe` 拒绝(RPC result-invalid)。`getTopSessions` 组装行时对未命名会话/无时间戳(旧账本)会话写入 `title: undefined` / `at: undefined` 键,而 zod 会原样保留已声明 optional 键的 undefined 值——排行内只要混入任一未命名或无时间戳会话,整个面板即加载失败。现改为缺席时完全不写该键;`buildState` 的 codec 漂移降级路径同步改为解构剔除 `priceCatalog`。verify.mjs 固化网关 JSON 安全校验复刻 + 真实 `apply()` 路径(含未命名/无时间戳会话)回归。
+
 ## v1.5.11(2026-08-19)—— 多币种账号余额显示 0
 
 - **多币种账号余额显示 ¥0.00 / 0.00**(issues #24 #25,感谢 @chentianhai4、@yupengliuCU 的报告与定位):官方余额接口对多币种账号返回 CNY/USD 两条 `balance_infos` 且**排列顺序每次请求不稳定**,旧代码固定取首条——USD 排前时读到 `total_balance = 0`,余额在正确值与 0 之间跳变。现按「有余额优先、同有余额优先 CNY(开放平台主币种)、全为零时优先 CNY、兜底首条」确定性挑选(单币种账号行为不变;仅 USD 有余额的国际账号选 USD)。

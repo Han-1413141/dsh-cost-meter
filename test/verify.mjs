@@ -927,13 +927,20 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   const prevHome = process.env.DSH_HOME
   const e2eRoot = join(process.env.TEMP ?? '/tmp', `cm-e2e-gts-${Date.now()}`)
   mkdirSync(join(e2eRoot, 'storages', 'cost-meter'), { recursive: true })
-  const mkE2E = (id, cost, at) => ({ id, title: 'T-' + id, at, input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost, byProviderModel: {} })
+  // 刻意混入未命名(s-no-title)与无时间戳(s-no-at)会话:1.5.11 前的组装会写入
+  // title/at: undefined 键,被网关 JSON 安全校验拒绝(result-invalid)。
+  const mkE2E = (id, cost, at, title) => {
+    const s = { id, input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost, byProviderModel: {} }
+    if (at !== undefined) s.at = at
+    if (title !== undefined) s.title = title
+    return s
+  }
   writeFileSync(join(e2eRoot, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({
     version: 1,
     config: {},
     days: {
-      '2026-08-16': { date: '2026-08-16', input: 2, output: 2, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 2, cost: 1.5, byProviderModel: {}, sessions: [mkE2E('s-a', 1.0, 100), mkE2E('s-b', 0.5, 300)] },
-      '2026-08-17': { date: '2026-08-17', input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 2.0, byProviderModel: {}, sessions: [mkE2E('s-c', 2.0, 200)] },
+      '2026-08-16': { date: '2026-08-16', input: 2, output: 2, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 2, cost: 1.5, byProviderModel: {}, sessions: [mkE2E('s-a', 1.0, 100, 'T-a'), mkE2E('s-no-title', 0.5, 300), mkE2E('s-no-at', 0.25, undefined, 'T-no-at')] },
+      '2026-08-17': { date: '2026-08-17', input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 2.0, byProviderModel: {}, sessions: [mkE2E('s-c', 2.0, 200, 'T-c')] },
     },
   }))
   process.env.DSH_HOME = e2eRoot
@@ -950,17 +957,152 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   const svc = provided.costMeter
   assert.ok(svc !== undefined && typeof svc.getTopSessions === 'function', 'apply() 注册 costMeter 服务')
   const oneArg = await svc.getTopSessions(100)
-  assert.deepEqual(oneArg.sessions.map(s => s.id), ['s-c', 's-a', 's-b'], '单参数调用走默认 cost-desc(旧客户端兼容,面板可加载)')
+  assert.deepEqual(oneArg.sessions.map(s => s.id), ['s-c', 's-a', 's-no-title', 's-no-at'], '单参数调用走默认 cost-desc(旧客户端兼容,面板可加载)')
   const asc = await svc.getTopSessions(100, 'cost', 'asc')
-  assert.deepEqual(asc.sessions.map(s => s.id), ['s-b', 's-a', 's-c'], 'cost-asc 费用升序')
+  assert.deepEqual(asc.sessions.map(s => s.id), ['s-no-at', 's-no-title', 's-a', 's-c'], 'cost-asc 费用升序')
   const timeDesc = await svc.getTopSessions(100, 'time', 'desc')
-  assert.deepEqual(timeDesc.sessions.map(s => s.id), ['s-b', 's-c', 's-a'], 'time-desc 时间降序')
+  assert.deepEqual(timeDesc.sessions.map(s => s.id), ['s-no-title', 's-c', 's-a', 's-no-at'], 'time-desc 时间降序(无时间戳排末尾)')
   const recent = await svc.getTopSessions(100, 'recent', 'desc')
-  assert.deepEqual(recent.sessions.map(s => s.id), ['s-c', 's-b', 's-a'], 'recent 实时顺序降序')
+  assert.deepEqual(recent.sessions.map(s => s.id), ['s-c', 's-no-at', 's-no-title', 's-a'], 'recent 实时顺序降序')
+
+  // ── 网关边界复刻:dsh-api-gateway 对 RPC 返回值做 JSON 安全校验,───────
+  // 含 undefined 值的自有属性会被「undefined is not JSON-safe」拒绝(1.5.12 修复的根因)。
+  // 逐字对应 dsh-api-gateway types/index.js 的 assertJsonValue。
+  function assertJsonValue(value, ancestors) {
+    if (value === null || typeof value === 'string' || typeof value === 'boolean') return
+    if (typeof value === 'number') { if (Number.isFinite(value)) return; throw new TypeError('non-finite number is not JSON-safe') }
+    if (typeof value !== 'object' || value === null) throw new TypeError(`${typeof value} is not JSON-safe`)
+    if (ancestors.has(value)) throw new TypeError('cyclic value is not JSON-safe')
+    ancestors.add(value)
+    try {
+      if (Array.isArray(value)) {
+        if (Object.getOwnPropertySymbols(value).length > 0 || Object.keys(value).length !== value.length) throw new TypeError('sparse or decorated array is not JSON-safe')
+        for (let i = 0; i < value.length; i += 1) {
+          if (!Object.hasOwn(value, i)) throw new TypeError('sparse array is not JSON-safe')
+          assertJsonValue(value[i], ancestors)
+        }
+        return
+      }
+      const proto = Object.getPrototypeOf(value)
+      if (!(proto === null || proto === Object.prototype)) throw new TypeError('non-plain object is not JSON-safe')
+      if (Object.getOwnPropertySymbols(value).length > 0) throw new TypeError('symbol property is not JSON-safe')
+      for (const key of Reflect.ownKeys(value)) {
+        const d = Object.getOwnPropertyDescriptor(value, key)
+        if (d === undefined || !d.enumerable || !('value' in d)) throw new TypeError('non-data property is not JSON-safe')
+        assertJsonValue(d.value, ancestors)
+      }
+    } finally { ancestors.delete(value) }
+  }
+  const gtsCodec = TYPERT.invocations.find(i => i.method === 'getTopSessions').result
+  // 前提:zod 对「显式 undefined」的已声明 optional 键会原样保留(parse 不剥离),
+  // 因此服务端绝不能返回 undefined 键——这是网关 JSON 安全校验会击穿的形态。
+  const keepUndefined = gtsCodec.schema.parse({ sessions: [{ ...oneArg.sessions[0], title: undefined, at: undefined }] })
+  assert.equal(Object.hasOwn(keepUndefined.sessions[0], 'title'), true, 'zod 保留显式 undefined 键(网关校验的前提,服务端必须避免)')
+  let jsonSafeRejection = null
+  try { assertJsonValue(keepUndefined, new Set()) } catch (e) { jsonSafeRejection = e.message }
+  assert.equal(jsonSafeRejection, 'undefined is not JSON-safe', '含 undefined 键的返回值被网关复刻校验拒绝(旧实现形态)')
+  for (const result of [oneArg, asc, timeDesc, recent]) {
+    // 模拟网关 decode():先 strict schema.parse,再 JSON 安全校验——旧实现在此抛错。
+    assertJsonValue(gtsCodec.schema.parse(result), new Set())
+  }
+  // 未命名/无时间戳会话的行不得携带 title/at 键(缺席而非 undefined)。
+  assert.equal('title' in oneArg.sessions[2], false, '未命名会话行无 title 键(而非 undefined)')
+  assert.equal('at' in oneArg.sessions[3], false, '无时间戳会话行无 at 键(而非 undefined)')
+
+  // ── 网关参数校验复刻:assertExactArguments(exact-args)对 args 字段精确匹配,──
+  // acceptsUndefined 声明允许旧客户端单参数调用(1.5.11 修复)。
+  function assertExactArguments(args, descriptor) {
+    const expected = new Set(descriptor.parameters.map(p => p.wire))
+    const acceptsMissing = new Set(descriptor.parameters
+      .filter(p => p.source === 'json' && (p.acceptsUndefined === true || p.codec.mode === 'src-json'))
+      .map(p => p.wire))
+    const missing = [...expected].filter(key => !Object.hasOwn(args, key) && !acceptsMissing.has(key))
+    const extra = Reflect.ownKeys(args).filter(key => typeof key !== 'string' || !expected.has(key))
+    return missing.length === 0 && extra.length === 0
+  }
+  const gtsDescriptor = TYPERT.invocations.find(i => i.method === 'getTopSessions')
+  assert.equal(assertExactArguments({ limit: 100 }, gtsDescriptor), true, '单参数调用通过网关参数校验(旧客户端兼容)')
+  assert.equal(assertExactArguments({ limit: 100, sort: 'cost', dir: 'asc' }, gtsDescriptor), true, '三参数调用通过网关参数校验')
+  assert.equal(assertExactArguments({}, gtsDescriptor), false, '缺 limit 仍被拒(limit 未声明可缺省)')
+  assert.equal(assertExactArguments({ limit: 100, bogus: 1 }, gtsDescriptor), false, '多余字段仍被拒')
+
   rmSync(e2eRoot, { recursive: true, force: true })
   if (prevHome === undefined) delete process.env.DSH_HOME
   else process.env.DSH_HOME = prevHome
-  console.log('[ok] apply() 真实路径 getTopSessions(单参数默认/排序语义)通过')
+  console.log('[ok] apply() 真实路径 getTopSessions(单参数默认/排序语义/网关 JSON 安全与参数校验)通过')
+}
+
+// 真实 queryBalance 链路回归(issues #24/#25):mock 官方接口的 balance_infos,
+// 经 refreshBalance → ensureBalance → queryBalance 全链路验证多币种挑选。
+{
+  const prevHome = process.env.DSH_HOME
+  const prevFetch = globalThis.fetch
+  const balRoot = join(process.env.TEMP ?? '/tmp', `cm-e2e-bal-${Date.now()}`)
+  mkdirSync(join(balRoot, 'storages', 'cost-meter'), { recursive: true })
+  writeFileSync(join(balRoot, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({ version: 1, config: {}, days: {} }))
+  process.env.DSH_HOME = balRoot
+  const cny97 = { currency: 'CNY', total_balance: '97.68', granted_balance: '0.00', topped_up_balance: '97.68' }
+  const usd0 = { currency: 'USD', total_balance: '0.00', granted_balance: '0.00', topped_up_balance: '0.00' }
+  const usd3 = { currency: 'USD', total_balance: '3.00', granted_balance: '0.00', topped_up_balance: '3.00' }
+  const cny0 = { currency: 'CNY', total_balance: '0.00', granted_balance: '0.00', topped_up_balance: '0.00' }
+  const mkBody = infos => JSON.stringify({ is_available: true, balance_infos: infos })
+  const cases = [
+    [[usd0, cny97], 'CNY', 97.68, 'USD 排前(#24 形态)选中 CNY 正余额'],
+    [[cny97, usd0], 'CNY', 97.68, 'CNY 排前(#25 形态)同样选中 CNY(顺序无关)'],
+    [[cny97], 'CNY', 97.68, '单币种账号行为不变'],
+    [[usd3, cny0], 'USD', 3.00, '仅 USD 有余额的国际账号选 USD'],
+    [[usd0, cny0], 'CNY', 0.00, '全为零时确定选 CNY(不随顺序跳变)'],
+  ]
+  for (const [infos, wantCurrency, wantTotal, label] of cases) {
+    // 每场景独立装配:balanceCache 在服务实例内,复用会命中缓存。
+    const home = join(balRoot, 'case-' + wantTotal + '-' + infos.map(i => i.currency).join(''))
+    mkdirSync(join(home, 'storages', 'cost-meter'), { recursive: true })
+    writeFileSync(join(home, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({ version: 1, config: {}, days: {} }))
+    process.env.DSH_HOME = home
+    globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => JSON.parse(mkBody(infos)) })
+    const { apply } = await import('../lib/index.js')
+    const provided = {}
+    apply({
+      on: () => () => {},
+      effect: () => {},
+      inject: () => {},
+      provide: (k, v) => { provided[k] = v },
+      logger: console,
+      get: key => key === 'settings'
+        ? { get: () => ({}) }
+        : key === 'credentials'
+          ? { resolve: async () => ({ value: 'sk-e2e-test' }) }
+          : undefined,
+    })
+    const res = await provided.costMeter.refreshBalance()
+    assert.equal(res.ok, true, label + ':刷新成功')
+    assert.equal(res.state.balance.currency, wantCurrency, label + ':币种')
+    assert.equal(res.state.balance.totalBalance, wantTotal, label + ':余额')
+    // 网关 JSON 安全校验:getState 全量快照也不得含 undefined 键。
+    const stateCodec = TYPERT.invocations.find(i => i.method === 'getState').result
+    const parsedState = stateCodec.schema.parse(await provided.costMeter.getState())
+    function assertJsonSafe(value, ancestors) {
+      if (value === null || ['string', 'boolean'].includes(typeof value)) return
+      if (typeof value === 'number') { if (Number.isFinite(value)) return; throw new TypeError('non-finite number') }
+      if (typeof value !== 'object' || value === null) throw new TypeError(`${typeof value} is not JSON-safe`)
+      if (ancestors.has(value)) throw new TypeError('cyclic')
+      ancestors.add(value)
+      try {
+        if (Array.isArray(value)) { for (const item of value) assertJsonSafe(item, ancestors); return }
+        for (const key of Reflect.ownKeys(value)) {
+          const d = Object.getOwnPropertyDescriptor(value, key)
+          if (!d.enumerable || !('value' in d)) throw new TypeError('non-data property')
+          assertJsonSafe(d.value, ancestors)
+        }
+      } finally { ancestors.delete(value) }
+    }
+    assertJsonSafe(parsedState, new Set())
+  }
+  globalThis.fetch = prevFetch
+  rmSync(balRoot, { recursive: true, force: true })
+  if (prevHome === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = prevHome
+  console.log('[ok] apply() 真实路径 queryBalance/refreshBalance(多币种五场景/网关 JSON 安全)通过')
 }
 
 console.log('[ok] 全部验证通过')
