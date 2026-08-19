@@ -629,14 +629,17 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   assert.ok(clientSource.includes('peakAlertWebNotifyLabel'), '设置 UI 含 Web 通知开关')
   assert.ok(clientSource.includes('Notification.requestPermission()'), '开启通知时申请权限')
   assert.ok(clientSource.includes('peakAlertBadgePeak') && clientSource.includes('peakAlertBadgeOffPeak'), '徽标文案存在')
-  // 1.5.20 真实预览通道:window 事件 + cmPeakAlertPreview API + 设置页按钮 + 常驻挂载。
+  // 1.5.20 真实预览通道 + 1.5.21 修复:API 挪到 activate 顶层、组件挂常驻插槽。
   assert.ok(clientSource.includes("const PEAK_ALERT_PREVIEW_EVENT = 'cm-peak-alert-preview'"), '预览事件常量存在')
   assert.ok(clientSource.includes('window.cmPeakAlertPreview = kind =>'), 'window.cmPeakAlertPreview API 注册')
   assert.ok(clientSource.includes('window.addEventListener(PEAK_ALERT_PREVIEW_EVENT, onPreview)'), '组件监听预览事件')
+  assert.ok(clientSource.includes('window.__cmPeakAlertLive = true'), '组件在线标志存在')
   assert.ok(clientSource.includes("window.cmPeakAlertPreview?.('peak')") && clientSource.includes("window.cmPeakAlertPreview?.('offpeak')"), '设置页预览按钮接线')
   assert.ok(clientSource.includes('peakAlertPreviewLabel') && clientSource.includes('peakAlertPreviewPeak') && clientSource.includes('peakAlertPreviewOffPeak'), '预览按钮文案(zh/en)存在')
   assert.ok(clientSource.includes('peakAlertPreviewTag'), '预览通知标题标记文案存在')
   assert.ok(clientSource.includes('const peakAlertOn = state?.config?.peakEnabled === true'), '提醒组件仅由峰谷计价控制挂载(提醒开关关闭也可预览)')
+  assert.ok(clientSource.includes("slots.register({ name: 'sidebar.footer.action', id: 'cost-meter-peak-alert'"), '弹窗组件挂常驻 sidebar 插槽(非仅会话页的 dock)')
+  assert.ok(!clientSource.includes("slots.register({ name: 'conversation.composer.dock', id: 'cost-meter-peak-alert'"), '不再挂仅会话页的 dock 插槽')
   assert.ok(clientSource.includes('setPreview(kind)'), '预览状态可设置')
   assert.ok(clientSource.includes('dismiss = () => setPreview(null)'), '预览弹窗关闭清除预览态')
   console.log('[ok] 峰/谷切换弹窗提醒配置(默认值/校验/清洗/双端声明/组件接线/真实预览通道)通过')

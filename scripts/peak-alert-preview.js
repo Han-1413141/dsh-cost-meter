@@ -23,13 +23,13 @@
   ].join('\n')
 
   function ready() {
-    return typeof window.cmPeakAlertPreview === 'function'
+    return typeof window.cmPeakAlertPreview === 'function' && window.__cmPeakAlertLive === true
   }
 
   function preview(kind) {
-    if (!ready()) {
+    if (typeof window.cmPeakAlertPreview !== 'function') {
       // eslint-disable-next-line no-console
-      console.warn('[cm-alert-preview] 插件真实预览 API 未就绪:请确认 dsh-cost-meter ≥ 1.5.20 且已重启 dsh web。')
+      console.warn('[cm-alert-preview] 插件预览 API 未注册:请确认 dsh-cost-meter ≥ 1.5.21 且已重启 dsh web。')
       return
     }
     window.cmPeakAlertPreview(kind)

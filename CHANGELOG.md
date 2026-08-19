@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.21] - 2026-08-19
+
+### 修复
+
+- **设置页「预览弹窗」按钮点了没反应**(1.5.20 引入):弹窗组件此前挂在 `conversation.composer.dock` 插槽——该插槽**仅在有活跃会话的页面渲染**(宿主源码 `footer: !hero && zone !== void 0 ? renderSlot(...)`),在 hero/欢迎页与设置页组件未挂载、`window.cmPeakAlertPreview` 未注册,按钮可选链静默跳过。现改挂常驻的 `sidebar.footer.action` 插槽(fixed 定位弹窗与宿主位置无关),并顺带修复**真实提醒在无会话页面不弹**的同源缺陷;`window.cmPeakAlertPreview` API 挪到插件 activate 顶层注册(不依赖插槽),组件挂载期间置 `__cmPeakAlertLive` 在线标志,未挂载时 API 输出可诊断的 console 提示;预览脚本 `ready()` 同步改为校验在线标志,版本提示更新为 ≥ 1.5.21。
+
 ## [1.5.20] - 2026-08-19
 
 ### 新增
