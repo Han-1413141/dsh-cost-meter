@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.28] - 2026-08-20
+
+### 修复
+
+- **首次额度横条引导点击后触发 React #300(issue #32,感谢 @kk3ya03-star 的报告与根因分析)**:`QuotaStripGuide` 的 `useRef` 位于两个条件 `return null` 之后,当 `promptSeen` 从 `false` 翻为 `true`(点击「开启/暂不」)时,下一次渲染在 `useRef` 前提前返回,Hook 数量比上一次少一个,触发 React #300「Rendered fewer hooks than expected」,sidebar footer 被 React 错误恢复流程重新挂载。修复:把 `useRef` 上移到所有条件返回之前,与 `useCost` 一起构成每次渲染固定的 Hook 序列。
+- **verify.mjs 新增 Hook 顺序门禁**:扫描 `client.js` 全部组件函数,断言任何 Hook 调用不得出现在组件级条件 `return` 之后(箭头函数回调体内的 return/Hook 不计入);门禁自带自检(违规片段必须被抓到、合法片段不误报),并对 `QuotaStripGuide` 的 `useRef` 先于首个 `return null` 做定点断言,防止同类回归。
+
 ## [1.5.27] - 2026-08-20
 
 ### 新增

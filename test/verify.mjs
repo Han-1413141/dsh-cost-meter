@@ -761,6 +761,119 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   assert.ok(clientSource.includes('commandcode: \'CC\'') && clientSource.includes('scnet: \'SCNet\''), '短标签覆盖八家厂商')
   console.log('[ok] 输入框上方额度横条(默认值/校验/清洗/双端声明/接线/首次引导)通过')
 }
+
+// Hook 顺序门禁(issue #32,React #300 "Rendered fewer hooks than expected"):
+// 组件函数体内,任何 Hook 调用不得出现在组件级条件 return 之后——否则分支翻转时
+// 两次渲染 Hook 数量不一致。箭头函数体(`=> {`)内的 return/Hook 属于回调自身,
+// 不计入组件上下文;字符串与注释跳过。QuotaStripGuide 曾把 useRef 放在
+// promptSeen 提前返回之后,点击引导按钮即触发 #300。
+{
+  const hookSrc = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  const scanHookOrder = source => {
+    const fnRe = /^[ \t]*function\s+([A-Za-z0-9_$]+)\s*\(/gm
+    const out = []
+    let m
+    const extractBody = start => {
+      let depth = 0
+      let i = start
+      while (i < source.length) {
+        const c = source[i]
+        if (c === '\'' || c === '"' || c === '`') {
+          const q = c
+          i += 1
+          while (i < source.length) {
+            if (source[i] === '\\') { i += 2; continue }
+            if (source[i] === q) break
+            i += 1
+          }
+          i += 1
+          continue
+        }
+        if (c === '/' && source[i + 1] === '/') { while (i < source.length && source[i] !== '\n') i += 1; continue }
+        if (c === '/' && source[i + 1] === '*') { i += 2; while (i < source.length && !(source[i] === '*' && source[i + 1] === '/')) i += 1; i += 2; continue }
+        if (c === '{') depth += 1
+        if (c === '}') { depth -= 1; if (depth === 0) return source.slice(start + 1, i) }
+        i += 1
+      }
+      return null
+    }
+    const hookRe = /^(useState|useRef|useEffect|useMemo|useCallback|useCost)\s*\(/
+    const returnRe = /^return\b/
+    const scanBody = body => {
+      let i = 0
+      let depth = 0
+      const fnBraces = []
+      let pendingArrow = false
+      const events = []
+      while (i < body.length) {
+        const c = body[i]
+        if (c === '\'' || c === '"' || c === '`') {
+          const q = c
+          i += 1
+          while (i < body.length) {
+            if (body[i] === '\\') { i += 2; continue }
+            if (body[i] === q) break
+            i += 1
+          }
+          i += 1
+          continue
+        }
+        if (c === '/' && body[i + 1] === '/') { const nl = body.indexOf('\n', i); i = nl === -1 ? body.length : nl; continue }
+        if (c === '/' && body[i + 1] === '*') { const end = body.indexOf('*/', i + 2); i = end === -1 ? body.length : end + 2; continue }
+        if (c === '=' && body[i + 1] === '>') {
+          pendingArrow = true
+          i += 2
+          while (i < body.length && /\s/.test(body[i])) i += 1
+          continue
+        }
+        if (c === '{') {
+          if (pendingArrow) { fnBraces.push(depth); pendingArrow = false }
+          depth += 1
+          i += 1
+          continue
+        }
+        if (pendingArrow && /\S/.test(c)) pendingArrow = false
+        if (c === '}') {
+          depth -= 1
+          if (fnBraces.length > 0 && fnBraces[fnBraces.length - 1] === depth) fnBraces.pop()
+          i += 1
+          continue
+        }
+        if (fnBraces.length === 0 && !(i > 0 && /[A-Za-z0-9_$]/.test(body[i - 1]))) {
+          const rest = body.slice(i, i + 12)
+          if (returnRe.test(rest)) events.push({ type: 'return', pos: i })
+          else if (hookRe.test(rest)) events.push({ type: 'hook', pos: i })
+        }
+        i += 1
+      }
+      return events
+    }
+    while ((m = fnRe.exec(source)) !== null) {
+      const body = extractBody(source.indexOf('{', m.index))
+      if (body === null) continue
+      const events = scanBody(body)
+      if (events.filter(e => e.type === 'hook').length === 0) continue
+      const firstReturn = events.find(e => e.type === 'return')
+      if (firstReturn === undefined) continue
+      const after = events.filter(e => e.type === 'hook' && e.pos > firstReturn.pos).length
+      if (after > 0) out.push({ name: m[1], after })
+    }
+    return out
+  }
+  // 门禁自检:违规片段必须被识别(否则门禁本身失效、静默放行)。
+  const bad = scanHookOrder('function Bad(props) {\n  const s = props.useCost ? props.useCost(x => x) : undefined\n  if (!s) return null\n  const r = useRef(false)\n  return r\n}')
+  assert.ok(bad.length === 1 && bad[0].name === 'Bad' && bad[0].after === 1, 'Hook 顺序门禁能识别 return 后调用 Hook 的违规片段')
+  const good = scanHookOrder('function Good(props) {\n  const s = props.useCost ? props.useCost(x => x) : undefined\n  const r = useRef(false)\n  if (!s) return null\n  const cb = () => { return null }\n  return r\n}')
+  assert.equal(good.length, 0, 'Hook 在 return 之前 + 回调内 return 不算违规')
+  // 真实 client.js:全库零违规。
+  const violations = scanHookOrder(hookSrc)
+  assert.equal(violations.length, 0, 'Hook 顺序门禁:所有组件的 Hook 均在组件级条件 return 之前(React #300 回归):' + JSON.stringify(violations))
+  // QuotaStripGuide 定点断言:useRef 必须先于首个 return null(issue #32 修复点)。
+  const guideStart = hookSrc.indexOf('function QuotaStripGuide(')
+  const guideBody = hookSrc.slice(guideStart, hookSrc.indexOf('function BudgetBoxContent(', guideStart))
+  assert.ok(guideBody.indexOf('useRef(false)') >= 0 && guideBody.indexOf('useRef(false)') < guideBody.indexOf('if (!state) return null'), 'QuotaStripGuide 的 useRef 在条件返回之前(Hook 顺序稳定)')
+  console.log('[ok] Hook 顺序门禁(组件级 return 后无 Hook 调用/门禁自检/全库扫描)通过')
+}
 // getDaySessions(issue #22):按需读取某天完整记录(含会话明细)。
 const gdsInvocation = TYPERT.invocations.find(i => i.method === 'getDaySessions')
 assert.ok(gdsInvocation !== undefined, 'getDaySessions 清单存在')
