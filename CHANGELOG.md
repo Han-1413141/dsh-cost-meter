@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.27] - 2026-08-20
+
+### 新增
+
+- **输入框上方额度横条**:挂在宿主 `conversation.input.dock` 插槽(渲染于输入卡片上方),以一条横排 chips 实时显示**预算已用%**(预算图框同口径:周期+汇率)、**OpenCode Go 主窗口**(与右下角 chips 主窗口口径一致)与**各已启用且查询成功 Coding Plan 的前两个百分比窗口**(厂商短标签:Claude / Z.ai / MM / Kimi / OR / SF / CC / SCNet);每片「短标签 + 44px 迷你进度条 + 百分比」,≥80% 预警、≥100% 超支着色,悬停 tooltip 见全部窗口、重置时刻与更新时间;无可用数据时整条自动隐藏。配置 `quotaStrip`(enabled/budget/go/plans/promptSeen 五布尔)默认关闭。
+- **首次更新引导**:`promptSeen` 未标记时弹一张非模态小卡片(屏幕顶部居中,常驻 `sidebar.footer.action` 插槽挂载,与仅会话页渲染的 dock 插槽无关),由用户自主选择「开启横条 / 暂不开启」,任一选择写回 `promptSeen: true` 永久消失;设置页显示标签新增「输入框上方额度横条」分组(总开关 + 预算/Go/Coding Plan 三项内容开关 + 说明),在设置页改动同样标记 `promptSeen`。
+- 双端接线:store.js 默认配置/校验(vmsg 双语)/清洗收敛、typert.host.js configSchema 五布尔声明、client parseConfig 归一;verify.mjs 新增默认值/部分补丁/非法拒绝/清洗/结构接线断言(含语法门禁 vm 编译覆盖)。
+
 ## [1.5.26] - 2026-08-20
 
 ### 新增

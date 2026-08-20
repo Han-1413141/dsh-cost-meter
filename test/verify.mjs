@@ -723,6 +723,44 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   assert.ok(clientSource.includes('dismiss = () => setPreview(null)'), '预览弹窗关闭清除预览态')
   console.log('[ok] 峰/谷切换弹窗提醒配置(默认值/校验/清洗/双端声明/组件接线/真实预览通道)通过')
 }
+
+// 输入框上方额度横条(v1.5.27):默认关、三类内容开关、首次引导 promptSeen 门控、
+// 双端声明与接线(conversation.input.dock 横条 + 常驻插槽引导卡)。
+{
+  const base = sanitizeConfig({})
+  assert.deepEqual(base.quotaStrip, { enabled: false, budget: true, go: true, plans: true, promptSeen: false }, 'quotaStrip 默认值(关 + 全内容开 + 未引导)')
+  const patched = applyConfigPatch(base, { quotaStrip: { enabled: true, promptSeen: true } })
+  assert.equal(patched.errors.length, 0, '部分字段补丁通过(mergeDeep 补全其余字段)')
+  assert.equal(patched.config.quotaStrip.enabled, true, '横条可开启')
+  assert.equal(patched.config.quotaStrip.budget, true, '补丁未破坏其余字段')
+  assert.equal(patched.config.quotaStrip.promptSeen, true, '引导标记可写入')
+  assert.ok(applyConfigPatch(base, { quotaStrip: { enabled: 'yes' } }).errors.length > 0, '非布尔字段被拒')
+  assert.ok(applyConfigPatch(base, { quotaStrip: 'off' }).errors.length > 0, '非对象 quotaStrip 被拒')
+  const conv = sanitizeConfig({ ...base, quotaStrip: { enabled: 'x', budget: 'y', go: 'z', plans: 'w', promptSeen: 1 } })
+  assert.equal(conv.quotaStrip.enabled, false, '非法 enabled 清洗为关')
+  assert.equal(conv.quotaStrip.budget, true, '非法 budget 清洗为开')
+  assert.equal(conv.quotaStrip.go, true, '非法 go 清洗为开')
+  assert.equal(conv.quotaStrip.plans, true, '非法 plans 清洗为开')
+  assert.equal(conv.quotaStrip.promptSeen, false, '非法 promptSeen 清洗为未引导')
+  // 双端声明与接线。
+  const hostTypert = readFileSync(new URL('../lib/typert.host.js', import.meta.url), 'utf8')
+  const clientSource = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.ok(hostTypert.includes('quotaStrip: z.object({') && hostTypert.includes('promptSeen: z.boolean()'), 'typert 声明 quotaStrip 五布尔字段')
+  assert.ok(clientSource.includes("enabled: v.quotaStrip?.enabled === true"), 'parseConfig 归一 quotaStrip')
+  assert.ok(clientSource.includes("slots.register(\n          { name: 'conversation.input.dock', id: 'cost-meter-qstrip'") || clientSource.includes("{ name: 'conversation.input.dock', id: 'cost-meter-qstrip'"), '横条挂 conversation.input.dock(输入卡片上方)')
+  assert.ok(clientSource.includes("id: 'cost-meter-qstrip-guide'"), '引导卡挂常驻 sidebar 插槽')
+  assert.ok(clientSource.includes('function QuotaStrip(') && clientSource.includes('function QuotaStripGuide('), '两个组件定义存在')
+  assert.ok(clientSource.includes("if (config.quotaStrip?.promptSeen === true) return null"), '引导卡按 promptSeen 门控')
+  assert.ok(clientSource.includes("if (strip.enabled !== true) return null"), '横条按 enabled 门控')
+  assert.ok(clientSource.includes('cm-qstrip') && clientSource.includes('cm-qchip') && clientSource.includes('cm-qguide'), '横条/引导卡 CSS 类存在')
+  assert.ok(clientSource.includes('quotaStripEnable') && clientSource.includes('quotaStripShowBudget') && clientSource.includes('quotaStripShowGo') && clientSource.includes('quotaStripShowPlans'), '设置 UI 开关文案存在')
+  assert.ok(clientSource.includes('quotaStripGuideTitle') && clientSource.includes('quotaStripGuideOn') && clientSource.includes('quotaStripGuideOff'), '引导卡文案存在')
+  assert.ok(clientSource.includes('quotaStripGuideBody'), '引导卡正文文案存在')
+  assert.ok(clientSource.includes('promptSeen: true } })'), '设置开关与引导选择均写 promptSeen')
+  assert.ok(clientSource.includes("const STRIP_VENDOR_SHORT = {"), '厂商短标签映射存在')
+  assert.ok(clientSource.includes('commandcode: \'CC\'') && clientSource.includes('scnet: \'SCNet\''), '短标签覆盖八家厂商')
+  console.log('[ok] 输入框上方额度横条(默认值/校验/清洗/双端声明/接线/首次引导)通过')
+}
 // getDaySessions(issue #22):按需读取某天完整记录(含会话明细)。
 const gdsInvocation = TYPERT.invocations.find(i => i.method === 'getDaySessions')
 assert.ok(gdsInvocation !== undefined, 'getDaySessions 清单存在')
