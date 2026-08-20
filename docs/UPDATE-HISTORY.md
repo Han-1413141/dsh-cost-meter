@@ -3,6 +3,10 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.29(2026-08-20)—— Coding Plan 刷新间隔可设置
+
+- **Coding Plan 各家新增「刷新间隔(分钟)」控件(issue #33)**:此前刷新间隔只能手改账本;现每家配置区(启用后)可直接填 1-1440 分钟,保存后立即生效,与官方余额 / Go 额度 / 自定义余额的间隔控件同款。SCNet 为本地计量、无缓存间隔,不显示该控件。
+
 ## v1.5.28(2026-08-20)—— 修复额度横条引导卡 React #300
 
 - **首次更新引导卡点击「开启/暂不」后控制台报 React #300(issue #32)**:引导卡组件的 `useRef` 写在了两个条件 `return null` 之后,点击按钮把 `promptSeen` 写为 `true` 的那次渲染会少调用一个 Hook,React 以「Rendered fewer hooks than expected」报错并重新挂载 sidebar footer。修复后 Hook 调用顺序在每次渲染保持一致;引导卡行为本身不变(选择后永久消失)。测试套件新增 Hook 顺序门禁,今后任何组件把 Hook 写在条件返回之后都会在验证阶段被拦截。

@@ -1993,4 +1993,21 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   console.log('[ok] Coding Plan 侧边栏显示(display 门控/通用卡片/双语文案/设置页下拉)通过')
 }
 
+// Coding Plan 刷新间隔控件(issue #33):每家设置区「刷新间隔(分钟)」写回 refreshMinutes。
+{
+  const planSrc = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  const labelCount = [...planSrc.matchAll(/codingPlanRefreshIntervalLabel:/g)].length
+  assert.equal(labelCount, 2, '文案 codingPlanRefreshIntervalLabel 在 zh/en 各声明一次')
+  assert.ok(planSrc.includes("t('codingPlanRefreshIntervalLabel')"), '刷新间隔标签在设置页渲染')
+  assert.ok(planSrc.includes("setPlan(id, 'refreshMinutes'"), '刷新间隔写回该厂商 refreshMinutes')
+  assert.ok(planSrc.includes('Math.min(1440, Math.max(1, Math.floor(v)))'), '刷新间隔客户端钳制 1-1440')
+  // SCNet 本地计量无缓存间隔:控件仅对非 scnet 厂商渲染(渲染点前 200 字符内有排除断言)。
+  const renderAt = planSrc.indexOf("t('codingPlanRefreshIntervalLabel')")
+  assert.ok(renderAt >= 0 && planSrc.slice(Math.max(0, renderAt - 200), renderAt).includes("id !== 'scnet'"), 'SCNet 不渲染刷新间隔控件(本地计量无缓存间隔)')
+  // 服务端钳制:非法回落 15 已有断言,补上限 1440 收敛。
+  const clamped = sanitizeConfig({ codingPlans: { kimi: { enabled: true, refreshMinutes: 5000 } } })
+  assert.equal(clamped.codingPlans.kimi.refreshMinutes, 1440, 'codingPlan 刷新间隔上限钳制 1440')
+  console.log('[ok] Coding Plan 刷新间隔控件(双语文案/写回/钳制/SCNet 排除)通过')
+}
+
 console.log('[ok] 全部验证通过')
