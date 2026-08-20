@@ -6,7 +6,7 @@
 .DESCRIPTION
   无需克隆仓库:自动补齐 pnpm,再经 dsh plugin 把插件装进 web profile。
   安装链全程固定到 $Rev 发布 tag(pnpm 版本同样固定),可审计、可复现:
-   - git 源固定到 tag:  github:Han-1413141/dsh-cost-meter#v1.5.22
+   - git 源固定到 tag:  github:Han-1413141/dsh-cost-meter#v1.5.23
    - 无 git 时用 tag 打包直链(内容与 tag 一一对应)
    - pnpm 固定版本:     11.21.0(corepack prepare / npm i -g pnpm@11.21.0)
   已安装时重跑本脚本即可对齐到当前脚本固定的版本。
