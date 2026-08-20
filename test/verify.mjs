@@ -28,6 +28,7 @@ import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalance
 import { backfillLegacyLedger, importLegacyHistory, replaySessionRecords, scanZstdFrames } from '../lib/backfill.js'
 import { TYPERT, stateSchema } from '../lib/typert.host.js'
 import { isTransientFetchError, fetchWithRetry } from '../lib/net.js'
+import vm from 'node:vm'
 import {
   CODING_PLAN_PROVIDERS,
   CODING_PLAN_PROVIDER_IDS,
@@ -47,6 +48,16 @@ import {
   scnetTokenPlanWindows,
   SCNET_CREDIT_RATES,
 } from '../lib/coding-plans.js'
+
+// 浏览器端 bundle 语法门禁(v1.5.23 教训):client.js 只在浏览器经 <script> 执行,
+// classic script 语法错误不触发 error 事件、宿主只报「loaded without registering」,
+// 而本套件此前只做字符串断言、从不解析该文件——语法错误一路溜到线上。
+// 这里用 vm.Script 整份编译(只编译不执行,window 引用无碍),任何语法错误当场失败。
+for (const browserBundle of ['../lib/client.js']) {
+  const src = readFileSync(new URL(browserBundle, import.meta.url), 'utf8')
+  new vm.Script(src, { filename: browserBundle })
+}
+console.log('[ok] 浏览器端 bundle 语法门禁(client.js vm 编译)通过')
 
 const BOUNDARY_MS = Date.parse(LEGACY_BASE_BOUNDARY)
 const peakCfg = {

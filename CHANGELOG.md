@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.24] - 2026-08-20
+
+### 修复
+
+- **v1.5.23 导致插件整体加载失败(紧急修复)**:1.5.23 的标签页改造在 `client.js` 引入两处括号缺失(「用量」标签的历史数据分组、「价格」标签的官方价格同步区块各少一个闭合括号),浏览器端 bundle 存在语法错误无法解析——classic `<script>` 语法错误仍触发 load 事件、脚本却不执行,宿主只报 `client-modules: bundle ... loaded without registering "dsh-cost-meter" via __ModuleLoader__.load`,表现为 HARNESS「Failed to load plugins」、费用徽章/侧边栏/设置分节全部消失。**1.5.23 用户请立即升级**;配置与账本数据不受影响。
+- **verify.mjs 新增浏览器端 bundle 语法门禁**:`client.js` 只在浏览器执行,此前测试套件仅做字符串断言、从不解析该文件,语法错误因此溜到线上。现以 `vm.Script` 整份编译(只编译不执行),任何语法错误在验证阶段当场失败。
+
 ## [1.5.23] - 2026-08-20
 
 ### 变更
