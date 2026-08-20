@@ -1651,4 +1651,66 @@ console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
   console.log('[ok] 启动期自动导入(首次启动导入/打标/后续启动跳过/配置保真/接线)通过')
 }
 
+// 设置页标签分组(issue #29):CostSection 拆为概览/额度/用量/价格/显示五个标签,
+// 切换只改可见分区;自动保存状态与操作提示全局常驻,不随标签隐藏。
+{
+  const tabsSrc = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  // 标签状态:默认落在概览。
+  assert.ok(tabsSrc.includes("const [tab, setTab] = useState('overview')"), '默认标签为概览')
+  // 五个标签项 + 中英双语文案(zh 区与 en 区各一份)。
+  for (const key of ['tabOverview', 'tabQuotas', 'tabUsage', 'tabPricing', 'tabDisplay']) {
+    const count = [...tabsSrc.matchAll(new RegExp(key + ":", 'g'))].length
+    assert.equal(count, 2, `标签文案 ${key} 在 zh/en 各声明一次`)
+  }
+  assert.ok(tabsSrc.includes("historyDataTitle: '历史数据'") && tabsSrc.includes("historyDataTitle: 'History data'"), '历史数据分组标题双语存在')
+  // 标签栏结构:tablist/tab role、aria-selected、active 类、切换回调。
+  assert.ok(tabsSrc.includes("el('div', { className: 'cm-tabs-row' }"), '标签栏容器 cm-tabs-row 存在')
+  assert.ok(tabsSrc.includes("el('div', { className: 'cm-tabs', role: 'tablist' }"), 'tablist 角色存在')
+  assert.ok(tabsSrc.includes("'aria-selected': String(tab === id)"), 'tab 项带 aria-selected')
+  assert.ok(tabsSrc.includes("className: 'cm-tab' + (tab === id ? ' active' : '')"), '激活标签附加 active 类')
+  assert.ok(tabsSrc.includes('onClick: () => setTab(id)'), '点击切换标签')
+  // 标签栏 CSS。
+  assert.ok(tabsSrc.includes('.cm-tabs-row{') && tabsSrc.includes('.cm-tabs{') && tabsSrc.includes('.cm-tab{') && tabsSrc.includes('.cm-tab.active{'), '标签栏样式类齐全')
+  // 自动保存状态常驻标签栏右侧(全局可见,不随标签页隐藏)。
+  const idxTabsRow = tabsSrc.indexOf("el('div', { className: 'cm-tabs-row' }")
+  const idxSaveBadge = tabsSrc.indexOf('const saveBadge = saveState.status')
+  const idxMsg = tabsSrc.indexOf('// 操作结果提示(价格同步/历史导入/清除):全局展示')
+  assert.ok(idxSaveBadge > 0 && idxTabsRow > idxSaveBadge, '自动保存徽章定义于标签栏渲染前')
+  assert.ok(idxMsg > 0 && idxMsg > idxTabsRow, '操作提示全局展示(不随触发按钮所在标签页)')
+  // 分组接线:各面板/标题落在正确标签分支区间内(分支起点按源码顺序)。
+  const branch = {}
+  for (const id of ['overview', 'quotas', 'usage', 'display', 'pricing']) {
+    branch[id] = tabsSrc.indexOf(`tab === '${id}' ? el(Fragment, { key: '${id}' },`)
+    assert.ok(branch[id] > 0, `标签分支 ${id} 存在`)
+  }
+  assert.ok(branch.overview < branch.quotas && branch.quotas < branch.usage && branch.usage < branch.display && branch.display < branch.pricing, '五分支顺序完整(overview→quotas→usage→display→pricing)')
+  const between = (needle, lo, hi, what) => {
+    const idx = tabsSrc.indexOf(needle)
+    assert.ok(idx > lo && idx < hi, `${what} 归属正确分支`)
+  }
+  // 概览:汇总卡片 + 今日会话 + 预算 + 官方余额。
+  between('el(BudgetPanel, { state, draft, setDraft, t }),', branch.overview, branch.quotas, '预算面板在概览标签')
+  between('el(BalancePanel, { state, api, t, draft, setDraft })', branch.overview, branch.quotas, '官方余额面板在概览标签')
+  between('el(TodaySessions, { state, t })', branch.overview, branch.quotas, '今日会话在概览标签')
+  // 额度:Go 订阅 + Coding Plan + 自定义 Provider。
+  between('el(GoQuotaPanel, { state, api, t, draft, setDraft })', branch.quotas, branch.usage, 'Go 额度面板在额度标签')
+  between('el(CodingPlansPanel, { state, api, t, draft, setDraft })', branch.quotas, branch.usage, 'Coding Plan 面板在额度标签')
+  between('el(CustomBalancePanel, { state, api, t, draft, setDraft })', branch.quotas, branch.usage, '自定义余额面板在额度标签')
+  // 用量:用量统计 + 按模型 + 历史 + 会话排行 + 历史数据操作。
+  between('el(ModelStatsPanel, { state, config: draft ?? config, t })', branch.usage, branch.display, '按模型统计在用量标签')
+  between('el(HistoryPanel, { state, api })', branch.usage, branch.display, '历史面板在用量标签')
+  between('el(SessionRankPanel, { state, api })', branch.usage, branch.display, '会话排行在用量标签')
+  between("t('historyDataTitle')", branch.usage, branch.display, '历史数据操作分组在用量标签')
+  between("t('clearAllHistory')", branch.usage, branch.display, '清除全部历史按钮在用量标签')
+  // 显示:语言 + 显示设置分组。
+  between("t('languageLabel')", branch.display, branch.pricing, '语言选择在显示标签')
+  between("t('displaySettings')", branch.display, branch.pricing, '显示设置分组在显示标签')
+  // 价格:峰谷 + 价格表 + 匹配 + 拓展目录 + 官方同步。
+  between('el(PeakPanel, { state, draft, setDraft, t })', branch.pricing, tabsSrc.length, '峰谷计价面板在价格标签')
+  between("t('priceTableTitle')", branch.pricing, tabsSrc.length, '价格表在价格标签')
+  between('el(PriceCatalogPanel, { state, draft, setDraft, t })', branch.pricing, tabsSrc.length, '拓展价格表在价格标签')
+  between("t('dataSync')", branch.pricing, tabsSrc.length, '官方价格同步在价格标签')
+  console.log('[ok] 设置页标签分组(五标签结构/双语文案/样式/保存徽章全局化/面板归属)通过')
+}
+
 console.log('[ok] 全部验证通过')
