@@ -3,6 +3,11 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.25(2026-08-20)—— 新增 CommandCode 为第 8 家 Coding Plan
+
+- **CommandCode(commandcode.ai)接入(issue #30)**:Coding Plan 面板从七家扩至八家。官方 billing credits 端点(硬编码白名单,凭据只发往 `api.commandcode.ai`)查询 **5 小时/周滚动窗口用量%**(used/cap,进度条 + 重置时刻)与**月度 Credits 余额文本**(1 credit ≈ $1,与 Kimi/SiliconFlow 余额同形态);凭据走通用发现链(面板 Key → DSH 凭据库 `COMMANDCODE_API_KEY` → 环境变量),无订阅为中性软提示,无需再装独立插件即可在设置页/侧边栏统一管理。
+- 解析器容错:非法窗口(cap≤0/负 used)剔除、未知窗口名透传、零余额仍展示;verify.mjs 新增解析器单测与端点域名/凭据 env 断言。
+
 ## v1.5.24(2026-08-20)—— 紧急修复 1.5.23 插件加载失败
 
 - **v1.5.23 导致插件整体加载失败**:标签页改造引入两处括号缺失,浏览器端 bundle 语法错误无法解析,宿主报 `loaded without registering "dsh-cost-meter"`(HARNESS「Failed to load plugins」),费用徽章/侧边栏/设置分节全部消失。**1.5.23 用户请立即升级**;配置与账本数据不受影响。测试套件同步新增浏览器端 bundle 语法门禁(vm 整份编译),此类错误今后在验证阶段即被拦截。
