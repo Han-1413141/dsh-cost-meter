@@ -76,7 +76,7 @@ Price sources: cross-checked against the **OpenCode Zen/Go official price list**
 
 ## 2. Coding Plan quota adaptation
 
-The "Coding Plan quotas" panel in Settings supports **8 vendors**, each with its own enable switch / key / manual refresh / progress bars and reset times; credentials are only ever sent to each vendor's **hard-coded official domain** (whitelist asserted in tests). The discovery chain is: panel key → DSH credential store → environment variables → CLI login fallback.
+The "Coding Plan quotas" panel in Settings supports **8 vendors**, each with its own enable switch / key / manual refresh / progress bars and reset times, plus a per-vendor **display position** (sidebar card / Settings page / both / off, default Settings page; v1.5.26); credentials are only ever sent to each vendor's **hard-coded official domain** (whitelist asserted in tests). The discovery chain is: panel key → DSH credential store → environment variables → CLI login fallback.
 
 | Vendor | Endpoint | Shown as | Verified status |
 |---|---|---|---|

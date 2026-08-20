@@ -3,6 +3,10 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.26(2026-08-20)—— Coding Plan 额度可显示在侧边栏
+
+- **Coding Plan 额度侧边栏显示(issue #31)**:每家 provider 新增「显示位置」(主页面侧边栏 / 设置页 / 两者 / 关闭,默认设置页),选中侧边栏/两者后额度以图框卡片常驻侧边栏——与 Go 额度/余额同款,每窗口一行进度条、余额类文本窗口整行文本,≥80% 预警、≥100% 超支着色,悬停见全部窗口/重置时刻/更新时间;侧边栏收起窄栏显示前两档百分比。MiniMax 沿用 5h/7d 专用卡片,其余七家(含 CommandCode)走通用卡片;设置入口在「额度 → Coding Plan」各家行内。旧版 MiniMax「启用即上侧边栏」的行为经一次性迁移保持不变(迁移只跑一次,此后尊重用户的显式选择)。
+
 ## v1.5.25(2026-08-20)—— 新增 CommandCode 为第 8 家 Coding Plan
 
 - **CommandCode(commandcode.ai)接入(issue #30)**:Coding Plan 面板从七家扩至八家。官方 billing credits 端点(硬编码白名单,凭据只发往 `api.commandcode.ai`)查询 **5 小时/周滚动窗口用量%**(used/cap,进度条 + 重置时刻)与**月度 Credits 余额文本**(1 credit ≈ $1,与 Kimi/SiliconFlow 余额同形态);凭据走通用发现链(面板 Key → DSH 凭据库 `COMMANDCODE_API_KEY` → 环境变量),无订阅为中性软提示,无需再装独立插件即可在设置页/侧边栏统一管理。

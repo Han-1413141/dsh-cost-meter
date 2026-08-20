@@ -351,6 +351,57 @@ const fetchResultCheck = fetchCodec.safeParse({ ok: true, message: 'ok', state: 
 assert.equal(fetchResultCheck.success, true, 'refreshGoQuota 携带旧账本状态也能通过 codec')
 console.log('[ok] 旧账本 null/缺失字段清洗与 strict codec 回归通过')
 
+// 4.3) 一次性配置迁移(issue #31):v1.5.26 前 MiniMax 无显示位置 UI,启用态 display 恒为 schema
+// 默认 'settings'(非用户选择);迁移为 'both' 保持「启用即上侧边栏」的旧版行为。账本根 migrations
+// 标记保证只跑一次——迁移后用户显式改回 'settings' 不会被再次翻转。
+const migHome = process.env.TEMP + '\\dsh-cost-meter-test-mig-home'
+rmSync(migHome, { recursive: true, force: true })
+process.env.DSH_HOME = migHome
+const migPath = join(migHome, 'storages', 'cost-meter', 'ledger.json')
+mkdirSync(join(migHome, 'storages', 'cost-meter'), { recursive: true })
+writeFileSync(migPath, JSON.stringify({
+  version: 1,
+  config: { codingPlans: {
+    minimax: { enabled: true, display: 'settings', refreshMinutes: 15, apiKey: '' },
+    commandcode: { enabled: true, display: 'settings', refreshMinutes: 15, apiKey: 'user_x' },
+  } },
+  days: {},
+}), 'utf8')
+const migLedger = Ledger.open()
+assert.equal(migLedger.config.codingPlans.minimax.display, 'both', '旧配置 MiniMax 启用态迁移为 both(侧边栏行为保持)')
+assert.equal(migLedger.config.codingPlans.commandcode.display, 'settings', '其余厂商不迁移(旧行为本就是仅设置页)')
+assert.ok(migLedger.migrations.includes('v1.5.26-coding-plan-sidebar-display'), '迁移标记写入账本')
+assert.equal(migLedger.pendingWrite, false, '迁移本身不触发落盘(结果幂等,重开重跑同结局)')
+// 用户显式改回 settings → 落盘 → 重开:标记已存在,不再翻转。
+const migChoice = applyConfigPatch(migLedger.config, { codingPlans: { minimax: { enabled: true, display: 'settings', refreshMinutes: 15, apiKey: '' } } })
+assert.equal(migChoice.errors.length, 0, '迁移后用户可显式改 display')
+migLedger.config = migChoice.config
+migLedger.account({ input: 1, output: 1, cacheRead: 0, cacheWrite: 0 }, 'deepseek-v4-flash', 'mig-session', Date.now())
+migLedger.flush()
+const migReopened = Ledger.open()
+assert.equal(migReopened.config.codingPlans.minimax.display, 'settings', '用户显式选择 settings 被尊重(标记防止重复迁移)')
+assert.ok(migReopened.migrations.includes('v1.5.26-coding-plan-sidebar-display'), '迁移标记随账本持久化')
+// 未迁移过的旧账本重开:每次重跑结果一致(both),幂等;落盘后凭标记跳过迁移。
+writeFileSync(migPath, JSON.stringify({
+  version: 1,
+  config: { codingPlans: { minimax: { enabled: true, display: 'settings', refreshMinutes: 15, apiKey: '' } } },
+  days: {},
+}), 'utf8')
+const migAgain = Ledger.open()
+assert.equal(migAgain.config.codingPlans.minimax.display, 'both', '无标记时重跑迁移结果一致(幂等)')
+migAgain.account({ input: 1, output: 1, cacheRead: 0, cacheWrite: 0 }, 'deepseek-v4-flash', 'mig-session', Date.now())
+migAgain.flush()
+const migPersisted = JSON.parse(readFileSync(migPath, 'utf8'))
+assert.ok(Array.isArray(migPersisted.migrations) && migPersisted.migrations.includes('v1.5.26-coding-plan-sidebar-display'), 'migrations 标记随 flush 落盘')
+assert.equal(migPersisted.config.codingPlans.minimax.display, 'both', '迁移后的 display 随账本持久化')
+// 篡改回 settings 但标记在:不再迁移,尊重磁盘值。
+migPersisted.config.codingPlans.minimax.display = 'settings'
+writeFileSync(migPath, JSON.stringify(migPersisted), 'utf8')
+assert.equal(Ledger.open().config.codingPlans.minimax.display, 'settings', '标记存在时磁盘 settings 原样保留(不再翻转)')
+// 恢复主测试 home,不影响后续用例。
+process.env.DSH_HOME = process.env.TEMP + '\\dsh-cost-meter-test-home'
+console.log('[ok] 一次性配置迁移(MiniMax 侧边栏 display/标记幂等/用户选择优先)通过')
+
 // 5) Coding plan 额度 adapter:归一化/各家解析器/软失败/配置清洗/清单。
 // 5.1) 归一化。
 assert.equal(normalizePercent(0.5), 50, '0-1 小数按百分数归一')
@@ -514,6 +565,20 @@ assert.equal(cpPatch.config.codingPlans.zai.enabled, false, '非法 enabled 回�
 assert.equal(cpPatch.config.codingPlans.zai.display, 'settings', '非法 display 回退 settings')
 assert.equal(cpPatch.config.codingPlans.zai.refreshMinutes, 15, '非法 refreshMinutes 回退 15')
 assert.equal(cpPatch.config.codingPlans.unknownVendor, undefined, '未知提供商被剔除')
+// 显示位置(issue #31):sidebar/both/off 合法保留,侧边栏渲染按此门控。
+const cpDisplay = applyConfigPatch(reloaded.config, {
+  codingPlans: {
+    commandcode: { enabled: true, display: 'sidebar' },
+    kimi: { enabled: true, display: 'both' },
+    openrouter: { enabled: true, display: 'off' },
+  },
+})
+assert.equal(cpDisplay.errors.length, 0, 'codingPlan display 补丁合法')
+assert.equal(cpDisplay.config.codingPlans.commandcode.display, 'sidebar', 'display=sidebar 保留')
+assert.equal(cpDisplay.config.codingPlans.kimi.display, 'both', 'display=both 保留')
+assert.equal(cpDisplay.config.codingPlans.openrouter.display, 'off', 'display=off 保留')
+assert.equal(sanitizeConfig({}).codingPlans.minimax.display, 'both', 'MiniMax 默认 both(沿用启用即上侧边栏惯例)')
+assert.equal(sanitizeConfig({}).codingPlans.commandcode.display, 'settings', '其余厂商默认 settings')
 // 清单:refreshCodingPlan 方法存在且携带 provider 参数与 strict codec。
 const cpInvocation = TYPERT.invocations.find(i => i.method === 'refreshCodingPlan')
 assert.ok(cpInvocation !== undefined, 'refreshCodingPlan 清单存在')
@@ -1750,6 +1815,31 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   between('el(PriceCatalogPanel, { state, draft, setDraft, t })', branch.pricing, tabsSrc.length, '拓展价格表在价格标签')
   between("t('dataSync')", branch.pricing, tabsSrc.length, '官方价格同步在价格标签')
   console.log('[ok] 设置页标签分组(五标签结构/双语文案/样式/保存徽章全局化/面板归属)通过')
+}
+
+// Coding Plan 侧边栏显示(issue #31):每家 display 门控 + 通用卡片 + 设置页显示位置下拉。
+{
+  const planSrc = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  // 双语文案:显示位置标签 + 提示,选项复用 balanceSidebar/balanceSettings/balanceBoth/off。
+  for (const key of ['codingPlanDisplayLabel', 'codingPlanDisplayNote']) {
+    const count = [...planSrc.matchAll(new RegExp(key + ":", 'g'))].length
+    assert.equal(count, 2, `文案 ${key} 在 zh/en 各声明一次`)
+  }
+  // 设置页:每家 provider 行内的显示位置下拉,写回 setPlan(id, 'display', ...)。
+  assert.ok(planSrc.includes("t('codingPlanDisplayLabel')"), '显示位置标签在设置页渲染')
+  assert.ok(planSrc.includes("setPlan(id, 'display', event.target.value)"), '显示位置下拉写回该厂商 display')
+  const optionCount = [...planSrc.matchAll(/el\('option', \{ value: 'sidebar' \}, t\('balanceSidebar'\)\)/g)].length
+  assert.ok(optionCount >= 2, '显示位置下拉选项复用余额位置文案(sidebar 选项存在)')
+  // 侧边栏:按 display 门控的循环 + MiniMax 专用卡片 + 通用 CodingPlanBox。
+  assert.ok(planSrc.includes('const sidebarPlanIds = CODING_PLAN_ROWS'), '侧边栏按 CODING_PLAN_ROWS 遍历厂商')
+  assert.ok(planSrc.includes("entry.display !== 'sidebar' && entry.display !== 'both'"), '侧边栏门控 display=sidebar/both')
+  assert.ok(planSrc.includes('el(MiniMaxPlanBox, { state, wide })'), 'MiniMax 沿用专用 5h/7d 卡片')
+  assert.ok(planSrc.includes('el(CodingPlanBox, { id, state, wide })'), '其余厂商走通用 CodingPlanBox')
+  assert.ok(planSrc.includes('function CodingPlanBox(props)'), '通用卡片组件定义存在')
+  assert.ok(planSrc.includes('function codingPlanWindowLabel(name, t)'), '窗口名本地化(fiveHour/weekly/monthly)')
+  // 通用卡片样式:宽标签与文本窗口行的 CSS。
+  assert.ok(planSrc.includes('.cm-mm-row.wide .cm-bbox-label{') && planSrc.includes('.cm-mm-row.wide .cm-mm-text{'), '通用卡片行样式存在')
+  console.log('[ok] Coding Plan 侧边栏显示(display 门控/通用卡片/双语文案/设置页下拉)通过')
 }
 
 console.log('[ok] 全部验证通过')
