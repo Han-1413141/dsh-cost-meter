@@ -1,6 +1,12 @@
 # Changelog
 
-## [1.5.24] - 2026-08-20
+## [1.5.25] - 2026-08-20
+
+### 新增
+
+- **CommandCode(commandcode.ai)接入为第 8 家 Coding Plan**(issue #30,感谢 @zhaoyun-plus 的报告与端点调研):官方 billing credits 端点(`GET api.commandcode.ai/alpha/billing/credits`,硬编码白名单)查询 **5 小时/周窗口用量%**(used/cap,进度条 + epoch 毫秒重置时刻)与**月度 Credits 余额文本**(1 credit ≈ $1,与 Kimi/SiliconFlow 余额同形态);凭据走通用发现链(面板 Key → DSH 凭据库 `COMMANDCODE_API_KEY` → 环境变量),无订阅为中性软提示。解析器容错:非法窗口(cap≤0/负 used)剔除、未知窗口名透传、零余额仍展示;verify.mjs 新增解析器单测、域名白名单与凭据 env 断言。
+
+## [1.5.24] - 2026-08-19
 
 ### 修复
 

@@ -76,7 +76,7 @@
 
 ## 二、Coding Plan 额度适配
 
-设置页「Coding Plan 额度」面板支持 **7 家**,各家独立启用开关 / Key / 手动刷新 / 进度条与重置时间;凭据只发往各家**硬编码官方域名**(白名单断言入测试),发现链为:面板 Key → DSH 凭据库 → 环境变量 → CLI 登录态兜底。
+设置页「Coding Plan 额度」面板支持 **8 家**,各家独立启用开关 / Key / 手动刷新 / 进度条与重置时间;凭据只发往各家**硬编码官方域名**(白名单断言入测试),发现链为:面板 Key → DSH 凭据库 → 环境变量 → CLI 登录态兜底。
 
 | 厂商 | 端点 | 显示内容 | 实测状态 |
 |---|---|---|---|
@@ -86,6 +86,7 @@
 | Kimi / Moonshot | `api.moonshot.cn/v1/users/me/balance` | 人民币余额文本 | 端点存活(401);Kimi Code 订阅窗口暂无 API-Key 化公开端点 |
 | OpenRouter | `openrouter.ai/api/v1/credits` | 预付 credits 已用% | 端点存活(401) |
 | SiliconFlow 硅基流动 | `api.siliconflow.cn/v1/user/info` | 账户余额文本 | 端点存活(30014) |
+| CommandCode | `api.commandcode.ai/alpha/billing/credits` | 5 小时/周窗口用量% + 月度 Credits 余额文本 | 端点存活(401;issue #30);凭据 `COMMANDCODE_API_KEY`(`user_*`) |
 | SCNet 超算互联网 Token Plan | —(无 API 端点,本地计量) | 月度 Credits 已用% + 用量文本 | 平台仅提供 `sk-tp-` 推理端点,用量只在控制台可见;按官方抵扣表本地估算 |
 
 **SCNet 本地 Credits 计量(issue #26)**:SCNet Token Plan 为 Credits 包月订阅(基础 60,000 / 标准 240,000 / 高级 600,000),无 API-Key 化额度端点——插件按**官方 Credits 抵扣表**(2026-08-11 生效,`SCNET_CREDIT_RATES`)对本地账本当前计费周期的用量折算 Credits(未命中输入 = input+cacheWrite,命中缓存输入 = cacheRead,输出 = output;覆盖 GLM/DeepSeek/Kimi/MiniMax/Qwen 各主力量型),展示「已用 / 总额 Credits(est.)」文本与月度已用% 进度条。计费周期自「订阅起始日」(可配,`YYYY-MM-DD`)每月重置,留空按自然月;无需任何凭据、不走网络,实际消耗以控制台账单为准,抵扣表未覆盖的模型不计入。
@@ -110,4 +111,4 @@
 
 - **账本可用性兜底**:状态快照下发前经 strict codec 自检;漂移时逐级降级(剔目录 → 空额度状态)保核心可用,不再整体拒绝(历史上「账本不可用」的两类根因——`reasoning: null` 脏数据与目录条目 schema 不匹配——均已根治并有回归测试);
 - **配置清洗**:`sanitizeConfig` 在账本加载边界对非法配置值定向回落;
-- 测试:`node test/verify.mjs` 覆盖计费数学、匹配算法、目录断言、6 家解析器 + SCNet 本地计量、官方域名白名单与 strict codec 漂移哨兵。
+- 测试:`node test/verify.mjs` 覆盖计费数学、匹配算法、目录断言、7 家解析器 + SCNet 本地计量、官方域名白名单与 strict codec 漂移哨兵。

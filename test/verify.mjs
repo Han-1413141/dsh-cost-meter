@@ -41,6 +41,7 @@ import {
   parseKimiBalance,
   parseOpenRouterCredits,
   parseSiliconFlowInfo,
+  parseCommandCodeCredits,
   queryCodingPlan,
   scnetCanonModelId,
   scnetModelCredits,
@@ -489,6 +490,7 @@ const officialHosts = {
   kimi: ['api.moonshot.cn'],
   openrouter: ['openrouter.ai'],
   siliconflow: ['api.siliconflow.cn'],
+  commandcode: ['api.commandcode.ai'],
 }
 for (const id of CODING_PLAN_PROVIDER_IDS) {
   assert.ok(CODING_PLAN_PROVIDERS[id] !== undefined, `提供商注册:${id}`)
@@ -933,7 +935,33 @@ assert.ok(CODING_PLAN_ENDPOINTS.siliconflow.every(u => new URL(u).host.endsWith(
 // Z.ai 双域名白名单 + v3 优先(issue #17:v4 带有效 Key 返 404,v3 存活)。
 assert.ok(CODING_PLAN_ENDPOINTS.zai.every(u => new URL(u).host.endsWith('z.ai') || new URL(u).host.endsWith('bigmodel.cn')), 'Z.ai 官方双域名')
 assert.ok(CODING_PLAN_ENDPOINTS.zai[0].includes('/v3/') && CODING_PLAN_ENDPOINTS.zai[1].includes('/v3/'), 'Z.ai v3 端点优先')
-console.log('[ok] OpenRouter/SiliconFlow 解析器与白名单通过')
+// CommandCode(issue #30):窗口 used/cap 已用% + epoch 毫秒重置时刻 + 月度 Credits 余额文本。
+{
+  const cc = parseCommandCodeCredits({
+    credits: { monthlyCredits: 42.5, purchasedCredits: 0, freeCredits: 42.5, planId: 'pro' },
+    windowLimits: {
+      fiveHour: { used: 12000, cap: 50000, exceeded: false, resetAt: 1753920000000 },
+      weekly: { used: 38000, cap: 200000, exceeded: false, resetAt: 1754179200000 },
+    },
+  })
+  assert.equal(cc.fiveHour.percent, 24, 'CommandCode 5h 窗口已用%(12000/50000)')
+  assert.equal(cc.weekly.percent, 19, 'CommandCode 周窗口已用%(38000/200000)')
+  assert.equal(cc.fiveHour.resetsAt, new Date(1753920000000).toISOString(), 'CommandCode resetAt epoch 毫秒 → ISO')
+  assert.equal(cc.monthly.text, '余额 $42.50', 'CommandCode 月度 Credits 余额文本')
+  assert.equal(cc.monthly.resetsAt, '', 'CommandCode 余额窗口无重置时刻')
+  // 容错:cap<=0/负 used 的窗口剔除;无 credits 只出窗口;全空 → null。
+  const partial = parseCommandCodeCredits({ windowLimits: { bad: { used: 1, cap: 0 }, weekly: { used: -3, cap: 10 }, fiveHour: { used: 5, cap: 10 } } })
+  assert.deepEqual(Object.keys(partial), ['fiveHour'], 'CommandCode 非法窗口剔除(cap<=0/负 used)')
+  assert.equal(parseCommandCodeCredits({ credits: { monthlyCredits: 0 } }).monthly.text, '余额 $0.00', 'CommandCode 零余额仍展示')
+  assert.equal(parseCommandCodeCredits({ credits: {}, windowLimits: {} }), null, 'CommandCode 全空返回 null')
+  assert.equal(parseCommandCodeCredits(null), null, 'CommandCode 非对象返回 null')
+  // 未知窗口名透传(不硬编码 fiveHour/weekly)。
+  assert.ok(parseCommandCodeCredits({ windowLimits: { monthlyWindow: { used: 1, cap: 4 } } }).monthlyWindow.percent === 25, 'CommandCode 未知窗口名透传')
+  // 域名白名单与凭据 env。
+  assert.ok(CODING_PLAN_ENDPOINTS.commandcode.every(u => new URL(u).host === 'api.commandcode.ai'), 'CommandCode 官方域名')
+  assert.deepEqual(CODING_PLAN_PROVIDERS.commandcode.credentialEnvs, ['COMMANDCODE_API_KEY'], 'CommandCode 凭据 env')
+}
+console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过')
 
 // 8) 历史账本按模型回填:回放会话日志重建旧账本缺失的 byProviderModel。
 {
