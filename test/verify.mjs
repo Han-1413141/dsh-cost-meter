@@ -24,7 +24,7 @@ import {
   LEGACY_BASE_PRICES,
   providerPriceEntryFor,
 } from '../lib/pricing.js'
-import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays } from '../lib/store.js'
+import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays, officialCostOfDay } from '../lib/store.js'
 import { backfillLegacyLedger, importLegacyHistory, replaySessionRecords, scanZstdFrames } from '../lib/backfill.js'
 import { TYPERT, stateSchema } from '../lib/typert.host.js'
 import { isTransientFetchError, fetchWithRetry } from '../lib/net.js'
@@ -1450,6 +1450,49 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.equal(pickBalanceInfo(null), undefined, '非数组输入返回 undefined')
   assert.equal(pickBalanceInfo([usd0, null, 'x']), usd0, '跳过非法条目后兜底首条')
   console.log('[ok] 余额差交叉校验(基准/flat/ok/drift/充值与币种重置/跨天/多币种挑选/配置链路)通过')
+}
+
+// 9a) 官方渠道费用拆分(issue #36):官方余额进度条「当日已用」与余额差对账只统计
+// deepseek 渠道;Coding Plan / 自定义 Provider 的费用不混入(各自额度条/余额条体现)。
+{
+  const mixedDay = {
+    date: '2026-08-21', input: 1000, output: 500, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 4, cost: 1.1,
+    byProviderModel: {
+      'deepseek:deepseek-v4-flash': { input: 500, output: 200, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.4 },
+      'deepseek:deepseek-v4-pro': { input: 100, output: 50, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.3 },
+      'opencode-go:kimi-k3': { input: 200, output: 100, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.25 },
+      'minimax:minimax-m3': { input: 200, output: 150, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.15 },
+    },
+    sessions: [],
+  }
+  // 纯函数:混合渠道日只聚合 deepseek 前缀条目。
+  assert.ok(Math.abs(officialCostOfDay(mixedDay) - 0.7) < 1e-12, '混合渠道日只聚合 deepseek 条目')
+  // 模型名含冒号:provider 取首个冒号之前的部分,不被 'zen:deepseek-v4-flash' 这类键误命中。
+  assert.equal(officialCostOfDay({ ...mixedDay, byProviderModel: { 'deepseek:v4:pro': { calls: 1, cost: 0.8 }, 'zen:deepseek-v4-flash': { calls: 1, cost: 0.2 } } }), 0.8, 'provider 前缀取首个冒号之前')
+  // 旧账本无按渠道拆分:退回全量 cost,保持升级前行为。
+  assert.equal(officialCostOfDay({ date: '2026-08-21', calls: 2, cost: 1.23 }), 1.23, '无 byProviderModel 的旧数据退回全量')
+  assert.equal(officialCostOfDay({ ...mixedDay, byProviderModel: {} }), 1.1, '空 byProviderModel 退回全量')
+  assert.equal(officialCostOfDay(undefined), 0, '无当日记录返回 0')
+  // Ledger.todayOfficialCost():今日键聚合;纯 Plan/自定义渠道用户为 0;无今日记录为 0。
+  const cfg36 = sanitizeConfig({})
+  const todayKey36 = localDayKey(Date.now())
+  const root36 = join(process.env.TEMP ?? '/tmp', `cm-official-cost-${Date.now()}`)
+  const ledger36 = new Ledger(cfg36, { [todayKey36]: mixedDay }, join(root36, 'ledger.json'))
+  assert.ok(Math.abs(ledger36.todayOfficialCost() - 0.7) < 1e-12, 'Ledger.todayOfficialCost 聚合今日 deepseek 费用')
+  const plansOnlyDay = { ...mixedDay, byProviderModel: { 'opencode-go:kimi-k3': mixedDay.byProviderModel['opencode-go:kimi-k3'], 'minimax:minimax-m3': mixedDay.byProviderModel['minimax:minimax-m3'] } }
+  const ledger36b = new Ledger(cfg36, { [todayKey36]: plansOnlyDay }, join(root36, 'ledger-b.json'))
+  assert.equal(ledger36b.todayOfficialCost(), 0, '纯 Plan/自定义渠道用户官方费用为 0')
+  const ledger36c = new Ledger(cfg36, {}, join(root36, 'ledger-c.json'))
+  assert.equal(ledger36c.todayOfficialCost(), 0, '无今日记录返回 0')
+  // 源结构断言:index.js 对账改用官方渠道费用;client.js 官方分支走 todayOfficialUsd,自定义分支维持全量。
+  const idxSrc36 = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.ok(idxSrc36.includes('reconcileBalanceDelta(ledger.balanceRef, balanceCache.value, ledger.todayOfficialCost()'), '对账传入官方渠道费用(issue #36)')
+  assert.ok(!idxSrc36.includes('ledger.today().cost, localDayKey'), '对账不再使用全渠道今日合计')
+  const cliSrc36 = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.ok(cliSrc36.includes('function todayOfficialUsd(state)'), 'client.js 定义 todayOfficialUsd')
+  assert.ok(cliSrc36.includes("mode === 'official' ? todayOfficialUsd(state) : Number(state.today?.cost) || 0"), '官方余额分支使用官方渠道费用,自定义分支维持全量')
+  assert.ok(cliSrc36.includes("if ((idx >= 0 ? key.slice(0, idx) : key) !== 'deepseek') continue"), 'client 端按 provider 前缀过滤 deepseek')
+  console.log('[ok] 官方渠道费用拆分(纯函数/Ledger 聚合/对账与进度条接线/旧数据退回)通过')
 }
 
 // 真实 apply() 路径的 getTopSessions 回归(会话排行面板加载失败问题):
