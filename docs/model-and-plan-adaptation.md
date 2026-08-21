@@ -47,7 +47,7 @@
 
 | 厂商 | 代表模型 |
 |---|---|
-| DeepSeek | V4 Flash / V4 Pro(峰谷两档 + 历史基础价) |
+| DeepSeek | V4 Flash / V4 Pro(峰谷两档 + 历史基础价)、V4 Flash Vision-Exp(实验版多模态,与 Flash 同价) |
 | OpenAI | GPT-5.6 Sol/Terra/Luna、GPT-5.5(+Pro)、5.4 全系、5.3 Codex(+Spark)、5.2、5.1 全系、GPT-5、4.1 |
 | Anthropic | Fable 5、Opus 5/4.8/4.7/4.6、Sonnet 5/4.6、Haiku 4.5 |
 | Google | Gemini 3.7/3.6/3.5 Flash、3.5 Flash Lite、3.1 Pro、3 Flash、2.5 全系 |

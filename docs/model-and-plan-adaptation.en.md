@@ -47,7 +47,7 @@ The built-in read-only catalog is grouped by **vendor → model family**, coveri
 
 | Vendor | Representative models |
 |---|---|
-| DeepSeek | V4 Flash / V4 Pro (peak/off-peak tiers + historical base price) |
+| DeepSeek | V4 Flash / V4 Pro (peak/off-peak tiers + historical base price), V4 Flash Vision-Exp (experimental multimodal, priced at Flash parity) |
 | OpenAI | GPT-5.6 Sol/Terra/Luna, GPT-5.5 (+Pro), 5.4 family, 5.3 Codex (+Spark), 5.2, 5.1 family, GPT-5, 4.1 |
 | Anthropic | Fable 5, Opus 5/4.8/4.7/4.6, Sonnet 5/4.6, Haiku 4.5 |
 | Google | Gemini 3.7/3.6/3.5 Flash, 3.5 Flash Lite, 3.1 Pro, 3 Flash, 2.5 family |

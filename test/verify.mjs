@@ -18,6 +18,7 @@ import {
   buildPriceCatalog,
   normalizePrice,
   DEFAULT_PRICE_TABLE,
+  PROVIDER_MODEL_FAMILIES,
   DEFAULT_PEAK_EFFECTIVE_AT,
   DEFAULT_PEAK_WINDOWS,
   LEGACY_BASE_BOUNDARY,
@@ -120,6 +121,30 @@ assert.deepEqual(tierFor(pro, offMs, { enabled: false }), { cacheHit: pro.cacheH
 assert.deepEqual(tierFor(legacyChat, preMs, peakCfg), legacyChat.legacyBase, '无峰谷模型分界前 → legacyBase')
 assert.deepEqual(tierFor(legacyChat, peakMs, peakCfg), legacyChat.peak, '无峰谷模型分界后 → 峰时价')
 console.log('[ok] tierFor 历史分界/峰谷/旧模型断言通过')
+
+// 2.1b) DeepSeek-V4-Flash-Vision-Exp:与 flash 同价,峰谷两档同价;峰谷时代后发布无 legacyBase。
+{
+  const vision = DEFAULT_PRICE_TABLE.models['deepseek-v4-flash-vision-exp']
+  assert.ok(vision !== undefined, 'Vision-Exp 在内置价格表中')
+  assert.deepEqual({ cacheHit: vision.cacheHit, cacheMiss: vision.cacheMiss, output: vision.output }, { cacheHit: flash.cacheHit, cacheMiss: flash.cacheMiss, output: flash.output }, 'Vision-Exp 基础档与 flash 同价')
+  assert.deepEqual(vision.offPeak, flash.offPeak, 'Vision-Exp 谷时档与 flash 同价')
+  assert.deepEqual(vision.peak, flash.peak, 'Vision-Exp 峰时档与 flash 同价')
+  assert.equal(vision.legacyBase, undefined, 'Vision-Exp 峰谷时代后发布,无 legacyBase')
+  assert.deepEqual(tierFor(vision, preMs, peakCfg), { cacheHit: vision.cacheHit, cacheMiss: vision.cacheMiss, output: vision.output }, '无 legacyBase 时分界前回退基础档')
+  // 模型名自动匹配:精确 / 归一化等价 / 去日期后缀均命中自身而非退化到 flash。
+  const visionCandidates = Object.keys(DEFAULT_PRICE_TABLE.models)
+  assert.equal(matchModelId('deepseek-v4-flash-vision-exp', visionCandidates), 'deepseek-v4-flash-vision-exp', '精确命中 Vision-Exp')
+  assert.equal(matchModelId('DeepSeek V4 Flash Vision Exp', visionCandidates), 'deepseek-v4-flash-vision-exp', '归一化等价命中 Vision-Exp')
+  assert.equal(matchModelId('deepseek-v4-flash-vision-exp-2026-08-21', visionCandidates), 'deepseek-v4-flash-vision-exp', '去日期后缀命中 Vision-Exp(宽泛包含取最长候选,不退化到 flash)')
+  // 计费口径:同 tokens 与 flash 逐分同价(峰/谷)。
+  assert.ok(Math.abs(costOf(tokens, vision, peakMs, peakCfg) - costOf(tokens, flash, peakMs, peakCfg)) < 1e-15, '峰时段计费与 flash 一致')
+  assert.ok(Math.abs(costOf(tokens, vision, offMs, peakCfg) - costOf(tokens, flash, offMs, peakCfg)) < 1e-15, '谷时段计费与 flash 一致')
+  // 设置页目录:归入 DeepSeek v4 家族分组。
+  assert.equal(PROVIDER_MODEL_FAMILIES.deepseek['deepseek-v4-flash-vision-exp'], 'DeepSeek v4', 'Vision-Exp 归入 DeepSeek v4 家族')
+  // 存量配置合并:sanitizeConfig(旧配置无该条目)后新模型条目自动补齐(升级用户立即可用)。
+  assert.ok(sanitizeConfig({ prices: { models: { 'deepseek-v4-pro': DEFAULT_PRICE_TABLE.models['deepseek-v4-pro'] } } }).prices.models['deepseek-v4-flash-vision-exp'] !== undefined, '旧配置经 sanitize 后自动补齐 Vision-Exp 条目')
+  console.log('[ok] DeepSeek-V4-Flash-Vision-Exp 同价适配(价格表/峰谷/匹配/家族归组/存量补齐)通过')
+}
 
 // 2.2) 成本核算(手工逐项对比)。
 const manualPeak = (10000 * 1.32 + 5000 * 3.96 + (90000 + 10000) * 0.044) / 1_000_000
@@ -763,6 +788,75 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   console.log('[ok] 输入框上方额度横条(默认值/校验/清洗/双端声明/接线/首次引导)通过')
 }
 
+// 点击余额图框立即刷新(issue #37):官方/自定义余额行与图框、Coding Plan(通用+MiniMax)
+// 图框可点击刷新;busy 防连点、失败保持原值并在 tooltip 提示;更新后的引导卡按
+// balance.clickHintSeen 门控,「知道了」永久消失。
+{
+  const base = sanitizeConfig({})
+  assert.equal(base.balance.clickHintSeen, false, 'clickHintSeen 默认未引导')
+  const patched = applyConfigPatch(base, { balance: { clickHintSeen: true } })
+  assert.equal(patched.errors.length, 0, 'clickHintSeen 布尔补丁通过')
+  assert.equal(patched.config.balance.clickHintSeen, true, '引导标记可写入且不破坏其余字段')
+  assert.equal(patched.config.balance.display, 'both', '补丁未破坏 balance 其余字段')
+  assert.ok(applyConfigPatch(base, { balance: { clickHintSeen: 'yes' } }).errors.length > 0, '非布尔 clickHintSeen 被拒')
+  const conv = sanitizeConfig({ ...base, balance: { ...base.balance, clickHintSeen: 1 } })
+  assert.equal(conv.balance.clickHintSeen, false, '非法 clickHintSeen 清洗为未引导')
+  // 双端声明与客户端归一。
+  const hostTypert = readFileSync(new URL('../lib/typert.host.js', import.meta.url), 'utf8')
+  const clientSource = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.ok(hostTypert.includes('clickHintSeen: z.boolean().optional()'), 'typert 声明 balance.clickHintSeen')
+  assert.ok(clientSource.includes('clickHintSeen: v.balance?.clickHintSeen === true'), 'parseConfig 归一 clickHintSeen')
+  // 共享 helper:busy 防连点 + 失败信息留存(下次刷新清除)。
+  assert.ok(clientSource.includes('function useClickRefresh('), 'useClickRefresh helper 存在')
+  assert.ok(clientSource.includes("if (busy || typeof call !== 'function') return"), 'busy 期间忽略连点(防并发打接口)')
+  assert.ok(clientSource.includes('catch(error => { setErr(error?.message ?? String(error)) })'), '失败原因留存供 tooltip')
+  // 六类图框接线:官方余额(框+行)、自定义余额(框+行)、Coding Plan(通用+MiniMax)。
+  assert.equal((clientSource.match(/useClickRefresh\(api \? \(\) => api\.refreshBalance\(\) : null\)/g) ?? []).length, 2, '官方余额框/行均接 refreshBalance')
+  assert.equal((clientSource.match(/useClickRefresh\(api \? \(\) => api\.refreshCustomBalance\(\) : null\)/g) ?? []).length, 2, '自定义余额框/行均接 refreshCustomBalance')
+  assert.ok(clientSource.includes("useClickRefresh(api ? () => api.refreshCodingPlan(id) : null)"), '通用 Coding Plan 图框接 refreshCodingPlan(id)')
+  assert.ok(clientSource.includes("useClickRefresh(api ? () => api.refreshCodingPlan('minimax') : null)"), 'MiniMax 图框接 refreshCodingPlan(minimax)')
+  assert.equal((clientSource.match(/api: props\.api/g) ?? []).length, 6, 'SidebarFooter 六处渲染均透传 api')
+  // 可点击语义与视觉反馈:a11y(role/tabIndex/aria-busy/键盘)、CSS(cursor/hover/busy 呼吸)。
+  assert.ok(clientSource.includes('const clickableRefreshProps = (busy, run) => ({'), '可点击属性 helper 存在')
+  assert.ok(clientSource.includes("role: 'button'") && clientSource.includes("tabIndex: 0") && clientSource.includes("'aria-busy': busy ? 'true' : 'false'"), 'role=button + tabIndex + aria-busy')
+  assert.ok(clientSource.includes("event.key === 'Enter' || event.key === ' '"), '键盘 Enter/Space 同样触发')
+  assert.ok(clientSource.includes('.cm-bbox.clickable,.cm-foot.clickable{cursor:pointer}'), '可点击光标样式')
+  assert.ok(clientSource.includes('@keyframes cm-click-refresh-pulse') && clientSource.includes('.cm-bbox.clickable.busy,.cm-foot.clickable.busy'), '刷新中 busy 呼吸动画')
+  // tooltip 附加行:提示语/刷新中/失败原因。
+  assert.ok(clientSource.includes('function clickRefreshTipLines(') && clientSource.includes("t('clickToRefresh')"), 'tooltip 含「点击立即刷新」提示行')
+  // 更新后的引导卡:门控 + 挂常驻插槽 + 永久消失标记。
+  assert.ok(clientSource.includes('function BalanceClickGuide('), 'BalanceClickGuide 组件定义存在')
+  assert.ok(clientSource.includes('function BalanceClickGuide(') && clientSource.indexOf('function BalanceClickGuide(') < clientSource.indexOf('function BudgetBoxContent('), 'BalanceClickGuide 位于组件区')
+  assert.ok(clientSource.includes('if (dismissed || config.balance?.clickHintSeen === true || (!sidebarBalanceOn && !sidebarCustomOn && !sidebarPlansOn)) return null'), '引导卡按 dismissed(乐观)/clickHintSeen + 侧边栏可见性门控')
+  // 串行展示:横条引导未处理完(promptSeen)时本卡不出现,避免两张 fixed 顶部卡片重叠互顶。
+  assert.ok(clientSource.includes('if (config.quotaStrip?.promptSeen !== true) return null'), '引导卡等横条引导处理完再出现(防 fixed 卡片重叠)')
+  // 乐观消失:点击立即本地隐藏,落盘失败才恢复(e2e 已验证 RPC 往返,此为渲染时序兜底)。
+  assert.ok(clientSource.includes('setDismissed(true)') && clientSource.includes('busyRef.current = false; setDismissed(false)'), '「知道了」乐观消失 + 失败恢复')
+  assert.ok(clientSource.includes("id: 'cost-meter-balance-click-guide'"), '引导卡挂常驻 sidebar.footer.action 插槽')
+  assert.ok(clientSource.includes('clickHintSeen: true } })'), '「知道了」写回 clickHintSeen=true')
+  // 双语文案:四个 key 在 zh/en 两张表各出现一次(键名出现 ≥ 2 次)。
+  for (const key of ['clickToRefresh:', 'balanceClickGuideTitle:', 'balanceClickGuideBody:', 'balanceClickGuideOk:']) {
+    assert.ok((clientSource.split(key).length - 1) >= 2, '双语文案:' + key + ' zh/en 均存在')
+  }
+  console.log('[ok] 点击余额图框立即刷新(配置标记/六类图框接线/防连点/a11y/更新后引导卡)通过')
+}
+
+// 峰谷 Web 通知去重(浏览器通知多次跳出修复):
+// 旧实现用「上次通知时的 tick 时间戳 === 本次 tick 时间戳」防重,tick 每 10 秒变一次,
+// 比较永远不相等 = 没有去重,提前量窗口内每 10 秒发一条(默认 2 分钟 = 最多 12 条)。
+// 新实现按切换点(nextAtMs)在模块级去重:同一切换点只发一次,且配置变化重挂组件后
+// (组件内 ref 会归零)也不会重发。
+{
+  const clientSource = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.ok(!clientSource.includes('notifiedAtRef'), '已移除按 tick 时间戳防重的旧实现(每 10 秒连发)')
+  assert.ok(clientSource.includes('let lastPeakNotifyAtMs = 0'), '模块级切换点去重标记存在(跨组件重挂持久)')
+  assert.ok(clientSource.includes('if (lastPeakNotifyAtMs === wv.nextAtMs) return'), '同一切换点只发一次(nextAtMs 比较)')
+  assert.ok(clientSource.includes('lastPeakNotifyAtMs = wv.nextAtMs'), '发通知前记录切换点')
+  // 弹窗本体(用户手动关)本就按 nextAtMs 去重,不受此修复影响,回归确认结构未变。
+  assert.ok(clientSource.includes('dismissedAt !== view.nextAtMs'), '弹窗手动关闭仍按切换点去重(回归)')
+  console.log('[ok] 峰谷 Web 通知去重(切换点级模块去重/重挂不重发/弹窗回归)通过')
+}
+
 // Hook 顺序门禁(issue #32,React #300 "Rendered fewer hooks than expected"):
 // 组件函数体内,任何 Hook 调用不得出现在组件级条件 return 之后——否则分支翻转时
 // 两次渲染 Hook 数量不一致。箭头函数体(`=> {`)内的 return/Hook 属于回调自身,
@@ -798,7 +892,7 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
       }
       return null
     }
-    const hookRe = /^(useState|useRef|useEffect|useMemo|useCallback|useCost)\s*\(/
+    const hookRe = /^(useState|useRef|useEffect|useMemo|useCallback|useCost|useClickRefresh)\s*\(/
     const returnRe = /^return\b/
     const scanBody = body => {
       let i = 0
@@ -2028,8 +2122,8 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   // 侧边栏:按 display 门控的循环 + MiniMax 专用卡片 + 通用 CodingPlanBox。
   assert.ok(planSrc.includes('const sidebarPlanIds = CODING_PLAN_ROWS'), '侧边栏按 CODING_PLAN_ROWS 遍历厂商')
   assert.ok(planSrc.includes("entry.display !== 'sidebar' && entry.display !== 'both'"), '侧边栏门控 display=sidebar/both')
-  assert.ok(planSrc.includes('el(MiniMaxPlanBox, { state, wide })'), 'MiniMax 沿用专用 5h/7d 卡片')
-  assert.ok(planSrc.includes('el(CodingPlanBox, { id, state, wide })'), '其余厂商走通用 CodingPlanBox')
+  assert.ok(planSrc.includes('el(MiniMaxPlanBox, { state, wide, api: props.api })'), 'MiniMax 沿用专用 5h/7d 卡片(issue #37 起透传 api 支持点击刷新)')
+  assert.ok(planSrc.includes('el(CodingPlanBox, { id, state, wide, api: props.api })'), '其余厂商走通用 CodingPlanBox')
   assert.ok(planSrc.includes('function CodingPlanBox(props)'), '通用卡片组件定义存在')
   assert.ok(planSrc.includes('function codingPlanWindowLabel(name, t)'), '窗口名本地化(fiveHour/weekly/monthly)')
   // 通用卡片样式:宽标签与文本窗口行的 CSS。
