@@ -1209,6 +1209,56 @@ console.log('[ok] 宽泛匹配与跨厂商兑底(路由 provider 费用为零修
   console.log('[ok] 外部查询软/硬失败缓存策略断言通过')
 }
 
+// 6.10 投影 schema 行为级验证(issue #43 防回归):dsh 0.1.1-rc.1 宿主的 restore()
+// 对版本匹配的 checkpoint 行调用 def.stateSchema.parse(row.val) 且无 try-catch,
+// snapshot()/drive() 调用 wire.viewSchema.parse(wire.view(state));旧宿主 0.1.0
+// 调用 def.schema.parse(def.view(state))。fork 版本(@gamegeek-saikel 0.2.0)缺
+// stateSchema 即 TypeError: Cannot read properties of undefined (reading 'parse')
+// → 宿主报 history unavailable。本块对真实 state 验证全部三个 parse 调用点。
+{
+  const { __testProjection } = await import('../lib/index.js')
+  const { usageProjectionStateSchema, makeCostUsageProjection } = __testProjection
+  const projRoot = join(process.cwd(), '.tmp-proj-schema')
+  mkdirSync(projRoot, { recursive: true })
+  const projLedger = new Ledger(sanitizeConfig({}), {}, join(projRoot, 'ledger.json'))
+  const def = makeCostUsageProjection(projLedger)
+  assert.ok(def.stateSchema !== undefined, '投影声明 stateSchema(缺省即 issue #43 根因)')
+  assert.ok(def.wire !== undefined && def.wire.viewSchema !== undefined, 'wire.viewSchema 存在(snapshot/drive parse 目标)')
+  assert.ok(def.schema !== undefined, '旧宿主 0.1.0 的 schema 字段保留')
+  // 冷启动:init state 可被 stateSchema parse(checkpoint 空会话路径)。
+  usageProjectionStateSchema.parse(def.init())
+  // 喂事件到真实 state:header + 流式样本 + 最终样本替换 + 多轮去重。
+  const events = [
+    { type: 'session', createdAt: 1720000000000 },
+    { type: 'request/header', time: 1720000001000, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } },
+    { type: 'assistant/message', time: 1720000002000, data: { turn: 1, step: 1, usage: { inputTokens: 1000, outputTokens: 100, cacheReadTokens: 200, cacheWriteTokens: 0, reasoningTokens: 0 } } },
+    { type: 'assistant/chunk', time: 1720000002500, data: { turn: 1, step: 1, chunk: { type: 'usage', usage: { inputTokens: 1000, outputTokens: 150, cacheReadTokens: 200, cacheWriteTokens: 0, reasoningTokens: 10 } } } },
+    { type: 'request/header', time: 1720000003000, data: { header: { config: { provider: 'openai', model: 'gpt-5.6-luna' } } } },
+    { type: 'assistant/message', time: 1720000004000, data: { turn: 2, step: 1, usage: { inputTokens: 500, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 } } },
+  ]
+  let projState = def.init()
+  for (const ev of events) projState = def.apply(projState, ev)
+  assert.equal(projState.last.key, '2:1', '投影状态推进到最后样本')
+  // ① restore 路径(宿主 restore() 255 行,无 try-catch):真实 state 可 parse。
+  usageProjectionStateSchema.parse(projState)
+  // ② snapshot/drive 路径:wire.viewSchema.parse(wire.view(state)) 可执行。
+  def.wire.viewSchema.parse(def.wire.view(projState))
+  // ③ 旧宿主 0.1.0 路径:def.schema.parse(def.view(state)) 可执行。
+  def.schema.parse(def.view(projState))
+  // ④ checkpoint → restore 往返:structuredClone 的行再次 parse 通过;v4 已与
+  // 旧 v3 checkpoint(ver 不匹配)隔离——宿主 ver 检查拒绝旧行并全量 refold,
+  // 不会对旧结构 state 调用 parse。
+  const projRow = { ver: def.stateVersion, seq: events.length, val: structuredClone(projState) }
+  assert.equal(projRow.ver, 4, 'stateVersion 为 4(旧 v3 checkpoint 触发重放自愈而非 parse)')
+  usageProjectionStateSchema.parse(projRow.val)
+  // ⑤ issue #43 崩溃点复现对照:缺 stateSchema 的定义(fork 0.2.0 场景)在
+  // restore 路径抛出与 issue 报错完全一致的 TypeError。
+  const brokenDef = { ...def, stateSchema: undefined }
+  assert.throws(() => brokenDef.stateSchema.parse(projRow.val), /Cannot read properties of undefined \(reading 'parse'\)/, 'issue #43 根因复现:缺 stateSchema 时 restore 抛同款 TypeError')
+  rmSync(projRoot, { recursive: true, force: true })
+  console.log('[ok] 投影 schema 行为级验证(stateSchema/旧 schema/wire.viewSchema 三调用点 + 崩溃点对照)通过')
+}
+
 // 7) 兼容性回归:配置清洗 + state codec 漂移防护(「账本不可用」根治)。
 // 7.1 sanitizeConfig:历史/手改账本的非法配置值回落收敛。
 const dirty = sanitizeConfig({
