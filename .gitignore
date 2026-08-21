@@ -3,8 +3,4 @@ bin/
 .audit-tmp/
 .qoder/
 HANDOFF.md
-<<<<<<< HEAD
-undefined*
-=======
 /.idea/
->>>>>>> origin/master
