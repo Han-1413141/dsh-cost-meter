@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### 修复
+
+- **dsh 0.1.1-rc.1 下输入区下方的会话费用不再显示**:DSH 0.1.1-rc.1 起,会话投影需声明 `wire`(viewSchema + view)才会向客户端推送——无 `wire` 的投影在快照(snapshot)、变更推送(onChanged)与历史重放(refold)中全部被跳过,导致客户端 `useProjection('costUsage')` 恒为空,`DockLine` 因用量为 0 隐藏。现为 `costUsage` 投影补充 `wire`,复用其 `view` 逻辑与 `usageProjectionSchema` 作为 viewSchema,写法与宿主 `sessionStats` 投影一致。升级前(dsh 0.1.0-rc.7 及更早)投影系统直接推送 state,不受影响。
+
 ## [1.5.33] - 2026-08-21
 
 ### 修复
