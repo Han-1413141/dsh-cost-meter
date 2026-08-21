@@ -26,7 +26,7 @@ import {
   providerPriceEntryFor,
 } from '../lib/pricing.js'
 import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays, officialCostOfDay } from '../lib/store.js'
-import { backfillLegacyLedger, importLegacyHistory, replaySessionRecords, scanZstdFrames } from '../lib/backfill.js'
+import { backfillLegacyLedger, importLegacyHistory, replaySessionRecords, repairForkSeed, scanZstdFrames } from '../lib/backfill.js'
 import { TYPERT, stateSchema } from '../lib/typert.host.js'
 import { isTransientFetchError, fetchWithRetry } from '../lib/net.js'
 import vm from 'node:vm'
@@ -1469,6 +1469,118 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.equal(nearDay.sessions.length, 2, '幂等:会话数不变')
   rmSync(root, { recursive: true, force: true })
   console.log('[ok] 导入安装前历史(缺失日期重建/未知会话追加/已知会话不动/幂等/升序)通过')
+}
+
+// 8e) fork 会话种子去重(issue #38):DSH 的 fork 把父会话事件流整段拷贝进子会话
+// 日志(header 带 parentSession/seedLength),time < createdAt 的事件是拷贝。
+// 回放过滤 + 一次性账本清洗 + 投影过滤三层修复。
+{
+  const cfg = sanitizeConfig({})
+  const base = Date.parse(LEGACY_BASE_BOUNDARY) + 30 * 86400_000 // 峰谷时代内,fork 演示起点
+  const seedAt = base + 3600_000 // 种子事件(父会话历史拷贝,D1)
+  const forkAt = base + 3 * 86400_000 // fork 创建时刻(D3,与种子日分离)
+  const ownAt = forkAt + 3600_000 // fork 后自己的调用(D3)
+  const seedKey = localDayKey(seedAt)
+  const ownKey = localDayKey(ownAt)
+  assert.notEqual(seedKey, ownKey, '测试前提:种子日与 own 日分离')
+  const forkLog = [
+    JSON.stringify({ type: 'session', version: 0, id: 'fork-sess', createdAt: forkAt, parentSession: 'parent-sess', seedLength: 123, delegationDepth: 0 }),
+    // 种子段:父会话标题 + header + 两次调用(其中一次被同 (turn,step) 最终样本替换)。
+    JSON.stringify({ type: 'session/title', seq: 1, time: seedAt, data: { title: 'Parent history' } }),
+    JSON.stringify({ type: 'request/header', seq: 0, time: seedAt, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } }),
+    JSON.stringify({ type: 'assistant/message', seq: 1, time: seedAt, data: { turn: 1, step: 1, usage: { inputTokens: 10, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 } } }),
+    JSON.stringify({ type: 'assistant/message', seq: 2, time: seedAt, data: { turn: 1, step: 1, usage: { inputTokens: 1000, outputTokens: 500, cacheReadTokens: 2000, cacheWriteTokens: 0 } } }),
+    // own 段:fork 后自己的调用(新 turn,另一模型,验证与种子段互不干扰)。
+    JSON.stringify({ type: 'request/header', seq: 3, time: ownAt, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-pro' } } } }),
+    JSON.stringify({ type: 'assistant/message', seq: 4, time: ownAt, data: { turn: 2, step: 1, usage: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0 } } }),
+  ].join('\n') + '\n'
+  const records = forkLog.split('\n').filter(Boolean).map(l => JSON.parse(l))
+  // ① 回放器:状态机与旧版一致(header 一律切换模型、单一 (turn,step) 去重),
+  // 仅聚合目标按种子/own 分段路由——days 只含 own,seedDays 复刻旧版入账的种子量。
+  const replayed = replaySessionRecords(records, cfg, null)
+  assert.equal(replayed.createdAt, forkAt, '回放器捕获 fork 创建时刻')
+  const ownPm = replayed.days[ownKey]
+  assert.ok(ownPm !== undefined, 'own 段按自己日期归组')
+  assert.equal(ownPm['deepseek:deepseek-v4-pro'].calls, 1, 'own 段只计自己的调用')
+  assert.equal(ownPm['deepseek:deepseek-v4-flash'], undefined, '种子调用不进 days(不与父会话重复计费)')
+  const seedPm = replayed.seedDays[seedKey]
+  assert.ok(seedPm !== undefined, '种子段按父会话日期归组到 seedDays')
+  assert.equal(seedPm['deepseek:deepseek-v4-flash'].calls, 1, '种子段 (turn,step) 去重只计最终样本')
+  assert.equal(seedPm['deepseek:deepseek-v4-flash'].input, 1000, '种子段最终样本 token 正确')
+  assert.equal(seedPm['deepseek:deepseek-v4-flash'].cost > 0, true, '种子段按父会话模型计价(非 default 回退价)')
+  assert.equal(replayed.days[seedKey], undefined, '种子日期不出现在 days')
+  // ①b) 跨段键复用:own 首个样本复用种子最后的 (turn,step) 键时,旧版单流
+  // 会先减种子样本再加 own 样本——新回放把减项路由回 seedDays(清洗只扣
+  // 旧版真正写进账本的量,days 与 seedDays 之和恰为旧版聚合)。
+  const clashLog = [
+    JSON.stringify({ type: 'session', version: 0, id: 'clash-sess', createdAt: forkAt, parentSession: 'parent-sess', delegationDepth: 0 }),
+    JSON.stringify({ type: 'request/header', seq: 0, time: seedAt, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } }),
+    JSON.stringify({ type: 'assistant/message', seq: 1, time: seedAt, data: { turn: 1, step: 1, usage: { inputTokens: 10, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 } } }),
+    // 无新 header 的 own 样本,键复用 (1,1):替换种子样本,计费口径沿用 flash。
+    JSON.stringify({ type: 'assistant/message', seq: 2, time: ownAt, data: { turn: 1, step: 1, usage: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0 } } }),
+  ].join('\n') + '\n'
+  const clash = replaySessionRecords(clashLog.split('\n').filter(Boolean).map(l => JSON.parse(l)), cfg, null)
+  const clashSeed = clash.seedDays[seedKey]?.['deepseek:deepseek-v4-flash']
+  assert.ok(clashSeed !== undefined && clashSeed.calls === 0 && clashSeed.input === 0, '被 own 样本替换的种子样本从 seedDays 扣回')
+  const clashOwn = clash.days[ownKey]?.['deepseek:deepseek-v4-flash']
+  assert.ok(clashOwn !== undefined && clashOwn.calls === 1 && clashOwn.input === 100, 'own 样本按替换后口径进 days')
+  // ② 一次性清洗:构造被旧版污染的账本——种子日(D1)同时有父会话条目(真身,
+  //    不动)与 fork 条目(污染拷贝,扣至 0);own 日(D3)fork 条目本就只含
+  //    own 部分(种子事件不在该日),不动;普通会话(无 parentSession)全程不碰。
+  const expectSeedCost = seedPm['deepseek:deepseek-v4-flash'].cost
+  const expectOwnCost = ownPm['deepseek:deepseek-v4-pro'].cost
+  const root = join(process.env.TEMP ?? '/tmp', `cm-fork-seed-${Date.now()}`)
+  mkdirSync(join(root, '--proj--', 'fork-sess'), { recursive: true })
+  writeFileSync(join(root, '--proj--', 'fork-sess', 'session.jsonl'), forkLog)
+  const plainLog = [
+    JSON.stringify({ type: 'session', version: 0, id: 'plain-sess', createdAt: ownAt, delegationDepth: 0 }),
+    JSON.stringify({ type: 'request/header', seq: 0, time: ownAt, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } }),
+    JSON.stringify({ type: 'assistant/message', seq: 1, time: ownAt, data: { turn: 1, step: 1, usage: { inputTokens: 777, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0 } } }),
+  ].join('\n') + '\n'
+  mkdirSync(join(root, '--proj--', 'plain-sess'), { recursive: true })
+  writeFileSync(join(root, '--proj--', 'plain-sess', 'session.jsonl'), plainLog)
+  const parentEntryD1 = { id: 'parent-sess', input: 1000, output: 500, cacheRead: 2000, cacheWrite: 0, reasoning: 0, calls: 1, cost: expectSeedCost,
+    byProviderModel: { 'deepseek:deepseek-v4-flash': { input: 1000, output: 500, cacheRead: 2000, cacheWrite: 0, reasoning: 0, calls: 1, cost: expectSeedCost } } }
+  const forkEntryD1 = { id: 'fork-sess', input: 1000, output: 500, cacheRead: 2000, cacheWrite: 0, reasoning: 0, calls: 1, cost: expectSeedCost,
+    byProviderModel: { 'deepseek:deepseek-v4-flash': { input: 1000, output: 500, cacheRead: 2000, cacheWrite: 0, reasoning: 0, calls: 1, cost: expectSeedCost } } }
+  const seedDayPolluted = { date: seedKey, input: 2000, output: 1000, cacheRead: 4000, cacheWrite: 0, reasoning: 0, calls: 2, cost: 2 * expectSeedCost,
+    byProviderModel: { 'deepseek:deepseek-v4-flash': { input: 2000, output: 1000, cacheRead: 4000, cacheWrite: 0, reasoning: 0, calls: 2, cost: 2 * expectSeedCost } },
+    sessions: [parentEntryD1, forkEntryD1] }
+  const forkEntryD3 = { id: 'fork-sess', input: 100, output: 50, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: expectOwnCost,
+    byProviderModel: { 'deepseek:deepseek-v4-pro': { input: 100, output: 50, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: expectOwnCost } } }
+  const plainEntryD3 = { id: 'plain-sess', input: 777, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.5, byProviderModel: {} }
+  const ownDayPolluted = { date: ownKey, input: 877, output: 50, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 2, cost: expectOwnCost + 0.5,
+    byProviderModel: { 'deepseek:deepseek-v4-pro': { input: 100, output: 50, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: expectOwnCost } },
+    sessions: [forkEntryD3, plainEntryD3] }
+  const ledger = new Ledger(cfg, { [seedKey]: seedDayPolluted, [ownKey]: ownDayPolluted }, join(root, 'ledger.json'))
+  let scheduled = 0
+  ledger.scheduleWrite = () => { scheduled += 1 }
+  const repaired = repairForkSeed(ledger, root)
+  assert.equal(repaired.scanned, 2, '扫描两份会话日志')
+  assert.equal(repaired.sessions, 1, '只有 fork 会话被清洗')
+  assert.equal(repaired.days, 1, '只有种子日(D1)被扣除——own 日无种子事件,不动')
+  // 种子日:fork 污染条目扣至 0,父会话真身条目与日合计只剩父的部分。
+  assert.equal(forkEntryD1.calls, 0, '种子日 fork 条目 calls 扣至 0')
+  assert.ok(Math.abs(forkEntryD1.cost) < 1e-15, '种子日 fork 条目 cost 扣至 0')
+  assert.equal(parentEntryD1.calls, 1, '父会话真身条目不动(calls)')
+  assert.ok(Math.abs(parentEntryD1.cost - expectSeedCost) < 1e-15, '父会话真身条目不动(cost)')
+  assert.equal(seedDayPolluted.calls, 1, '种子日合计只剩父会话 1 次调用')
+  assert.ok(Math.abs(seedDayPolluted.cost - expectSeedCost) < 1e-12, '种子日合计金额只剩父会话部分')
+  // own 日:fork 自己的条目与普通会话条目全程不碰。
+  assert.equal(forkEntryD3.calls, 1, 'own 日 fork 条目不动')
+  assert.ok(Math.abs(forkEntryD3.cost - expectOwnCost) < 1e-15, 'own 日 fork 金额不动')
+  assert.equal(plainEntryD3.input, 777, '普通会话 token 不被触碰')
+  assert.equal(plainEntryD3.cost, 0.5, '普通会话金额不被触碰')
+  assert.ok(scheduled >= 1, '清洗后调度落盘')
+  // 投影与启动接线:源码结构断言(投影无独立运行时入口,行为经宿主重放自愈)。
+  const indexSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.ok(indexSource.includes('stateVersion: 4'), '投影 stateVersion 3→4:触发宿主重放,受污染投影自愈')
+  assert.ok(indexSource.includes("if (event.type === 'session')") && indexSource.includes('return { ...state, createdAt: created }'), '投影记录会话创建时刻')
+  assert.ok(indexSource.includes('const isSeed = state.createdAt > 0') && indexSource.includes('if (isSeed) return state'), '投影对 time < createdAt 的种子 usage 不聚合')
+  assert.ok(indexSource.includes('createdAt: state.createdAt'), '投影 usage 更新不丢失 fork 过滤基准')
+  assert.ok(indexSource.includes('repairForkSeed(ledger, sessionsRoot)') && indexSource.includes("'fork-seed-dedup-v1'"), '启动导入接入一次性清洗(migrations 标记防重跑)')
+  rmSync(root, { recursive: true, force: true })
+  console.log('[ok] fork 会话种子去重(回放双段聚合/账本清洗扣除/父会话与普通会话不动/投影接线)通过')
 }
 
 // 8c) 会话标题配置链与 schema:showSessionId 三处齐全;sessionSchema 接受可选 title。
