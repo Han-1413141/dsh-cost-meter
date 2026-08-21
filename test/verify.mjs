@@ -49,6 +49,7 @@ import {
   scnetTokenPlanWindows,
   SCNET_CREDIT_RATES,
 } from '../lib/coding-plans.js'
+import { extractByRule } from '../lib/custom-balance.js'
 
 // 浏览器端 bundle 语法门禁(v1.5.23 教训):client.js 只在浏览器经 <script> 执行,
 // classic script 语法错误不触发 error 事件、宿主只报「loaded without registering」,
@@ -2008,6 +2009,25 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const clamped = sanitizeConfig({ codingPlans: { kimi: { enabled: true, refreshMinutes: 5000 } } })
   assert.equal(clamped.codingPlans.kimi.refreshMinutes, 1440, 'codingPlan 刷新间隔上限钳制 1440')
   console.log('[ok] Coding Plan 刷新间隔控件(双语文案/写回/钳制/SCNet 排除)通过')
+}
+
+// 自定义 Provider 余额 extract 规则:路径 / 数字常量 / add / subtract / divide。
+{
+  const payload = {
+    data: { total_granted: 1250000, total_used: 500000, total_available: 750000, name: 'Default' },
+  }
+  assert.equal(extractByRule(payload, 'data.total_available'), 750000, '字符串点路径直取')
+  assert.equal(extractByRule(payload, { op: 'divide', path: 'data.total_available', by: 500000 }), 1.5, 'divide:NewApi quota → USD')
+  assert.equal(extractByRule(payload, { op: 'divide', path: 'data.total_used', by: 500000 }), 1, 'divide:已用 quota → USD')
+  assert.equal(extractByRule(payload, { op: 'divide', path: 'data.total_granted', by: 500000 }), 2.5, 'divide:总额 quota → USD')
+  assert.equal(extractByRule(payload, { op: 'subtract', paths: ['data.total_granted', 'data.total_used'] }), 750000, 'subtract 与 divide 结果互证(750000 quota = $1.5)')
+  assert.equal(extractByRule(payload, 0), 0, '数字常量 0')
+  // divide 边界:路径缺失 / 除数为 0 / 缺除数 / 目标非数字 → null。
+  assert.equal(extractByRule(payload, { op: 'divide', path: 'data.missing', by: 500000 }), null, 'divide 缺失路径返回 null')
+  assert.equal(extractByRule(payload, { op: 'divide', path: 'data.total_available', by: 0 }), null, 'divide 除数为 0 返回 null')
+  assert.equal(extractByRule(payload, { op: 'divide', path: 'data.total_available' }), null, 'divide 缺除数返回 null')
+  assert.equal(extractByRule(payload, { op: 'divide', path: 'data.name', by: 500000 }), null, 'divide 目标非数字返回 null')
+  console.log('[ok] 自定义余额 extract 规则(路径/常量/add/subtract/divide)通过')
 }
 
 console.log('[ok] 全部验证通过')

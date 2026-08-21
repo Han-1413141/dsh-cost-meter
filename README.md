@@ -27,7 +27,7 @@
 |---|---|---|
 | 本会话费用 | 输入区下方 / 会话标题栏 | 实时累计费用 + 输入/缓存/输出 token,位置可配 |
 | 官方余额 | 侧边栏顶部 / 设置页(可配) | 总余额 / 赠送 / 充值,自动刷新 + 手动刷新;可选三段进度条(蓝/橙/灰) |
-| 自定义 Provider 余额 | 侧边栏 / 设置页(可配) | 可配置 HTTP 查询任意 Provider 余额(LiteLLM 等);中/英名称、币种、extract 规则;与 Coding Plan 同区可折叠配置 |
+| 自定义 Provider 余额 | 侧边栏 / 设置页(可配) | 可配置 HTTP 查询任意 Provider 余额(LiteLLM 等);中/英名称、币种、extract 规则(点路径 / 数字常量 / add / subtract / divide,divide 适配 NewApi 等 quota 端点,见下方[示例](#自定义-provider-余额配置示例));与 Coding Plan 同区可折叠配置 |
 | OpenCode Go 额度 | 侧边栏 / 设置页 / 右下角(dock,可配) | 滚动 5 小时 / 本周 / 本月用量百分比与重置时间,三档可分别开关,可同时显示预算已用%;Key 自动发现(DSH 凭据库 OPENCODE_GO_API_KEY / 环境变量 / opencode 登录态)或手动填写 |
 | Coding Plan 额度 | 侧边栏 / 设置页(每家可配) | 多厂商 coding plan 订阅额度查询(Anthropic Claude Pro/Max、Z.ai/智谱 GLM、MiniMax Token Plan、Kimi/Moonshot 余额、OpenRouter credits、SiliconFlow 余额、CommandCode 5h/周窗口与月度 Credits 余额),各家独立启用开关、Key、显示位置与刷新间隔(侧边栏卡片与 Go 额度同款,收起窄栏显示百分比),凭据只发往官方端点;无凭据/无订阅为中性提示;SCNet 超算互联网 Token Plan 无 API 额度端点,按官方 Credits 抵扣表由本地账本估算月度用量(无需凭据) |
 | 额度横条 | 输入框上方(显示设置可开关) | 一条横排 chips 实时显示预算已用% / Go 主窗口 / 各已启用 Coding Plan 用量窗口(短标签+迷你进度条,≥80% 预警、≥100% 超支,悬停见重置时刻);首次更新弹引导卡由用户自主决定开关;无可用数据自动隐藏 |
@@ -51,6 +51,38 @@
 | 多 provider 计费 | 设置页 / 账本 | 支持 OpenAI、Anthropic、Google Gemini、Mistral 等 provider 的 input/output、缓存与 reasoning token 价格,按 provider+model 隔离计费 |
 | 模型名自动匹配 | 设置页 / 账本 | 未知模型 id 自动匹配价格表:忽略大小写/空格/横杠/点号与括号附注,归一化等价或请求名包含表内模型名即命中(如 `gpt5.6 luna(go)`);路由 provider(opencode/zen 等)下跨厂商全库查找;可关闭为仅精确;未命中模型可手动指定计费条目 |
 | 拓展价格表 | 设置页 → 拓展价格表 | 内置各厂商、按模型家族分类的参考价格目录(点开展开,厂商默认折叠);一键挂载参与计费,挂载的第三方模型默认收入表内可编辑;逐模型「在费用设置直接显示」开关自选哪些模型(含 DeepSeek)在「价格表」区直接显示 |
+
+## 自定义 Provider 余额配置示例(NewApi 模板)
+
+自定义 Provider 余额的 `extract` 规则支持四种形式:数字常量、点路径字符串、`add`/`subtract` 多路径加减、`divide` 按 `by` 除数缩放。**`divide` 适用于 NewApi 等以 quota 整数计量的端点**(1 USD = 500000 quota,与 cc-switch 同款换算)。
+
+以 NewApi 的 `GET /api/usage/token` 为例(响应 `{ "code": 200, "data": { "total_granted": ..., "total_used": ..., "total_available": ..., "unlimited_quota": false } }`):
+
+```json
+{
+  "enabled": true,
+  "display": "both",
+  "refreshMinutes": 15,
+  "label": "NewApi",
+  "labelEn": "NewApi",
+  "unit": "USD",
+  "request": {
+    "url": "https://你的NewApi域名/api/usage/token",
+    "method": "GET",
+    "headers": { "Authorization": "Bearer {{NEWAPI_API_KEY}}" }
+  },
+  "extract": {
+    "remaining": { "op": "divide", "path": "data.total_available", "by": 500000 },
+    "maxBudget": { "op": "divide", "path": "data.total_granted", "by": 500000 },
+    "spend": { "op": "divide", "path": "data.total_used", "by": 500000 },
+    "unit": "USD"
+  }
+}
+```
+
+- `{{NEWAPI_API_KEY}}` 从 DSH 凭据库或环境变量解析(**仅请求头支持占位符**,URL 需写死完整地址);
+- 无限额度 token(`unlimited_quota: true`)没有 `total_available`,无法提取 `remaining`,查询会报「remaining is missing or not numeric」——请改用有限额度 token,或在中间层端点换算;
+- 配置入口:设置 → 费用(额度标签)→「自定义 Provider 余额」展开配置;或直接改 `storages/cost-meter/ledger.json` 的 `config.customBalance`。
 
 ## 双语界面
 
