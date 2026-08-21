@@ -1,10 +1,11 @@
 # Changelog
 
-## [Unreleased]
+## [1.5.34] - 2026-08-21
 
 ### 修复
 
-- **dsh 0.1.1-rc.1 下输入区下方的会话费用不再显示**:DSH 0.1.1-rc.1 起,会话投影需声明 `wire`(viewSchema + view)才会向客户端推送——无 `wire` 的投影在快照(snapshot)、变更推送(onChanged)与历史重放(refold)中全部被跳过,导致客户端 `useProjection('costUsage')` 恒为空,`DockLine` 因用量为 0 隐藏。现为 `costUsage` 投影补充 `wire`,复用其 `view` 逻辑与 `usageProjectionSchema` 作为 viewSchema,写法与宿主 `sessionStats` 投影一致。升级前(dsh 0.1.0-rc.7 及更早)投影系统直接推送 state,不受影响。
+- **fork 出来的会话不再把父会话的历史费用重复计算(issue #38,感谢 @csliuchi 的报告与根因分析)**:DSH 的 fork 不是引用,而是把父会话事件流**整段拷贝**进子会话日志(header 带 `parentSession`/`seedLength`,拷贝事件的时间戳早于 `createdAt`);旧版对事件流无差别计数,子会话徽章与账本日合计都把父会话历史又记了一遍。三层修复:① 回放器把 `time < createdAt` 的种子事件单独聚合(状态机与旧版逐字一致,仅聚合目标分段路由),不再计入导入/回填;② 一次性账本清洗(账本 `migrations` 标记防重跑)按种子聚合从已污染的会话条目与日合计中精确扣除,父会话真身条目与普通会话分毫不碰;③ `costUsage` 投影 stateVersion 3→4 记录 `createdAt` 并跳过种子事件,宿主重放自动自愈。verify.mjs 新增 fork 种子去重全套断言(双段路由/跨段键复用替换语义/污染账本清洗/父会话与普通会话不动)。
+- **dsh 0.1.1-rc.1 下输入区下方的会话费用不再显示(PR #39,感谢 @aaronlei 的贡献)**:DSH 0.1.1-rc.1 起,会话投影需声明 `wire`(viewSchema + view)才会向客户端推送——无 `wire` 的投影在快照(snapshot)、变更推送(onChanged)与历史重放(refold)中全部被跳过,导致客户端 `useProjection('costUsage')` 恒为空,会话费用随用量为 0 隐藏。现为 `costUsage` 投影补充 `wire` 并同时声明新契约的 `stateSchema`(持久化恢复路径 `restore()` 会调用 `stateSchema.parse` 且无容错,缺省会在 checkpoint 恢复时抛 TypeError);旧字段 `schema` + `view` 保留,dsh 0.1.0 及更早宿主不受影响;新旧 view 复用同一实现,取值逻辑不漂移。verify.mjs 新增投影 wire 双兼容结构断言。
 
 ## [1.5.33] - 2026-08-21
 

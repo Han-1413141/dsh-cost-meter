@@ -1578,6 +1578,13 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(indexSource.includes("if (event.type === 'session')") && indexSource.includes('return { ...state, createdAt: created }'), '投影记录会话创建时刻')
   assert.ok(indexSource.includes('const isSeed = state.createdAt > 0') && indexSource.includes('if (isSeed) return state'), '投影对 time < createdAt 的种子 usage 不聚合')
   assert.ok(indexSource.includes('createdAt: state.createdAt'), '投影 usage 更新不丢失 fork 过滤基准')
+  // ③ 投影 wire 适配(PR #39 / dsh 0.1.1-rc.1):新宿主要求 stateSchema + wire
+  //    才向客户端推送;旧宿主仍读 schema + view——双套字段并存,view 单一实现复用。
+  assert.ok(indexSource.includes('stateSchema: usageProjectionStateSchema'), '投影声明 stateSchema(新契约;restore 路径 parse 持久化 state)')
+  assert.ok(indexSource.includes('wire: {') && indexSource.includes('viewSchema: usageProjectionSchema'), '投影声明 wire(dsh 0.1.1-rc.1 起缺 wire 即 host-only,客户端收不到)')
+  assert.ok(indexSource.includes('schema: usageProjectionSchema,'), '投影保留旧字段 schema(旧宿主 snapshot 直接调用 def.schema.parse)')
+  assert.ok(indexSource.includes('view: projectionView') && indexSource.includes('view: projectionView,'), '新旧 view 复用同一实现(取值逻辑不漂移)')
+  assert.ok(indexSource.includes('last: z.object({') && indexSource.includes('createdAt: z.number(),'), 'stateSchema 覆盖内部 state 全字段(含 last/createdAt)')
   assert.ok(indexSource.includes('repairForkSeed(ledger, sessionsRoot)') && indexSource.includes("'fork-seed-dedup-v1'"), '启动导入接入一次性清洗(migrations 标记防重跑)')
   rmSync(root, { recursive: true, force: true })
   console.log('[ok] fork 会话种子去重(回放双段聚合/账本清洗扣除/父会话与普通会话不动/投影接线)通过')
