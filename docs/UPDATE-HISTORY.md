@@ -3,9 +3,9 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
-## vNext(未发布)—— 自定义 Provider 余额 extract 支持 divide 运算
+## v1.5.30(2026-08-21)—— 自定义 Provider 余额 extract 支持 divide 运算
 
-- **extract 规则新增 `divide` 除法缩放(NewApi 等 quota 端点适配)**:自定义余额的解析规则此前只有点路径 / 数字常量 / add / subtract,而 NewApi 的余额以 quota 整数计量(1 USD = 500000 quota),cc-switch 等工具需 `total_available / 500000` 才能换算成美元。现支持 `{"op": "divide", "path": "data.total_available", "by": 500000}`,remaining / maxBudget / spend 三个字段可独立使用;边界(路径缺失、除数为 0、缺除数、目标非数字)返回 null 不中断。README(中/英)新增 NewApi 模板完整配置示例,测试套件新增 divide 换算与边界单测。
+- **extract 规则新增 `divide` 除法缩放(NewApi 等 quota 端点适配,贡献者 @CialloAlone)**:自定义余额的解析规则此前只有点路径 / 数字常量 / add / subtract,而 NewApi 的余额以 quota 整数计量(1 USD = 500000 quota),cc-switch 等工具需 `total_available / 500000` 才能换算成美元。现支持 `{"op": "divide", "path": "data.total_available", "by": 500000}`,remaining / maxBudget / spend 三个字段可独立使用;边界(路径缺失、除数为 0、缺除数、目标非数字)返回 null 不中断。README(中/英)新增 NewApi 模板完整配置示例,测试套件新增 divide 换算与边界单测。
 
 ## v1.5.29(2026-08-20)—— Coding Plan 刷新间隔可设置
 
