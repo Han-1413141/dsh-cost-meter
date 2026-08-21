@@ -4,9 +4,9 @@
 
 **DeepSeek Harness 会话费用统计插件(界面中英双语)**
 
-本会话费用 · 当日费用 · OpenCode Go 订阅额度显示 · 预算与已用百分比 · 官方账户余额 · 自定义 Provider 余额查询(可配任意 HTTP 端点) · 余额三段进度条 · 历史记录 · 峰谷计价时段显示(UTC 01:00–04:00、06:00–10:00 为峰时段) · 官方价格一键同步 · 类 Codex Token 用量热图 · 多厂商多模型价格计费(内置 90+ 模型价格目录与自动匹配) · 主流 Coding Plan 额度查询与显示(Anthropic / Z.ai / MiniMax / Kimi / OpenRouter / SiliconFlow 六家)
+本会话费用 · 当日费用 · OpenCode Go 订阅额度显示 · 预算与已用百分比 · 官方账户余额 · 自定义 Provider 余额查询(可配任意 HTTP 端点) · 余额三段进度条 · 历史记录 · 峰谷计价时段显示(UTC 01:00–04:00、06:00–10:00 为峰时段) · 峰/谷切换前弹窗与系统通知提醒(位置/提前量/提醒类型可配) · 官方价格一键同步 · 类 Codex Token 用量热图 · 多厂商多模型价格计费(内置 90+ 模型价格目录与自动匹配) · 主流 Coding Plan 额度查询与显示(Anthropic / Z.ai / MiniMax / Kimi / OpenRouter / SiliconFlow / CommandCode / SCNet 八家) · 输入框上方额度横条(预算/Go/Coding Plan 用量一条横排显示,可开关)
 
-[![version](https://img.shields.io/badge/version-1.5.10-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.5.34-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm)](https://www.npmjs.com/package/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
@@ -26,10 +26,12 @@
 | 功能 | 位置 | 说明 |
 |---|---|---|
 | 本会话费用 | 输入区下方 / 会话标题栏 | 实时累计费用 + 输入/缓存/输出 token,位置可配 |
-| 官方余额 | 侧边栏顶部 / 设置页(可配) | 总余额 / 赠送 / 充值,自动刷新 + 手动刷新;可选三段进度条(蓝/橙/灰) |
-| 自定义 Provider 余额 | 侧边栏 / 设置页(可配) | 可配置 HTTP 查询任意 Provider 余额(LiteLLM 等);中/英名称、币种、extract 规则;与 Coding Plan 同区可折叠配置 |
+| 官方余额 | 侧边栏顶部 / 设置页(可配) | 总余额 / 赠送 / 充值,自动刷新 + 手动刷新;可选三段进度条(蓝/橙/灰),当日段只统计官方渠道费用(不含 Coding Plan / 自定义 Provider) |
+| 自定义 Provider 余额 | 侧边栏 / 设置页(可配) | 可配置 HTTP 查询任意 Provider 余额(LiteLLM 等);中/英名称、币种、extract 规则(点路径 / 数字常量 / add / subtract / divide,divide 适配 NewApi 等 quota 端点,见下方[示例](#自定义-provider-余额配置示例newapi-模板));与 Coding Plan 同区可折叠配置 |
 | OpenCode Go 额度 | 侧边栏 / 设置页 / 右下角(dock,可配) | 滚动 5 小时 / 本周 / 本月用量百分比与重置时间,三档可分别开关,可同时显示预算已用%;Key 自动发现(DSH 凭据库 OPENCODE_GO_API_KEY / 环境变量 / opencode 登录态)或手动填写 |
-| Coding Plan 额度 | 设置页 | 多厂商 coding plan 订阅额度查询(Anthropic Claude Pro/Max、Z.ai/智谱 GLM、MiniMax Token Plan、Kimi/Moonshot 余额、OpenRouter credits、SiliconFlow 余额),各家独立启用开关与 Key,凭据只发往官方端点;无凭据/无订阅为中性提示 |
+| Coding Plan 额度 | 侧边栏 / 设置页(每家可配) | 多厂商 coding plan 订阅额度查询(Anthropic Claude Pro/Max、Z.ai/智谱 GLM、MiniMax Token Plan、Kimi/Moonshot 余额、OpenRouter credits、SiliconFlow 余额、CommandCode 5h/周窗口与月度 Credits 余额),各家独立启用开关、Key、显示位置与刷新间隔(侧边栏卡片与 Go 额度同款,收起窄栏显示百分比),凭据只发往官方端点;无凭据/无订阅为中性提示;SCNet 超算互联网 Token Plan 无 API 额度端点,按官方 Credits 抵扣表由本地账本估算月度用量(无需凭据) |
+| 额度横条 | 输入框上方(显示设置可开关) | 一条横排 chips 实时显示预算已用% / Go 主窗口 / 各已启用 Coding Plan 用量窗口(短标签+迷你进度条,≥80% 预警、≥100% 超支,悬停见重置时刻);首次更新弹引导卡由用户自主决定开关;无可用数据自动隐藏 |
+| 点击立即刷新 | 侧边栏余额/额度图框 | 官方余额 / 自定义余额 / Coding Plan 图框(含窄栏收起态)点击即触发一次查询,刷新中呼吸闪烁,失败保持原值并在悬停提示说明;键盘 Enter/Space 可触发;更新后首次进入有引导提示 |
 | 当日费用 | 侧边栏底部(设置按钮上方) | 「今日 ¥x」,悬停见调用次数与 token 明细 |
 | 预算图框 | 侧边栏底部(余额行与设置按钮之间) | 圆角方形图框:预算、已用%、进度条、今日费用与占预算%、已用/额度,≥80% 预警、≥100% 超支 |
 | 汇总卡片 | 设置页 | 今日 / 本月 / 累计费用与调用次数 |
@@ -37,16 +39,51 @@
 | 今日会话明细 | 设置页 | 每个会话的调用次数、输入/缓存/输出 token 与费用 |
 | 历史记录 | 设置页 | 按天汇总,保留天数可配(默认 180 天) |
 | 历史按模型统计回填 | 设置页(按模型统计) | 按模型统计上线前的旧账本自动回放宿主会话日志重建逐模型 token/费用拆分(旧调用按当时基础价),日志已清理的部分归入「早期未分模型」残差行 |
+| 导入安装前历史 | 首次启动自动 | 安装/升级后首次启动自动回放宿主全部会话日志,把未装插件时期的对话导入账本(缺失日期整日重建,已有日期只补未知会话,幂等不与实时计费重复;金额按事件时刻历史价回推);设置页保留手动重跑入口 |
 | 预算设置 | 设置页顶部 | 额度、周期(今日/本月/累计/自定义日期区间)、已用% |
 | 价格表 | 设置页 | 每模型 谷时/峰时 两档价格(支持 input/output 简写,缓存价自动补齐),增删改自由 |
 | 峰谷计价时段显示 | 设置页 / 预算 / 今日费用 | 显示 UTC 峰时段 01:00–04:00、06:00–10:00 与当前档位;展开态显示峰时/平价时段条(当前时段 + 倒计时),收起(rail)态显示竖向峰谷进度条,可单独开关 |
+| 峰/谷切换弹窗提醒 | 全局浮层 | 距进入峰/谷时段不足设定提前量(默认 2 分钟,1-30 可配)时全屏色条徽标弹窗(提醒色区分进入峰/谷);弹窗位置可选**右下角 / 屏幕中心**,提醒类型可选(进入峰 / 进入谷 / 峰和谷),同一切换点只提醒一次;可选**同步发送浏览器(系统)通知**(页面最小化也能收到,需授权通知权限);设置页峰谷计价面板内配置,并可**一键预览弹窗效果**(真实组件渲染,文案/位置/通知与实际触发完全一致) |
 | 官方价格同步 | 设置页 | 抓取解析官方定价页,一键应用 |
 | 界面语言 | 设置页 → 显示设置 | 简体中文 / English / 跟随浏览器(自动);切换即时生效并自动保存 |
 | AI 价格同步 | [提示词](docs/AI-PRICE-SYNC-PROMPT.md) | DeepSeek 官方同步;其他 provider 使用已核对的官方价格目录与手动配置 |
-| 模型与 Plan 适配说明 | [适配文档](docs/model-and-plan-adaptation.md) | 各厂商模型计费与 6 家 Coding Plan 的适配矩阵、自动匹配机制与价格来源([English](docs/model-and-plan-adaptation.en.md)) |
+| 模型与 Plan 适配说明 | [适配文档](docs/model-and-plan-adaptation.md) | 各厂商模型计费与 8 家 Coding Plan 的适配矩阵、自动匹配机制与价格来源([English](docs/model-and-plan-adaptation.en.md)) |
+| 峰/谷切换提醒图解 | [提醒文档](docs/peak-alert.md) | 峰谷切换前弹窗与系统通知的完整图解:效果截图(中/英)、设置项说明与使用建议([English](docs/peak-alert.en.md)) |
 | 多 provider 计费 | 设置页 / 账本 | 支持 OpenAI、Anthropic、Google Gemini、Mistral 等 provider 的 input/output、缓存与 reasoning token 价格,按 provider+model 隔离计费 |
 | 模型名自动匹配 | 设置页 / 账本 | 未知模型 id 自动匹配价格表:忽略大小写/空格/横杠/点号与括号附注,归一化等价或请求名包含表内模型名即命中(如 `gpt5.6 luna(go)`);路由 provider(opencode/zen 等)下跨厂商全库查找;可关闭为仅精确;未命中模型可手动指定计费条目 |
 | 拓展价格表 | 设置页 → 拓展价格表 | 内置各厂商、按模型家族分类的参考价格目录(点开展开,厂商默认折叠);一键挂载参与计费,挂载的第三方模型默认收入表内可编辑;逐模型「在费用设置直接显示」开关自选哪些模型(含 DeepSeek)在「价格表」区直接显示 |
+
+## 自定义 Provider 余额配置示例(NewApi 模板)
+
+自定义 Provider 余额的 `extract` 规则支持四种形式:数字常量、点路径字符串、`add`/`subtract` 多路径加减、`divide` 按 `by` 除数缩放。**`divide` 适用于 NewApi 等以 quota 整数计量的端点**(1 USD = 500000 quota,与 cc-switch 同款换算)。
+
+以 NewApi 的 `GET /api/usage/token` 为例(响应 `{ "code": 200, "data": { "total_granted": ..., "total_used": ..., "total_available": ..., "unlimited_quota": false } }`):
+
+```json
+{
+  "enabled": true,
+  "display": "both",
+  "refreshMinutes": 15,
+  "label": "NewApi",
+  "labelEn": "NewApi",
+  "unit": "USD",
+  "request": {
+    "url": "https://你的NewApi域名/api/usage/token",
+    "method": "GET",
+    "headers": { "Authorization": "Bearer {{NEWAPI_API_KEY}}" }
+  },
+  "extract": {
+    "remaining": { "op": "divide", "path": "data.total_available", "by": 500000 },
+    "maxBudget": { "op": "divide", "path": "data.total_granted", "by": 500000 },
+    "spend": { "op": "divide", "path": "data.total_used", "by": 500000 },
+    "unit": "USD"
+  }
+}
+```
+
+- `{{NEWAPI_API_KEY}}` 从 DSH 凭据库或环境变量解析(**仅请求头支持占位符**,URL 需写死完整地址);
+- 无限额度 token(`unlimited_quota: true`)没有 `total_available`,无法提取 `remaining`,查询会报「remaining is missing or not numeric」——请改用有限额度 token,或在中间层端点换算;
+- 配置入口:设置 → 费用(额度标签)→「自定义 Provider 余额」展开配置;或直接改 `storages/cost-meter/ledger.json` 的 `config.customBalance`。
 
 ## 双语界面
 
@@ -193,22 +230,22 @@
 dsh plugin --profile web add dsh-cost-meter
 ```
 
-**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.5.10`**,建议先下载审阅再运行):
+**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.5.34`**,建议先下载审阅再运行):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.10/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.34/install.ps1 | iex
 ```
 
 **或直接命令行**(机器上需已有 pnpm 与 git;同样固定到 tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.10
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.34
 ```
 
 没有 git 时可用 GitHub tag 打包直链:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.10.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.34.tar.gz
 ```
 
 安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):

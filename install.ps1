@@ -6,13 +6,13 @@
 .DESCRIPTION
   无需克隆仓库:自动补齐 pnpm,再经 dsh plugin 把插件装进 web profile。
   安装链全程固定到 $Rev 发布 tag(pnpm 版本同样固定),可审计、可复现:
-   - git 源固定到 tag:  github:Han-1413141/dsh-cost-meter#v1.5.10
+   - git 源固定到 tag:  github:Han-1413141/dsh-cost-meter#v1.5.34
    - 无 git 时用 tag 打包直链(内容与 tag 一一对应)
    - pnpm 固定版本:     11.21.0(corepack prepare / npm i -g pnpm@11.21.0)
   已安装时重跑本脚本即可对齐到当前脚本固定的版本。
 
   一键用法(复制整行到 PowerShell 粘贴回车;先审阅再运行):
-    irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.10/install.ps1 | iex
+    irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.34/install.ps1 | iex
 
   手动用法(先下载本文件审阅):
     powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
@@ -27,7 +27,7 @@ $ErrorActionPreference = 'Stop'
 $Package      = 'dsh-cost-meter'
 $Owner        = 'Han-1413141'
 $Repo         = 'dsh-cost-meter'
-$Rev          = 'v1.5.10'   # 固定发布 tag:发布新版本时同步更新此值与 README 中的安装行
+$Rev          = 'v1.5.34'   # 固定发布 tag:发布新版本时同步更新此值与 README 中的安装行
 $PnpmVersion  = '11.21.0'   # 固定 pnpm 版本,保证安装链可复现
 $GitSpec = "github:$Owner/$Repo#$Rev"
 $TarSpec = "https://github.com/$Owner/$Repo/archive/refs/tags/$Rev.tar.gz"
@@ -71,12 +71,27 @@ $spec = if ($useGit) { $GitSpec } else { $TarSpec }
 $dshHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' }
 $profileManifest = Join-Path $dshHome "profiles\$Profile\package.json"
 $installed = $false
+$devLink = $null
 if (Test-Path $profileManifest) {
   $manifest = Get-Content $profileManifest -Raw | ConvertFrom-Json
   if ($manifest.dependencies) {
-    $depNames = @($manifest.dependencies.PSObject.Properties | ForEach-Object { $_.Name })
-    $installed = $depNames -contains $Package
+    $dep = $manifest.dependencies.PSObject.Properties | Where-Object { $_.Name -eq $Package }
+    if ($dep) {
+      $installed = $true
+      # link: 指向本地目录的开发安装:直接跑仓库代码,重新 add 固定版会要求
+      # 跨盘 symlink(Windows 非管理员 EPERM),跳过对齐并提示重启即可。
+      if ($dep.Value -is [string] -and $dep.Value.StartsWith('link:')) { $devLink = $dep.Value }
+    }
   }
+}
+if ($devLink) {
+  Ok @"
+检测到开发模式安装:dependencies 里 $Package = $devLink(link: 指向本地目录)。
+本脚本面向最终用户(从 GitHub 固定 tag 安装),已跳过版本对齐以免破坏 link: 结构。
+  - 本地目录就是运行代码:git pull / 切换分支后重启 dsh web 即生效
+  - 如需改为正式固定版安装:先执行  dsh plugin --profile $Profile remove $Package,再重跑本脚本
+"@
+  exit 0
 }
 
 # 4. 安装或更新(更新 = 按本脚本固定的 $Rev 重新 add,保证只装到固定版本)
