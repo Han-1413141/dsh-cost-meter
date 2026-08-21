@@ -1185,6 +1185,30 @@ assert.equal(providerPriceEntryFor('opencode', 'totally-unknown-xyz', fullPrices
 assert.equal(providerPriceEntryFor('openai', 'GPT-5.6 LUNA', fullPrices).priced, true, '同厂商大小写/空格差异命中')
 console.log('[ok] 宽泛匹配与跨厂商兑底(路由 provider 费用为零修复)断言通过')
 
+// 6.8 未命中列表判定与计费口径一致(v1.5.35):路由 provider 前缀(go:/opencode: 等)下
+// 实际已正确计价的模型不再误报「未命中」,仅默认价兜底与完全未命中者列入。
+{
+  const matchClientSource = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.ok(matchClientSource.includes('resolveClientPrice(provider, modelId, matchPrices).matched !== true'), '未命中判定走 resolveClientPrice 完整解析链(与计费口径一致)')
+  assert.ok(matchClientSource.includes('if (overrides[key] !== undefined) return false'), '已手动指定的键不重复列入未命中(rows 仍展示)')
+  assert.ok(matchClientSource.includes('matched: true') && matchClientSource.includes('matched: false'), 'resolveClientPrice 区分显式命中与默认价兜底(matched 标志)')
+  assert.ok(matchClientSource.includes('最近出现但未命中价格的模型') && matchClientSource.includes('Recently seen models without a price hit'), '未命中标题双语文案更新')
+  console.log('[ok] 未命中列表判定与计费口径一致断言通过')
+}
+
+// 6.9 外部查询软/硬失败缓存策略(PR #40 补全):软失败(守卫错误,不会自愈)完整缓存;
+// 硬失败(网络超时等)写 error 状态但保留外层 fetchedAt——UI 可见失败原因且轮询自动重试。
+{
+  const retryIndexSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.ok(retryIndexSource.includes('err.soft = true'), 'queryBalance 守卫错误(未配置 Key/非官方端点)标记 soft')
+  assert.ok(retryIndexSource.includes("...balanceCache, value: { ...emptyBalance(), status: 'error'"), '余额硬失败写 error 状态并保留旧 fetchedAt')
+  assert.ok(retryIndexSource.includes("...goQuotaCache, value: { ...emptyGoQuota(), status: 'error'"), 'Go 额度硬失败写 error 状态并保留旧 fetchedAt')
+  assert.ok(retryIndexSource.includes("...customBalanceCache,\n          value:"), '自定义余额硬失败写 error 状态并保留旧 fetchedAt')
+  assert.ok(retryIndexSource.includes("...(codingPlanCaches[id] ?? { fetchedAt: 0, value: emptyCodingPlan() }),\n          value: { ...emptyCodingPlan(), status: 'error'"), 'Coding Plan 硬失败写 error 状态并保留旧 fetchedAt')
+  assert.ok(retryIndexSource.includes("error && error.soft === true"), '软失败判定读取 error.soft 标记')
+  console.log('[ok] 外部查询软/硬失败缓存策略断言通过')
+}
+
 // 7) 兼容性回归:配置清洗 + state codec 漂移防护(「账本不可用」根治)。
 // 7.1 sanitizeConfig:历史/手改账本的非法配置值回落收敛。
 const dirty = sanitizeConfig({
