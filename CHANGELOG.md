@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### 新增
+
+- **自定义 Provider 余额 extract 规则新增 `divide` 除法运算**:此前 extract 只支持点路径、数字常量与 add/subtract,无法表达 NewApi 等以 quota 整数计量的端点(1 USD = 500000 quota,需 `total_available / 500000` 才能得到美元)。现支持 `{ "op": "divide", "path": "data.total_available", "by": 500000 }` 按 `by` 除数缩放;路径缺失 / 除数为 0 / 缺除数 / 目标非数字时返回 null(与 add/subtract 的非法路径行为一致)。README(中/英)新增 NewApi 模板完整配置示例,verify.mjs 新增 divide 换算与边界单测。
+
 ## [1.5.29] - 2026-08-20
 
 ### 新增
