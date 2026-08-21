@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync, rmSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import * as zlib from 'node:zlib'
 import {
   parsePricingHtml,
@@ -73,7 +74,7 @@ const peakCfg = {
 try {
   let html = null
   try {
-    html = readFileSync(process.env.TEMP + '\\ds-pricing.html', 'utf8')
+    html = readFileSync(join(tmpdir(), 'ds-pricing.html'), 'utf8')
     console.log('[ok] 使用本地抓取快照')
   } catch {
     const res = await fetch('https://api-docs.deepseek.com/quick_start/pricing')
@@ -257,7 +258,7 @@ console.log('[ok] provider 隔离/未知模型/reasoning/旧模型清理断言�
 
 // 3) 账本:临时 DSH_HOME;入账分界前调用应记 legacyBase 成本。
 // 每次运行前清空临时账本,避免跨运行累积污染断言。
-process.env.DSH_HOME = process.env.TEMP + '\\dsh-cost-meter-test-home'
+process.env.DSH_HOME = join(tmpdir(), 'dsh-cost-meter-test-home')
 rmSync(process.env.DSH_HOME, { recursive: true, force: true })
 const ledger = Ledger.open()
 ledger.account({ input: 10000, output: 5000, cacheRead: 90000, cacheWrite: 10000 }, 'deepseek-v4-pro', 'session-legacy', preMs)
@@ -311,7 +312,7 @@ console.log('[ok] peakNotice 配置与价格模型删除校验通过')
 
 // 4.2) 旧账本兼容回归:历史版本曾写入 reasoning: null 等非法数值,
 // 必须清洗到能通过 Typert strict 状态 codec,否则 getState 整体被拒(账本不可用、额度刷新连带失败)。
-const legacyHome = process.env.TEMP + '\\dsh-cost-meter-test-legacy-home'
+const legacyHome = join(tmpdir(), 'dsh-cost-meter-test-legacy-home')
 rmSync(legacyHome, { recursive: true, force: true })
 process.env.DSH_HOME = legacyHome
 const legacyPath = join(legacyHome, 'storages', 'cost-meter', 'ledger.json')
@@ -380,7 +381,7 @@ console.log('[ok] 旧账本 null/缺失字段清洗与 strict codec 回归通过
 // 4.3) 一次性配置迁移(issue #31):v1.5.26 前 MiniMax 无显示位置 UI,启用态 display 恒为 schema
 // 默认 'settings'(非用户选择);迁移为 'both' 保持「启用即上侧边栏」的旧版行为。账本根 migrations
 // 标记保证只跑一次——迁移后用户显式改回 'settings' 不会被再次翻转。
-const migHome = process.env.TEMP + '\\dsh-cost-meter-test-mig-home'
+const migHome = join(tmpdir(), 'dsh-cost-meter-test-mig-home')
 rmSync(migHome, { recursive: true, force: true })
 process.env.DSH_HOME = migHome
 const migPath = join(migHome, 'storages', 'cost-meter', 'ledger.json')
@@ -425,7 +426,7 @@ migPersisted.config.codingPlans.minimax.display = 'settings'
 writeFileSync(migPath, JSON.stringify(migPersisted), 'utf8')
 assert.equal(Ledger.open().config.codingPlans.minimax.display, 'settings', '标记存在时磁盘 settings 原样保留(不再翻转)')
 // 恢复主测试 home,不影响后续用例。
-process.env.DSH_HOME = process.env.TEMP + '\\dsh-cost-meter-test-home'
+process.env.DSH_HOME = join(tmpdir(), 'dsh-cost-meter-test-home')
 console.log('[ok] 一次性配置迁移(MiniMax 侧边栏 display/标记幂等/用户选择优先)通过')
 
 // 5) Coding plan 额度 adapter:归一化/各家解析器/软失败/配置清洗/清单。
@@ -997,7 +998,7 @@ assert.equal(gtsInvocation.result.mode, 'strict', 'getTopSessions 返回 strict 
 // getDaySessions 底层:copyDay 完整副本保留会话明细(轻量 history() 不含)。
 {
   const gdsDay = { date: '2026-08-18', input: 10, output: 5, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.5, byProviderModel: {}, sessions: [{ id: 'session-gds', input: 10, output: 5, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.5, byProviderModel: {} }] }
-  const gdsRoot = join(process.env.TEMP ?? '/tmp', `cm-gds-test-${Date.now()}`)
+  const gdsRoot = join(tmpdir(), `cm-gds-test-${Date.now()}`)
   mkdirSync(gdsRoot, { recursive: true })
   const gdsLedger = new Ledger(sanitizeConfig({}), { '2026-08-18': gdsDay }, join(gdsRoot, 'ledger.json'))
   const gdsCopy = gdsLedger.copyDay(gdsLedger.days['2026-08-18'])
@@ -1330,7 +1331,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
     header('deepseek', 'deepseek-v4-pro'),
     usageEvent(1, 2, legacyAt2, proUsage),
   ])
-  const root = join(process.env.TEMP ?? '/tmp', `cm-backfill-test-${Date.now()}`)
+  const root = join(tmpdir(), `cm-backfill-test-${Date.now()}`)
   mkdirSync(join(root, '--proj--', 'session-a'), { recursive: true })
   writeFileSync(join(root, '--proj--', 'session-a', 'session.jsonl'), sessionA)
   // zstd 压缩会话(运行时支持时):同一会话不重复建目录,另建一个会话。
@@ -1388,7 +1389,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.equal(replayed.createdAt, legacyAt, '回放器捕获会话创建时刻')
   assert.deepEqual(Object.keys(replayed.days), [dayKey], '回放结果按本地日期归组')
   // 8a-bis) 纯标题补齐通道:拆分已有、仅缺标题的会话也能补(实时会话下次启动补齐标题的路径)。
-  const rootT = join(process.env.TEMP ?? '/tmp', `cm-backfill-titles-${Date.now()}`)
+  const rootT = join(tmpdir(), `cm-backfill-titles-${Date.now()}`)
   mkdirSync(join(rootT, '--proj--', 'session-a'), { recursive: true })
   writeFileSync(join(rootT, '--proj--', 'session-a', 'session.jsonl'), sessionA)
   const filledBuckets = { input: 1100, output: 550, cacheRead: 2000, cacheWrite: 0, reasoning: 0, calls: 2, cost: 0.5 }
@@ -1405,7 +1406,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.equal(dayT.sessions[0].at, legacyAt, '纯标题通道同时补齐时间戳')
   rmSync(rootT, { recursive: true, force: true })
   // 8b) 完整覆盖重算:修正旧版本误计费导致的历史虚高(issue #18)。
-  const root2 = join(process.env.TEMP ?? '/tmp', `cm-backfill-recost-${Date.now()}`)
+  const root2 = join(tmpdir(), `cm-backfill-recost-${Date.now()}`)
   mkdirSync(join(root2, '--proj--', 'session-a'), { recursive: true })
   writeFileSync(join(root2, '--proj--', 'session-a', 'session.jsonl'), sessionA)
   const inflatedCost = 999
@@ -1435,7 +1436,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const usage = (turn, step, time, u) => ({ type: 'assistant/message', seq: 0, time, data: { turn, step, usage: u } })
   const headerEv = (provider, model, time) => ({ type: 'request/header', seq: 0, time, data: { header: { config: { provider, model } } } })
   const flashU = { inputTokens: 1000, outputTokens: 500, cacheReadTokens: 2000, cacheWriteTokens: 0 }
-  const root = join(process.env.TEMP ?? '/tmp', `cm-import-legacy-${Date.now()}`)
+  const root = join(tmpdir(), `cm-import-legacy-${Date.now()}`)
   // 缺失日期的安装前会话(含标题)。
   mkdirSync(join(root, '--proj--', 'old-sess'), { recursive: true })
   writeFileSync(join(root, '--proj--', 'old-sess', 'session.jsonl'), mkLog('old-sess', oldAt, [
@@ -1553,7 +1554,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   //    own 部分(种子事件不在该日),不动;普通会话(无 parentSession)全程不碰。
   const expectSeedCost = seedPm['deepseek:deepseek-v4-flash'].cost
   const expectOwnCost = ownPm['deepseek:deepseek-v4-pro'].cost
-  const root = join(process.env.TEMP ?? '/tmp', `cm-fork-seed-${Date.now()}`)
+  const root = join(tmpdir(), `cm-fork-seed-${Date.now()}`)
   mkdirSync(join(root, '--proj--', 'fork-sess'), { recursive: true })
   writeFileSync(join(root, '--proj--', 'fork-sess', 'session.jsonl'), forkLog)
   const plainLog = [
@@ -1721,7 +1722,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   // Ledger.todayOfficialCost():今日键聚合;纯 Plan/自定义渠道用户为 0;无今日记录为 0。
   const cfg36 = sanitizeConfig({})
   const todayKey36 = localDayKey(Date.now())
-  const root36 = join(process.env.TEMP ?? '/tmp', `cm-official-cost-${Date.now()}`)
+  const root36 = join(tmpdir(), `cm-official-cost-${Date.now()}`)
   const ledger36 = new Ledger(cfg36, { [todayKey36]: mixedDay }, join(root36, 'ledger.json'))
   assert.ok(Math.abs(ledger36.todayOfficialCost() - 0.7) < 1e-12, 'Ledger.todayOfficialCost 聚合今日 deepseek 费用')
   const plansOnlyDay = { ...mixedDay, byProviderModel: { 'opencode-go:kimi-k3': mixedDay.byProviderModel['opencode-go:kimi-k3'], 'minimax:minimax-m3': mixedDay.byProviderModel['minimax:minimax-m3'] } }
@@ -1745,7 +1746,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
 // 依赖函数默认值正常出榜,三参数调用各排序模式语义正确。
 {
   const prevHome = process.env.DSH_HOME
-  const e2eRoot = join(process.env.TEMP ?? '/tmp', `cm-e2e-gts-${Date.now()}`)
+  const e2eRoot = join(tmpdir(), `cm-e2e-gts-${Date.now()}`)
   mkdirSync(join(e2eRoot, 'storages', 'cost-meter'), { recursive: true })
   // 刻意混入未命名(s-no-title)与无时间戳(s-no-at)会话:1.5.11 前的组装会写入
   // title/at: undefined 键,被网关 JSON 安全校验拒绝(result-invalid)。
@@ -1857,7 +1858,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
 {
   const prevHome = process.env.DSH_HOME
   const prevFetch = globalThis.fetch
-  const balRoot = join(process.env.TEMP ?? '/tmp', `cm-e2e-bal-${Date.now()}`)
+  const balRoot = join(tmpdir(), `cm-e2e-bal-${Date.now()}`)
   mkdirSync(join(balRoot, 'storages', 'cost-meter'), { recursive: true })
   writeFileSync(join(balRoot, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({ version: 1, config: {}, days: {} }))
   process.env.DSH_HOME = balRoot
@@ -1931,7 +1932,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const prevHome = process.env.DSH_HOME
   const prevFetch = globalThis.fetch
   const mkHome = tag => {
-    const home = join(process.env.TEMP ?? '/tmp', `cm-e2e-goquota-${tag}-${Date.now()}`)
+    const home = join(tmpdir(), `cm-e2e-goquota-${tag}-${Date.now()}`)
     mkdirSync(join(home, 'storages', 'cost-meter'), { recursive: true })
     writeFileSync(join(home, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({
       version: 1,
@@ -2006,7 +2007,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
 // 快照应含按官方抵扣表折算的月度窗口;refreshCodingPlan('scnet') 走同一条本地路径。
 {
   const prevHome = process.env.DSH_HOME
-  const scnetRoot = join(process.env.TEMP ?? '/tmp', `cm-e2e-scnet-${Date.now()}`)
+  const scnetRoot = join(tmpdir(), `cm-e2e-scnet-${Date.now()}`)
   mkdirSync(join(scnetRoot, 'storages', 'cost-meter'), { recursive: true })
   // 账本日键取「今天」(自然月周期必然覆盖),避免测试运行日期漂移导致窗口为空。
   const todayKey = localDayKey(Date.now())
@@ -2083,7 +2084,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
 // 重复调用幂等;返回值过网关 strict codec + JSON 安全校验。
 {
   const prevHome = process.env.DSH_HOME
-  const importRoot = join(process.env.TEMP ?? '/tmp', `cm-e2e-import-${Date.now()}`)
+  const importRoot = join(tmpdir(), `cm-e2e-import-${Date.now()}`)
   mkdirSync(join(importRoot, 'storages', 'cost-meter'), { recursive: true })
   // 安装前的会话日志(峰谷时代前,按 legacyBase 历史价计费)。
   const oldAt = Date.parse(LEGACY_BASE_BOUNDARY) - 15 * 86400_000
@@ -2160,7 +2161,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
 // 自动导入一次并打标 legacyAutoImportedAt;第二次启动不再重扫。手动按钮仍可重跑。
 {
   const prevHome = process.env.DSH_HOME
-  const autoRoot = join(process.env.TEMP ?? '/tmp', `cm-e2e-autoimport-${Date.now()}`)
+  const autoRoot = join(tmpdir(), `cm-e2e-autoimport-${Date.now()}`)
   mkdirSync(join(autoRoot, 'storages', 'cost-meter'), { recursive: true })
   const oldAt = Date.parse(LEGACY_BASE_BOUNDARY) - 21 * 86400_000
   const oldKey = localDayKey(oldAt)
