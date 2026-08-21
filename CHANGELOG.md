@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.33] - 2026-08-21
+
+### 修复
+
+- **点击刷新引导卡刷新后不再重现**:「知道了」的已读标记此前只存于配置(balance.clickHintSeen),经 RPC 链路往返;当服务端/网关与客户端版本错位(如 dev link 模式下 dsh web 未重启,网关仍按旧版 typert schema 解码),decode 的 zod parse 会剥离 schema 未声明的键——v1.5.32 新增的 clickHintSeen 在到达浏览器前被剥掉,配置标记虽已成功落盘、客户端却永远读不到,导致引导卡每次刷新后重现。现已读标记改为**双通道**:配置标记(跨设备) + localStorage 本地兜底(读经 useState 惰性初始化、写先于 RPC 且不受其成败影响,隐私模式 try-catch 静默),任一生效即不再打扰。重启 dsh web 使服务端 schema 对齐后,配置标记通道亦恢复正常。
+
 ## [1.5.32] - 2026-08-21
 
 ### 新增

@@ -827,11 +827,19 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   // 更新后的引导卡:门控 + 挂常驻插槽 + 永久消失标记。
   assert.ok(clientSource.includes('function BalanceClickGuide('), 'BalanceClickGuide 组件定义存在')
   assert.ok(clientSource.includes('function BalanceClickGuide(') && clientSource.indexOf('function BalanceClickGuide(') < clientSource.indexOf('function BudgetBoxContent('), 'BalanceClickGuide 位于组件区')
-  assert.ok(clientSource.includes('if (dismissed || config.balance?.clickHintSeen === true || (!sidebarBalanceOn && !sidebarCustomOn && !sidebarPlansOn)) return null'), '引导卡按 dismissed(乐观)/clickHintSeen + 侧边栏可见性门控')
+  assert.ok(clientSource.includes('if (dismissed || lsSeen || config.balance?.clickHintSeen === true || (!sidebarBalanceOn && !sidebarCustomOn && !sidebarPlansOn)) return null'), '引导卡按 dismissed(乐观)/lsSeen(本地)/clickHintSeen + 侧边栏可见性门控')
   // 串行展示:横条引导未处理完(promptSeen)时本卡不出现,避免两张 fixed 顶部卡片重叠互顶。
   assert.ok(clientSource.includes('if (config.quotaStrip?.promptSeen !== true) return null'), '引导卡等横条引导处理完再出现(防 fixed 卡片重叠)')
   // 乐观消失:点击立即本地隐藏,落盘失败才恢复(e2e 已验证 RPC 往返,此为渲染时序兜底)。
   assert.ok(clientSource.includes('setDismissed(true)') && clientSource.includes('busyRef.current = false; setDismissed(false)'), '「知道了」乐观消失 + 失败恢复')
+  // 已读标记双通道:localStorage 本地兜底(刷新后重现修复)。
+  // 根因:服务端/网关运行旧版 typert schema 时,decode 的 zod parse 会剥离 schema 未声明的键,
+  // clickHintSeen(v1.5.32 新增声明)在 RPC 链路上被剥掉,客户端永远读不到 true。
+  // localStorage 不经 RPC,对版本错位/dev-link 场景免疫;读经 useState 惰性初始化(每挂载读一次)。
+  assert.ok(clientSource.includes("const BALANCE_CLICK_HINT_LS_KEY = 'dsh-cost-meter:balance-click-hint-seen'"), 'localStorage 键名常量存在')
+  assert.ok(clientSource.includes('useState(readBalanceClickHintLS)'), 'lsSeen 经 useState 惰性初始化(读一次)')
+  assert.ok(clientSource.includes("try { return window.localStorage.getItem(BALANCE_CLICK_HINT_LS_KEY) === '1' } catch (_) { return false }"), 'localStorage 读有 try-catch(隐私模式兜底)')
+  assert.ok(clientSource.includes('writeBalanceClickHintLS() // 本地兜底同步落点,不依赖 RPC 成败'), 'dismiss 同步写 localStorage(先于 RPC,不受其成败影响)')
   assert.ok(clientSource.includes("id: 'cost-meter-balance-click-guide'"), '引导卡挂常驻 sidebar.footer.action 插槽')
   assert.ok(clientSource.includes('clickHintSeen: true } })'), '「知道了」写回 clickHintSeen=true')
   // 双语文案:四个 key 在 zh/en 两张表各出现一次(键名出现 ≥ 2 次)。
