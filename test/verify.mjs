@@ -467,8 +467,50 @@ assert.equal(zaiWindows.fiveHour.percent, 30, 'GLM 5 小时档百分比 = used/t
 assert.equal(zaiWindows.weekly.percent, 20, 'GLM 周档百分比 = used/total')
 // 扣平窗口对象形态(utilization 为 0-1 小数)。
 const zaiFlat = parseZaiUsage({ five_hour: { utilization: 0.4, resets_at: '2026-08-17T04:00:00.000Z' } })
+assert.equal(zaiFlat.fiveHour, undefined, 'GLM 旧扁平形态不混入监控端点键名')
 assert.equal(zaiFlat.five_hour.percent, 40, 'GLM 扁平窗口小数归一')
 assert.equal(parseZaiUsage({}), null, 'GLM 空响应拒绝')
+
+// 5.3b) Z.ai/GLM 监控端点形态(issue #42:/api/monitor/usage/quota/limit 的 data.limits)。
+// 新套餐:unit 3(小时档)/6(周档)两窗口 + TIME_LIMIT(MCP 月度)忽略。
+const zaiMonitor = parseZaiUsage({
+  code: 200, msg: '操作成功', success: true,
+  data: {
+    limits: [
+      { type: 'TOKENS_LIMIT', unit: 3, number: 5, usage: 800000000, currentValue: 127694464, remaining: 672305536, percentage: 15.96, nextResetTime: 1770648402389 },
+      { type: 'TOKENS_LIMIT', unit: 6, number: 7, percentage: 44 },
+      { type: 'TIME_LIMIT', unit: 5, number: 1, usage: 1000, currentValue: 72, remaining: 928, percentage: 7, nextResetTime: 1776664808974 },
+    ],
+    level: 'pro',
+  },
+})
+assert.ok(zaiMonitor !== null, 'GLM 监控形态解析出窗口')
+assert.equal(zaiMonitor.fiveHour.percent, 16, 'GLM 监控形态 5h 档按 percentage 取整一位')
+assert.equal(zaiMonitor.fiveHour.resetsAt, new Date(1770648402389).toISOString(), 'GLM 监控形态 5h 档重置时间毫秒归一')
+assert.equal(zaiMonitor.weekly.percent, 44, 'GLM 监控形态周档按 unit=6 分配')
+assert.ok(zaiMonitor.monthly === undefined && zaiMonitor.mcp === undefined, 'GLM 监控形态 TIME_LIMIT(MCP 月度)不计入')
+// 老套餐:仅一条 TOKENS_LIMIT(无周档),unit/nextResetTime 可能缺失 → percentage 直接可用。
+const zaiMonitorLegacy = parseZaiUsage({
+  code: 200, success: true,
+  data: { limits: [{ type: 'TOKENS_LIMIT', unit: 3, number: 5, percentage: 2, nextResetTime: 1774967594803 }, { type: 'TIME_LIMIT', unit: 5, number: 1, usage: 1000, currentValue: 0, remaining: 1000, percentage: 0 }], level: 'pro' },
+})
+assert.equal(zaiMonitorLegacy.fiveHour.percent, 2, 'GLM 监控形态老套餐仅出 5h 档')
+assert.ok(zaiMonitorLegacy.weekly === undefined, 'GLM 监控形态老套餐无周档')
+// 无 unit 条目:按 nextResetTime 升序补位(0% 滚动窗口无重置时间排最前 → 5h 档)。
+const zaiMonitorNoUnit = parseZaiUsage({
+  code: 200, success: true,
+  data: { limits: [{ type: 'TOKENS_LIMIT', percentage: 44, nextResetTime: 1775000000000 }, { type: 'TOKENS_LIMIT', percentage: 53 }, { type: 'TIME_LIMIT', percentage: 7, usage: 1000, currentValue: 72, remaining: 928 }] },
+})
+assert.equal(zaiMonitorNoUnit.fiveHour.percent, 53, 'GLM 监控形态无 unit:无重置时间(0% 滚动窗口)排最前配 5h 档')
+assert.equal(zaiMonitorNoUnit.weekly.percent, 44, 'GLM 监控形态无 unit:有重置时间的补位周档')
+// percentage 缺失时用 currentValue/usage 反推(openusage 抓包样例字段)。
+const zaiMonitorDerived = parseZaiUsage({
+  code: 200, success: true,
+  data: { limits: [{ type: 'TOKENS_LIMIT', unit: 3, number: 5, usage: 800000000, currentValue: 400000000 }] },
+})
+assert.equal(zaiMonitorDerived.fiveHour.percent, 50, 'GLM 监控形态 percentage 缺失时 currentValue/usage 反推')
+// limits 全无可解析 token 窗口(仅 TIME_LIMIT)→ null(调用方透传错误信封)。
+assert.equal(parseZaiUsage({ code: 200, success: true, data: { limits: [{ type: 'TIME_LIMIT', usage: 1000, currentValue: 72 }] } }), null, 'GLM 监控形态仅 TIME_LIMIT 时拒绝')
 
 // 5.4) MiniMax 两种官方形态(token_plan_remains 窗口数组 / model_remains 计数制)。
 const mmToken = parseMiniMaxRemains({
@@ -1326,9 +1368,16 @@ assert.equal(parseSiliconFlowInfo({ code: 0, data: { balance: 12.345 } }).balanc
 assert.equal(parseSiliconFlowInfo({ data: { name: 'x' } }), null, 'SiliconFlow 无余额字段安全')
 assert.ok(CODING_PLAN_ENDPOINTS.openrouter.every(u => new URL(u).host.endsWith('openrouter.ai')), 'OpenRouter 官方域名')
 assert.ok(CODING_PLAN_ENDPOINTS.siliconflow.every(u => new URL(u).host.endsWith('siliconflow.cn')), 'SiliconFlow 官方域名')
-// Z.ai 双域名白名单 + v3 优先(issue #17:v4 带有效 Key 返 404,v3 存活)。
+// Z.ai 双域名白名单 + monitor 端点优先(issue #42:额度查询迁移到 /api/monitor/usage/quota/limit;
+// issue #17 的 v3 旧计费端点保留兜底)。国内 Key(bigmodel.cn)排最前,国际 Key(z.ai)次之——
+// 两域 Key 不互通,queryCodingPlan 对 zai 的单域 401 继续换域尝试。
 assert.ok(CODING_PLAN_ENDPOINTS.zai.every(u => new URL(u).host.endsWith('z.ai') || new URL(u).host.endsWith('bigmodel.cn')), 'Z.ai 官方双域名')
-assert.ok(CODING_PLAN_ENDPOINTS.zai[0].includes('/v3/') && CODING_PLAN_ENDPOINTS.zai[1].includes('/v3/'), 'Z.ai v3 端点优先')
+assert.ok(CODING_PLAN_ENDPOINTS.zai[0].endsWith('bigmodel.cn/api/monitor/usage/quota/limit') && CODING_PLAN_ENDPOINTS.zai[1].endsWith('z.ai/api/monitor/usage/quota/limit'), 'Z.ai 监控端点(issue #42)两域优先')
+assert.ok(CODING_PLAN_ENDPOINTS.zai.slice(2).some(u => u.includes('/v3/')), 'Z.ai v3 旧计费端点保留兜底(issue #17)')
+{
+  const codingPlansSource = readFileSync(new URL('../lib/coding-plans.js', import.meta.url), 'utf8')
+  assert.ok(codingPlansSource.includes("if (provider === 'zai') { lastError = error; continue }"), 'Z.ai 单域 401 换域重试(两域 Key 不互通)')
+}
 // CommandCode(issue #30):窗口 used/cap 已用% + epoch 毫秒重置时刻 + 月度 Credits 余额文本。
 {
   const cc = parseCommandCodeCredits({
