@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.37] - 2026-08-22
+
+### 修复
+
+- **GLM Coding Lite 套餐(CREDIT_LIMIT)额度查询失败(issue #44,感谢 @always190515 的完整根因分析)**:Lite 套餐的 monitor 端点响应中 limits 条目为 `CREDIT_LIMIT` 类型(按 Credit 计费),与 #42 适配的 `TOKENS_LIMIT`(Pro/Max)不同,被解析器跳过导致解析为空、回落到 404 的旧计费端点,报错误导。现监控窗口映射同时接受 `CREDIT_LIMIT`——其 `percentage`/`currentValue`/`usage` 与 `unit` 语义和 `TOKENS_LIMIT` 完全一致(unit=3 → 5 小时档、unit=6 → 周档)。
+- **Coding Plan 端点循环错误优先级(issue #44 建议 2)**:全部端点失败时,「200 但解析失败」的结构化错误(业务信封 / 结构已变)优先于最后端点的传输层错误(404 等)抛出,不再让兜底端点的 404 盖住主端点解析失败的真实原因。
+
 ## [1.5.36] - 2026-08-22
 
 ### 修复

@@ -512,6 +512,30 @@ assert.equal(zaiMonitorDerived.fiveHour.percent, 50, 'GLM 监控形态 percentag
 // limits 全无可解析 token 窗口(仅 TIME_LIMIT)→ null(调用方透传错误信封)。
 assert.equal(parseZaiUsage({ code: 200, success: true, data: { limits: [{ type: 'TIME_LIMIT', usage: 1000, currentValue: 72 }] } }), null, 'GLM 监控形态仅 TIME_LIMIT 时拒绝')
 
+// 5.3c) GLM Coding Lite 套餐:CREDIT_LIMIT 窗口(issue #44 实测响应体,
+// percentage/currentValue/usage 与 unit 语义同 TOKENS_LIMIT)。
+const zaiLite = parseZaiUsage({
+  code: 200, msg: '操作成功', success: true,
+  data: {
+    limits: [
+      { type: 'CREDIT_LIMIT', unit: 3, number: 5, usage: 2000, currentValue: 267, remaining: 1732, percentage: 13, nextResetTime: 1787396197660 },
+      { type: 'CREDIT_LIMIT', unit: 6, number: 1, usage: 10000, currentValue: 634, remaining: 9365, percentage: 6, nextResetTime: 1787927853998 },
+    ],
+    level: 'lite',
+  },
+})
+assert.ok(zaiLite !== null, 'GLM Lite CREDIT_LIMIT 形态解析出窗口')
+assert.equal(zaiLite.fiveHour.percent, 13, 'GLM Lite 5h 档(unit=3)按 percentage')
+assert.equal(zaiLite.fiveHour.resetsAt, new Date(1787396197660).toISOString(), 'GLM Lite 5h 档重置时间')
+assert.equal(zaiLite.weekly.percent, 6, 'GLM Lite 周档(unit=6)按 percentage')
+assert.equal(zaiLite.weekly.resetsAt, new Date(1787927853998).toISOString(), 'GLM Lite 周档重置时间')
+// CREDIT_LIMIT percentage 缺失时同样用 currentValue/usage 反推。
+const zaiLiteDerived = parseZaiUsage({
+  code: 200, success: true,
+  data: { limits: [{ type: 'CREDIT_LIMIT', unit: 3, number: 5, usage: 2000, currentValue: 500 }], level: 'lite' },
+})
+assert.equal(zaiLiteDerived.fiveHour.percent, 25, 'GLM Lite percentage 缺失时 currentValue/usage 反推')
+
 // 5.4) MiniMax 两种官方形态(token_plan_remains 窗口数组 / model_remains 计数制)。
 const mmToken = parseMiniMaxRemains({
   base_resp: { status_code: 0 },
@@ -1377,6 +1401,11 @@ assert.ok(CODING_PLAN_ENDPOINTS.zai.slice(2).some(u => u.includes('/v3/')), 'Z.a
 {
   const codingPlansSource = readFileSync(new URL('../lib/coding-plans.js', import.meta.url), 'utf8')
   assert.ok(codingPlansSource.includes("if (provider === 'zai') { lastError = error; continue }"), 'Z.ai 单域 401 换域重试(两域 Key 不互通)')
+  // issue #44:全部端点失败时,解析失败(200 但结构不对)优先于最后端点的 404 报出,
+  // 避免 v4 计费端点 404 盖住 monitor 端点解析失败的真实原因。
+  assert.ok(codingPlansSource.includes('parseError ??= error'), '200-but-parse-null 错误单独保留')
+  assert.ok(codingPlansSource.includes('throw parseError ?? lastError ??'), '解析失败错误最终优先抛出(issue #44 误导性 404)')
+  assert.ok(codingPlansSource.includes("limit.type !== 'CREDIT_LIMIT'"), 'GLM Lite CREDIT_LIMIT 窗口接受(issue #44)')
 }
 // CommandCode(issue #30):窗口 used/cap 已用% + epoch 毫秒重置时刻 + 月度 Credits 余额文本。
 {

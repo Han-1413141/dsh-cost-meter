@@ -3,6 +3,11 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.37(2026-08-22)—— 智谱 Lite 套餐适配
+
+- **修复:GLM Coding Lite 套餐额度查询失败(issue #44)**:v1.5.36 适配的智谱新接口只认 Pro/Max 套餐的 `TOKENS_LIMIT` 条目,Lite 套餐返回的是 `CREDIT_LIMIT`(按 Credit 计费),被跳过后回落到已 404 的旧端点,报「HTTP 404」误导排查方向。已一并接受 `CREDIT_LIMIT`(字段语义完全一致),Lite 用户现在能正常看到 5 小时档 / 每周档额度。
+- **改进:Coding Plan 查询报错不再指错方向(issue #44 建议)**:多端点尝试全部失败时,优先报「主端点返回了数据但结构解析失败」这一更有诊断价值的错误,不再被兜底端点的 404 盖住。
+
 ## v1.5.36(2026-08-22)—— 智谱 Coding Plan 新接口适配
 
 - **修复:智谱 / Z.ai Coding Plan 额度查询失效(issue #42)**:智谱官方把额度接口迁移到了 `/api/monitor/usage/quota/limit`,旧接口对新套餐不再返回数据,导致面板查询报错。已适配新接口的 5 小时档 + 每周两窗口(含老套餐单窗口形态),并保留旧接口兜底。另修复一个老问题:国内(bigmodel.cn)与国际(z.ai)的 Key 不互通,以前国内 Key 先请求国际域名收到 401 会直接报「凭据无效」,现在会自动换域重试、全部失败才提示。
