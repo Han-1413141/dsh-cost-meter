@@ -27,7 +27,8 @@ import {
   providerPriceEntryFor,
 } from '../lib/pricing.js'
 import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays, officialCostOfDay } from '../lib/store.js'
-import { backfillLegacyLedger, importLegacyHistory, replaySessionRecords, repairForkSeed, scanZstdFrames } from '../lib/backfill.js'
+import { backfillLegacyLedger, importLegacyHistory, replaySessionRecords, repairForkSeed, repairProviderDupes, scanZstdFrames } from '../lib/backfill.js'
+import { createLlmStreamBilling } from '../lib/billing-stream.js'
 import { TYPERT, stateSchema } from '../lib/typert.host.js'
 import { isTransientFetchError, fetchWithRetry } from '../lib/net.js'
 import vm from 'node:vm'
@@ -815,6 +816,33 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   assert.ok(clientSource.includes('setPreview(kind)'), '预览状态可设置')
   assert.ok(clientSource.includes('dismiss = () => setPreview(null)'), '预览弹窗关闭清除预览态')
   console.log('[ok] 峰/谷切换弹窗提醒配置(默认值/校验/清洗/双端声明/组件接线/真实预览通道)通过')
+}
+
+// 5.9b) 隐藏金额(隐私模式,issues #45/#46):默认关;校验/清洗/typert 声明/
+// 客户端三处金额格式化遮罩/设置开关/parseConfig 白名单(顺带修复 showSessionId
+// 自 938975a 起遗漏白名单导致读侧恒 undefined 的既有缺陷)。
+{
+  const base = sanitizeConfig({})
+  assert.equal(base.hideAmounts, false, '隐私模式默认关闭')
+  const patched = applyConfigPatch(base, { hideAmounts: true })
+  assert.equal(patched.errors.length, 0, '合法布尔补丁通过')
+  assert.equal(patched.config.hideAmounts, true, '隐私模式可开启')
+  assert.ok(applyConfigPatch(base, { hideAmounts: 'yes' }).errors.length > 0, '非布尔开关被拒')
+  assert.equal(sanitizeConfig({ ...base, hideAmounts: 'x' }).hideAmounts, false, '非法值清洗为关')
+  assert.equal(sanitizeConfig({ ...base, hideAmounts: true }).hideAmounts, true, '合法值保留')
+  const hostTypert = readFileSync(new URL('../lib/typert.host.js', import.meta.url), 'utf8')
+  assert.ok(hostTypert.includes('hideAmounts: z.boolean().optional()'), 'typert config 声明 hideAmounts(网关不剥离)')
+  const clientSource = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.ok(clientSource.includes("if (config?.hideAmounts === true) return symbol + '***'"), 'formatMoneyValue 隐私遮罩(费用/会话/历史/预算全链路)')
+  assert.ok(clientSource.includes('hideAmounts: config.hideAmounts'), 'formatBalanceMoney 透传隐私开关')
+  assert.ok(clientSource.includes('// 隐私模式(issues #45/#46):自定义 Provider 余额同口径遮罩'), 'formatCustomBalanceMoney 遮罩')
+  assert.ok(clientSource.includes("setField('hideAmounts'"), '设置 UI 含隐私模式开关')
+  assert.ok(clientSource.includes('hideAmountsLabel'), '开关文案存在(zh/en)')
+  assert.ok(clientSource.includes('hideAmounts: v.hideAmounts === true'), 'parseConfig 白名单含 hideAmounts(读侧不剥离)')
+  assert.ok(clientSource.includes('showSessionId: v.showSessionId === true'), 'parseConfig 白名单补齐 showSessionId(既有缺陷修复)')
+  const indexSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.ok(indexSource.includes("ledger.config?.hideAmounts === true ? '$***'"), '对账提示金额服务端同步遮罩')
+  console.log('[ok] 隐藏金额隐私模式(默认值/校验/清洗/typert/三处格式化遮罩/设置开关/白名单)通过')
 }
 
 // 输入框上方额度横条(v1.5.27):默认关、三类内容开关、首次引导 promptSeen 门控、
@@ -1741,6 +1769,176 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(indexSource.includes('repairForkSeed(ledger, sessionsRoot)') && indexSource.includes("'fork-seed-dedup-v1'"), '启动导入接入一次性清洗(migrations 标记防重跑)')
   rmSync(root, { recursive: true, force: true })
   console.log('[ok] fork 会话种子去重(回放双段聚合/账本清洗扣除/父会话与普通会话不动/投影接线)通过')
+}
+
+// 8f) 包装路由嵌套去重(issue #48):modlens/vision-router 的适配器在自身
+// stream() 体内再发起 ctx.llm.stream(换 provider 上游),旧版计费监听器在
+// 瀑布每层都记账(同请求 ×2~3)。createLlmStreamBilling 用 AsyncLocalStorage
+// 深度标记:只有最外层包装计费一次。真实流行为测试,非源码断言。
+{
+  // 模拟宿主 llm.stream 瀑布:监听器链尾直接接 provider 适配器。
+  const makeBilled = () => {
+    const billed = []
+    const listener = createLlmStreamBilling({
+      account: (usage, model, sessionId, atMs, provider) => billed.push({ usage: { ...usage }, model, sessionId, provider, atMs }),
+    })
+    return { billed, listener }
+  }
+  const officialAdapter = async function* () {
+    yield { type: 'text', text: 'hello' }
+    yield { type: 'usage', usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 5, cacheWriteTokens: 0, reasoningTokens: 0 } }
+    yield { type: 'finish' }
+  }
+  // 包装路由适配器(modlens 形态):先 await(模拟 convertImagesToEvidence)
+  // 再嵌套发起 llm.stream 换上游 provider——验证 ALS 标记穿透 await。
+  const wrapAdapter = (llm, upstream) => async function* (options) {
+    await Promise.resolve()
+    yield* llm({ ...options, provider: upstream })
+  }
+  const buildLlm = (listener) => {
+    const adapters = {}
+    const llm = options => listener(options, () => adapters[options.provider](options))
+    adapters['deepseek-official'] = officialAdapter
+    adapters['deepseek-modlens'] = wrapAdapter(llm, 'deepseek-official')
+    adapters['deepseek-modlens-vision'] = wrapAdapter(llm, 'deepseek-modlens')
+    return { llm, adapters }
+  }
+  // ① 双层嵌套(modlens-vision → modlens → official):只记一次,按最外层路由。
+  {
+    const { billed, listener } = makeBilled()
+    const { llm } = buildLlm(listener)
+    const chunks = []
+    for await (const chunk of llm({ provider: 'deepseek-modlens-vision', model: 'deepseek-v4-flash', sessionId: 's-48' })) {
+      chunks.push(chunk)
+    }
+    assert.equal(billed.length, 1, '双层包装路由只由最外层记一次账(旧版记 3 次)')
+    assert.equal(billed[0].provider, 'deepseek-modlens-vision', '按最外层路由入账')
+    assert.equal(billed[0].model, 'deepseek-v4-flash', '模型沿包装链透传')
+    assert.equal(billed[0].sessionId, 's-48', '会话 id 沿包装链透传')
+    assert.equal(billed[0].usage.inputTokens, 100, 'usage 五桶完整')
+    assert.ok(Number.isFinite(billed[0].atMs) && billed[0].atMs > 0, '计费时刻为有效时间戳')
+    assert.deepEqual(chunks.map(c => c.type), ['text', 'usage', 'finish'], '数据块完整透传(顺序与内容不变)')
+  }
+  // ② 单层直连(official):行为与旧版一致,恰记一次。
+  {
+    const { billed, listener } = makeBilled()
+    const { llm } = buildLlm(listener)
+    const chunks = []
+    for await (const chunk of llm({ provider: 'deepseek-official', model: 'deepseek-v4-flash', sessionId: 's-plain' })) chunks.push(chunk)
+    assert.equal(billed.length, 1, '无包装直连恰记一次')
+    assert.equal(billed[0].provider, 'deepseek-official', '直连按 official 入账')
+    assert.equal(chunks.length, 3, '直连块数不变')
+  }
+  // ③ 并发隔离:两个独立外层流交错拉取,各记一次(ALS 按异步上下文隔离)。
+  {
+    const { billed, listener } = makeBilled()
+    const { llm } = buildLlm(listener)
+    const iterA = llm({ provider: 'deepseek-modlens', model: 'deepseek-v4-flash', sessionId: 'a' })[Symbol.asyncIterator]()
+    const firstA = await iterA.next()
+    assert.equal(firstA.value.type, 'text', '流 A 先拉一段')
+    const chunksB = []
+    for await (const chunk of llm({ provider: 'deepseek-official', model: 'deepseek-v4-flash', sessionId: 'b' })) chunksB.push(chunk)
+    assert.equal(chunksB.length, 3, '流 B 在流 A 挂起期间完整消费')
+    let restA = 0
+    for (;;) {
+      const r = await iterA.next()
+      if (r.done) break
+      restA += 1
+    }
+    assert.equal(restA, 2, '流 A 剩余块(usage/finish)拉完')
+    assert.equal(billed.length, 2, '两条独立流各记一次(无误杀)')
+    assert.deepEqual(billed.map(b => b.sessionId).sort(), ['a', 'b'], '两次入账会话正确')
+  }
+  // ④ 流中途抛错:已捕获 usage 仍经 finally 记账,错误向消费方传播。
+  {
+    const { billed, listener } = makeBilled()
+    const adapters = { 'deepseek-official': async function* () {
+      yield { type: 'text', text: 'x' }
+      yield { type: 'usage', usage: { inputTokens: 7, outputTokens: 3, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 } }
+      throw new Error('boom')
+    } }
+    const llm = options => listener(options, () => adapters[options.provider](options))
+    const chunks = []
+    await assert.rejects(async () => {
+      for await (const chunk of llm({ provider: 'deepseek-official', model: 'deepseek-v4-flash', sessionId: 's-err' })) chunks.push(chunk)
+    }, /boom/, '错误传播到消费方')
+    assert.equal(billed.length, 1, '流中途抛错,已捕获 usage 仍在 finally 记账')
+    assert.equal(billed[0].usage.inputTokens, 7, '崩溃流记账数据完整')
+    assert.equal(chunks.length, 2, '崩溃前的块已透传')
+  }
+  // ⑤ 接线:index.js 使用 createLlmStreamBilling 且 migrations 门控 provider-dedup-v1。
+  {
+    const indexSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+    assert.ok(indexSource.includes('createLlmStreamBilling('), 'index.js 接入 createLlmStreamBilling(嵌套去重监听器)')
+    assert.ok(indexSource.includes('repairProviderDupes(ledger)') && indexSource.includes("'provider-dedup-v1'"), '启动导入接入一次性清洗(migrations 标记防重跑)')
+  }
+  console.log('[ok] 包装路由嵌套去重(双层只记一次/直连不变/并发隔离/崩溃流 finally 记账/接线)通过')
+}
+
+// 8g) 包装路由重复计费一次性清洗(issue #48):复刻报告者 08-22 账本——
+// official/modlens/modlens-vision 三行 40 次调用 token 逐位相同(同一批
+// 请求 ×3),deepseek-vision 的 24 次独立记录不动。
+{
+  const cfg = sanitizeConfig({})
+  const dayKey = '2026-08-22'
+  const triple = { input: 334730, output: 62050, cacheRead: 6108544, cacheWrite: 0, reasoning: 0, calls: 40, cost: 0.3147 }
+  const vision = { input: 74347, output: 24815, cacheRead: 1171328, cacheWrite: 0, reasoning: 0, calls: 24, cost: 0.0819 }
+  const pollutedPm = () => ({
+    'deepseek-vision:deepseek-v4-flash': { ...vision },
+    'deepseek-official:deepseek-v4-flash': { ...triple },
+    'deepseek-modlens:deepseek-v4-flash': { ...triple },
+    'deepseek-modlens-vision:deepseek-v4-flash': { ...triple },
+  })
+  const session = {
+    id: 's-48', input: vision.input + 3 * triple.input, output: vision.output + 3 * triple.output,
+    cacheRead: vision.cacheRead + 3 * triple.cacheRead, cacheWrite: 0, reasoning: 0,
+    calls: vision.calls + 3 * triple.calls, cost: vision.cost + 3 * triple.cost,
+    byProviderModel: pollutedPm(),
+  }
+  const day = {
+    date: dayKey, input: vision.input + 3 * triple.input, output: vision.output + 3 * triple.output,
+    cacheRead: vision.cacheRead + 3 * triple.cacheRead, cacheWrite: 0, reasoning: 0,
+    calls: vision.calls + 3 * triple.calls, cost: vision.cost + 3 * triple.cost,
+    byProviderModel: pollutedPm(), sessions: [session],
+  }
+  // 对照日:同 token 不同模型(不合并)、同模型不同 calls(不合并)。
+  const day2 = {
+    date: '2026-08-23', input: 300, output: 3, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 4, cost: 0.04,
+    byProviderModel: {
+      'alpha:model-x': { input: 100, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.01 },
+      'beta:model-y': { input: 100, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.01 },
+      'gamma:model-x': { input: 100, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 2, cost: 0.02 },
+    },
+    sessions: [],
+  }
+  const ledger = new Ledger(cfg, { [dayKey]: day, '2026-08-23': day2 }, join(tmpdir(), `cm-dedupe-${Date.now()}.json`))
+  let scheduled = 0
+  ledger.scheduleWrite = () => { scheduled += 1 }
+  const repaired = repairProviderDupes(ledger)
+  assert.equal(repaired.groups, 2, '两组重复(day 容器与 session 容器各一组)')
+  assert.ok(Math.abs(repaired.removedCost - 4 * 0.3147) < 1e-12, 'day+session 各扣除两份重复金额')
+  // day 容器:剩 vision 独立 + 三选一(字母序第一个);顶层合计修正为真实值。
+  assert.deepEqual(Object.keys(day.byProviderModel).sort(), ['deepseek-modlens-vision:deepseek-v4-flash', 'deepseek-vision:deepseek-v4-flash'], '重复三份合并为一份(保留字母序第一个)')
+  assert.equal(day.byProviderModel['deepseek-vision:deepseek-v4-flash'].calls, 24, 'vision 独立记录不动(calls)')
+  assert.equal(day.byProviderModel['deepseek-modlens-vision:deepseek-v4-flash'].calls, 40, '保留份 calls 不变')
+  assert.equal(day.calls, 24 + 40, 'day 顶层 calls 修正为 64(24+40,旧 144)')
+  assert.equal(day.input, 74347 + 334730, 'day 顶层 input 修正')
+  assert.ok(Math.abs(day.cost - (0.0819 + 0.3147)) < 1e-12, 'day 顶层金额修正为真实消耗')
+  // session 容器:同构清洗。
+  assert.deepEqual(Object.keys(session.byProviderModel).sort(), ['deepseek-modlens-vision:deepseek-v4-flash', 'deepseek-vision:deepseek-v4-flash'], 'session 容器同样合并')
+  assert.equal(session.calls, 64, 'session 顶层 calls 修正')
+  assert.ok(Math.abs(session.cost - (0.0819 + 0.3147)) < 1e-12, 'session 顶层金额修正')
+  // 对照日:指纹不全同(不同模型/不同 calls)的条目一律不动。
+  assert.equal(Object.keys(day2.byProviderModel).length, 3, '不同模型同 token 不合并')
+  assert.equal(day2.calls, 4, '同模型不同 calls 不合并,顶层不动')
+  assert.equal(day2.byProviderModel['gamma:model-x'].calls, 2, '同模型不同 calls 条目不动')
+  // 幂等:再跑无变化(生产由 migrations 门控,函数自身亦无残留可清)。
+  const again = repairProviderDupes(ledger)
+  assert.equal(again.groups, 0, '二次执行无重复组')
+  assert.equal(again.removedCost, 0, '二次执行无扣除')
+  assert.equal(day.calls, 64, '二次执行数据不变')
+  assert.ok(scheduled >= 1, '清洗后调度落盘')
+  console.log('[ok] 包装路由重复清洗(三份合一/顶层与 session 修正/独立记录与近似指纹不动/幂等)通过')
 }
 
 // 8c) 会话标题配置链与 schema:showSessionId 三处齐全;sessionSchema 接受可选 title。

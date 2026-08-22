@@ -3,6 +3,11 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.38(2026-08-22)—— 包装路由去重 + 隐私模式
+
+- **修复:modlens / vision-router 包装路由下费用虚高 2~3 倍(issue #48,报告者 @aiseaai)**:这类包装插件会在内部把请求再转发一层给上游 provider,旧版计费把每层都当成独立请求记账(报告者当天账本里 official / modlens / modlens-vision 三行 token 逐位相同,同一批请求记了 3 份)。现已改为只由最外层记一次账,直连官方路由数字不变。**升级后首次启动会自动扣除已污染的重复账目**(按 token 指纹逐位相同识别,真实调用不受影响),今日费用会立刻回落到与官网一致。
+- **新增:隐藏金额隐私模式(issues #45 / #46,建议者 @JayWu199751)**:「设置 → 费用 → 显示设置 → 隐藏金额(隐私模式)」一键把所有余额与费用金额遮罩为「$ ***」——共享屏幕、截图不再泄露消费数字,token 统计照常显示。
+
 ## v1.5.37(2026-08-22)—— 智谱 Lite 套餐适配
 
 - **修复:GLM Coding Lite 套餐额度查询失败(issue #44)**:v1.5.36 适配的智谱新接口只认 Pro/Max 套餐的 `TOKENS_LIMIT` 条目,Lite 套餐返回的是 `CREDIT_LIMIT`(按 Credit 计费),被跳过后回落到已 404 的旧端点,报「HTTP 404」误导排查方向。已一并接受 `CREDIT_LIMIT`(字段语义完全一致),Lite 用户现在能正常看到 5 小时档 / 每周档额度。
