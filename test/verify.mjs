@@ -24,6 +24,8 @@ import {
   DEFAULT_PEAK_WINDOWS,
   LEGACY_BASE_BOUNDARY,
   LEGACY_BASE_PRICES,
+  LEGACY_BASE_PRICES_CNY,
+  usdFromCost,
   providerPriceEntryFor,
 } from '../lib/pricing.js'
 import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays, officialCostOfDay } from '../lib/store.js'
@@ -97,6 +99,98 @@ try {
   console.log('[ok] 页面解析与 legacyBase 附带通过')
 } catch (error) {
   console.warn('[warn] 官方页面解析跳过:', error?.message ?? error)
+}
+
+// 1b) 中文官方页解析(issue #47 人民币原生计价):fixture 与英文页同构,
+// 仅标签与货币符号不同;断言币种自动检测/空闲-高峰两档/北京时间窗口
+// -8h 折算/人民币 legacyBase 与 default 随币种附带。
+{
+  const zhHtml = [
+    '<table>',
+    '<tr><td>模型</td><td>deepseek-v4-flash</td><td>deepseek-v4-pro</td></tr>',
+    '<tr><td>百万tokens输入(缓存命中)</td><td>空闲时段</td><td>0.02元</td><td>0.025元</td></tr>',
+    '<tr><td>高峰时段</td><td>0.04元</td><td>0.05元</td></tr>',
+    '<tr><td>百万tokens输入(缓存未命中)</td><td>空闲时段</td><td>1元</td><td>3元</td></tr>',
+    '<tr><td>高峰时段</td><td>2元</td><td>6元</td></tr>',
+    '<tr><td>百万tokens输出</td><td>空闲时段</td><td>2元</td><td>6元</td></tr>',
+    '<tr><td>高峰时段</td><td>4元</td><td>12元</td></tr>',
+    '</table>',
+    '<p>高峰时段为北京时间 09:30 - 12:00、13:30 - 18:00(UTC+8)</p>',
+  ].join('')
+  const parsed = parsePricingHtml(zhHtml)
+  assert.equal(parsed.currency, 'CNY', '人民币页按金额符号检测为 CNY')
+  const zhFlash = parsed.models['deepseek-v4-flash']
+  assert.deepEqual([zhFlash.cacheHit, zhFlash.cacheMiss, zhFlash.output], [0.02, 1, 2], 'flash 空闲档 = 人民币官方价')
+  assert.deepEqual([zhFlash.peak.cacheHit, zhFlash.peak.cacheMiss, zhFlash.peak.output], [0.04, 2, 4], 'flash 高峰档 = 空闲档两倍')
+  assert.deepEqual(zhFlash.legacyBase, LEGACY_BASE_PRICES_CNY['deepseek-v4-flash'], '人民币页附带人民币 legacyBase')
+  assert.deepEqual(parsed.default, { cacheHit: 0.02, cacheMiss: 1, output: 2 }, 'default = 首个模型空闲档(随价表币种)')
+  assert.deepEqual(parsed.peakWindows, [{ start: 1, end: 4 }, { start: 5, end: 10 }], '北京时间窗口 -8h 折算为 UTC')
+  assert.equal(parsed.effectiveAt, null, '两档方案即时生效:无生效时间')
+  console.log('[ok] 中文官方页解析(币种检测/两档/北京时间-8h/人民币 legacyBase/default)通过')
+}
+
+// 1c) usdFromCost(账本恒美元存储,issue #47):人民币成本按展示汇率折算入账,
+// 展示时乘回同一汇率即往返抵消。
+assert.equal(usdFromCost(7.2, 'CNY', 7.2), 1, 'CNY 成本按汇率折算为美元')
+assert.equal(usdFromCost(7.2, 'USD', 7.2), 7.2, 'USD 成本原值入账')
+assert.equal(usdFromCost(7.2, 'CNY', 0), 7.2, '非法汇率按 1 兜底')
+assert.equal(usdFromCost(7.2, 'CNY', Number.NaN), 7.2, 'NaN 汇率按 1 兜底')
+assert.equal(usdFromCost(-5, 'CNY', 7.2), 0, '负成本防御为 0')
+assert.equal(usdFromCost('oops', 'CNY', 7.2), 0, '非数字成本防御为 0')
+assert.equal(formatMoney(usdFromCost(3, 'CNY', 7.2), { exchangeRate: 7.2, symbol: '¥', decimals: 4 }), '¥3', 'CNY 计费-展示往返汇率抵消')
+console.log('[ok] usdFromCost(CNY 折算/USD 原值/非法兜底/往返抵消)通过')
+
+// 1d) 人民币价表端到端计费(issue #47):prices.currency=CNY 时 DeepSeek 主表
+// 成本按人民币计、除展示汇率折算为美元入账;第三方 flat 价恒为美元不折算。
+{
+  process.env.DSH_HOME = join(tmpdir(), 'dsh-cost-meter-test-home-cny')
+  rmSync(process.env.DSH_HOME, { recursive: true, force: true })
+  const zhLedger = Ledger.open()
+  const cnyPatch = applyConfigPatch(zhLedger.config, {
+    pricingCurrency: 'CNY',
+    exchangeRate: 7.2,
+    prices: {
+      currency: 'CNY',
+      models: { 'deepseek-v4-flash': { cacheHit: 0.02, cacheMiss: 1, output: 2 } },
+      default: { cacheHit: 0.02, cacheMiss: 1, output: 2 },
+      providers: { openrouter: { models: { 'flat-model': { input: 3, output: 9, billingMode: 'flat' } } } },
+    },
+  })
+  assert.equal(cnyPatch.errors.length, 0, 'CNY 价表配置补丁通过: ' + cnyPatch.errors.join(';'))
+  assert.equal(cnyPatch.config.pricingCurrency, 'CNY', '官方价格币种可切换为 CNY')
+  assert.ok(applyConfigPatch(zhLedger.config, { pricingCurrency: 'EUR' }).errors.length > 0, '非法币种被拒')
+  assert.equal(sanitizeConfig({ ...sanitizeConfig({}), pricingCurrency: 'CNY' }).pricingCurrency, 'CNY', '合法币种清洗保留')
+  assert.equal(sanitizeConfig({ ...sanitizeConfig({}), pricingCurrency: 'x' }).pricingCurrency, 'USD', '非法币种清洗回落 USD')
+  zhLedger.config = cnyPatch.config
+  // 100 万输入(未命中) + 100 万输出 = 1 + 2 = 3 元,除汇率 7.2 入账。
+  zhLedger.account({ input: 1_000_000, output: 1_000_000, cacheRead: 0, cacheWrite: 0 }, 'deepseek-v4-flash', 's-cny', Date.now())
+  // 第三方 flat 价(恒美元):3 + 9 = 12 美元原值入账,不随主表币种折算。
+  zhLedger.account({ input: 1_000_000, output: 1_000_000, cacheRead: 0, cacheWrite: 0 }, 'flat-model', 's-flat', Date.now(), 'openrouter')
+  zhLedger.flush()
+  const cnyDay = Object.values(zhLedger.days)[0]
+  assert.ok(Math.abs(cnyDay.byProviderModel['deepseek:deepseek-v4-flash'].cost - 3 / 7.2) < 1e-12, '人民币价表成本除汇率折算为美元入账')
+  assert.ok(Math.abs(cnyDay.byProviderModel['openrouter:flat-model'].cost - 12) < 1e-12, '第三方 flat 价恒为美元不折算')
+  assert.ok(Math.abs(cnyDay.cost - (3 / 7.2 + 12)) < 1e-12, '日合计 = 两口径之和')
+  console.log('[ok] 人民币价表端到端计费(主表折算/第三方不折算/合计)通过')
+}
+
+// 1e) 源码接线断言(issue #47):fetchPrices 按币种选官方页/失败回退另一语言页/
+// 价表币种标记/default 替换;设置页币种下拉与读侧白名单;backfill 回放同口径。
+{
+  const indexSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.ok(indexSource.includes("const url = pricingCurrency === 'CNY' ? OFFICIAL_PRICING_URL_ZH : OFFICIAL_PRICING_URL"), 'fetchPricingHtml 按币种选官方页')
+  assert.ok(indexSource.includes("parsePricingHtml(await fetchPricingHtml(locale, wanted === 'CNY' ? 'USD' : 'CNY'))"), '目标币种页失败回退另一语言页')
+  assert.ok(indexSource.includes("currency: parsed.currency === 'CNY' ? 'CNY' : 'USD'"), '同步写入价表币种标记')
+  assert.ok(indexSource.includes('...(def === null ? {} : { default: def })'), 'default 随页面替换(不残留旧币种数字)')
+  assert.ok(indexSource.includes('pricesSyncedFallback'), '回退提示文案存在(zh/en)')
+  const clientSource = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.ok(clientSource.includes("setField('pricingCurrency'"), '设置页含官方价格币种下拉')
+  assert.ok(clientSource.includes("pricingCurrency: v.pricingCurrency === 'CNY' ? 'CNY' : 'USD'"), 'parseConfig 白名单含 pricingCurrency(读侧不剥离)')
+  const backfillSource = readFileSync(new URL('../lib/backfill.js', import.meta.url), 'utf8')
+  assert.ok(backfillSource.includes('usdFromCost(priced,'), '历史回填与实时计费同口径折算')
+  const hostTypert = readFileSync(new URL('../lib/typert.host.js', import.meta.url), 'utf8')
+  assert.ok(hostTypert.includes("pricingCurrency: z.enum(['USD', 'CNY']).optional()"), 'typert 声明 pricingCurrency(网关不剥离)')
+  console.log('[ok] 人民币计价接线(选页/回退/币种标记/default 替换/下拉/白名单/回放同口径)通过')
 }
 
 // 2) 计费数学(内置价格表,离线可跑)。
@@ -818,31 +912,48 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   console.log('[ok] 峰/谷切换弹窗提醒配置(默认值/校验/清洗/双端声明/组件接线/真实预览通道)通过')
 }
 
-// 5.9b) 隐藏金额(隐私模式,issues #45/#46):默认关;校验/清洗/typert 声明/
-// 客户端三处金额格式化遮罩/设置开关/parseConfig 白名单(顺带修复 showSessionId
-// 自 938975a 起遗漏白名单导致读侧恒 undefined 的既有缺陷)。
+// 5.9b) UI 隐藏开关(issues #45/#46):隐藏官方余额/今日消耗金额——开启后对应
+// UI 区块整体不渲染(而非 v1.5.38 的金额打星隐私模式,后者已移除);默认关;
+// 校验/清洗/typert 声明/渲染门控/设置开关/parseConfig 白名单(顺带保留
+// showSessionId 白名单修复的防回归断言)。
 {
   const base = sanitizeConfig({})
-  assert.equal(base.hideAmounts, false, '隐私模式默认关闭')
-  const patched = applyConfigPatch(base, { hideAmounts: true })
+  assert.equal(base.hideOfficialBalance, false, '隐藏官方余额默认关闭')
+  assert.equal(base.hideTodayCost, false, '隐藏今日消耗默认关闭')
+  const patched = applyConfigPatch(base, { hideOfficialBalance: true, hideTodayCost: true })
   assert.equal(patched.errors.length, 0, '合法布尔补丁通过')
-  assert.equal(patched.config.hideAmounts, true, '隐私模式可开启')
-  assert.ok(applyConfigPatch(base, { hideAmounts: 'yes' }).errors.length > 0, '非布尔开关被拒')
-  assert.equal(sanitizeConfig({ ...base, hideAmounts: 'x' }).hideAmounts, false, '非法值清洗为关')
-  assert.equal(sanitizeConfig({ ...base, hideAmounts: true }).hideAmounts, true, '合法值保留')
+  assert.equal(patched.config.hideOfficialBalance, true, '隐藏官方余额可开启')
+  assert.equal(patched.config.hideTodayCost, true, '隐藏今日消耗可开启')
+  assert.ok(applyConfigPatch(base, { hideOfficialBalance: 'yes' }).errors.length > 0, '非布尔 hideOfficialBalance 被拒')
+  assert.ok(applyConfigPatch(base, { hideTodayCost: 'yes' }).errors.length > 0, '非布尔 hideTodayCost 被拒')
+  assert.equal(sanitizeConfig({ ...base, hideOfficialBalance: 'x' }).hideOfficialBalance, false, '非法 hideOfficialBalance 清洗为关')
+  assert.equal(sanitizeConfig({ ...base, hideTodayCost: 'x' }).hideTodayCost, false, '非法 hideTodayCost 清洗为关')
   const hostTypert = readFileSync(new URL('../lib/typert.host.js', import.meta.url), 'utf8')
-  assert.ok(hostTypert.includes('hideAmounts: z.boolean().optional()'), 'typert config 声明 hideAmounts(网关不剥离)')
+  assert.ok(hostTypert.includes('hideOfficialBalance: z.boolean().optional()'), 'typert config 声明 hideOfficialBalance(网关不剥离)')
+  assert.ok(hostTypert.includes('hideTodayCost: z.boolean().optional()'), 'typert config 声明 hideTodayCost(网关不剥离)')
   const clientSource = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
-  assert.ok(clientSource.includes("if (config?.hideAmounts === true) return symbol + '***'"), 'formatMoneyValue 隐私遮罩(费用/会话/历史/预算全链路)')
-  assert.ok(clientSource.includes('hideAmounts: config.hideAmounts'), 'formatBalanceMoney 透传隐私开关')
-  assert.ok(clientSource.includes('// 隐私模式(issues #45/#46):自定义 Provider 余额同口径遮罩'), 'formatCustomBalanceMoney 遮罩')
-  assert.ok(clientSource.includes("setField('hideAmounts'"), '设置 UI 含隐私模式开关')
-  assert.ok(clientSource.includes('hideAmountsLabel'), '开关文案存在(zh/en)')
-  assert.ok(clientSource.includes('hideAmounts: v.hideAmounts === true'), 'parseConfig 白名单含 hideAmounts(读侧不剥离)')
+  // 渲染门控:侧栏堆叠 + sync 注册双入口同口径。
+  assert.ok(clientSource.includes("&& config.hideOfficialBalance !== true"), '侧栏官方余额渲染受 hideOfficialBalance 门控')
+  assert.ok(clientSource.includes('&& config.hideTodayCost !== true'), '侧栏今日消耗渲染受 hideTodayCost 门控')
+  assert.ok(clientSource.includes('&& state?.config?.hideOfficialBalance !== true'), 'footer 注册同口径门控官方余额')
+  assert.ok(clientSource.includes('&& state?.config?.hideTodayCost !== true'), 'footer 注册同口径门控今日消耗')
+  // 概览卡片 / BalancePanel / 预算明细今日行。
+  assert.ok(clientSource.includes('config.hideTodayCost === true ? null : el(Card,'), '概览今日卡片可整体隐藏')
+  assert.ok(clientSource.includes("&& config.hideOfficialBalance !== true\n          ? el(BalancePanel"), '设置页官方余额面板可整体隐藏')
+  assert.ok(clientSource.includes('config.hideTodayCost === true ? null : el(\'div\', { className: \'cm-bbox-line cm-num\' }'), '预算盒明细今日金额行可隐藏')
+  assert.ok(clientSource.includes('...(config.hideTodayCost === true ? [] : [t(\'todayShare\''), '预算 tooltip 今日金额行可隐藏')
+  // 设置开关与读侧白名单。
+  assert.ok(clientSource.includes("setField('hideOfficialBalance'"), '设置 UI 含隐藏官方余额开关')
+  assert.ok(clientSource.includes("setField('hideTodayCost'"), '设置 UI 含隐藏今日消耗开关')
+  assert.ok(clientSource.includes('hideOfficialBalanceLabel') && clientSource.includes('hideTodayCostLabel'), '开关文案存在(zh/en)')
+  assert.ok(clientSource.includes('hideOfficialBalance: v.hideOfficialBalance === true'), 'parseConfig 白名单含 hideOfficialBalance(读侧不剥离)')
+  assert.ok(clientSource.includes('hideTodayCost: v.hideTodayCost === true'), 'parseConfig 白名单含 hideTodayCost(读侧不剥离)')
   assert.ok(clientSource.includes('showSessionId: v.showSessionId === true'), 'parseConfig 白名单补齐 showSessionId(既有缺陷修复)')
+  // v1.5.38 的隐私模式遮罩已整体移除。
+  assert.ok(!clientSource.includes('hideAmounts'), '客户端不再含 hideAmounts 隐私遮罩')
   const indexSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
-  assert.ok(indexSource.includes("ledger.config?.hideAmounts === true ? '$***'"), '对账提示金额服务端同步遮罩')
-  console.log('[ok] 隐藏金额隐私模式(默认值/校验/清洗/typert/三处格式化遮罩/设置开关/白名单)通过')
+  assert.ok(!indexSource.includes('hideAmounts'), '服务端不再含 hideAmounts 遮罩')
+  console.log('[ok] UI 隐藏开关(默认值/校验/清洗/typert/渲染门控/设置开关/白名单/遮罩移除)通过')
 }
 
 // 输入框上方额度横条(v1.5.27):默认关、三类内容开关、首次引导 promptSeen 门控、
