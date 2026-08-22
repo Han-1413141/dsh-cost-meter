@@ -14,6 +14,8 @@ import {
   formatMoney,
   isPeakHour,
   peakPhaseAt,
+  weekendZoneAt,
+  WEEKEND_OFFPEAK_EFFECTIVE_AT,
   matchModelId,
   canonModelId,
   buildPriceCatalog,
@@ -262,14 +264,14 @@ console.log('[ok] isPeakHour 窗口判定通过')
 const H = 3600_000
 // 峰中(02:00):相位起点 01:00,下次切换 04:00 退出峰时。
 const ph1 = peakPhaseAt(Date.parse('2026-08-17T02:00:00Z'), DEFAULT_PEAK_WINDOWS)
-assert.deepEqual(ph1, { inPeak: true, prevAtMs: Date.parse('2026-08-17T01:00:00Z'), nextAtMs: Date.parse('2026-08-17T04:00:00Z'), nextIntoPeak: false }, '峰中相位与下次切换')
+assert.deepEqual(ph1, { inPeak: true, weekend: false, prevAtMs: Date.parse('2026-08-17T01:00:00Z'), nextAtMs: Date.parse('2026-08-17T04:00:00Z'), nextIntoPeak: false }, '峰中相位与下次切换')
 // 恰好峰始(01:00,半开区间起点含):入峰,倒计时 3 小时。
 const ph2 = peakPhaseAt(Date.parse('2026-08-17T01:00:00Z'), DEFAULT_PEAK_WINDOWS)
 assert.equal(ph2.inPeak, true, '峰始时刻属于峰时段')
 assert.equal(ph2.nextAtMs - Date.parse('2026-08-17T01:00:00Z'), 3 * H, '峰始倒计时 3 小时')
 // 恰好峰终(04:00,半开区间终点不含):转入平价,下次 06:00 入峰。
 const ph3 = peakPhaseAt(Date.parse('2026-08-17T04:00:00Z'), DEFAULT_PEAK_WINDOWS)
-assert.deepEqual(ph3, { inPeak: false, prevAtMs: Date.parse('2026-08-17T04:00:00Z'), nextAtMs: Date.parse('2026-08-17T06:00:00Z'), nextIntoPeak: true }, '峰终时刻转平价')
+assert.deepEqual(ph3, { inPeak: false, weekend: false, prevAtMs: Date.parse('2026-08-17T04:00:00Z'), nextAtMs: Date.parse('2026-08-17T06:00:00Z'), nextIntoPeak: true }, '峰终时刻转平价')
 // 午夜后谷中(00:30):相位起点 = 昨日 10:00(跨日),下次 01:00 入峰。
 const ph4 = peakPhaseAt(Date.parse('2026-08-17T00:30:00Z'), DEFAULT_PEAK_WINDOWS)
 assert.equal(ph4.inPeak, false, '00:30 为谷时段')
@@ -281,14 +283,42 @@ assert.equal(ph5.nextAtMs, Date.parse('2026-08-18T01:00:00Z'), '夜间峰窗次�
 // 跨午夜窗口 {22:00-02:00}:深夜峰中与凌晨峰中的前后切换点均正确。
 const crossMidnight = [{ start: 22, end: 2 }]
 const ph6 = peakPhaseAt(Date.parse('2026-08-17T23:00:00Z'), crossMidnight)
-assert.deepEqual(ph6, { inPeak: true, prevAtMs: Date.parse('2026-08-17T22:00:00Z'), nextAtMs: Date.parse('2026-08-18T02:00:00Z'), nextIntoPeak: false }, '跨午夜窗口峰中(前半夜)')
+assert.deepEqual(ph6, { inPeak: true, weekend: false, prevAtMs: Date.parse('2026-08-17T22:00:00Z'), nextAtMs: Date.parse('2026-08-18T02:00:00Z'), nextIntoPeak: false }, '跨午夜窗口峰中(前半夜)')
 const ph7 = peakPhaseAt(Date.parse('2026-08-17T01:00:00Z'), crossMidnight)
-assert.deepEqual(ph7, { inPeak: true, prevAtMs: Date.parse('2026-08-16T22:00:00Z'), nextAtMs: Date.parse('2026-08-17T02:00:00Z'), nextIntoPeak: false }, '跨午夜窗口峰中(后半夜)')
+assert.deepEqual(ph7, { inPeak: true, weekend: false, prevAtMs: Date.parse('2026-08-16T22:00:00Z'), nextAtMs: Date.parse('2026-08-17T02:00:00Z'), nextIntoPeak: false }, '跨午夜窗口峰中(后半夜)')
 // 空窗口/非法输入安全回退。
 assert.equal(peakPhaseAt(Date.now(), []), null, '空窗口返回 null')
 assert.equal(peakPhaseAt(NaN, DEFAULT_PEAK_WINDOWS), null, '非法时刻返回 null')
 assert.equal(peakPhaseAt(Date.now(), [{ start: 'x', end: 'y' }]), null, '非法窗口返回 null')
 console.log('[ok] peakPhaseAt 相位/倒计时边界通过')
+
+// 2.3.2) 周末全谷价新规(官方通知:2026-08-23(周日)00:00 北京时间起,周六及周日
+// 全天不再区分峰谷,统一按谷价计费;生效前费用仍按原规则结算)。
+const wkEffMs = Date.parse(WEEKEND_OFFPEAK_EFFECTIVE_AT)
+assert.equal(wkEffMs, Date.parse('2026-08-22T16:00:00Z'), '生效时刻 = 北京时间 2026-08-23(周日)00:00')
+// 区间判定:生效前的周六仍按原峰谷规则;生效后周日/周六全天落入区间,工作日不入。
+assert.equal(weekendZoneAt(preMs), null, '生效前(8-15 周六)不构成周末全谷区间')
+assert.equal(weekendZoneAt(Date.parse('2026-08-22T02:00:00Z')), null, '首个周六白天仍按原峰谷规则')
+assert.equal(weekendZoneAt(wkEffMs - 1), null, '生效时刻前一刻仍属原规则')
+assert.deepEqual(weekendZoneAt(Date.parse('2026-08-23T06:00:00Z')), { start: wkEffMs, end: Date.parse('2026-08-23T16:00:00Z') }, '首个周末仅周日覆盖,起点截到生效时刻')
+assert.deepEqual(weekendZoneAt(Date.parse('2026-08-28T18:00:00Z')), { start: Date.parse('2026-08-28T16:00:00Z'), end: Date.parse('2026-08-30T16:00:00Z') }, '此后周六 00:00 起全天为全谷区间(至周一 00:00)')
+assert.equal(weekendZoneAt(Date.parse('2026-08-25T02:00:00Z')), null, '周二不属于周末全谷区间')
+// 峰窗口判定:周末恒为谷,不受窗口影响;生效前周六上午照旧为峰。
+assert.equal(isPeakHour(Date.parse('2026-08-23T02:00:00Z'), peakCfg.effectiveAtMs, DEFAULT_PEAK_WINDOWS), false, '周日落在峰窗口内也按新规计为谷时段')
+assert.equal(isPeakHour(peakMs, peakCfg.effectiveAtMs, DEFAULT_PEAK_WINDOWS), true, '工作日峰窗口不受新规影响')
+// 计费档位与成本:周末走 offPeak 档,金额与谷时段完全一致。
+assert.deepEqual(tierFor(pro, Date.parse('2026-08-23T06:00:00Z'), peakCfg), { cacheHit: 0.022, cacheMiss: 0.66, output: 1.98 }, '周末计费取谷时档价格')
+assert.ok(Math.abs(costOf(tokens, pro, Date.parse('2026-08-23T06:00:00Z'), peakCfg) - manualOff) < 1e-12, '周末成本与谷时段手工核算一致')
+// 相位展示:周末中相位恒谷(weekend 标记),下一切换 = 下个工作日首个峰窗起点;
+// 周五晚起倒计时直达周一入峰(周末内无切换点,不构成虚假「进入平价」提示)。
+const wkPhase = peakPhaseAt(Date.parse('2026-08-23T06:00:00Z'), DEFAULT_PEAK_WINDOWS)
+assert.deepEqual(wkPhase, { inPeak: false, weekend: true, prevAtMs: wkEffMs, nextAtMs: Date.parse('2026-08-24T01:00:00Z'), nextIntoPeak: true }, '周日相位:下一切换为周一 01:00(北京 09:00)入峰')
+const satNightPhase = peakPhaseAt(Date.parse('2026-08-29T13:00:00Z'), DEFAULT_PEAK_WINDOWS)
+assert.deepEqual(satNightPhase, { inPeak: false, weekend: true, prevAtMs: Date.parse('2026-08-28T16:00:00Z'), nextAtMs: Date.parse('2026-08-31T01:00:00Z'), nextIntoPeak: true }, '周六晚相位:起点为周六 00:00,下次周一入峰')
+const friNightPhase = peakPhaseAt(Date.parse('2026-08-28T13:00:00Z'), DEFAULT_PEAK_WINDOWS)
+assert.equal(friNightPhase.weekend, false, '周五晚尚未进入周末区间')
+assert.equal(friNightPhase.nextAtMs, Date.parse('2026-08-31T01:00:00Z'), '周五晚下一切换直达周一入峰(跳过周末全部窗口)')
+console.log('[ok] 周末全谷价新规(区间/窗口/档位/相位)通过')
 
 // 2.4) normalizePrice 保留/剥离 legacyBase。
 const normalized = normalizePrice({ ...flash })
