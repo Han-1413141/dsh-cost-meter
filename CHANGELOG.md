@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.5.42] - 2026-08-24
+
+### 修复
+
+- **额度横条三处缺陷(issue #52,感谢 @ProximaCentauri0 的根因分析)**:① 迷你进度条填充永远不可见——`.cm-qbar` 不是 flex 容器,内部 `.cm-qfill` 保持默认 `display:inline`,行内元素宽高被浏览器忽略且空内容行内盒零尺寸;现两处均补 `display:block`,填充按 ok/warn/over 变色真实可见。② chip 无法点击刷新——现点击任意 chip 即刷新对应数据源(budget → getState 重取、Go → Go 额度、Coding Plan 厂商 → 该家全部窗口一次刷新),复用既有 `clickableRefreshProps`(role=button/tabIndex/aria-busy/Enter+Space 键盘触发)与 busy 呼吸互斥,刷新中显示「刷新中…」,失败原因进悬停提示。③ 同一厂商多窗口占多个 chip——现按厂商分组融合为一条(如 `Z.ai [5h 条] [周条]`,竖线分隔),告警级别取所有窗口最差,悬停仍可见各窗口重置时刻与更新时间。
+
+### 新增
+
+- **Kimi Code 订阅配额查询(issue #53,感谢 @Angelyeye 提供已验证端点与实测实现)**:接入 Kimi CLI 实际使用的订阅接口 `GET api.kimi.com/coding/v1/usages`(404 回退 `/v1/usage`),显示本周配额与 5 小时滚动窗口的用量百分比与重置时刻;该端点校验客户端标识,请求固定 UA `KimiCLI/1.6`。凭据发现优先 `KIMI_CODING_API_KEY`(sk-kimi-* 订阅 Key,与开放平台 PAYG Key 不通用),订阅端点 401 视为无订阅 Key 自动降级到原 PAYG 余额端点(`MOONSHOT_API_KEY` / `KIMI_API_KEY`),行为与旧版一致;设置面板 Key 提示同步更新。端点非公开文档化,解析失败自动回落,README 已注明。
+- **周末全谷价一致性回归夹具(issue #54,感谢 @xyzs996 提供 CC0 一致性向量)**:引入 15 条档位向量 + 3 条下一切换向量钉住周末规则——现行两个峰窗都在 16:00 UTC 前收尾,而 16:00–24:00 UTC 是北京日历与 UTC 日历唯一分歧段,若有人把 `weekendZoneAt` 的「+8h 后取日序」简化成 `getUTCDay()`,真实时段用例一条都不会红;其中 3 条走明确标注为合成的时段(峰窗 16:00–22:00 UTC,非真实厂商时段)专门暴露这条日历轴,另有生效闸边界与倒计时直达周一入峰的防回归断言。
+
 ## [1.5.41] - 2026-08-23
 
 ### 修复

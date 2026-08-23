@@ -46,6 +46,7 @@ import {
   parseZaiUsage,
   parseMiniMaxRemains,
   parseKimiBalance,
+  parseKimiCodingUsage,
   parseOpenRouterCredits,
   parseSiliconFlowInfo,
   parseCommandCodeCredits,
@@ -319,6 +320,53 @@ const friNightPhase = peakPhaseAt(Date.parse('2026-08-28T13:00:00Z'), DEFAULT_PE
 assert.equal(friNightPhase.weekend, false, '周五晚尚未进入周末区间')
 assert.equal(friNightPhase.nextAtMs, Date.parse('2026-08-31T01:00:00Z'), '周五晚下一切换直达周一入峰(跳过周末全部窗口)')
 console.log('[ok] 周末全谷价新规(区间/窗口/档位/相位)通过')
+
+// 2.3.3) 周末规则一致性回归夹具(issue #54):15 条档位向量 + 3 条下一切换向量,
+// CC0-1.0(来源 github.com/xyzs996/deepseek-peak-hours 的 deepseek-peak-offpeak-vectors.json)。
+// 防的坑是「改错了也全绿」:现行两个峰窗都在 16:00 UTC 前收尾,而 16:00–24:00 UTC 是
+// 北京日历与 UTC 日历唯一分歧段——若有人把 weekendZoneAt 里「+8h 后取日序」简化成
+// new Date(atMs).getUTCDay(),真实时段用例一条都不会红;标明为合成的
+// synthetic-overnight-peak 时段(峰窗 16:00–22:00 UTC,非真实厂商时段)专门暴露这条日历轴。
+{
+  const schedules = {
+    live: [{ start: 1, end: 4 }, { start: 6, end: 10 }],
+    synthetic: [{ start: 16, end: 22 }],
+  }
+  // [时段, UTC 时刻, 北京挂钟, 期望档位, 这条在分辨什么]
+  const tierVectors = [
+    ['live', '2026-08-24T01:30:00Z', 'Mon 09:30', 'peak', '首个日峰窗内'],
+    ['live', '2026-08-24T04:00:00Z', 'Mon 12:00', 'offpeak', '窗口终点开区间'],
+    ['live', '2026-08-24T05:59:59Z', 'Mon 13:59:59', 'offpeak', '两窗之间的间隙'],
+    ['live', '2026-08-24T06:00:00Z', 'Mon 14:00', 'peak', '窗口起点闭区间'],
+    ['live', '2026-08-24T09:59:59Z', 'Mon 17:59:59', 'peak', '第二窗最后一秒'],
+    ['live', '2026-08-24T10:00:00Z', 'Mon 18:00', 'offpeak', '窗口终点开区间'],
+    ['live', '2026-08-23T01:30:00Z', 'Sun 09:30', 'offpeak', '周末覆盖第一个日峰窗'],
+    ['live', '2026-08-23T07:00:00Z', 'Sun 15:00', 'offpeak', '周末覆盖第二个日峰窗'],
+    ['live', '2026-08-29T02:00:00Z', 'Sat 10:00', 'offpeak', '周六全天为谷'],
+    ['live', '2026-08-22T01:30:00Z', 'Sat 09:30', 'peak', '生效前不追溯,周六上午照旧为峰'],
+    ['live', '2026-08-22T09:59:59Z', 'Sat 17:59:59', 'peak', '生效前最后一个峰秒'],
+    ['live', '2026-08-22T16:00:00Z', 'Sun 00:00', 'offpeak', '生效后第一瞬间'],
+    ['synthetic', '2026-08-28T16:30:00Z', 'Sat 00:30', 'offpeak', 'UTC 说周五、北京说周六:按未平移时刻读星期会误判峰'],
+    ['synthetic', '2026-08-30T16:30:00Z', 'Mon 00:30', 'peak', 'UTC 说周日、北京说周一:按未平移时刻读星期会误判谷'],
+    ['synthetic', '2026-08-29T17:00:00Z', 'Sun 01:00', 'offpeak', '两种历法都叫周末:排除上两条失败归咎于合成窗口本身'],
+  ]
+  for (const [schedule, atUtc, beijing, expect, why] of tierVectors) {
+    const got = isPeakHour(Date.parse(atUtc), peakCfg.effectiveAtMs, schedules[schedule]) ? 'peak' : 'offpeak'
+    assert.equal(got, expect, `一致性向量 ${atUtc}(北京 ${beijing})→ ${expect}:${why}`)
+  }
+  // 下一切换向量:[时刻, 期望下一切换 UTC, 期望入峰方向, 含义]。
+  const boundaryVectors = [
+    ['2026-08-28T10:30:00Z', '2026-08-31T01:00:00Z', true, '周末内两侧全谷:倒计时直达周一 09:00 入峰,不在窗口边缘归零空转'],
+    ['2026-08-24T02:00:00Z', '2026-08-24T04:00:00Z', false, '普通在窗情形'],
+    ['2026-08-21T18:00:00Z', '2026-08-22T01:00:00Z', true, '生效前的周末不得被跳过:闸门作用在候选时刻而非「现在」'],
+  ]
+  for (const [atUtc, nextUtc, intoPeak, why] of boundaryVectors) {
+    const phase = peakPhaseAt(Date.parse(atUtc), schedules.live)
+    assert.equal(phase?.nextAtMs, Date.parse(nextUtc), `下一切换向量 ${atUtc}:${why}`)
+    assert.equal(phase?.nextIntoPeak, intoPeak, `下一切换方向 ${atUtc} → ${intoPeak ? '入峰' : '入谷'}`)
+  }
+  console.log('[ok] 周末规则一致性回归夹具(issue #54,15+3 条)通过')
+}
 
 // 2.4) normalizePrice 保留/剥离 legacyBase。
 const normalized = normalizePrice({ ...flash })
@@ -756,7 +804,7 @@ const officialHosts = {
   anthropic: ['api.anthropic.com'],
   zai: ['api.z.ai', 'open.bigmodel.cn'],
   minimax: ['www.minimaxi.com', 'www.minimax.io'],
-  kimi: ['api.moonshot.cn'],
+  kimi: ['api.moonshot.cn', 'api.kimi.com'],
   openrouter: ['openrouter.ai'],
   siliconflow: ['api.siliconflow.cn'],
   commandcode: ['api.commandcode.ai'],
@@ -1021,7 +1069,16 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   assert.ok(clientSource.includes('promptSeen: true } })'), '设置开关与引导选择均写 promptSeen')
   assert.ok(clientSource.includes("const STRIP_VENDOR_SHORT = {"), '厂商短标签映射存在')
   assert.ok(clientSource.includes('commandcode: \'CC\'') && clientSource.includes('scnet: \'SCNet\''), '短标签覆盖八家厂商')
-  console.log('[ok] 输入框上方额度横条(默认值/校验/清洗/双端声明/接线/首次引导)通过')
+  // 点击刷新 + 厂商多窗口融合(issue #52)。
+  assert.ok(clientSource.includes('.cm-qchip .cm-qbar{display:block;') && clientSource.includes('.cm-qchip .cm-qfill{display:block;'), '进度条填充 display:block(行内盒宽高被忽略的根因修复)')
+  assert.ok(clientSource.includes('.cm-qchip.action{cursor:pointer') && clientSource.includes('.cm-qchip.action:focus-visible') && clientSource.includes('.cm-qchip.action:active'), '可点击 chip 手型/焦点环/按压态样式')
+  assert.ok(clientSource.includes('const [busyKey, setBusyKey] = useState(null)'), 'busyKey useState 存在')
+  const qstripBody = clientSource.slice(clientSource.indexOf('function QuotaStrip('), clientSource.indexOf('function QuotaStripGuide('))
+  assert.ok(qstripBody.indexOf('const [busyKey, setBusyKey] = useState(null)') < qstripBody.indexOf('if (!state) return null'), 'Hook 先于条件返回(React 规则)')
+  assert.ok(clientSource.includes("key === 'budget' ? api.reload() : key === 'go' ? api.refreshGoQuota() : api.refreshCodingPlan(key)"), '点击按 key 三路分发刷新')
+  assert.ok(clientSource.includes('clickableRefreshProps(busy, () => doRefresh(c.key))'), 'chip 复用可点击属性 helper(role/tabIndex/aria-busy/键盘)')
+  assert.ok(clientSource.includes("'cm-qseg'") && clientSource.includes("'cm-qsep'"), '厂商多窗口分段渲染与竖分隔线样式类存在')
+  console.log('[ok] 输入框上方额度横条(默认值/校验/清洗/双端声明/接线/首次引导/点击刷新与厂商融合)通过')
 }
 
 // 点击余额图框立即刷新(issue #37):官方/自定义余额行与图框、Coding Plan(通用+MiniMax)
@@ -1384,7 +1441,7 @@ assert.ok(catalog.anthropic['Claude Fable']['claude-fable-5'].output === 50, 'Cl
 assert.equal(parseKimiBalance({ available_balance: 12345 }).balance.text, '余额 ¥123.45', 'Kimi 余额分→元换算')
 assert.equal(parseKimiBalance({ available_balance: 8 }).balance.text, '余额 ¥8.00', '小额视为元单位')
 assert.equal(parseKimiBalance(null), null, '非法响应安全')
-assert.ok(CODING_PLAN_ENDPOINTS.kimi.every(u => new URL(u).host.endsWith('moonshot.cn')), 'Kimi 端点官方域名白名单')
+assert.ok(CODING_PLAN_ENDPOINTS.kimi.every(u => ['api.moonshot.cn', 'api.kimi.com'].includes(new URL(u).host)), 'Kimi 端点官方域名白名单(含订阅端点 api.kimi.com,issue #53)')
 assert.ok(CODING_PLAN_PROVIDERS.kimi !== undefined, 'kimi 已注册')
 // 6.5 配置校验:priceMatch / priceOverrides。
 assert.equal(reloaded.config.priceMatch, 'auto', 'priceMatch 默认 auto')
@@ -1569,7 +1626,7 @@ assert.ok(CODING_PLAN_ENDPOINTS.zai[0].endsWith('bigmodel.cn/api/monitor/usage/q
 assert.ok(CODING_PLAN_ENDPOINTS.zai.slice(2).some(u => u.includes('/v3/')), 'Z.ai v3 旧计费端点保留兜底(issue #17)')
 {
   const codingPlansSource = readFileSync(new URL('../lib/coding-plans.js', import.meta.url), 'utf8')
-  assert.ok(codingPlansSource.includes("if (provider === 'zai') { lastError = error; continue }"), 'Z.ai 单域 401 换域重试(两域 Key 不互通)')
+  assert.ok(codingPlansSource.includes("if (provider === 'zai' || isKimiCoding) { lastError = error; continue }"), 'Z.ai 单域 401 换域重试(两域 Key 不互通);kimi 订阅端点 401 降级 PAYG 兜底(issue #53)')
   // issue #44:全部端点失败时,解析失败(200 但结构不对)优先于最后端点的 404 报出,
   // 避免 v4 计费端点 404 盖住 monitor 端点解析失败的真实原因。
   assert.ok(codingPlansSource.includes('parseError ??= error'), '200-but-parse-null 错误单独保留')
@@ -1601,6 +1658,34 @@ assert.ok(CODING_PLAN_ENDPOINTS.zai.slice(2).some(u => u.includes('/v3/')), 'Z.a
   // 域名白名单与凭据 env。
   assert.ok(CODING_PLAN_ENDPOINTS.commandcode.every(u => new URL(u).host === 'api.commandcode.ai'), 'CommandCode 官方域名')
   assert.deepEqual(CODING_PLAN_PROVIDERS.commandcode.credentialEnvs, ['COMMANDCODE_API_KEY'], 'CommandCode 凭据 env')
+}
+
+// 7.3b) Kimi Code 订阅配额解析(issue #53,api.kimi.com/coding/v1/usages;404 回退 /v1/usage)。
+{
+  const sample = {
+    usage: { used: 250000, limit: 1000000, remaining: 750000, resetTime: '2026-08-30T16:00:00.000Z' },
+    limits: [
+      { window: { duration: 5, timeUnit: 'hour' }, detail: { used: 4321, limit: 10000, remaining: 5679, resetTime: '2026-08-23T04:00:00.000Z' } },
+      { window: { duration: 1, timeUnit: 'week' }, detail: { limit: 100, remaining: 90, resetTime: '' } },
+    ],
+    parallel: { limit: 4 },
+    user: { membership: { level: 'max' }, region: 'cn' },
+  }
+  const parsed = parseKimiCodingUsage(sample)
+  assert.equal(parsed.weekly.percent, 25, 'Kimi 订阅本周配额 used/limit → 已用%')
+  assert.equal(parsed.weekly.resetsAt, new Date('2026-08-30T16:00:00.000Z').toISOString(), 'Kimi 订阅周窗重置时刻归一')
+  assert.equal(parsed['5h'].percent, 43.2, 'Kimi 订阅滚动窗口按 duration+timeUnit 命名(5h)')
+  assert.equal(parsed['1w'].percent, 10, 'remaining 兜底反推((limit-remaining)/limit)')
+  // 非法/空形态安全。
+  assert.equal(parseKimiCodingUsage({ usage: null, limits: [] }), null, 'Kimi 订阅无有效窗口返回 null')
+  assert.equal(parseKimiCodingUsage(null), null, 'Kimi 订阅非对象返回 null')
+  // 端点顺序:订阅端点在前、PAYG 余额兜底;订阅 Key env 优先于开放平台 Key。
+  assert.ok(CODING_PLAN_ENDPOINTS.kimi[0] === 'https://api.kimi.com/coding/v1/usages'
+    && CODING_PLAN_ENDPOINTS.kimi[1] === 'https://api.kimi.com/coding/v1/usage'
+    && CODING_PLAN_ENDPOINTS.kimi[2] === 'https://api.moonshot.cn/v1/users/me/balance', 'Kimi 订阅端点在前,PAYG 余额兜底')
+  assert.ok(CODING_PLAN_ENDPOINTS.kimi.every(u => ['api.kimi.com', 'api.moonshot.cn'].includes(new URL(u).host)), 'Kimi 端点均为官方域名')
+  assert.deepEqual(CODING_PLAN_PROVIDERS.kimi.credentialEnvs, ['KIMI_CODING_API_KEY', 'MOONSHOT_API_KEY', 'KIMI_API_KEY'], '订阅 Key env 优先于 PAYG env')
+  console.log('[ok] Kimi Code 订阅配额解析与端点白名单通过')
 }
 console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过')
 
