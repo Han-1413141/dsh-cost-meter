@@ -31,7 +31,7 @@ import {
   providerPriceEntryFor,
 } from '../lib/pricing.js'
 import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays, officialCostOfDay } from '../lib/store.js'
-import { backfillLegacyLedger, importLegacyHistory, replaySessionRecords, repairForkSeed, repairProviderDupes, scanZstdFrames } from '../lib/backfill.js'
+import { backfillLegacyLedger, importLegacyHistory, listSessionLogs, readSessionRecords, replaySessionRecords, repairForkSeed, repairProviderDupes, scanZstdFrames } from '../lib/backfill.js'
 import { createLlmStreamBilling } from '../lib/billing-stream.js'
 import { TYPERT, stateSchema } from '../lib/typert.host.js'
 import { isTransientFetchError, fetchWithRetry } from '../lib/net.js'
@@ -1702,6 +1702,56 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.equal(dayT.sessions[0].title, 'Test Session Alpha', '已有拆分的会话也补标题')
   assert.equal(dayT.sessions[0].at, legacyAt, '纯标题通道同时补齐时间戳')
   rmSync(rootT, { recursive: true, force: true })
+  // 8a-ter) 大日志流式解析与定向扫描(issue #50,PR #51):多帧 zstd 逐帧解压、
+  // 行缓冲跨帧拼接,解析结果与整段明文一致;纯标题补齐只读缺失会话的日志。
+  const multiLines = [JSON.stringify({ type: 'session', version: 0, id: 'session-multi', createdAt: legacyAt, delegationDepth: 0 })]
+  for (let i = 0; i < 40; i++) {
+    multiLines.push(JSON.stringify({ type: 'assistant/message', seq: i + 1, time: legacyAt, data: { turn: 1, step: i + 1, usage: { inputTokens: 10 + i, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 } } }))
+  }
+  const wholeText = multiLines.join('\n') + '\n'
+  // 按 37 字节切块(块边界落在行中间),各块独立压缩成一个 zstd frame 后拼接,
+  // 模拟宿主「每批次一帧」且行被帧边界切开的最坏情况。
+  const chunks = []
+  for (let rest = wholeText; rest.length > 0;) {
+    const n = Math.min(37, rest.length)
+    chunks.push(zlib.zstdCompressSync(Buffer.from(rest.slice(0, n), 'utf8')))
+    rest = rest.slice(n)
+  }
+  const rootM = join(tmpdir(), `cm-backfill-multiframe-${Date.now()}`)
+  mkdirSync(join(rootM, '--proj--', 'session-multi'), { recursive: true })
+  writeFileSync(join(rootM, '--proj--', 'session-multi', 'session.jsonl.zstd'), Buffer.concat(chunks))
+  const multiRecords = readSessionRecords(join(rootM, '--proj--', 'session-multi', 'session.jsonl.zstd'))
+  assert.equal(multiRecords.length, multiLines.length, '多帧 zstd 流式解析行数完整')
+  assert.equal(multiRecords[0].id, 'session-multi', '流式解析保留会话头')
+  assert.equal(multiRecords[multiRecords.length - 1].data.step, multiLines.length - 1, '跨帧行缓冲拼接末尾事件')
+  writeFileSync(join(rootM, '--proj--', 'session-multi', 'session.jsonl'), wholeText)
+  assert.deepEqual(multiRecords, readSessionRecords(join(rootM, '--proj--', 'session-multi', 'session.jsonl')), '多帧流式解析与整段明文解析结果逐位一致')
+  rmSync(rootM, { recursive: true, force: true })
+  // 定向枚举:listSessionLogs 按会话 id 过滤目录,缺省参数行为不变。
+  const rootL = join(tmpdir(), `cm-backfill-onlyids-${Date.now()}`)
+  mkdirSync(join(rootL, '--proj--', 'session-a'), { recursive: true })
+  writeFileSync(join(rootL, '--proj--', 'session-a', 'session.jsonl'), mkSessionLog('session-a', [titleEvent('Test Session Alpha')]))
+  mkdirSync(join(rootL, '--proj--', 'session-b'), { recursive: true })
+  writeFileSync(join(rootL, '--proj--', 'session-b', 'session.jsonl'), mkSessionLog('session-b', []))
+  assert.equal(listSessionLogs(rootL).length, 2, 'listSessionLogs 缺省枚举全部')
+  const onlyA = listSessionLogs(rootL, new Set(['session-a']))
+  assert.equal(onlyA.length, 1, '按会话 id 定向只命中一份日志')
+  assert.ok(onlyA[0].includes(join('--proj--', 'session-a')), '定向命中的是目标会话目录')
+  assert.equal(listSessionLogs(rootL, new Set(['session-missing'])).length, 0, '不存在的会话 id 命中为空')
+  // 纯标题补齐定向扫描:账本只缺 session-a 的标题,磁盘上另有 session-b 的
+  // 日志——旧版全量重扫两份,现在 scanned 只计目标会话;补齐后再次回填 0 扫描。
+  const dayL = { date: dayKey, input: 1100, output: 550, cacheRead: 2000, cacheWrite: 0, reasoning: 0, calls: 2, cost: 0.5,
+    byProviderModel: { 'deepseek:deepseek-v4-flash': { ...filledBuckets } },
+    sessions: [{ id: 'session-a', input: 1100, output: 550, cacheRead: 2000, cacheWrite: 0, reasoning: 0, calls: 2, cost: 0.5, byProviderModel: { 'deepseek:deepseek-v4-flash': { ...filledBuckets } } }] }
+  const ledgerL = new Ledger(cfg, { [dayKey]: dayL }, join(rootL, 'ledger.json'))
+  ledgerL.scheduleWrite = () => {}
+  const filledL = await backfillLegacyLedger(ledgerL, rootL)
+  assert.equal(filledL.scanned, 1, '纯标题补齐只扫缺失会话的日志(不再全量重扫)')
+  assert.equal(filledL.titles, 1, '定向扫描仍补齐标题')
+  assert.equal(dayL.sessions[0].title, 'Test Session Alpha', '定向扫描补齐的标题内容正确')
+  const againL = await backfillLegacyLedger(ledgerL, rootL)
+  assert.equal(againL.scanned, 0, '标题补齐后启动零扫描')
+  rmSync(rootL, { recursive: true, force: true })
   // 8b) 完整覆盖重算:修正旧版本误计费导致的历史虚高(issue #18)。
   const root2 = join(tmpdir(), `cm-backfill-recost-${Date.now()}`)
   mkdirSync(join(root2, '--proj--', 'session-a'), { recursive: true })
