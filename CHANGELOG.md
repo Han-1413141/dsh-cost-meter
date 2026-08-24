@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.43] - 2026-08-24
+
+### 修复
+
+- **fork 会话徽章仍显示全量费用(issue #55,感谢 @csliuchi 的完整根因分析)**:v1.5.34 起的投影 fork 过滤依赖在 `apply` 中收到 `event.type === 'session'` 来记录 `createdAt`,但 dsh 0.1.1-rc.1 的会话头(`createdAt`/`parentSession`/`seedLength`)从不进入投影折叠的事件流("Kept out of the event log"),`state.createdAt` 恒为 0 → 种子判定恒 false → fork 会话的「本会话」徽章把父会话拷贝段一并计入(报告案例:缓存 157M 全量 vs 自己的 ~65M)。经宿主源码确认:带种子的会话在构造时于日志末尾追加 `session/end-seed` 边界事件(seq = 种子事件数),且随日志持久化、进入 refold/restore 重放——投影改按「seq < 边界」识别种子段:单遍正序折叠中边界前的用量先照常入主聚合并同步记入影子累计(shadow),边界到达时整段扣回并清空去重基准;非 fork 会话无边界事件,行为分毫不变。`stateVersion` 4→5 触发宿主对受污染投影状态全量重放自愈。verify.mjs 新增投影行为级测试(refold/live 双路径、非 fork 不变、键复用防负数、旧宿主 createdAt 规则兼容、stateSchema/wire 三调用点 parse)。
+- **第三方渠道手动指定 DeepSeek 价格显示 0(issue #56)**:设置页「手动指定价格」下拉框存 DeepSeek 目标模型时写的是裸名(如 `deepseek-v4-flash`),而映射值按「带渠道前缀为跨渠道引用、裸名为同渠道换名」解析——跨渠道映射(如 `cephalon:deepseek-v4-flash → deepseek-v4-flash`)因此去 cephalon 渠道查一个不存在的模型,查无此价金额归零。两层修复:① 下拉框现存储带前缀的值(`deepseek:deepseek-v4-flash`,与第三方目标格式一致);② 宿主与客户端解析器对「裸值 + 非 DeepSeek 渠道解析失败」回退 DeepSeek 主表再查一次(仅显式条目/归一化匹配,不吃默认兜底价,未知名字保持未定价)——存量错误配置无需手工修正即自愈,客户端未命中列表与徽章估算同口径。verify.mjs 新增 exact/auto 双模式命中、旧语义保留(裸值同渠道换名、带前缀引用)、未知裸名不误配断言。
+
 ## [1.5.42] - 2026-08-24
 
 ### 修复

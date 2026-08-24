@@ -1542,7 +1542,7 @@ console.log('[ok] 宽泛匹配与跨厂商兑底(路由 provider 费用为零修
   // 旧 v3 checkpoint(ver 不匹配)隔离——宿主 ver 检查拒绝旧行并全量 refold,
   // 不会对旧结构 state 调用 parse。
   const projRow = { ver: def.stateVersion, seq: events.length, val: structuredClone(projState) }
-  assert.equal(projRow.ver, 4, 'stateVersion 为 4(旧 v3 checkpoint 触发重放自愈而非 parse)')
+  assert.equal(projRow.ver, 5, 'stateVersion 为 5(旧 v4 checkpoint 触发重放自愈而非 parse)')
   usageProjectionStateSchema.parse(projRow.val)
   // ⑤ issue #43 崩溃点复现对照:缺 stateSchema 的定义(fork 0.2.0 场景)在
   // restore 路径抛出与 issue 报错完全一致的 TypeError。
@@ -2031,10 +2031,13 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(scheduled >= 1, '清洗后调度落盘')
   // 投影与启动接线:源码结构断言(投影无独立运行时入口,行为经宿主重放自愈)。
   const indexSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
-  assert.ok(indexSource.includes('stateVersion: 4'), '投影 stateVersion 3→4:触发宿主重放,受污染投影自愈')
-  assert.ok(indexSource.includes("if (event.type === 'session')") && indexSource.includes('return { ...state, createdAt: created }'), '投影记录会话创建时刻')
-  assert.ok(indexSource.includes('const isSeed = state.createdAt > 0') && indexSource.includes('if (isSeed) return state'), '投影对 time < createdAt 的种子 usage 不聚合')
+  assert.ok(indexSource.includes('stateVersion: 5'), '投影 stateVersion 4→5:触发宿主重放,受污染投影自愈')
+  assert.ok(indexSource.includes("if (event.type === 'session')") && indexSource.includes('return { ...state, createdAt: created }'), '投影记录会话创建时刻(旧宿主兼容路径)')
+  assert.ok(indexSource.includes("if (event.type === 'session/end-seed')"), '投影识别 session/end-seed fork 种子边界(issue #55)')
+  assert.ok(indexSource.includes('const isSeed = (state.seedEndSeq >= 0 && Number.isFinite(eventSeq) && eventSeq < state.seedEndSeq)'), '投影按 seq < 边界过滤种子段(issue #55)')
+  assert.ok(indexSource.includes('if (isSeed) return state'), '投影对种子 usage 不聚合')
   assert.ok(indexSource.includes('createdAt: state.createdAt'), '投影 usage 更新不丢失 fork 过滤基准')
+  assert.ok(indexSource.includes('seedEndSeq: state.seedEndSeq'), '投影 usage 更新不丢失种子边界基准')
   // ③ 投影 wire 适配(PR #39 / dsh 0.1.1-rc.1):新宿主要求 stateSchema + wire
   //    才向客户端推送;旧宿主仍读 schema + view——双套字段并存,view 单一实现复用。
   assert.ok(indexSource.includes('stateSchema: usageProjectionStateSchema'), '投影声明 stateSchema(新契约;restore 路径 parse 持久化 state)')
@@ -2042,9 +2045,104 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(indexSource.includes('schema: usageProjectionSchema,'), '投影保留旧字段 schema(旧宿主 snapshot 直接调用 def.schema.parse)')
   assert.ok(indexSource.includes('view: projectionView') && indexSource.includes('view: projectionView,'), '新旧 view 复用同一实现(取值逻辑不漂移)')
   assert.ok(indexSource.includes('last: z.object({') && indexSource.includes('createdAt: z.number(),'), 'stateSchema 覆盖内部 state 全字段(含 last/createdAt)')
+  assert.ok(indexSource.includes('seedEndSeq: z.number(),') && indexSource.includes('shadow: z.object({'), 'stateSchema 覆盖种子边界与影子累计字段(issue #55)')
   assert.ok(indexSource.includes('repairForkSeed(ledger, sessionsRoot)') && indexSource.includes("'fork-seed-dedup-v1'"), '启动导入接入一次性清洗(migrations 标记防重跑)')
   rmSync(root, { recursive: true, force: true })
   console.log('[ok] fork 会话种子去重(回放双段聚合/账本清洗扣除/父会话与普通会话不动/投影接线)通过')
+}
+
+// 8e-2) 投影 fork 种子过滤行为级验证(issue #55):dsh 0.1.1-rc.1 的会话头
+// (createdAt)不进入投影事件流,v1.5.34 起依赖 event.type==='session' 记录
+// createdAt 的过滤恒不生效,fork 徽章显示全量费用。新宿主在带种子的会话日志
+// 末尾追加 session/end-seed 边界事件(seq = 种子事件数)——投影按「seq < 边界」
+// 扣除种子段(影子累计 + 边界整段扣回),不再依赖会话头。真实折叠行为测试。
+{
+  const { __testProjection } = await import('../lib/index.js')
+  const { makeCostUsageProjection, usageProjectionStateSchema } = __testProjection
+  const cfg = sanitizeConfig({})
+  const projRoot = join(tmpdir(), `cm-proj-fork-${Date.now()}`)
+  mkdirSync(projRoot, { recursive: true })
+  const projLedger = new Ledger(cfg, {}, join(projRoot, 'ledger.json'))
+  const def = makeCostUsageProjection(projLedger)
+  // 模拟宿主 refold:种子段(seq 0..2,父会话拷贝)+ end-seed 边界(seq 3)+ own 段。
+  // 与 issue #55 现象同构:缓存 157M 全量 vs fork 自己的 ~65M。
+  const ev = (type, seq, extra) => ({ type, seq, ...extra })
+  const seedHeader = { provider: 'deepseek', model: 'deepseek-v4-flash' }
+  const foldLog = [
+    ev('request/header', 0, { time: 1000, data: { header: { config: seedHeader } } }),
+    ev('assistant/message', 1, { time: 1100, data: { turn: 1, step: 1, usage: { inputTokens: 1400000, outputTokens: 344000, cacheReadTokens: 157000000, cacheWriteTokens: 0, reasoningTokens: 0 } } }),
+    ev('assistant/message', 2, { time: 1200, data: { turn: 1, step: 2, usage: { inputTokens: 900000, outputTokens: 0, cacheReadTokens: 92000000, cacheWriteTokens: 0, reasoningTokens: 0 } } }),
+    ev('session/end-seed', 3, {}),
+    ev('request/header', 4, { time: 2000, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-pro' } } } }),
+    ev('assistant/message', 5, { time: 2100, data: { turn: 2, step: 1, usage: { inputTokens: 100000, outputTokens: 50000, cacheReadTokens: 65000000, cacheWriteTokens: 0, reasoningTokens: 0 } } }),
+  ]
+  let st = def.init()
+  for (const e of foldLog) st = def.apply(st, e)
+  assert.equal(st.seedEndSeq, 3, '边界 seq 记入状态')
+  assert.equal(st.totals.cacheRead, 65000000, '徽章只显示 fork 自己的缓存用量(157M 全量被扣为 65M)')
+  assert.equal(st.totals.input, 100000, 'fork 自己的输入量')
+  assert.equal(st.totals.output, 50000, 'fork 自己的输出量')
+  assert.ok(st.shadow.totals.input === 0 && Math.abs(st.shadow.totals.cost) < 1e-15, '边界后影子累计清零')
+  assert.equal(st.byProviderModel['deepseek:deepseek-v4-flash'], undefined, '纯种子模型条目被扣回后清除')
+  assert.ok(st.byProviderModel['deepseek:deepseek-v4-pro'] !== undefined && st.byProviderModel['deepseek:deepseek-v4-pro'].cacheRead === 65000000, 'own 条目保留按模型拆分')
+  assert.ok(st.totals.cost > 0, 'own 用量按价计费')
+  usageProjectionStateSchema.parse(st)
+  def.wire.viewSchema.parse(def.wire.view(st))
+  def.schema.parse(def.view(st))
+  // wire 视图即客户端徽章数据源:总量不含种子。
+  assert.equal(def.wire.view(st).input, 100000, 'wire 视图 input 不含种子(issue #55 徽章口径)')
+  // 边界前中途状态允许暂含种子(单遍折叠),但最终一致;live 路径(边界先到)全程正确。
+  let live = def.init()
+  for (const e of [foldLog[3], foldLog[4], foldLog[5]]) live = def.apply(live, e)
+  assert.equal(live.totals.cacheRead, 65000000, 'live 路径(边界先于 usage 到达)同样只计 own')
+  // 非 fork 会话(无 end-seed):全部计入,行为不变。
+  let plain = def.init()
+  for (const e of [foldLog[0], foldLog[1], foldLog[4], foldLog[5]]) plain = def.apply(plain, e)
+  assert.equal(plain.totals.cacheRead, 157000000 + 65000000, '非 fork 会话全量计入不受影响')
+  // 键复用防负数:own 首样本复用种子末尾 (turn,step) 键时,不得再减已扣回的种子样本。
+  let clash = def.init()
+  for (const e of [
+    ev('request/header', 0, { time: 1000, data: { header: { config: seedHeader } } }),
+    ev('assistant/chunk', 1, { time: 1100, data: { turn: 1, step: 1, chunk: { type: 'usage', usage: { inputTokens: 10, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 } } } }),
+    ev('session/end-seed', 2, {}),
+    ev('assistant/message', 3, { time: 2100, data: { turn: 1, step: 1, usage: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 } } }),
+  ]) clash = def.apply(clash, e)
+  assert.equal(clash.totals.input, 100, '键复用时 own 样本独立计入(无双重扣减)')
+  assert.ok(clash.totals.output >= 0 && clash.totals.cost >= 0, '键复用不产生负累计')
+  // 旧宿主兼容:'session' 事件携带 createdAt 时,time < createdAt 仍过滤(v1.5.34 规则)。
+  let legacy = def.init()
+  for (const e of [
+    { type: 'session', createdAt: 2000 },
+    ev('request/header', 0, { time: 1000, data: { header: { config: seedHeader } } }),
+    ev('assistant/message', 1, { time: 1100, data: { turn: 1, step: 1, usage: { inputTokens: 10, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 } } }),
+    ev('assistant/message', 2, { time: 2100, data: { turn: 2, step: 1, usage: { inputTokens: 20, outputTokens: 2, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 } } }),
+  ]) legacy = def.apply(legacy, e)
+  assert.equal(legacy.totals.input, 20, '旧宿主路径:time < createdAt 的种子不计,time ≥ createdAt 计入')
+  rmSync(projRoot, { recursive: true, force: true })
+  console.log('[ok] 投影 fork 种子过滤(end-seed 边界/影子扣回/live 与 refold 双路径/非 fork 不变/键复用防负数/旧宿主兼容)通过')
+}
+
+// 8e-3) 手动价格映射裸 DeepSeek 名兜底(issue #56):v1.5.42 及之前设置页下拉框把
+// DeepSeek 目标模型存成裸名(缺 'deepseek:' 前缀),跨渠道映射(如第三方渠道模型 →
+// deepseek-v4-flash)被按「同渠道换名」解析后查无此价,金额归零。宿主解析器对
+// 「裸值 + 非 DeepSeek 渠道解析失败」回退 DeepSeek 主表再查一次;设置页下拉框改为
+// 存带前缀的值。行为级 + 源码断言。
+{
+  const o = { 'cephalon:deepseek-v4-flash': 'deepseek-v4-flash' }
+  const exactHit = providerPriceEntryFor('cephalon', 'deepseek-v4-flash', fullPrices, { mode: 'exact', overrides: o })
+  assert.equal(exactHit.priced, true, 'issue #56 场景(exact):裸名映射不再查无此价')
+  assert.equal(exactHit.billingMode, 'deepseek-peak', '兜底命中保留峰谷两档计费模式')
+  const dsRef = providerPriceEntryFor('deepseek', 'deepseek-v4-flash', fullPrices, { mode: 'exact' })
+  assert.deepEqual(exactHit.entry, dsRef.entry, '兜底命中取的就是 DeepSeek 主表该模型的价签')
+  assert.equal(providerPriceEntryFor('cephalon', 'deepseek-v4-flash', fullPrices, { mode: 'auto', overrides: o }).priced, true, 'auto 模式同样命中')
+  // 语义保留:裸值同渠道换名、带前缀跨渠道引用、未知名字不吃默认兜底价。
+  assert.ok(providerPriceEntryFor('openai', 'weird-name', fullPrices, { mode: 'exact', overrides: { 'openai:weird-name': 'gpt-5.6-luna' } }).priced, '裸值同渠道换名语义保留')
+  assert.ok(providerPriceEntryFor('zen', 'x', fullPrices, { mode: 'exact', overrides: { 'zen:x': 'openai:gpt-5.6-luna' } }).entry?.output === 1.2, '带前缀跨渠道引用语义保留')
+  assert.equal(providerPriceEntryFor('foo', 'no-such-model', fullPrices, { mode: 'auto', overrides: { 'foo:no-such-model': 'no-such-model' } }).priced, false, '未知裸名保持未定价(不误套默认价)')
+  const clientSource = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.ok(clientSource.includes("value: 'deepseek:' + id"), '设置页下拉框 DeepSeek 目标存带前缀的值(issue #56 根因)')
+  assert.ok(clientSource.includes("if (provider !== 'deepseek' && !provider.includes('deepseek')") && clientSource.includes("matchModelIdLocal(override, Object.keys(dsModels))"), '客户端 resolveClientPrice 同口径裸名兜底(未命中列表/徽章估算与计费一致)')
+  console.log('[ok] 手动价格映射裸 DeepSeek 名兜底(宿主+客户端双端/语义保留/下拉框根因修复)通过')
 }
 
 // 8f) 包装路由嵌套去重(issue #48):modlens/vision-router 的适配器在自身
