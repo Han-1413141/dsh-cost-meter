@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.44] - 2026-08-24
+
+### 修复
+
+- **Kimi 订阅端点识别的 URL 子串匹配隐患(CodeQL alert no. 6,`js/incomplete-url-substring-sanitization`,高危)**:`queryCodingPlan` 用 `url.includes('api.kimi.com')` 判定「本次请求是否 Kimi Code 订阅端点」——子串匹配可被形如 `api.kimi.com.attacker.tld`、`not-api.kimi.com` 的主机名误命中,进而选用错误的解析器。现改用 `new URL(url).hostname` 精确等值匹配(小写归一;非法 URL 按非订阅端点处理,走该厂商默认解析器),对现有双端点(`api.kimi.com` 订阅配额 / `api.moonshot.cn` PAYG 余额)行为逐位一致,仅排除恶意相似主机名。GitHub Copilot Autofix 提交(5fc035f)原样纳入,本版补齐版本发布链(版本号/安装脚本/README/发布说明)。
+
 ## [1.5.43] - 2026-08-24
 
 ### 修复
