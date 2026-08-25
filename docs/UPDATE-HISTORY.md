@@ -3,6 +3,9 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.47(2026-08-25)—— 修复 fork 多 end-seed 边界
+- **修复: fork 会话徽章仍显示全量费用(issue #61, 跟进 @csliuchi)**:`v1.5.43` 的 `end-seed` 取首个边界,父会话重启的 `end-seed` 被拷进种子段导致中间种子漏扣(256 条 usage);`v1.5.47` 改为取种子段内最大边界、延迟至首个 own 事件整段扣回,header 的 `seedLength` 作为边界,子会话自身重启的 `end-seed` 过滤; `stateVersion` 5→6 触发重放自愈。
+
 ## v1.5.46(2026-08-25)—— 新增 火山方舟 Volcano Ark Coding Plan
 - **新增:火山方舟 Volcano Ark Coding Plan 额度查询(issue #60, 需求 @sanqiPanax)**:第 9 家 Coding Plan——管控面 `open.volcengineapi.com`(Action `GetUsageDetails`/`GetPersonalPlan`/`GetAFPUsage`, service `ark`) 走 AK/SK HMAC-SHA256 签名(非 Bearer),需 IAM 子用户双权限,三窗口 5h/weekly/monthly 归一化与其它 8 家同款卡片/横条/点击刷新;配置双字段 `accessKeyId`/`secretAccessKey`(兼容环境变量与 `AK:SK` 冒号写法),凭据仅发往官方域名,含签名/解析/清洗/端点白名单与客户端双输入框的 verify 覆盖。
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.47] - 2026-08-25
+
+### 修复
+
+- **fork 会话徽章仍显示全量费用(issue #61, 感谢 @csliuchi 跟进 #55 的完整根因与复现数据)**:`v1.5.43` 的 `session/end-seed` 延迟边界在种子段含多个 `end-seed`(父会话重启标记被拷贝)时,取“首个”边界导致中间种子段漏扣——父会话 256 条 usage(11309~273547)被计入子会话,徽章显示全量 ¥59/156M 而非 ~¥17/65M。`v1.5.47` 改为“取种子段内最大 end-seed、延迟至首个 own 事件再整段扣回”: `session` header 现记录 `seedLength`/`parentSession`(0.1.1-rc.2 起)并作为边界, `end-seed` 仅更新 `seedEndSeq = max` 且过滤 `time ≥ createdAt` / `seq ≥ seedLength` 的子会话自身重启标记;首个 own 事件到达时一次性扣回全量影子累计并标记 `seedDeducted`,后续 `end-seed` 忽略。`stateVersion` 5→6 触发重放自愈,旧污染投影自动修复;`stateSchema` 新增 `seedLength`/`seedDeducted`; `verify.mjs` 新增多 end-seed 延迟扣除断言与源码接线断言,原单 end-seed 用例保持兼容。
+
 ## [1.5.46] - 2026-08-25
 
 ### 新增

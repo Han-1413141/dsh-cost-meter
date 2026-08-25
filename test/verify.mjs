@@ -1557,7 +1557,7 @@ console.log('[ok] 宽泛匹配与跨厂商兑底(路由 provider 费用为零修
   // 旧 v3 checkpoint(ver 不匹配)隔离——宿主 ver 检查拒绝旧行并全量 refold,
   // 不会对旧结构 state 调用 parse。
   const projRow = { ver: def.stateVersion, seq: events.length, val: structuredClone(projState) }
-  assert.equal(projRow.ver, 5, 'stateVersion 为 5(旧 v4 checkpoint 触发重放自愈而非 parse)')
+  assert.equal(projRow.ver, 6, 'stateVersion 为 6(旧 v5 checkpoint 触发重放自愈而非 parse)')
   usageProjectionStateSchema.parse(projRow.val)
   // ⑤ issue #43 崩溃点复现对照:缺 stateSchema 的定义(fork 0.2.0 场景)在
   // restore 路径抛出与 issue 报错完全一致的 TypeError。
@@ -2046,10 +2046,10 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(scheduled >= 1, '清洗后调度落盘')
   // 投影与启动接线:源码结构断言(投影无独立运行时入口,行为经宿主重放自愈)。
   const indexSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
-  assert.ok(indexSource.includes('stateVersion: 5'), '投影 stateVersion 4→5:触发宿主重放,受污染投影自愈')
-  assert.ok(indexSource.includes("if (event.type === 'session')") && indexSource.includes('return { ...state, createdAt: created }'), '投影记录会话创建时刻(旧宿主兼容路径)')
+  assert.ok(indexSource.includes('stateVersion: 6'), '投影 stateVersion 5→6:触发宿主重放,受污染投影自愈(issue #61 多 end-seed 修复)')
+  assert.ok(indexSource.includes("if (event.type === 'session')") && indexSource.includes('createdAt') && indexSource.includes('seedLength'), '投影记录会话创建时刻与 seedLength(旧宿主兼容+多 end-seed 延迟扣除)')
   assert.ok(indexSource.includes("if (event.type === 'session/end-seed')"), '投影识别 session/end-seed fork 种子边界(issue #55)')
-  assert.ok(indexSource.includes('const isSeed = (state.seedEndSeq >= 0 && Number.isFinite(eventSeq) && eventSeq < state.seedEndSeq)'), '投影按 seq < 边界过滤种子段(issue #55)')
+  assert.ok(indexSource.includes('isSeedBySeq') && indexSource.includes('isSeedByLength') && indexSource.includes('seedEndSeq'), '投影按 seq/length/time 三重过滤种子段(issue #55/#61)')
   assert.ok(indexSource.includes('if (isSeed) return state'), '投影对种子 usage 不聚合')
   assert.ok(indexSource.includes('createdAt: state.createdAt'), '投影 usage 更新不丢失 fork 过滤基准')
   assert.ok(indexSource.includes('seedEndSeq: state.seedEndSeq'), '投影 usage 更新不丢失种子边界基准')
@@ -2061,6 +2061,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(indexSource.includes('view: projectionView') && indexSource.includes('view: projectionView,'), '新旧 view 复用同一实现(取值逻辑不漂移)')
   assert.ok(indexSource.includes('last: z.object({') && indexSource.includes('createdAt: z.number(),'), 'stateSchema 覆盖内部 state 全字段(含 last/createdAt)')
   assert.ok(indexSource.includes('seedEndSeq: z.number(),') && indexSource.includes('shadow: z.object({'), 'stateSchema 覆盖种子边界与影子累计字段(issue #55)')
+  assert.ok(indexSource.includes('seedLength: z.number().optional()') && indexSource.includes('seedDeducted: z.boolean().optional()'), 'stateSchema 覆盖 seedLength/seedDeducted 延迟扣除字段(issue #61)')
   assert.ok(indexSource.includes('repairForkSeed(ledger, sessionsRoot)') && indexSource.includes("'fork-seed-dedup-v1'"), '启动导入接入一次性清洗(migrations 标记防重跑)')
   rmSync(root, { recursive: true, force: true })
   console.log('[ok] fork 会话种子去重(回放双段聚合/账本清洗扣除/父会话与普通会话不动/投影接线)通过')
@@ -2135,6 +2136,49 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.equal(legacy.totals.input, 20, '旧宿主路径:time < createdAt 的种子不计,time ≥ createdAt 计入')
   rmSync(projRoot, { recursive: true, force: true })
   console.log('[ok] 投影 fork 种子过滤(end-seed 边界/影子扣回/live 与 refold 双路径/非 fork 不变/键复用防负数/旧宿主兼容)通过')
+}
+
+// 8e-2b) fork 多 end-seed 延迟扣除(issue #61):父会话重启产生的 end-seed 被拷进种子段,首个边界过小导致中间种子漏扣。
+{
+  const { __testProjection } = await import('../lib/index.js')
+  const { makeCostUsageProjection } = __testProjection
+  const cfg = sanitizeConfig({})
+  const projRoot2 = join(tmpdir(), `cm-proj-fork-multi-${Date.now()}`)
+  mkdirSync(projRoot2, { recursive: true })
+  const projLedger2 = new Ledger(cfg, {}, join(projRoot2, 'ledger.json'))
+  const def2 = makeCostUsageProjection(projLedger2)
+  const ev2 = (type, seq, extra) => ({ type, seq, ...extra })
+  const forkAt2 = Date.now()
+  // 种子段含 3 个 end-seed(模拟父会话的 11309/81434/273547),子会话 header 带 seedLength
+  const hdr = ev2('session', 0, { createdAt: forkAt2, seedLength: 4, parentSession: 'parent-sess' })
+  const logMulti = [
+    hdr,
+    ev2('request/header', 1, { time: forkAt2 - 5000, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } }),
+    ev2('assistant/message', 1, { time: forkAt2 - 4000, data: { turn: 1, step: 1, usage: { inputTokens: 100, outputTokens: 10, cacheReadTokens: 1000, cacheWriteTokens: 0 } } }),
+    ev2('session/end-seed', 2, { time: forkAt2 - 3000 }),
+    ev2('assistant/message', 2, { time: forkAt2 - 2000, data: { turn: 1, step: 2, usage: { inputTokens: 200, outputTokens: 20, cacheReadTokens: 2000, cacheWriteTokens: 0 } } }),
+    ev2('session/end-seed', 3, { time: forkAt2 - 1000 }),
+    ev2('assistant/message', 3, { time: forkAt2 - 500, data: { turn: 1, step: 3, usage: { inputTokens: 300, outputTokens: 30, cacheReadTokens: 3000, cacheWriteTokens: 0 } } }),
+    ev2('session/end-seed', 4, { time: forkAt2 - 100 }),
+    // own 段
+    ev2('request/header', 5, { time: forkAt2 + 1000, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-pro' } } } }),
+    ev2('assistant/message', 5, { time: forkAt2 + 2000, data: { turn: 2, step: 1, usage: { inputTokens: 400, outputTokens: 40, cacheReadTokens: 4000, cacheWriteTokens: 0 } } }),
+  ]
+  let st2 = def2.init()
+  for (const e of logMulti) st2 = def2.apply(st2, e)
+  // 三个种子 message 共 600 input 应被全部扣回,仅 own 400 保留
+  assert.equal(st2.totals.input, 400, '多 end-seed 场景:种子段全部扣回,仅 own 计入')
+  assert.equal(st2.totals.cacheRead, 4000, '多 end-seed 场景:缓存仅 own')
+  assert.equal(st2.seedDeducted, true, '首个 own 到达后标记已扣除')
+  assert.equal(st2.seedEndSeq, 4, '边界取最大 end-seed(或 seedLength)')
+  // 子会话自己重启的 end-seed(own 段后)不应影响已扣除状态
+  const extraEndSeed = ev2('session/end-seed', 6, { time: forkAt2 + 3000 })
+  const before = st2.totals.input
+  st2 = def2.apply(st2, extraEndSeed)
+  assert.equal(st2.totals.input, before, 'own 段后的 end-seed 不改变已扣除状态')
+  assert.equal(st2.seedEndSeq, 4, 'own 后 end-seed 不更新边界')
+  rmSync(projRoot2, { recursive: true, force: true })
+  console.log('[ok] 投影多 end-seed 延迟扣除(issue #61)通过')
 }
 
 // 8e-3) 手动价格映射裸 DeepSeek 名兜底(issue #56):v1.5.42 及之前设置页下拉框把
