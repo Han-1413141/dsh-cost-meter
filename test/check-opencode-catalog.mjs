@@ -25,7 +25,7 @@ const num = s => {
   return m ? Number(m[1].replace(/,/g, '')) : null
 }
 const cellsOf = tr => [...tr.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/g)].map(m =>
-  m[1].replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim())
+  m[1].replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim())
 const canon = s => String(s ?? '').replace(/\s+/g, ' ').trim().toLowerCase()
 // 分档标注:(≤ 272K tokens)=基础档;(> 272K tokens)/(Off-Peak)/(Peak) 等为变体行。
 const tierOf = name => {
