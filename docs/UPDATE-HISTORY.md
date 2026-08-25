@@ -3,6 +3,13 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.45(2026-08-25)—— 进度条方向统一 + 目录价格对表夹具 + 充值直达与 Codex 周额度
+
+- **修复:Plan 类余额进度条方向统一(issue #57,报告 @mumchristmas)**:MiniMax 卡片此前按「余量」填充、其它厂商按「已用」填充,同屏方向相反;现全部统一为「已用」(条越满用得越多),告警阈值同步对齐。
+- **修复:OpenCode 目录价格漂移(issue #58,实测与脚本 @xyzs996)**:`gpt-5.6-sol` 降价六成($2/$10/缓存读$0.20,>272K 档 $4/$15;09-18 前五折促销价已注明);`opencode-go.glm-5.3` 按目录价补齐 $1.40/$4.40/$0.26(z-ai 维持不编造);新增 `muse-spark-1.2`(Meta)、`longcat-2.0`(美团)、`muse-spark-1.2-contributor` 三个模型;新增 `test/check-opencode-catalog.mjs` 对表夹具(69 条全对齐)与 `scripts/gen-provider-pricing.mjs` 再生成脚本。
+- **新增:DeepSeek 充值直达(issue #59)**:官方余额旁「↗」新开平台账单页直达充值,不影响点击刷新。
+- **新增:ChatGPT(Codex)周额度显示(issue #59)**:安装 dsh-codex-connect 并登录后自动出现 Codex 周额度卡片与额度横条 chip(同源只读探测、零配置、无凭据读取),插件不在时自动隐藏。
+
 ## v1.5.44(2026-08-24)—— 安全加固:Kimi 端点识别精确化
 
 - **修复:Kimi 订阅端点识别改用 URL 主机名精确匹配(CodeQL 高危告警 no. 6)**:此前用子串匹配判断当前请求是否 `api.kimi.com` 订阅端点,理论上可被恶意相似域名误命中;现改为主机名精确等值(大小写归一),对正常使用行为无任何变化,仅消除安全隐患。

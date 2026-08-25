@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.5.45] - 2026-08-25
+
+### 修复
+
+- **Plan 类余额进度条方向统一(issue #57,感谢 @mumchristmas 报告)**:同时配置智谱与 MiniMax Coding Plan 时,侧边栏两张卡片的进度条填充方向相反——通用卡片(Z.ai/Anthropic/Kimi 等)按「已用」填充,MiniMax 专用卡片按「余量」(100−已用)填充,同屏并列时无法直观比较(报告案例:Z.ai 已用 18% 显示 18%,MiniMax 已用 0% 却显示满条)。数据层两家的 `percent` 本就同为已用口径,仅 MiniMax 卡片在渲染层做了 `100−` 翻转。现移除该翻转:`MiniMaxPlanCard`(侧边栏 + 设置页)与通用卡片、输入框上方额度横条、Codex 周额度卡片全部统一为「已用」方向——条越满用得越多;告警阈值同步对齐(≥80% 预警、≥100% 超支),悬停提示与收起态百分比同步改为已用口径。余量换算函数(`miniMaxRemainPct`/`miniMaxRemainLevel`)删除。verify.mjs 新增渲染口径断言(余量路径已删/阈值一致)。
+- **OpenCode 目录价格漂移(issue #58,感谢 @xyzs996 的逐条实测与对表脚本)**:目录页会自己变而表里没有东西盯着——本次核对(2026-08-25 抓取 zen/go 两页,与报告者 08-24 数据逐位一致):① `gpt-5.6-sol` 于 08-19–08-24 间降价六成(≤272K 档 $5/$30/$0.50/写$6.25 → $2/$10/$0.20/写$2.50;>272K 档 $10/$45 → $4/$15,缓存读 $1→$0.40、写入 $12.50→$5),旧价高估输入 2.5×/输出 3×/缓存读 2.5×;页面注明 2026-09-18 前为五折促销价,已记入 notes。② `glm-5.3` 登上 Go 目录价目表($1.40/$4.40/$0.26,与 GLM-5.2/5.1 同价),`opencode-go.glm-5.3` 由 unpriced 改为目录价;`z-ai.glm-5.3` 维持不编造原则不变(Go 目录价不是智谱官方价)。③ 收录三个新模型:Zen 的 `muse-spark-1.2`(Meta,$1.25/$4.25/缓存读$0.15,新增 `meta` 厂商键)、Go 的 `longcat-2.0`(美团,$0.30/$1.20/$0.006,新增 `meituan` 键)与 `muse-spark-1.2-contributor`($0.10/$0.20/$0.002,notes 注明低价换训练数据授权、限地区)。Go 目录注释更新为「非 DeepSeek 的 19 个」;`docs/provider-pricing.json` 再生成并补交生成脚本 `scripts/gen-provider-pricing.mjs`;**新增 `test/check-opencode-catalog.mjs` 对表夹具**(零依赖抓取两张目录页,Endpoints 表官方名→id 映射,分档行取 ≤ 档为基线,缓存读缺省按原价折算,免费档与「页面有价、表里没有」只提示不判红;当前 69 条全对齐,退出码 0)。verify.mjs 新增 Sol 三项新价/glm-5.3 目录价/三个新模型断言。
+
+### 新增
+
+- **DeepSeek 充值直达 + ChatGPT(Codex)周额度显示(issue #59)**:① 官方余额行与余额图框的金额旁新增「↗」小链接,点击新开 `platform.deepseek.com/usage` 平台账单页直达充值;链接 `stopPropagation`,不会误触发图框本身的点击刷新(issue #37),中英悬停提示,收起窄栏不加(保持单图标)。② 安装了 dsh-codex-connect 插件并登录 ChatGPT 后,自动在侧边栏显示 Codex 周额度卡片并在额度横条追加 Codex chip——数据经该插件暴露的同源只读路由 `/plugins/dsh-openai-codex/auth/status` 探测(不读凭据、无需配置 Key),解析 `codex` 桶 7 天窗口的 `remainingPercent` 为已用%(与 #57 统一后的方向一致)与重置时刻;插件不在/未登录/路由 404 一律静默隐藏,探测结果模块级缓存 5 分钟,bundle 装载即做一次被动探测(其余显示全关时也能出卡片),点击卡片/chip 手动重探。宿主进程无法感知 web 端口,故由浏览器端同源 fetch 实现。verify.mjs 新增充值链接/探测模块/卡片与 chip 接线断言。
+
 ## [1.5.44] - 2026-08-24
 
 ### 修复
