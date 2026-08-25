@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.46] - 2026-08-25
+
+### 新增
+
+- **火山方舟 Volcano Ark Coding Plan 额度查询支持(issue #60, 感谢 @sanqiPanax 提交需求与参考 CCswitch 实现要点)**:作为第 9 家 Coding Plan 接入,复用管控面 OpenAPI(open.volcengineapi.com/?Action=GetUsageDetails / GetPersonalPlan / GetAFPUsage, Version=2024-01-01, service=ark, region=cn-beijing)的 AK/SK HMAC-SHA256 签名查询(非 ARK_API_KEY Bearer)——需在火山引擎控制台创建 IAM 子用户并授予 ArkReadOnlyAccess + BillingCenterReadOnlyAccess,得到 AccessKeyID/SecretAccessKey;按官方文档 [1298459](https://www.volcengine.com/docs/82379/1298459) / [2479849](https://www.volcengine.com/docs/82379/2479849) / [1390291](https://www.volcengine.com/docs/82379/1390291)实现签名与用量解析。三窗口归一化为 5h / weekly / monthly(与 Lite≈5h1200/周9000/月18000、Pro 5倍 的套餐档位对应,5h 滚动刷新、周一 00:00 重置周额、订阅月 1 日 00:00 重置月额),侧边栏/设置页/额度横条与其它 8 家同款展示与点击刷新;配置新增 accessKeyId / secretAccessKey 双字段(兼容 VOLC_ACCESSKEY/VOLC_SECRETKEY 等环境变量与 apiKey: "AK:SK" 冒号写法,凭据仅发往 open.volcengineapi.com);端点硬编码白名单与签名参数固定,新增 parseVolcengineUsage / volcengineAuthorization / normalizeVolcengineKey 纯函数与端到端 verify 覆盖(arkcli 形态/UsageDetails 数组/扁平窗口/空结果四形态,签名 determinism 与 CredentialScope 校验,配置清洗与客户端双输入框接线)。
+
 ## [1.5.45] - 2026-08-25
 
 ### 修复

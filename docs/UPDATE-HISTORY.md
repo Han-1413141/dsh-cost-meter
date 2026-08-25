@@ -3,6 +3,9 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.46(2026-08-25)—— 新增 火山方舟 Volcano Ark Coding Plan
+- **新增:火山方舟 Volcano Ark Coding Plan 额度查询(issue #60, 需求 @sanqiPanax)**:第 9 家 Coding Plan——管控面 `open.volcengineapi.com`(Action `GetUsageDetails`/`GetPersonalPlan`/`GetAFPUsage`, service `ark`) 走 AK/SK HMAC-SHA256 签名(非 Bearer),需 IAM 子用户双权限,三窗口 5h/weekly/monthly 归一化与其它 8 家同款卡片/横条/点击刷新;配置双字段 `accessKeyId`/`secretAccessKey`(兼容环境变量与 `AK:SK` 冒号写法),凭据仅发往官方域名,含签名/解析/清洗/端点白名单与客户端双输入框的 verify 覆盖。
+
 ## v1.5.45(2026-08-25)—— 进度条方向统一 + 目录价格对表夹具 + 充值直达与 Codex 周额度
 
 - **修复:Plan 类余额进度条方向统一(issue #57,报告 @mumchristmas)**:MiniMax 卡片此前按「余量」填充、其它厂商按「已用」填充,同屏方向相反;现全部统一为「已用」(条越满用得越多),告警阈值同步对齐。

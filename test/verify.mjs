@@ -808,6 +808,8 @@ const officialHosts = {
   openrouter: ['openrouter.ai'],
   siliconflow: ['api.siliconflow.cn'],
   commandcode: ['api.commandcode.ai'],
+  scnet: [],
+  volcengine: ['open.volcengineapi.com'],
 }
 for (const id of CODING_PLAN_PROVIDER_IDS) {
   assert.ok(CODING_PLAN_PROVIDERS[id] !== undefined, `提供商注册:${id}`)
@@ -3056,6 +3058,105 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.equal(extractByRule(payload, { op: 'divide', path: 'data.total_available' }), null, 'divide 缺除数返回 null')
   assert.equal(extractByRule(payload, { op: 'divide', path: 'data.name', by: 500000 }), null, 'divide 目标非数字返回 null')
   console.log('[ok] 自定义余额 extract 规则(路径/常量/add/subtract/divide)通过')
+}
+
+// 火山方舟 Volcano Ark Coding Plan(issue #60):AK/SK 签名 + 三窗口解析 + 配置 + 端点白名单。
+{
+  const {
+    parseVolcengineUsage,
+    volcengineAuthorization,
+    normalizeVolcengineKey,
+    VOLCENGINE_HOST,
+    VOLCENGINE_ACTIONS,
+  } = await import('../lib/coding-plans.js')
+  // 1) AK/SK 归一化
+  assert.deepEqual(normalizeVolcengineKey({ accessKeyId: 'AK123', secretAccessKey: 'SK456' }), { accessKeyId: 'AK123', secretAccessKey: 'SK456' }, '对象双凭据归一')
+  assert.deepEqual(normalizeVolcengineKey('AK123:SK456'), { accessKeyId: 'AK123', secretAccessKey: 'SK456' }, '冒号字符串归一')
+  assert.equal(normalizeVolcengineKey('AK123'), null, '仅 AK 不完整')
+  assert.equal(normalizeVolcengineKey(null), null, '非法输入 null')
+  // 2) HMAC 签名 determinism(固定时间戳)
+  const fixedDate = '20260825T120000Z'
+  const auth1 = volcengineAuthorization({ accessKeyId: 'AKTEST123', secretAccessKey: 'SKTEST456', method: 'GET', host: VOLCENGINE_HOST, path: '/', query: { Action: 'GetUsageDetails', Version: '2024-01-01' }, body: '', datetime: fixedDate })
+  const auth2 = volcengineAuthorization({ accessKeyId: 'AKTEST123', secretAccessKey: 'SKTEST456', method: 'GET', host: VOLCENGINE_HOST, path: '/', query: { Action: 'GetUsageDetails', Version: '2024-01-01' }, body: '', datetime: fixedDate })
+  assert.equal(auth1.Authorization, auth2.Authorization, '相同输入签名一致')
+  assert.ok(auth1.Authorization.startsWith('HMAC-SHA256 Credential=AKTEST123/20260825/cn-beijing/ark/request'), '签名 CredentialScope 正确')
+  assert.ok(auth1.Authorization.includes('SignedHeaders=host;x-content-sha256;x-date'), '签名头集合正确')
+  assert.equal(auth1['X-Date'], fixedDate, 'X-Date 透传')
+  assert.equal(auth1['X-Content-Sha256'], 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '空 body SHA256 正确')
+  // query 顺序无关签名字符串一致
+  const authA = volcengineAuthorization({ accessKeyId: 'AK1', secretAccessKey: 'SK1', query: { Version: '2024-01-01', Action: 'GetAFPUsage' }, datetime: fixedDate })
+  const authB = volcengineAuthorization({ accessKeyId: 'AK1', secretAccessKey: 'SK1', query: { Action: 'GetAFPUsage', Version: '2024-01-01' }, datetime: fixedDate })
+  assert.equal(authA.Authorization, authB.Authorization, 'query 排序不影响签名')
+  assert.deepEqual(VOLCENGINE_ACTIONS, ['GetUsageDetails', 'GetPersonalPlan', 'GetAFPUsage'], 'Action 白名单按优先级')
+  // 3) 解析器:arkcli 形态(session/weekly/monthly → fiveHour/weekly/monthly)
+  const arkcliData = {
+    items: [
+      {
+        product: 'coding-plan',
+        periods: [
+          { label: 'session', percent: 25, reset_at: 1787638800 },
+          { label: 'weekly', percent: 10, reset_at: 1787800000 },
+          { label: 'monthly', percent: 5, reset_at: 1788200000 },
+        ],
+      },
+    ],
+  }
+  const arkcliParsed = parseVolcengineUsage(arkcliData)
+  assert.equal(arkcliParsed.fiveHour.percent, 25, 'arkcli session → fiveHour')
+  assert.equal(arkcliParsed.weekly.percent, 10, 'arkcli weekly')
+  assert.equal(arkcliParsed.monthly.percent, 5, 'arkcli monthly')
+  assert.ok(arkcliParsed.fiveHour.resetsAt.length > 0, 'arkcli resetAt 含 ISO')
+  // 4) 解析器:管控面 Result UsageDetails 形态(大小写/Total-Used/Remaining 兼容)
+  const usageDetailsData = {
+    ResponseMetadata: { RequestId: 'x', Action: 'GetUsageDetails', Version: '2024-01-01' },
+    Result: {
+      UsageDetails: [
+        { QuotaType: 'FiveHour', Total: 1200, Used: 300, ResetTime: 1787638800000 },
+        { QuotaType: 'Weekly', Total: 9000, Used: 900, ResetTime: '2026-09-01T00:00:00Z' },
+        { QuotaType: 'Monthly', Limit: 18000, Remaining: 15000, ResetTime: '2026-10-01T00:00:00Z' },
+      ],
+    },
+  }
+  const usageParsed = parseVolcengineUsage(usageDetailsData)
+  assert.equal(usageParsed.fiveHour.percent, 25, 'UsageDetails FiveHour 300/1200=25%')
+  assert.equal(usageParsed.weekly.percent, 10, 'UsageDetails Weekly 900/9000=10%')
+  assert.equal(usageParsed.monthly.percent, 16.7, 'UsageDetails Monthly (18000-15000)/18000≈16.7%')
+  // 5) 解析器:扁平窗口对象兜底
+  const flatData = {
+    Result: {
+      fiveHour: { used: 600, limit: 1200, reset_at: '2026-08-26T00:00:00Z' },
+      weekly: { percent: 33, resetsAt: '2026-09-01T00:00:00Z' },
+    },
+  }
+  const flatParsed = parseVolcengineUsage(flatData)
+  assert.equal(flatParsed.fiveHour.percent, 50, '扁平 fiveHour 600/1200=50%')
+  assert.equal(flatParsed.weekly.percent, 33, '扁平 weekly 直接 percent')
+  assert.equal(parseVolcengineUsage({ ResponseMetadata: {}, Result: {} }), null, '空 Result 拒绝')
+  assert.equal(parseVolcengineUsage(null), null, '非法输入拒绝')
+  // 6) 配置清洗:火山方舟双凭据字段保留、超长 refreshMinutes 钳制
+  const volcCfg = sanitizeConfig({ codingPlans: { volcengine: { enabled: true, accessKeyId: 'AK1', secretAccessKey: 'SK1', refreshMinutes: 9999, display: 'both' } } })
+  assert.equal(volcCfg.codingPlans.volcengine.accessKeyId, 'AK1', 'accessKeyId 保留')
+  assert.equal(volcCfg.codingPlans.volcengine.secretAccessKey, 'SK1', 'secretAccessKey 保留')
+  assert.equal(volcCfg.codingPlans.volcengine.refreshMinutes, 1440, 'refreshMinutes 上限 1440')
+  assert.equal(volcCfg.codingPlans.volcengine.display, 'both', 'display 保留')
+  // 老配置仅 apiKey 承载 AK 时迁移
+  const volcCfgLegacy = sanitizeConfig({ codingPlans: { volcengine: { enabled: true, apiKey: 'AKLEGACY' } } })
+  assert.equal(volcCfgLegacy.codingPlans.volcengine.accessKeyId, 'AKLEGACY', 'apiKey 迁移为 accessKeyId')
+  // 校验 applyConfigPatch
+  const volcPatch = applyConfigPatch(sanitizeConfig({}), { codingPlans: { volcengine: { enabled: true, accessKeyId: 'AK2', secretAccessKey: 'SK2' } } })
+  assert.equal(volcPatch.errors.length, 0, 'volcengine 补丁合法')
+  assert.equal(volcPatch.config.codingPlans.volcengine.accessKeyId, 'AK2', '补丁生效')
+  // 7) 客户端文案与输入框存在
+  const clientSrc = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.ok(clientSrc.includes('volcengineAccessKeyIdLabel') && clientSrc.includes('volcengineSecretAccessKeyLabel'), '客户端双凭据文案存在')
+  assert.ok(clientSrc.includes('volcengineNote'), '客户端说明文案存在')
+  assert.ok(clientSrc.includes("setPlan(id, 'accessKeyId'") && clientSrc.includes("setPlan(id, 'secretAccessKey'"), '客户端双输入框写回')
+  assert.ok(clientSrc.includes("id === 'volcengine'"), '客户端 volcengine 分支渲染')
+  assert.ok(clientSrc.includes("STRIP_VENDOR_SHORT") && clientSrc.includes("volcengine: 'Ark'"), '横条短标签包含 volcengine')
+  // 8) 端点白名单
+  assert.ok(CODING_PLAN_ENDPOINTS.volcengine.every(u => new URL(u).host === VOLCENGINE_HOST), 'volcengine 端点 Host 统一为 open.volcengineapi.com')
+  assert.equal(CODING_PLAN_ENDPOINTS.volcengine.length, VOLCENGINE_ACTIONS.length, '端点数 = Action 数')
+  console.log('[ok] 火山方舟 Volcano Ark(Coding Plan AK/SK 签名/三窗口解析/配置/白名单/客户端接线)通过')
 }
 
 console.log('[ok] 全部验证通过')

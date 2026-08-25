@@ -76,18 +76,19 @@ Price sources: cross-checked against the **OpenCode Zen/Go official price list**
 
 ## 2. Coding Plan quota adaptation
 
-The "Coding Plan quotas" panel in Settings supports **8 vendors**, each with its own enable switch / key / manual refresh / progress bars and reset times, plus a per-vendor **display position** (sidebar card / Settings page / both / off, default Settings page; v1.5.26); credentials are only ever sent to each vendor's **hard-coded official domain** (whitelist asserted in tests). The discovery chain is: panel key → DSH credential store → environment variables → CLI login fallback.
+The "Coding Plan quotas" panel in Settings supports **9 vendors**, each with its own enable switch / key / manual refresh / progress bars and reset times, plus a per-vendor **display position** (sidebar card / Settings page / both / off, default Settings page; v1.5.26); credentials are only ever sent to each vendor's **hard-coded official domain** (whitelist asserted in tests). The discovery chain is: panel key → DSH credential store → environment variables → CLI login fallback.
 
 | Vendor | Endpoint | Shown as | Verified status |
 |---|---|---|---|
 | Anthropic Claude Pro/Max | `api.anthropic.com/api/oauth/usage` | 5-hour / 7-day window usage % | endpoint alive (401); auto-reads the OAuth token from `~/.claude/.credentials.json` |
 | Z.ai / Zhipu GLM Coding Plan | `api.z.ai` and `open.bigmodel.cn` dual endpoints | per-window usage % | endpoints alive (401); handles both the `plans` array and flat-window responses |
 | MiniMax Token Plan | `minimaxi.com` / `minimax.io` dual domains | remaining token % | endpoints alive (1004 requires Authorization); legacy count-based endpoint fallback |
-| Kimi / Moonshot | `api.moonshot.cn/v1/users/me/balance` | CNY balance text | endpoint alive (401); Kimi Code subscription windows have no public API-key endpoint yet |
+| Kimi / Moonshot | `api.moonshot.cn/v1/users/me/balance` | CNY balance text | endpoint alive (401); Kimi Code subscription windows alive (401), `api.kimi.com/coding/v1/usages` via `KIMI_CODING_API_KEY` + UA `KimiCLI/1.6` shows weekly/5h quotas (issue #53) |
 | OpenRouter | `openrouter.ai/api/v1/credits` | prepaid credits used % | endpoint alive (401) |
 | SiliconFlow | `api.siliconflow.cn/v1/user/info` | account balance text | endpoint alive (30014) |
 | CommandCode | `api.commandcode.ai/alpha/billing/credits` | 5-hour/weekly window used % + monthly credits balance text | endpoint alive (401; issue #30); credential `COMMANDCODE_API_KEY` (`user_*`) |
 | SCNet Token Plan | — (no API endpoint; local metering) | monthly credits used % + usage text | the platform only offers `sk-tp-` inference endpoints; usage is console-only — estimated locally via the official deduction table |
+| Volcano Ark Coding Plan | `open.volcengineapi.com` (`Action=GetUsageDetails`/`GetPersonalPlan`/`GetAFPUsage`, Version=2024-01-01, service=ark, region=cn-beijing, AK/SK HMAC) | 5-hour / weekly / monthly windows used % + reset times | control-plane requires IAM sub-user `ArkReadOnlyAccess`+`BillingCenterReadOnlyAccess`, credentials `VOLC_ACCESSKEY`/`VOLC_SECRETKEY` (issue #60); Lite≈5h1200/weekly9000/monthly18000, Pro 5× |
 
 **SCNet local credits metering (issue #26)**: the SCNet (超算互联网) Token Plan is a credits-based monthly subscription (Basic 60,000 / Standard 240,000 / Pro 600,000) with no API-key quota endpoint — the plugin converts the current billing period's local-ledger usage into credits via the **official deduction table** (effective 2026-08-11, `SCNET_CREDIT_RATES`): cache-miss input = input+cacheWrite, cached input = cacheRead, output = output; covering major GLM/DeepSeek/Kimi/MiniMax/Qwen models. It shows a "used / total credits (est.)" text line and a monthly used-% bar. The billing period resets monthly from the configurable plan start date (`YYYY-MM-DD`; empty = calendar month). No credentials, no network — actual consumption is subject to the SCNet console; models not covered by the table are not counted.
 
@@ -101,7 +102,6 @@ Without credentials/subscription the panel shows a **neutral soft-failure hint**
 | OpenAI Codex | usage is only tied to ChatGPT sessions; no standalone API-key endpoint |
 | Gemini Code Assist | organization-level Cloud API only; no personal-key endpoint |
 | GitHub Copilot (individual) | usage endpoints require the OAuth device flow, not supported yet |
-| Kimi Code subscription weekly/5h windows | visible only in the kimi.com console (Kimi is integrated via PAYG balance) |
 
 If any of the above releases an API-key-based endpoint, it can be added cheaply within the adapter framework in `lib/coding-plans.js`.
 
@@ -111,4 +111,4 @@ If any of the above releases an API-key-based endpoint, it can be added cheaply 
 
 - **Ledger availability fallback**: state snapshots are self-checked against the strict codec before delivery; on drift the snapshot degrades step by step (drop catalog → empty quota state) to keep core features available instead of rejecting everything (both historical root causes of "ledger unavailable" — `reasoning: null` dirty data and catalog-entry schema mismatch — are fixed and covered by regression tests);
 - **Config sanitization**: `sanitizeConfig` falls illegal config values back to defaults at the ledger load boundary;
-- Tests: `node test/verify.mjs` covers billing math, the matching algorithm, catalog assertions, all 7 parsers plus SCNet local metering, the official-domain whitelist, and a strict-codec drift sentinel.
+- Tests: `node test/verify.mjs` covers billing math, the matching algorithm, catalog assertions, all 8 parsers plus SCNet local metering and Volcano Ark AK/SK flow, the official-domain whitelist, and a strict-codec drift sentinel.

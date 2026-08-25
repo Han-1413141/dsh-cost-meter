@@ -76,18 +76,19 @@
 
 ## 二、Coding Plan 额度适配
 
-设置页「Coding Plan 额度」面板支持 **8 家**,各家独立启用开关 / Key / 手动刷新 / 进度条与重置时间,并可按家配置**显示位置**(侧边栏卡片 / 设置页 / 两者 / 关闭,默认设置页;v1.5.26);凭据只发往各家**硬编码官方域名**(白名单断言入测试),发现链为:面板 Key → DSH 凭据库 → 环境变量 → CLI 登录态兜底。
+设置页「Coding Plan 额度」面板支持 **9 家**,各家独立启用开关 / Key / 手动刷新 / 进度条与重置时间,并可按家配置**显示位置**(侧边栏卡片 / 设置页 / 两者 / 关闭,默认设置页;v1.5.26);凭据只发往各家**硬编码官方域名**(白名单断言入测试),发现链为:面板 Key → DSH 凭据库 → 环境变量 → CLI 登录态兜底。
 
 | 厂商 | 端点 | 显示内容 | 实测状态 |
 |---|---|---|---|
 | Anthropic Claude Pro/Max | `api.anthropic.com/api/oauth/usage` | 5 小时 / 7 天窗口用量% | 端点存活(401);自动读 `~/.claude/.credentials.json` OAuth token |
 | Z.ai / 智谱 GLM Coding Plan | `api.z.ai` 与 `open.bigmodel.cn` 双端点 | 各窗口用量% | 端点存活(401);兼容 plans 数组与扁平窗口两种响应 |
 | MiniMax Token Plan | `minimaxi.com` / `minimax.io` 双域 | Token 余量% | 端点存活(1004 需 Authorization);旧计数制端点兼容回退 |
-| Kimi / Moonshot | `api.moonshot.cn/v1/users/me/balance` | 人民币余额文本 | 端点存活(401);Kimi Code 订阅窗口暂无 API-Key 化公开端点 |
+| Kimi / Moonshot | `api.moonshot.cn/v1/users/me/balance` | 人民币余额文本 | 端点存活(401);Kimi Code 订阅窗口存活(401),`api.kimi.com/coding/v1/usages` 经 `KIMI_CODING_API_KEY` 与 UA `KimiCLI/1.6` 可查本周/5h 配额(issue #53) |
 | OpenRouter | `openrouter.ai/api/v1/credits` | 预付 credits 已用% | 端点存活(401) |
 | SiliconFlow 硅基流动 | `api.siliconflow.cn/v1/user/info` | 账户余额文本 | 端点存活(30014) |
 | CommandCode | `api.commandcode.ai/alpha/billing/credits` | 5 小时/周窗口用量% + 月度 Credits 余额文本 | 端点存活(401;issue #30);凭据 `COMMANDCODE_API_KEY`(`user_*`) |
 | SCNet 超算互联网 Token Plan | —(无 API 端点,本地计量) | 月度 Credits 已用% + 用量文本 | 平台仅提供 `sk-tp-` 推理端点,用量只在控制台可见;按官方抵扣表本地估算 |
+| 火山方舟 Volcano Ark Coding Plan | `open.volcengineapi.com`(`Action=GetUsageDetails`/`GetPersonalPlan`/`GetAFPUsage`,Version=2024-01-01,service=ark,region=cn-beijing,AK/SK HMAC) | 5 小时 / 周 / 月三档用量%与重置时间 | 管控面需 IAM 子用户 `ArkReadOnlyAccess`+`BillingCenterReadOnlyAccess`,凭据 `VOLC_ACCESSKEY`/`VOLC_SECRETKEY`(issue #60);含 Lite≈5h1200/周9000/月18000、Pro 5倍档位 |
 
 **SCNet 本地 Credits 计量(issue #26)**:SCNet Token Plan 为 Credits 包月订阅(基础 60,000 / 标准 240,000 / 高级 600,000),无 API-Key 化额度端点——插件按**官方 Credits 抵扣表**(2026-08-11 生效,`SCNET_CREDIT_RATES`)对本地账本当前计费周期的用量折算 Credits(未命中输入 = input+cacheWrite,命中缓存输入 = cacheRead,输出 = output;覆盖 GLM/DeepSeek/Kimi/MiniMax/Qwen 各主力量型),展示「已用 / 总额 Credits(est.)」文本与月度已用% 进度条。计费周期自「订阅起始日」(可配,`YYYY-MM-DD`)每月重置,留空按自然月;无需任何凭据、不走网络,实际消耗以控制台账单为准,抵扣表未覆盖的模型不计入。
 
@@ -101,7 +102,6 @@
 | OpenAI Codex | 用量仅随 ChatGPT 会话,无独立 API-Key 端点 |
 | Gemini Code Assist | 仅组织级 Cloud API,无个人 Key 端点 |
 | GitHub Copilot 个人版 | 用量端点需 OAuth 设备流,暂不支持 |
-| Kimi Code 订阅周窗/5小时窗 | 仅 kimi.com 控制台可见(Kimi 以 PAYG 余额接入) |
 
 后续如上述任一家放出 API-Key 化端点,可在 `lib/coding-plans.js` 的 adapter 框架内低成本新增。
 
@@ -111,4 +111,4 @@
 
 - **账本可用性兜底**:状态快照下发前经 strict codec 自检;漂移时逐级降级(剔目录 → 空额度状态)保核心可用,不再整体拒绝(历史上「账本不可用」的两类根因——`reasoning: null` 脏数据与目录条目 schema 不匹配——均已根治并有回归测试);
 - **配置清洗**:`sanitizeConfig` 在账本加载边界对非法配置值定向回落;
-- 测试:`node test/verify.mjs` 覆盖计费数学、匹配算法、目录断言、7 家解析器 + SCNet 本地计量、官方域名白名单与 strict codec 漂移哨兵。
+- 测试:`node test/verify.mjs` 覆盖计费数学、匹配算法、目录断言、8 家解析器 + SCNet 本地计量 + 火山方舟 AK/SK 流程、官方域名白名单与 strict codec 漂移哨兵。
