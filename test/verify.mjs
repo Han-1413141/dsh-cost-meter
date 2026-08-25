@@ -21,6 +21,7 @@ import {
   buildPriceCatalog,
   normalizePrice,
   DEFAULT_PRICE_TABLE,
+  DEFAULT_PROVIDER_PRICE_TABLE,
   PROVIDER_MODEL_FAMILIES,
   DEFAULT_PEAK_EFFECTIVE_AT,
   DEFAULT_PEAK_WINDOWS,
@@ -30,7 +31,7 @@ import {
   usdFromCost,
   providerPriceEntryFor,
 } from '../lib/pricing.js'
-import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays, officialCostOfDay, splitLedgerApiCost, zeroDay } from '../lib/store.js'
+import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays, officialCostOfDay, splitLedgerApiCost, zeroDay, repairLedgerPricing } from '../lib/store.js'
 import {
   billingClassOf,
   enabledPlanSetOf,
@@ -42,9 +43,14 @@ import {
   sampleIntervals,
   estimateWindow,
   buildPlanStats,
-  pruneRecentCalls,
-  appendRecentCall,
+  pruneHourBuckets,
+  appendHourBucket,
+  convertRecentCallsToBuckets,
+  detectPlanProviders,
+  suggestPlanAutoClasses,
   PLAN_SAMPLE_CAP,
+  PLAN_INTERVAL_MAX_AGE_MS,
+  HOUR_BUCKET_RETENTION_MS,
   DEFAULT_PLAN_PROVIDER_CLASS,
 } from '../lib/plan-billing.js'
 import { backfillLegacyLedger, importLegacyHistory, listSessionLogs, readSessionRecords, replaySessionRecords, repairForkSeed, repairProviderDupes, scanZstdFrames } from '../lib/backfill.js'
@@ -3325,10 +3331,12 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const sessSplit = todaySplit.sessions.find(s => s.id === 'sess-plan-1')
   assert.ok(sessSplit.apiCost > 0 && sessSplit.apiCost < sessSplit.cost, '会话条目双轨并存可区分')
   assert.equal(sessSplit.byProviderModel['minimax:MiniMax-M3'].apiCost, 0, '会话内 plan 明细 apiCost=0')
-  // Plan 调用进入环形缓冲(provider 归并为 canonical id)。
-  assert.equal(splitLedger.planRecentCalls.length, 1, 'plan 调用入缓冲')
-  assert.equal(splitLedger.planRecentCalls[0].provider, 'minimax', '缓冲记录 canonical id')
-  assert.ok(splitLedger.planRecentCalls[0].tokens > 0, '缓冲记录 token 数')
+  // Plan 调用进入 provider×小时聚合桶(provider 归并为 canonical id)。
+  const mmBuckets = splitLedger.planHourBuckets.minimax
+  assert.ok(mmBuckets !== undefined && Object.keys(mmBuckets).length === 1, 'plan 调用入小时桶')
+  const bucketSlot = Object.values(mmBuckets)[0]
+  assert.equal(bucketSlot.tokens, 120000, '桶记录 token 数(100000+20000)')
+  assert.ok(bucketSlot.cost > 0, '桶记录等值金额')
 
   // 10.4) 一次性迁移:历史账本按当前分类回溯重算 apiCost,幂等。
   splitLedger.days[localDayKey(nowMs - 24 * 3600_000)] = {
@@ -3397,15 +3405,23 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   let resetSamples = recordSamples({}, 'kimi', { weekly: { percent: 50, resetsAt: 'r1' } }, { forWindow: () => ({ tokens: 100, cost: 0 }) }, 1000_000)
   resetSamples = recordSamples(resetSamples, 'kimi', { weekly: { percent: 55, resetsAt: 'r2' } }, { forWindow: () => ({ tokens: 200, cost: 0 }) }, 2000_000)
   assert.equal(sampleIntervals(resetSamples.kimi.weekly).length, 0, '重置标记变化断开区间')
-  // estimateWindow:sample 优先;live 回退;none 兜底。
-  const estSample = estimateWindow(growIntervals, 60, { tokens: 6000, cost: 0.6 })
+  // estimateWindow:sample 优先;live 回退;none 兜底;7 天时效。
+  const estNow = 2000_500
+  const estSample = estimateWindow(growIntervals, 60, { tokens: 6000, cost: 0.6 }, estNow)
   assert.equal(estSample.method, 'sample', '有区间时用 sample')
+  assert.equal(estSample.sampleAt, 2000_000, 'sampleAt = 最近区间终点')
   assert.ok(Math.abs(estSample.fullTokens - 10000) < 1e-9, '满窗估计 = per1×100 = 10000')
-  const estLive = estimateWindow([], 25, { tokens: 2500, cost: 0.25 })
+  const estLive = estimateWindow([], 25, { tokens: 2500, cost: 0.25 }, estNow)
   assert.equal(estLive.method, 'live', '无区间回退 live')
+  assert.equal(estLive.sampleAt, null, 'live 无基准时刻')
   assert.ok(Math.abs(estLive.per1Tokens - 100) < 1e-9, 'live 每 1% = 2500/25 = 100')
-  const estNone = estimateWindow([], 0.2, { tokens: 2500, cost: 1 })
+  const estNone = estimateWindow([], 0.2, { tokens: 2500, cost: 1 }, estNow)
   assert.equal(estNone.method, 'none', 'percent < 0.5 时 none')
+  // 区间超龄(> 7 天):回退 live,不采过期样本。
+  const estStale = estimateWindow(growIntervals, 25, { tokens: 2500, cost: 0.25 }, 2000_000 + PLAN_INTERVAL_MAX_AGE_MS + 3600_000)
+  assert.equal(estStale.method, 'live', '过期区间回退 live')
+  const estFreshEdge = estimateWindow(growIntervals, 60, { tokens: 6000, cost: 0.6 }, 2000_000 + PLAN_INTERVAL_MAX_AGE_MS)
+  assert.equal(estFreshEdge.method, 'sample', '恰好 7 天边界仍有效')
   // 采样裁剪:上限条数 + 超龄丢弃。
   let capped = {}
   for (let i = 0; i < PLAN_SAMPLE_CAP + 30; i += 1) {
@@ -3426,9 +3442,10 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
     sessions: [],
   }
   const recentCalls = [{ t: Date.now() - 1000, provider: 'minimax', tokens: 1100, cost: 0.09 }]
+  const hourBuckets = convertRecentCallsToBuckets(recentCalls)
   const stats = buildPlanStats({
     days: fakeDays,
-    recentCalls,
+    hourBuckets,
     samples: growing.minimax ? { minimax: { fiveHour: growing.zai.fiveHour.map(s => ({ ...s })) } } : {},
     codingPlans: {
       minimax: { status: 'ok', windows: { general: { percent: 60, resetsAt: '' } } },
@@ -3442,20 +3459,21 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const mmWin = stats.providers?.minimax?.windows?.general
   assert.ok(mmWin !== undefined, 'minimax general 窗口存在')
   assert.equal(mmWin.percent, 60, '窗口百分比透传')
-  assert.ok(mmWin.localTokens > 0, '本周期实际 token 来自当日聚合+缓冲(去重前)')
+  assert.ok(mmWin.localTokens > 0, '本周期实际 token 来自当日聚合+小时桶')
   assert.equal(mmWin.method, 'live', '无有效区间回退 live')
   assert.ok(mmWin.per1Tokens !== null && mmWin.per1Tokens > 0, 'live 估算每 1% 值有效')
   assert.ok(mmWin.fullTokens === mmWin.per1Tokens * 100, '满窗 = per1×100')
-  // 区间序列透传(sample 数据经 intervals 下发)。
+  // 区间序列透传(sample 数据经 intervals 下发;nowMs 取采样附近以通过 7 天时效)。
   const withIntervals = buildPlanStats({
-    days: {}, recentCalls: [], samples: { zai: { fiveHour: growing.zai.fiveHour } },
+    days: {}, hourBuckets: {}, samples: { zai: { fiveHour: growing.zai.fiveHour } },
     codingPlans: { zai: { status: 'ok', windows: { fiveHour: { percent: 70, resetsAt: '' } } } },
     goQuota: { status: 'off' },
     config: sanitizeConfig({}),
-    nowMs: Date.now(),
+    nowMs: 2000_500,
   })
   assert.equal(withIntervals.providers.zai.intervals.fiveHour.length, 1, '区间序列下发')
   assert.ok(Math.abs(withIntervals.providers.zai.windows.fiveHour.per1Tokens - 100) < 1e-9, '窗口估算取最近区间 per1')
+  assert.equal(withIntervals.providers.zai.windows.fiveHour.sampleAt, withIntervals.providers.zai.intervals.fiveHour[0].t1, 'sampleAt 随窗口下发')
 
   // 10.8) strict codec 漂移:含 planStats/apiCost 的完整快照必须通过 getState codec。
   const codecState = TYPERT.invocations.find(i => i.method === 'getState').result.schema
@@ -3491,7 +3509,250 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(clientSrc.includes("parsePlanStats"), '读侧 planStats 解析白名单')
   assert.ok(clientSrc.includes("planBilling:"), '读侧 planBilling 解析白名单')
   assert.ok(!/state\.today\.cost/.test(clientSrc), '客户端不再直接消费今日总额(全部走 moneyCostOf)')
-  console.log('[ok] Plan/API 双轨计费与 Token Plan 统计(issue #64)通过')
+  assert.ok(clientSrc.includes("planStatsMethodSampleAt") && clientSrc.includes("sampleAt"), '估算基准时刻标注接线')
+
+  // ── 10.10) 聚合边界修复(v1.5.52):周期首日不再丢失 ──
+  // 本地时区固定场景:2026-08-26(周三)12:00 为「现在」,周一 8/24 为周起点。
+  const wedNoon = new Date(2026, 7, 26, 12, 0, 0).getTime()
+  assert.equal(new Date(wedNoon).getDay(), 3, '测试基准日为周三')
+  const mkDay = (date, dayCost) => ({
+    ...zeroDay(date),
+    calls: 1,
+    cost: dayCost,
+    byProviderModel: { 'zen:gpt-5.6-luna': { input: 100, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: dayCost } },
+  })
+  const boundaryDays = {
+    '2026-08-24': mkDay('2026-08-24', 1), // 周一(周期首日;旧版整天丢失)
+    '2026-08-25': mkDay('2026-08-25', 2),
+    '2026-08-26': mkDay('2026-08-26', 3), // 今日(完整天聚合不取,由桶覆盖)
+  }
+  const goEnabled = new Set(['go'])
+  const weekStart = periodStartOf('weekly', wedNoon)
+  assert.equal(new Date(weekStart).getDate(), 24, 'weekly 起点 = 周一 8/24')
+  // 桶:今日 09:00 一条(0.5);昨日桶不应计入(昨日是完整天,由日账本负责)。
+  const boundaryBuckets = appendHourBucket({}, 'go', new Date(2026, 7, 26, 9, 0).getTime(), 500, 0.5)
+  const aggWeek = aggregateUsageSince(boundaryDays, boundaryBuckets, 'go', weekStart, wedNoon, sanitizeConfig({}), goEnabled)
+  assert.ok(Math.abs(aggWeek.cost - 3.5) < 1e-9, `周窗金额 = 首1 + 次2 + 今日桶0.5 = 3.5(旧版丢首日得 2.5)`)
+  assert.equal(aggWeek.tokens, 100 * 2 + 500 + 100 * 0, '周窗 token 含两个完整天与今日桶(今日日账本不重复计)')
+  // 月窗同理:起点 = 本月 1 日 00:00(恰为午夜 → 当日即为完整天)。
+  const monthStart = periodStartOf('monthly', wedNoon)
+  assert.equal(new Date(monthStart).getDate(), 1, 'monthly 起点 = 1 日')
+  const aggMonth = aggregateUsageSince(boundaryDays, boundaryBuckets, 'go', monthStart, wedNoon, sanitizeConfig({}), goEnabled)
+  assert.ok(Math.abs(aggMonth.cost - 3.5) < 1e-9, '月窗含起点当日(8 月内同三天,数值与周窗一致)')
+  // start 恰为午夜且窗口在同日内(如每日窗/月首日早晨):当日数据一律由桶
+  // 承担——日账本不重复计入,空桶时为 0,有桶时精确累加。
+  const monMidnight = new Date(2026, 7, 24, 0, 0).getTime()
+  const aggSameDayEmpty = aggregateUsageSince(boundaryDays, {}, 'go', monMidnight, new Date(2026, 7, 24, 8).getTime(), sanitizeConfig({}), goEnabled)
+  assert.ok(Math.abs(aggSameDayEmpty.cost) < 1e-9, '同日午夜窗不取日账本(防双计)')
+  const aggSameDayBucket = aggregateUsageSince(
+    boundaryDays,
+    appendHourBucket({}, 'go', new Date(2026, 7, 24, 6).getTime(), 300, 0.3),
+    'go', monMidnight, new Date(2026, 7, 24, 8).getTime(), sanitizeConfig({}), goEnabled)
+  assert.ok(Math.abs(aggSameDayBucket.cost - 0.3) < 1e-9 && aggSameDayBucket.tokens === 300, '同日午夜窗由桶精确覆盖')
+
+  // ── 10.11) 凌晨 5h 窗:昨日尾部由小时桶覆盖,昨日完整天不误入 ──
+  const dawnNow = new Date(2026, 7, 26, 2, 0).getTime() // 周三 02:00
+  const dawnStart = dawnNow - 5 * 3600_000 // 周二 21:00
+  const dawnDays = {
+    '2026-08-25': { ...mkDay('2026-08-25'), cost: 9 }, // 昨日整天不在 5h 窗内
+    '2026-08-26': { ...mkDay('2026-08-26'), cost: 4 }, // 今日
+  }
+  const dawnBuckets = appendHourBucket(
+    appendHourBucket(
+      appendHourBucket({}, 'go', new Date(2026, 7, 25, 22, 0).getTime(), 700, 0.7), // 昨夜尾段(旧版丢失)
+      'go', new Date(2026, 7, 26, 0, 0).getTime(), 100, 0.1),
+    'go', new Date(2026, 7, 26, 1, 0).getTime(), 200, 0.2)
+  const aggDawn = aggregateUsageSince(dawnDays, dawnBuckets, 'go', dawnStart, dawnNow, sanitizeConfig({}), goEnabled)
+  assert.ok(Math.abs(aggDawn.cost - (0.7 + 0.1 + 0.2)) < 1e-9, '凌晨 5h 窗 = 昨夜尾部桶 + 今日桶(不含任何完整天)')
+  assert.equal(aggDawn.tokens, 700 + 300, '凌晨窗 token 全部来自桶')
+
+  // ── 10.12) 小时桶:追加累加 / 裁剪 / 旧环形缓冲转换 ──
+  let bucketsAcc = {}
+  bucketsAcc = appendHourBucket(bucketsAcc, 'minimax', 3600_000, 100, 0.1)
+  bucketsAcc = appendHourBucket(bucketsAcc, 'minimax', 3600_000 + 1800_000, 50, 0.05) // 同小时累加
+  assert.equal(Object.values(bucketsAcc.minimax)[0].tokens, 150, '同小时桶累加')
+  const pruned = pruneHourBuckets({ minimax: { 3600_000: { tokens: 1, cost: 1 } }, zai: 'bad' }, 3600_000 + HOUR_BUCKET_RETENTION_MS - 1000)
+  assert.equal(pruned.minimax['3600000'].tokens, 1, '48h 内桶保留')
+  assert.equal(pruned.zai, undefined, '非法厂商槽剔除')
+  const stalePruned = pruneHourBuckets({ minimax: { 3600_000: { tokens: 1, cost: 1 } } }, 3600_000 * 72)
+  assert.equal(stalePruned.minimax, undefined, '超龄桶丢弃')
+  const converted = convertRecentCallsToBuckets([
+    { t: 7200_000, provider: 'go', tokens: 10, cost: 0.01 },
+    { t: 7300_000, provider: 'go', tokens: 20, cost: 0.02 },
+    { t: 'bad', provider: 'go', tokens: 999, cost: 999 },
+  ])
+  assert.equal(converted.go[7200_000].tokens, 30, '旧缓冲同小时合并转换')
+  assert.equal(Object.keys(converted.go).length, 1, '非法时刻条目丢弃')
+
+  // ── 10.13) llm- 前缀归并(与 pricing 的包装路由剥离对齐)──
+  assert.equal(planProviderIdOf('llm-zen'), 'go', 'llm-zen 归 go')
+  assert.equal(planProviderIdOf('LLM-MINIMAX'), 'minimax', 'llm- 大小写归一')
+
+  // ── 10.14) 历史 Plan 渠道静默自动归类建议(suggestPlanAutoClasses)──
+  const autoDays = {
+    '2026-08-25': { ...zeroDay('2026-08-25'), calls: 3, byProviderModel: {
+      'minimax:MiniMax-M3': { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 2, cost: 0.2 },
+      'zen:gpt-5.6-luna': { input: 1, output: 1, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.1 },
+    } },
+  }
+  const autoCfg = sanitizeConfig({}) // openrouter/siliconflow 显式 api;其余 auto
+  assert.deepEqual(
+    suggestPlanAutoClasses(autoDays, autoCfg),
+    ['minimax'],
+    'auto+未启用的已用厂商进入归类建议(minimax;go 因 goQuota 默认启用无需归类)',
+  )
+  assert.equal(suggestPlanAutoClasses(autoDays, sanitizeConfig({ codingPlans: { minimax: { enabled: true } } })).includes('minimax'), false, '额度查询已启用的厂商无需归类')
+  const explicitCfg = sanitizeConfig({})
+  explicitCfg.planBilling.providers.minimax = 'api'
+  assert.equal(suggestPlanAutoClasses(autoDays, explicitCfg).includes('minimax'), false, '用户显式配置(api)不被翻转')
+  assert.equal(suggestPlanAutoClasses(autoDays, autoCfg).includes('openrouter'), false, '默认 api 类厂商(openrouter)不参与静默归类')
+  // 宿主接线:启动迁移标记与 updateConfig 自动重算钩子存在。
+  const indexSrc = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.ok(indexSrc.includes("includes('plan-autodetect-v1')"), 'plan-autodetect-v1 迁移标记接线')
+  assert.ok(indexSrc.includes('suggestPlanAutoClasses'), '宿主调用归类建议函数')
+  assert.ok(/patch\.planBilling !== undefined \|\| patch\.codingPlans !== undefined \|\| patch\.goQuota !== undefined/.test(indexSrc), 'updateConfig 触碰分类相关键即重算 apiCost')
+  // Go 目录精确别名(zen 路由真实 id 不再依赖宽泛包含)。
+  const { DEFAULT_PROVIDER_PRICE_TABLE: TABLE_NOW } = await import('../lib/pricing.js')
+  const geminiEntry = TABLE_NOW.google.models['gemini-3.1-pro']
+  assert.ok(geminiEntry !== undefined && geminiEntry.input === 2 && geminiEntry.output === 12 && geminiEntry.cachedInput === 0.2, 'gemini-3.1-pro 精确条目(zen 目录价)')
+  console.log('[ok] Token Plan 算法修复与静默自动归类(v1.5.52)通过')
+
+  // ── 10.15) 百分比量化误差(v1.5.53):段式首尾差分与置信分档 ──
+  const mkSample = (t, p, lt, lc, r = '') => ({ t, p, lt, lc, r, s: t })
+  // 个位量化序列:三次读数 10%/20%/30%,逐对差分 per1 会是 150 与 150 的噪声;
+  // 段式首尾差分合并为一段:(4000−1000)/(30−10) = 150 tok/%,中间读数量化抵消。
+  const quantSeq = [mkSample(1000, 10, 1000, 0.1), mkSample(2000, 20, 2500, 0.25), mkSample(3000, 30, 4000, 0.4)]
+  const quantSegs = sampleIntervals(quantSeq)
+  assert.equal(quantSegs.length, 1, '连续可信序列合并为单段')
+  assert.equal(quantSegs[0].tokens, 3000, '段 token = 首尾差分 4000−1000')
+  assert.equal(quantSegs[0].pct, 20, '段 Δp = 首尾差分 30−10')
+  assert.ok(Math.abs(quantSegs[0].per1Tokens - 150) < 1e-9, '每 1% = 首尾差分 150 tok')
+  // 置信分档:Δp ≥ 5 → high;< 5 → low;live 一律 low;none 为 null。
+  const confHigh = estimateWindow(quantSegs, 30, { tokens: 4000, cost: 1 }, 3000)
+  assert.equal(confHigh.confidence, 'high', 'Δp=20 高置信')
+  assert.equal(confHigh.method, 'sample', '高置信走采样差分')
+  const lowSegs = sampleIntervals([mkSample(1000, 10, 1000, 0.1), mkSample(2000, 13, 1600, 0.16)])
+  const confLow = estimateWindow(lowSegs, 13, { tokens: 1600, cost: 1 }, 2000)
+  assert.equal(confLow.confidence, 'low', 'Δp=3 低置信')
+  assert.ok(Math.abs(confLow.per1Tokens - 200) < 1e-9, '低置信仍给出首尾差分估算(600/3)')
+  assert.equal(estimateWindow([], 25, { tokens: 2500, cost: 1 }, 2000).confidence, 'low', 'live 回退标低置信')
+  assert.equal(estimateWindow([], 0.2, { tokens: 2500, cost: 1 }, 2000).confidence, null, 'none 无置信')
+  // p 回退(reset/滑动)切段:回退前不构成有效段,回退后新段正常输出。
+  const rollSegs = sampleIntervals([mkSample(1000, 50, 5000, 0.5), mkSample(2000, 40, 5100, 0.51), mkSample(3000, 60, 7000, 0.7)])
+  assert.equal(rollSegs.length, 1, 'p 回退切段后仅后段有效')
+  assert.equal(rollSegs[0].tokens, 1900, '后段 token = 7000−5100')
+  // 重置标记变化切段。
+  const resetSegs = sampleIntervals([mkSample(1000, 50, 5000, 0, 'r1'), mkSample(2000, 55, 5200, 0, 'r2')])
+  assert.equal(resetSegs.length, 0, '重置标记变化不成段')
+  // 7 天滑动上限:跨 9 天的序列切成两段,末段起点滑动到第 6 天样本、跨度 ≤7 天。
+  const DAY_MS = 24 * 3600_000
+  const longSeq = [mkSample(0, 1, 100, 0), mkSample(DAY_MS * 3, 2, 200, 0), mkSample(DAY_MS * 6, 3, 300, 0), mkSample(DAY_MS * 9, 4, 400, 0)]
+  const longSegs = sampleIntervals(longSeq)
+  assert.equal(longSegs.length, 2, '超跨度序列滑动切分')
+  assert.equal(longSegs[longSegs.length - 1].t0, DAY_MS * 6, '末段从上一样本滑动重开')
+  assert.ok(longSegs.every(s => s.t1 - s.t0 <= DAY_MS * 7 + 1000), '所有段跨度 ≤ 7 天')
+  assert.equal(longSegs[longSegs.length - 1].tokens, 100, '末段 token 首尾差分')
+  // 客户端接线:低置信标注与读侧白名单。
+  assert.ok(clientSrc.includes('planStatsConfidenceLow'), '低置信标注文案存在')
+  assert.ok(clientSrc.includes("confidence: w.confidence === 'high' || w.confidence === 'low' ? w.confidence : null"), '读侧 confidence 白名单')
+  console.log('[ok] 百分比量化误差修复(段式差分与置信分档,v1.5.53)通过')
+
+  // ── 10.16) DeepSeek/空 provider 渠道的跨目录兑底(v1.5.53,用户提供实测)──
+  // provider 缺失或 deepseek 但模型实际属于 Go/厂商目录时,不再误套 DeepSeek
+  // 默认低价($0.22/M),按最佳匹配目录价计(报告案例:773M tokens 差 5-15 倍)。
+  const catalogPrices = {
+    models: DEFAULT_PRICE_TABLE.models,
+    default: DEFAULT_PRICE_TABLE.default,
+    providers: DEFAULT_PROVIDER_PRICE_TABLE,
+  }
+  for (const routed of ['minimax-m3', 'kimi-k2.6', 'gemini-3.1-pro']) {
+    for (const prov of ['', 'deepseek']) {
+      const hit = providerPriceEntryFor(prov, routed, catalogPrices, { mode: 'auto' })
+      assert.ok(hit.priced === true, `跨目录兑底:${prov || '(空)'} + ${routed} 命中目录价`)
+      assert.notEqual(hit.entry.cacheMiss, DEFAULT_PRICE_TABLE.default.cacheMiss, `${routed} 未误套 DeepSeek 默认价`)
+    }
+  }
+  const geminiExact = providerPriceEntryFor('', 'gemini-3.1-pro', catalogPrices, { mode: 'auto' })
+  // normalizePrice 将 {input,cachedInput,output} 简写转换为 cacheMiss/cacheHit/output 三键。
+  assert.equal(geminiExact.entry.cacheMiss, 2, '精确条目优先(gemini-3.1-pro 输入 $2)')
+  assert.equal(geminiExact.entry.output, 12, 'gemini-3.1-pro 输出 $12')
+  const dsReal = providerPriceEntryFor('deepseek', 'deepseek-v4-flash', catalogPrices, { mode: 'auto' })
+  assert.equal(dsReal.billingMode, 'deepseek-peak', '真 DeepSeek 模型仍走峰谷主表')
+  console.log('[ok] DeepSeek 渠道跨目录兑底(第三方模型不再误套默认低价)通过')
+
+  // ── 10.17) strict codec 盲区 + repairLedgerPricing(v1.5.53 修复)──
+  // 盲区回归:method='none' 分支返回 confidence:null,schema 必须接受
+  // (曾因 z.enum 不含 null 击穿 strict codec,整个 state 被降级 =「账本不可用」)。
+  const noneWinStats = {
+    generatedAt: Date.now(),
+    providers: {
+      go: {
+        windows: {
+          fiveHour: { percent: 0.2, resetsAt: '', localTokens: 0, localCost: 0, method: 'none', sampleAt: null, confidence: null, per1Tokens: null, per1Cost: null, fullTokens: null, fullCost: null, sampleCount: 0 },
+          weekly: { percent: 1, resetsAt: '', localTokens: 500, localCost: 0.05, method: 'live', sampleAt: null, confidence: 'low', per1Tokens: 500, per1Cost: 0.05, fullTokens: 50000, fullCost: 5, sampleCount: 0 },
+        },
+        intervals: { fiveHour: [] },
+      },
+    },
+  }
+  const noneCheck = stateCodec.safeParse({ ...fullState, planStats: noneWinStats })
+  assert.ok(noneCheck.success, 'method=none/confidence=null 窗口通过 strict codec:' + (noneCheck.success ? '' : JSON.stringify(noneCheck.error.issues.slice(0, 4))))
+
+  // repairLedgerPricing(别的 AI 引入的迁移函数,补行为级覆盖):
+  // 构造「第三方模型被误套 DeepSeek 默认低价」的历史桶,修复后按目录价重算,
+  // deepseek-peak 桶跳过(峰谷近似易误伤),day/session/apiCost 三级联动,幂等。
+  const repairHome = join(tmpdir(), 'dsh-cost-meter-test-repair-pricing')
+  rmSync(repairHome, { recursive: true, force: true })
+  process.env.DSH_HOME = repairHome
+  const repairLedger = Ledger.open()
+  repairLedger.config.codingPlans.minimax.enabled = true
+  const rDayKey = localDayKey(Date.now())
+  const wrongCost = 0.00022 // 100k tokens 按 DeepSeek 默认 $0.22/M 误算的值
+  const rightTokens = { input: 100000, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 }
+  repairLedger.days[rDayKey] = {
+    ...zeroDay(rDayKey),
+    input: 200000, output: 0, calls: 2,
+    cost: wrongCost * 2,
+    apiCost: 0,
+    byProviderModel: {
+      // minimax 目录 flat 价($0.3/M 输入)→ 应重算为 ~$0.03;当前被套默认价 $0.022
+      'minimax:MiniMax-M3': { input: 100000, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: wrongCost, apiCost: 0 },
+      // deepseek 主表峰谷档:修复器必须跳过(近似时刻易误伤)
+      'deepseek:deepseek-v4-flash': { input: 100000, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: wrongCost, apiCost: wrongCost },
+    },
+    sessions: [{
+      id: 'sess-repair', input: 200000, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 2, cost: wrongCost * 2, apiCost: wrongCost,
+      byProviderModel: {
+        'minimax:MiniMax-M3': { input: 100000, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: wrongCost, apiCost: 0 },
+        'deepseek:deepseek-v4-flash': { input: 100000, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: wrongCost, apiCost: wrongCost },
+      },
+    }],
+  }
+  const repairResult = splitLedgerApiCost(repairLedger)
+  assert.ok(repairResult >= 0, 'splitLedgerApiCost 前置调用不抛错')
+  const stats1 = repairLedgerPricing(repairLedger)
+  assert.ok(stats1.recostedBuckets >= 2, `flat 桶被重算(day+session 各一,实得 ${stats1.recostedBuckets})`)
+  const before = JSON.parse(JSON.stringify(repairLedger.days))
+  const dayFixed = repairLedger.days[rDayKey]
+  const mmFixed = dayFixed.byProviderModel['minimax:MiniMax-M3']
+  const dsFixed = dayFixed.byProviderModel['deepseek:deepseek-v4-flash']
+  // 期望值:同口径独立复算(flat 无峰谷,USD 直入)
+  const mmResolved = providerPriceEntryFor('minimax', 'MiniMax-M3', repairLedger.config.prices, { mode: 'auto' })
+  assert.ok(mmResolved.priced, 'minimax 目录可计价')
+  const expected = usdFromCost(costOf(rightTokens, mmResolved.entry, Date.now(), { enabled: false }), 'USD', repairLedger.config.exchangeRate)
+  assert.ok(Math.abs(mmFixed.cost - expected) < 1e-9 && mmFixed.cost > wrongCost, `minimax 桶按目录价重算(${mmFixed.cost.toFixed(6)} ≈ ${expected.toFixed(6)})`)
+  assert.equal(dsFixed.cost, wrongCost, 'deepseek-peak 桶保持不动')
+  assert.equal(mmFixed.apiCost, 0, 'plan 类桶 apiCost=0')
+  assert.ok(Math.abs(dayFixed.cost - (expected + wrongCost)) < 1e-9, '日合计随 delta 联动')
+  assert.ok(Number.isFinite(dayFixed.apiCost) && dayFixed.apiCost <= dayFixed.cost, '日 apiCost 有限且 ≤ cost(NaN 防护)')
+  const sessFixed = dayFixed.sessions.find(s => s.id === 'sess-repair')
+  assert.ok(sessFixed !== undefined && Number.isFinite(sessFixed.apiCost), '会话 apiCost 有限(NaN 防护)')
+  assert.ok(sessFixed.byProviderModel['minimax:MiniMax-M3'].cost > wrongCost, '会话内桶同步重算')
+  // 幂等:重跑零改动。
+  const stats2 = repairLedgerPricing(repairLedger)
+  assert.equal(stats2.recostedBuckets, 0, 'repairLedgerPricing 幂等(重跑零改动)')
+  assert.equal(JSON.stringify(repairLedger.days), JSON.stringify(before), '重跑后账本不变')
+  console.log('[ok] strict codec 盲区与历史定价修复(repairLedgerPricing)通过')
 }
 
 console.log('[ok] 全部验证通过')
