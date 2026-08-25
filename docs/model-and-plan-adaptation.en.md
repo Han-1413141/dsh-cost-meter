@@ -107,6 +107,20 @@ If any of the above releases an API-key-based endpoint, it can be added cheaply 
 
 ---
 
+## 2.5 Plan/API dual-track billing classification (issue #64, since v1.5.51)
+
+The ledger records both the total equivalent cost (cost) and the real-money portion (apiCost) at day / session / byProviderModel level; budget, today-cost and overview cards count only the API portion, while subscription-quota consumption is presented as equivalents. Priority: **per-model override (planBilling.models[provider:model]) > per-vendor config (planBilling.providers) > auto** (plan when that vendor's quota query is enabled, otherwise api).
+
+| Vendor | Default (auto) | Notes |
+|---|---|---|
+| anthropic / zai / minimax / commandcode / scnet / volcengine | plan while enabled | percent-based subscription windows |
+| kimi | plan while enabled | subscription windows; override models to api for PAYG balance scenarios |
+| openrouter / siliconflow | api | credits/balance are real money |
+| OpenCode Go (zen/opencode routes) | plan while Go enabled | Go-subscription models; Zen PAYG users should override to api |
+| Codex (ChatGPT subscription) | api (manual) | no API-key quota endpoint; mark provider:model as plan in settings |
+
+Per-1% quota and full-window token/equivalent-cost estimates are derived by diffing a **sampled percent history** (one sample per successful refresh, capped at 400 per vendor×window over 90 days); with insufficient samples they fall back to "current-period actual ÷ current used %". SCNet is a local credits self-estimate and does not participate in sampling.
+
 ## 3. Availability & compatibility guarantees
 
 - **Ledger availability fallback**: state snapshots are self-checked against the strict codec before delivery; on drift the snapshot degrades step by step (drop catalog → empty quota state) to keep core features available instead of rejecting everything (both historical root causes of "ledger unavailable" — `reasoning: null` dirty data and catalog-entry schema mismatch — are fixed and covered by regression tests);

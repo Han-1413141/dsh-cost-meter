@@ -3,6 +3,10 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.51(2026-08-25)—✨ Plan/API 双轨计费分离 + Token Plan 用量统计
+- **新增:Plan/API 双轨计费分离(issue #64,报告 @mumchristmas)**:MiniMax/Codex 等订阅制渠道的调用此前按目录 API 价计入金额,导致每日真实支出虚大。现账本同时记录总等值金额与真金白银(apiCost),预算/今日费用/概览卡片等只统计 API 部分,订阅消耗以等值口径单独呈现;同一会话两类渠道并存可精确区分;历史数据自动回溯拆分(幂等)。
+- **新增:Token Plan 用量统计面板(设置 → 用量)**:每 1% 额度与满窗 100% 对应的 token 数/等值金额估算(采样差分,样本不足回退当前用量折算),附每日/每周/每月曲线;覆盖全部已启用 Coding Plan 与 OpenCode Go。
+- **新增:按模型统计行「API 按量 / Plan 订阅」计费方式标记**。
 ## v1.5.50(2026-08-25)—— 修复 非 fork 会话代币漏计
 - **修复: 对话框下方本会话统计与今日会话不一致(issue #63 @Alan0x01)**:普通会话的 `length` 被误作 `seedLength` 导致早期 token 被过滤为种子,现仅显式 `seedLength` 生效,`length` 仅 fork 时回退;`stateVersion 6→7` 触发重放自愈。
 

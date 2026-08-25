@@ -4,9 +4,9 @@
 
 **DeepSeek Harness 会话费用统计插件(界面中英双语)**
 
-本会话费用 · 当日费用 · OpenCode Go 订阅额度显示 · 预算与已用百分比 · 官方账户余额 · 自定义 Provider 余额查询(可配任意 HTTP 端点) · 余额三段进度条 · 历史记录 · 峰谷计价时段显示(UTC 01:00–04:00、06:00–10:00 为峰时段;2026-08-23 起周末全天按谷价,显示「周末时段——全谷价」) · 峰/谷切换前弹窗与系统通知提醒(位置/提前量/提醒类型可配) · 官方价格一键同步 · 类 Codex Token 用量热图 · 多厂商多模型价格计费(内置 90+ 模型价格目录与自动匹配) · 主流 Coding Plan 额度查询与显示(Anthropic / Z.ai / MiniMax / Kimi / OpenRouter / SiliconFlow / CommandCode / SCNet / 火山方舟 九家,含 Volcano Ark AK/SK 签名) · 输入框上方额度横条(预算/Go/Coding Plan 用量一条横排显示,可开关)
+本会话费用 · 当日费用 · OpenCode Go 订阅额度显示 · 预算与已用百分比 · 官方账户余额 · 自定义 Provider 余额查询(可配任意 HTTP 端点) · 余额三段进度条 · 历史记录 · 峰谷计价时段显示(UTC 01:00–04:00、06:00–10:00 为峰时段;2026-08-23 起周末全天按谷价,显示「周末时段——全谷价」) · 峰/谷切换前弹窗与系统通知提醒(位置/提前量/提醒类型可配) · 官方价格一键同步 · 类 Codex Token 用量热图 · 多厂商多模型价格计费(内置 90+ 模型价格目录与自动匹配) · 主流 Coding Plan 额度查询与显示(Anthropic / Z.ai / MiniMax / Kimi / OpenRouter / SiliconFlow / CommandCode / SCNet / 火山方舟 九家,含 Volcano Ark AK/SK 签名) · Plan/API 双轨计费(订阅额度与按量金额分离统计,每 1% 额度与满窗的 token/等值金额估算及日/周/月曲线) · 输入框上方额度横条(预算/Go/Coding Plan 用量一条横排显示,可开关)
 
-[![version](https://img.shields.io/badge/version-1.5.50-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.5.51-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm)](https://www.npmjs.com/package/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
@@ -36,6 +36,7 @@
 | 预算图框 | 侧边栏底部(余额行与设置按钮之间) | 圆角方形图框:预算、已用%、进度条、今日费用与占预算%、已用/额度,≥80% 预警、≥100% 超支 |
 | 汇总卡片 | 设置页 | 今日 / 本月 / 累计费用与调用次数 |
 | Token 用量统计 | 设置页(费用设置) | 历史累计 token 总量(输入/缓存/输出/调用)+ 类 Codex 的 26 周每日用量方格热图,横向铺满设置页宽度,悬停见当日明细 |
+| Token Plan 用量统计 | 设置页(用量) | 各已启用 Coding Plan(含 Go)当前窗口的「每 1% 额度」与「满窗 100%」对应的 token 数与等值金额估算(采样差分/当前用量折算),附每日/每周/每月用量曲线;Plan 类调用金额只记等值,不动真金白银(issue #64) |
 | 今日会话明细 | 设置页 | 每个会话的调用次数、输入/缓存/输出 token 与费用 |
 | 历史记录 | 设置页 | 按天汇总,保留天数可配(默认 180 天) |
 | 历史按模型统计回填 | 设置页(按模型统计) | 按模型统计上线前的旧账本自动回放宿主会话日志重建逐模型 token/费用拆分(旧调用按当时基础价),日志已清理的部分归入「早期未分模型」残差行 |
@@ -231,22 +232,22 @@
 dsh plugin --profile web add dsh-cost-meter
 ```
 
-**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.5.50`**,建议先下载审阅再运行):
+**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.5.51`**,建议先下载审阅再运行):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.50/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.51/install.ps1 | iex
 ```
 
 **或直接命令行**(机器上需已有 pnpm 与 git;同样固定到 tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.50
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.51
 ```
 
 没有 git 时可用 GitHub tag 打包直链:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.50.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.51.tar.gz
 ```
 
 安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):
@@ -283,6 +284,7 @@ dsh plugin --profile web add link:./dsh-cost-meter  # 符号链接,改 lib/clien
 - 会话徽章与当日/月度/累计、预算一样,按每次调用的**实际时刻精确计费**(宿主导出的逐次成本);
 - 计费来源为每次模型调用的 usage 块(含子代理、压缩、标题等辅助调用),与账单口径一致;
 - 预算与超支提示**仅提醒,不阻止调用**。
+- **Plan/API 双轨计费**(issue #64):订阅制渠道(MiniMax / Codex 手动标记等)的调用金额只记「等值」,预算/今日费用/概览卡片等金额展示仅统计按量计费(API)部分;设置 → 用量 的 Token Plan 统计面板提供每 1% 额度与满窗的 token/等值金额估算与日/周/月曲线;分类可在配置中按厂商或 provider:model 级覆盖。
 
 ## 数据存储
 
@@ -355,6 +357,8 @@ dsh --profile web --port 3099                           # 真机启动(观察启
 - 价格同步会覆盖官方页面列出的同名模型价格,自定义模型条目不受影响;
 - 余额查询需要可访问 api.deepseek.com 的网络与有效 API Key;**API Key 只会发往官方域名**(baseURL 指向非官方域名时余额查询拒绝请求,模型请求不受影响);
 - OpenCode Go 额度接口为 opencode.ai 官方端点(社区文档);接口结构变化时设置页会显示错误,可在显示设置中关闭该显示;
+- Token Plan 统计的「每 1% 额度/满窗」为估算值:各家额度接口只返回百分比(无官方绝对量),插件以本地账本用量与百分比采样差分推算,仅供跨套餐横向比较;
+- Plan/API 双轨分类基于渠道与配置推断,混合订阅/按量使用同一厂商 Key 的场景(如 Kimi 订阅 + PAYG 混用)可在设置中按 provider:model 手动覆盖。
 - 安装/更新插件后需重启 `dsh web` 生效。
 
 ## 更新历史

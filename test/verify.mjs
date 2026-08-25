@@ -30,7 +30,23 @@ import {
   usdFromCost,
   providerPriceEntryFor,
 } from '../lib/pricing.js'
-import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays, officialCostOfDay } from '../lib/store.js'
+import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays, officialCostOfDay, splitLedgerApiCost, zeroDay } from '../lib/store.js'
+import {
+  billingClassOf,
+  enabledPlanSetOf,
+  planProviderIdOf,
+  canonicalWindowKey,
+  periodStartOf,
+  aggregateUsageSince,
+  recordSamples,
+  sampleIntervals,
+  estimateWindow,
+  buildPlanStats,
+  pruneRecentCalls,
+  appendRecentCall,
+  PLAN_SAMPLE_CAP,
+  DEFAULT_PLAN_PROVIDER_CLASS,
+} from '../lib/plan-billing.js'
 import { backfillLegacyLedger, importLegacyHistory, listSessionLogs, readSessionRecords, replaySessionRecords, repairForkSeed, repairProviderDupes, scanZstdFrames } from '../lib/backfill.js'
 import { createLlmStreamBilling } from '../lib/billing-stream.js'
 import { TYPERT, stateSchema } from '../lib/typert.host.js'
@@ -3247,6 +3263,235 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(CODING_PLAN_ENDPOINTS.volcengine.every(u => new URL(u).host === VOLCENGINE_HOST), 'volcengine 端点 Host 统一为 open.volcengineapi.com')
   assert.equal(CODING_PLAN_ENDPOINTS.volcengine.length, VOLCENGINE_ACTIONS.length, '端点数 = Action 数')
   console.log('[ok] 火山方舟 Volcano Ark(Coding Plan AK/SK 签名/三窗口解析/配置/白名单/客户端接线)通过')
+}
+
+// ── 10) Plan/API 双轨计费与 Token Plan 统计(issue #64)─────────────────────
+{
+  console.log('[..] Plan/API 双轨计费与 Token Plan 统计(issue #64)')
+  const planHome = join(tmpdir(), 'dsh-cost-meter-test-plan-home')
+  rmSync(planHome, { recursive: true, force: true })
+  process.env.DSH_HOME = planHome
+
+  // 10.1) 分类器:别名归并、模型级覆盖、厂商级配置、auto 默认。
+  assert.equal(planProviderIdOf('zen'), 'go', 'zen 别名 → go')
+  assert.equal(planProviderIdOf('OpenCode'), 'go', 'opencode 大小写归一 → go')
+  assert.equal(planProviderIdOf('deepseek'), null, 'deepseek 非 Plan 渠道')
+  assert.equal(planProviderIdOf('minimax'), 'minimax', '已知 Plan 渠道原样')
+  const pbBase = { providers: { ...DEFAULT_PLAN_PROVIDER_CLASS }, models: {} }
+  assert.equal(billingClassOf('minimax', 'MiniMax-M3', pbBase, new Set(['minimax'])), 'plan', 'auto+已启用 → plan')
+  assert.equal(billingClassOf('minimax', 'MiniMax-M3', pbBase, new Set()), 'api', 'auto+未启用 → api')
+  assert.equal(billingClassOf('openrouter', 'gpt-x', pbBase, new Set(['openrouter'])), 'api', '默认 api 类厂商不受启用影响')
+  assert.equal(billingClassOf('zen', 'claude-x', pbBase, new Set(['go'])), 'plan', 'zen 归 go 后按 go 启用态分类')
+  assert.equal(billingClassOf('deepseek', 'deepseek-v4-pro', pbBase, new Set(['minimax'])), 'api', 'deepseek 恒 api')
+  const pbModelOverride = { providers: { ...pbBase.providers }, models: { 'kimi:kimi-k2.7': 'api' } }
+  assert.equal(billingClassOf('kimi', 'kimi-k2.7', pbModelOverride, new Set(['kimi'])), 'api', '模型级覆盖优先(转 api)')
+  const pbModelOverridePlan = { providers: { openrouter: 'api' }, models: { 'openrouter:special-model': 'plan' } }
+  assert.equal(billingClassOf('openrouter', 'special-model', pbModelOverridePlan, new Set()), 'plan', '模型级覆盖优先(转 plan)')
+  const pbProviderConfig = { providers: { ...pbBase.providers, minimax: 'api' }, models: {} }
+  assert.equal(billingClassOf('minimax', 'M3', pbProviderConfig, new Set(['minimax'])), 'api', '厂商级显式配置优先于 auto')
+  assert.equal(billingClassOf('minimax', 'M3', pbProviderConfig, undefined), 'api', 'enabledPlans 缺失时显式配置仍生效')
+  assert.equal(enabledPlanSetOf({ codingPlans: { minimax: { enabled: true } }, goQuota: { enabled: false } }).has('minimax'), true, 'enabledPlanSet 含启用的厂商')
+  assert.equal(enabledPlanSetOf({ codingPlans: {}, goQuota: { enabled: true } }).has('go'), true, 'enabledPlanSet 含 go(goQuota 开)')
+  assert.equal(enabledPlanSetOf({ codingPlans: {}, goQuota: { enabled: false } }).has('go'), false, 'goQuota 关时无 go')
+
+  // 10.2) 窗口名归一。
+  assert.equal(canonicalWindowKey('five_hour'), 'fiveHour', 'five_hour → fiveHour')
+  assert.equal(canonicalWindowKey('rolling'), 'fiveHour', 'rolling → fiveHour')
+  assert.equal(canonicalWindowKey('seven_day'), 'weekly', 'seven_day 先于 daily 判定 → weekly')
+  assert.equal(canonicalWindowKey('Weekly'), 'weekly', '大小写归一 weekly')
+  assert.equal(canonicalWindowKey('monthly'), 'monthly', 'monthly')
+  assert.equal(canonicalWindowKey('AFPDaily'), 'daily', 'AFPDaily → daily')
+  assert.equal(canonicalWindowKey('general'), 'general', '未知窗口保留原样小写')
+  // 周期起点:周一为周起点、月起点为本月 1 日。
+  const wednesdayNoon = Date.parse('2026-08-26T12:00:00') // 本地周三
+  assert.equal(new Date(periodStartOf('weekly', wednesdayNoon)).getDay(), 1, 'weekly 起点 = 周一')
+  assert.equal(new Date(periodStartOf('monthly', wednesdayNoon)).getDate(), 1, 'monthly 起点 = 1 日')
+  assert.ok(Math.abs((periodStartOf('fiveHour', wednesdayNoon) - (wednesdayNoon - 5 * 3600_000))) < 1, 'fiveHour 起点 = now−5h')
+
+  // 10.3) account() 三级拆分:minimax 订阅调用金额只记等值(apiCost=0),deepseek 照旧全额 API。
+  const splitLedger = Ledger.open()
+  splitLedger.config.codingPlans.minimax.enabled = true
+  const nowMs = Date.now()
+  splitLedger.account({ input: 100000, output: 20000 }, 'MiniMax-M3', 'sess-plan-1', nowMs, 'minimax')
+  splitLedger.account({ input: 1000, output: 500 }, 'deepseek-v4-flash', 'sess-plan-1', nowMs, 'deepseek')
+  const todaySplit = splitLedger.today()
+  assert.ok(todaySplit.cost > 0, '总等值金额 > 0')
+  const dsCost = todaySplit.byProviderModel['deepseek:deepseek-v4-flash'].cost
+  const mmEntry = todaySplit.byProviderModel['minimax:MiniMax-M3']
+  assert.ok(mmEntry.cost > 0 && mmEntry.apiCost === 0, 'plan 条目 cost>0 且 apiCost=0')
+  assert.ok(todaySplit.byProviderModel['deepseek:deepseek-v4-flash'].apiCost === dsCost, 'api 条目 apiCost=cost')
+  assert.ok(Math.abs(todaySplit.apiCost - dsCost) < 1e-9, '日合计 apiCost 只含 deepseek 部分')
+  assert.ok(Math.abs(todaySplit.apiCost - todaySplit.cost) > 0, 'cost 与 apiCost 分离')
+  const sessSplit = todaySplit.sessions.find(s => s.id === 'sess-plan-1')
+  assert.ok(sessSplit.apiCost > 0 && sessSplit.apiCost < sessSplit.cost, '会话条目双轨并存可区分')
+  assert.equal(sessSplit.byProviderModel['minimax:MiniMax-M3'].apiCost, 0, '会话内 plan 明细 apiCost=0')
+  // Plan 调用进入环形缓冲(provider 归并为 canonical id)。
+  assert.equal(splitLedger.planRecentCalls.length, 1, 'plan 调用入缓冲')
+  assert.equal(splitLedger.planRecentCalls[0].provider, 'minimax', '缓冲记录 canonical id')
+  assert.ok(splitLedger.planRecentCalls[0].tokens > 0, '缓冲记录 token 数')
+
+  // 10.4) 一次性迁移:历史账本按当前分类回溯重算 apiCost,幂等。
+  splitLedger.days[localDayKey(nowMs - 24 * 3600_000)] = {
+    ...zeroDay(localDayKey(nowMs - 24 * 3600_000)),
+    input: 10, output: 5, calls: 2,
+    cost: 0.9,
+    byProviderModel: {
+      'minimax:MiniMax-M2.7': { input: 5, output: 3, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.8 },
+      'deepseek:deepseek-v4-flash': { input: 5, output: 2, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.1 },
+    },
+    sessions: [],
+  }
+  const touched = splitLedgerApiCost(splitLedger)
+  const migratedDay = splitLedger.days[localDayKey(nowMs - 24 * 3600_000)]
+  assert.ok(touched >= 1, '迁移改动了记录')
+  assert.ok(Math.abs(migratedDay.apiCost - 0.1) < 1e-9, '历史日期 apiCost = 仅 deepseek 部分(0.1)')
+  assert.equal(splitLedgerApiCost(splitLedger), 0, '迁移幂等(重跑零改动)')
+
+  // 10.5) 配置校验与清洗。
+  const pbPatchBad = applyConfigPatch(sanitizeConfig({}), { planBilling: { providers: { minimax: 'sometimes' } } })
+  assert.ok(pbPatchBad.errors.length > 0, '非法 provider 值被拒')
+  const pbPatchUnknown = applyConfigPatch(sanitizeConfig({}), { planBilling: { providers: { notAPlan: 'plan' } } })
+  assert.ok(pbPatchUnknown.errors.length > 0, '未知提供商被拒')
+  const pbPatchOk = applyConfigPatch(sanitizeConfig({}), { planBilling: { providers: { minimax: 'api' }, models: { 'kimi:k2': 'plan' } } })
+  assert.equal(pbPatchOk.errors.length, 0, '合法 planBilling 补丁通过')
+  assert.equal(pbPatchOk.config.planBilling.providers.minimax, 'api', 'provider 配置生效')
+  assert.equal(pbPatchOk.config.planBilling.models['kimi:k2'], 'plan', 'model 覆盖生效')
+  const pbSanitized = sanitizeConfig({ planBilling: { providers: { minimax: 'bogus', zai: 'plan' }, models: { x: 'not-valid', 'y:z': 'api' } } })
+  assert.equal(pbSanitized.planBilling.providers.minimax, 'auto', '非法 provider 值清洗回默认')
+  assert.equal(pbSanitized.planBilling.providers.zai, 'plan', '合法 provider 值保留')
+  assert.equal(pbSanitized.planBilling.models.x, undefined, '非法 model 值剔除')
+  assert.equal(pbSanitized.planBilling.models['y:z'], 'api', '合法 model 值保留')
+  assert.equal(pbSanitized.planBilling.models['y:z'], 'api', '合法 model 值保留(重复断言防手滑)')
+
+  // 10.6) 采样记录/裁剪/差分估算数学。
+  const samples0 = {}
+  let sampleStep = 0
+  const stepAggOf = wk => {
+    sampleStep += 1
+    return { tokens: 1000 + sampleStep * 2000, cost: 0.1 + sampleStep * 0.2 }
+  }
+  let samples = recordSamples(samples0, 'minimax', {
+    five_hour: { percent: 10, resetsAt: '' },
+    weekly: { percent: 20, resetsAt: '' },
+  }, { forWindow: () => ({ tokens: 9000, cost: 0.9 }) }, 1000_000)
+  samples = recordSamples(samples, 'minimax', {
+    five_hour: { percent: 30, resetsAt: '' },
+    weekly: { percent: 40, resetsAt: '' },
+  }, { forWindow: () => ({ tokens: 11000, cost: 1.1 }) }, 2000_000)
+  assert.equal(samples.minimax.fiveHour.length, 2, '窗口名归一后存同一列')
+  assert.equal(samples.minimax.fiveHour[1].p, 30, '样本百分比记录')
+  assert.equal(samples.minimax.fiveHour[1].lt, 11000, '本地累计 token 记录')
+  const intervals = sampleIntervals(samples.minimax.fiveHour)
+  assert.equal(intervals.length, 1, '有效差分区间一条')
+  assert.equal(intervals[0].tokens, 2000, 'Δtokens = 11000−9000')
+  assert.ok(Math.abs(intervals[0].per1Tokens - 100) < 1e-9, '每 1% token = Δt/Δp')
+  let growing = recordSamples({}, 'zai', { fiveHour: { percent: 10, resetsAt: '' } }, { forWindow: () => ({ tokens: 1000, cost: 0.1 }) }, 1000_000)
+  growing = recordSamples(growing, 'zai', { fiveHour: { percent: 60, resetsAt: '' } }, { forWindow: () => ({ tokens: 6000, cost: 0.6 }) }, 2000_000)
+  const growIntervals = sampleIntervals(growing.zai.fiveHour)
+  assert.equal(growIntervals.length, 1, '递增序列产生区间')
+  assert.equal(growIntervals[0].tokens, 5000, 'Δtokens = 6000−1000')
+  assert.equal(growIntervals[0].pct, 50, 'Δpct = 60−10')
+  assert.ok(Math.abs(growIntervals[0].per1Tokens - 100) < 1e-9, '每 1% token = Δt/Δp = 100')
+  assert.ok(Math.abs(growIntervals[0].per1Cost - 0.01) < 1e-12, '每 1% 金额 = 0.01')
+  // 周期切换(resetsAt 变化):区间断开。
+  let resetSamples = recordSamples({}, 'kimi', { weekly: { percent: 50, resetsAt: 'r1' } }, { forWindow: () => ({ tokens: 100, cost: 0 }) }, 1000_000)
+  resetSamples = recordSamples(resetSamples, 'kimi', { weekly: { percent: 55, resetsAt: 'r2' } }, { forWindow: () => ({ tokens: 200, cost: 0 }) }, 2000_000)
+  assert.equal(sampleIntervals(resetSamples.kimi.weekly).length, 0, '重置标记变化断开区间')
+  // estimateWindow:sample 优先;live 回退;none 兜底。
+  const estSample = estimateWindow(growIntervals, 60, { tokens: 6000, cost: 0.6 })
+  assert.equal(estSample.method, 'sample', '有区间时用 sample')
+  assert.ok(Math.abs(estSample.fullTokens - 10000) < 1e-9, '满窗估计 = per1×100 = 10000')
+  const estLive = estimateWindow([], 25, { tokens: 2500, cost: 0.25 })
+  assert.equal(estLive.method, 'live', '无区间回退 live')
+  assert.ok(Math.abs(estLive.per1Tokens - 100) < 1e-9, 'live 每 1% = 2500/25 = 100')
+  const estNone = estimateWindow([], 0.2, { tokens: 2500, cost: 1 })
+  assert.equal(estNone.method, 'none', 'percent < 0.5 时 none')
+  // 采样裁剪:上限条数 + 超龄丢弃。
+  let capped = {}
+  for (let i = 0; i < PLAN_SAMPLE_CAP + 30; i += 1) {
+    capped = recordSamples(capped, 'volcengine', { monthly: { percent: i + 1, resetsAt: '' } }, { forWindow: () => ({ tokens: 10, cost: 0 }) }, 1000_000 + i * 120_000)
+  }
+  assert.equal(capped.volcengine.monthly.length, PLAN_SAMPLE_CAP, '采样列截断到上限')
+  assert.equal(capped.volcengine.monthly[capped.volcengine.monthly.length - 1].p, PLAN_SAMPLE_CAP + 30, '保留最新样本')
+
+  // 10.7) buildPlanStats 快照:窗口估算与区间序列下发;scnet 不参与。
+  const fakeDays = {}
+  const fakeDayKey = localDayKey(Date.now())
+  fakeDays[fakeDayKey] = {
+    ...zeroDay(fakeDayKey),
+    input: 1000, output: 100, calls: 1, cost: 0.09, apiCost: 0,
+    byProviderModel: {
+      'minimax:MiniMax-M3': { input: 1000, output: 100, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.09, apiCost: 0 },
+    },
+    sessions: [],
+  }
+  const recentCalls = [{ t: Date.now() - 1000, provider: 'minimax', tokens: 1100, cost: 0.09 }]
+  const stats = buildPlanStats({
+    days: fakeDays,
+    recentCalls,
+    samples: growing.minimax ? { minimax: { fiveHour: growing.zai.fiveHour.map(s => ({ ...s })) } } : {},
+    codingPlans: {
+      minimax: { status: 'ok', windows: { general: { percent: 60, resetsAt: '' } } },
+      scnet: { status: 'ok', windows: { monthly: { percent: 42, resetsAt: '' } } },
+    },
+    goQuota: { status: 'off', rolling: null, weekly: null, monthly: null },
+    config: sanitizeConfig({ codingPlans: { minimax: { enabled: true } } }),
+    nowMs: Date.now(),
+  })
+  assert.equal(stats.providers.scnet, undefined, 'scnet 自估不参与统计')
+  const mmWin = stats.providers?.minimax?.windows?.general
+  assert.ok(mmWin !== undefined, 'minimax general 窗口存在')
+  assert.equal(mmWin.percent, 60, '窗口百分比透传')
+  assert.ok(mmWin.localTokens > 0, '本周期实际 token 来自当日聚合+缓冲(去重前)')
+  assert.equal(mmWin.method, 'live', '无有效区间回退 live')
+  assert.ok(mmWin.per1Tokens !== null && mmWin.per1Tokens > 0, 'live 估算每 1% 值有效')
+  assert.ok(mmWin.fullTokens === mmWin.per1Tokens * 100, '满窗 = per1×100')
+  // 区间序列透传(sample 数据经 intervals 下发)。
+  const withIntervals = buildPlanStats({
+    days: {}, recentCalls: [], samples: { zai: { fiveHour: growing.zai.fiveHour } },
+    codingPlans: { zai: { status: 'ok', windows: { fiveHour: { percent: 70, resetsAt: '' } } } },
+    goQuota: { status: 'off' },
+    config: sanitizeConfig({}),
+    nowMs: Date.now(),
+  })
+  assert.equal(withIntervals.providers.zai.intervals.fiveHour.length, 1, '区间序列下发')
+  assert.ok(Math.abs(withIntervals.providers.zai.windows.fiveHour.per1Tokens - 100) < 1e-9, '窗口估算取最近区间 per1')
+
+  // 10.8) strict codec 漂移:含 planStats/apiCost 的完整快照必须通过 getState codec。
+  const codecState = TYPERT.invocations.find(i => i.method === 'getState').result.schema
+  const driftProbe = splitLedger.today()
+  driftProbe.apiCost = Math.min(driftProbe.cost / 2, driftProbe.cost ?? 0)
+  const fullState = {
+    today: driftProbe,
+    month: driftProbe,
+    total: driftProbe,
+    budgetUsed: 0.1,
+    balance: { status: 'off', message: '', fetchedAt: 0, currency: '', totalBalance: 0, grantedBalance: 0, toppedUpBalance: 0 },
+    goQuota: { status: 'off', message: '', fetchedAt: 0, rolling: null, weekly: null, monthly: null },
+    reconcile: { ok: true, message: '' },
+    codingPlans: {},
+    planStats: stats,
+    history: [],
+    config: sanitizeConfig({}),
+    meta: { now: Date.now(), timezoneOffsetMinutes: -480, dayKey: localDayKey(Date.now()), monthKey: localDayKey(Date.now()).slice(0, 7) },
+  }
+  const codecCheck = codecState.safeParse(fullState)
+  assert.ok(codecCheck.success, '含 planStats/apiCost 的快照通过 strict codec:' + (codecCheck.success ? '' : JSON.stringify(codecCheck.error.issues.slice(0, 4))))
+
+  // 10.9) 客户端接线源码断言。
+  const clientSrc = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.ok(clientSrc.includes("function billingClassOfLocal"), '客户端分类镜像存在')
+  assert.ok(clientSrc.includes("function moneyCostOf"), '真金白银口径辅助函数存在')
+  assert.ok(clientSrc.includes("function usageSplit"), '会话投影拆分函数存在')
+  assert.ok(clientSrc.includes("sessionLineSplit") && clientSrc.includes("costChipPlan"), '会话徽章/dock 双轨文案接线')
+  assert.ok(clientSrc.includes("function PlanStatsPanel"), 'PlanStatsPanel 组件存在')
+  assert.ok(clientSrc.includes("el(PlanStatsPanel,"), '用量标签挂载 PlanStatsPanel')
+  assert.ok(clientSrc.includes("planStatsBarTip") && clientSrc.includes("planStatsNote"), '曲线悬停与口径说明文案存在')
+  assert.ok(clientSrc.includes("cls: billingClassOfLocal(provider, model, config)"), '按模型统计行携带计费方式')
+  assert.ok(clientSrc.includes("parsePlanStats"), '读侧 planStats 解析白名单')
+  assert.ok(clientSrc.includes("planBilling:"), '读侧 planBilling 解析白名单')
+  assert.ok(!/state\.today\.cost/.test(clientSrc), '客户端不再直接消费今日总额(全部走 moneyCostOf)')
+  console.log('[ok] Plan/API 双轨计费与 Token Plan 统计(issue #64)通过')
 }
 
 console.log('[ok] 全部验证通过')

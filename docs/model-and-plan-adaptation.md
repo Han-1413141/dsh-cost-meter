@@ -107,6 +107,22 @@
 
 ---
 
+## 二·五、Plan/API 双轨计费分类(issue #64,v1.5.51 起)
+
+账本在 day / session / byProviderModel 三级同时记录「总等值金额 cost」与「真金白银 apiCost」;预算、今日费用、概览卡片等金额展示仅统计 API 部分,订阅额度消耗以等值口径单独呈现。分类优先级:**模型级覆盖(planBilling.models[provider:model])> 厂商级配置(planBilling.providers)> auto**(该家额度查询启用即 plan,否则 api)。
+
+| 厂商 | 默认(auto 行为)| 说明 |
+|---|---|---|
+| anthropic / zai / minimax / commandcode / scnet / volcengine | 启用额度查询 → plan | 窗口百分比制订阅 |
+| kimi | 启用额度查询 → plan | 订阅窗口;PAYG 余额场景请把对应模型覆盖为 api |
+| openrouter / siliconflow | api | credits/余额为真实扣费 |
+| OpenCode Go(zen/opencode 路由)| 启用 Go 额度 → plan | Go 订阅包含模型;Zen 按量用户请覆盖为 api |
+| Codex(ChatGPT 订阅)| api(手动标记)| 无 API-Key 化额度端点,可在设置中按 provider:model 标记为 plan |
+
+每 1% 额度与满窗的 token/等值金额估算由**百分比采样历史**差分推算(每次额度刷新成功记录一条样本,每厂商×窗口上限 400 条 / 90 天);样本不足时回退「本周期实际 ÷ 当前已用%」折算。SCNet 为本地 Credits 自估,不参与采样估算。
+
+---
+
 ## 三、可用性与兼容性保障
 
 - **账本可用性兜底**:状态快照下发前经 strict codec 自检;漂移时逐级降级(剔目录 → 空额度状态)保核心可用,不再整体拒绝(历史上「账本不可用」的两类根因——`reasoning: null` 脏数据与目录条目 schema 不匹配——均已根治并有回归测试);

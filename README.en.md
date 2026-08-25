@@ -4,9 +4,9 @@
 
 **Session cost tracking plugin for the DeepSeek Harness web GUI (bilingual UI)**
 
-Per-conversation cost · daily totals · OpenCode Go subscription quota display · budget with usage percentage · official account balance · custom provider balance · balance progress bar · history · peak/off-peak pricing hours display (peak hours UTC 01:00–04:00, 06:00–10:00; from Aug 23, 2026 weekends are billed at off-peak prices all day, shown as “Weekend — all off-peak”) · pre-switch popup & system-notification alerts for peak/off-peak changes (position / lead time / alert type configurable) · one-click price sync from the official docs · Codex-style token usage heat grid · multi-vendor model pricing (built-in 90+ model price catalog with auto-matching) · mainstream Coding Plan quota queries & display (Anthropic / Z.ai / MiniMax / Kimi / OpenRouter / SiliconFlow / CommandCode / SCNet) · quota strip above the input box (budget / Go / coding-plan usage in one row, toggleable)
+Per-conversation cost · daily totals · OpenCode Go subscription quota display · budget with usage percentage · official account balance · custom provider balance · balance progress bar · history · peak/off-peak pricing hours display (peak hours UTC 01:00–04:00, 06:00–10:00; from Aug 23, 2026 weekends are billed at off-peak prices all day, shown as “Weekend — all off-peak”) · pre-switch popup & system-notification alerts for peak/off-peak changes (position / lead time / alert type configurable) · one-click price sync from the official docs · Codex-style token usage heat grid · multi-vendor model pricing (built-in 90+ model price catalog with auto-matching) · mainstream Coding Plan quota queries & display (Anthropic / Z.ai / MiniMax / Kimi / OpenRouter / SiliconFlow / CommandCode / SCNet) plan/API dual-track billing (subscription quota vs pay-as-you-go money separated, per-1% & full-window token/equivalent-cost estimates with daily/weekly/monthly curves) · · quota strip above the input box (budget / Go / coding-plan usage in one row, toggleable)
 
-[![version](https://img.shields.io/badge/version-1.5.50-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.5.51-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm)](https://www.npmjs.com/package/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
@@ -36,6 +36,7 @@ English | [中文](README.md)
 | Budget box | Sidebar bottom (between the balance row and the settings button) | Rounded-square frame: budget, used %, progress bar, today's cost & share of budget, used/limit; ≥80% warning, ≥100% over-budget |
 | Summary cards | Settings page | Today / this month / cumulative cost and call counts |
 | Token usage stats | Settings page (Cost section) | All-time token totals (input/cache/output/calls) + a Codex-style 26-week daily usage heat grid that fills the settings width; hover a cell for that day's detail |
+| Token Plan usage stats | Settings page (Usage) | Per enabled coding plan (incl. Go): per-1% quota and full-window token / equivalent-cost estimates for the current windows (sample delta / live ratio), plus daily/weekly/monthly usage curves; plan-channel amounts are equivalent-only and never touch real money (issue #64) |
 | Today's sessions | Settings page | Per-session call count, input/cache/output tokens and cost |
 | History | Settings page | Per-day totals; retention days configurable (default 180) |
 | Pre-install history import | Automatic on first launch | After install/upgrade, the first launch automatically replays all host session logs to import conversations from before the plugin was installed (missing dates are rebuilt whole; existing dates only gain previously unknown sessions; idempotent and never double-counts live metering; costs priced at per-event historical rates); a manual re-run entry remains in Settings |
@@ -229,22 +230,22 @@ Real captures from an actual DSH sidebar of the period strip and collapsed verti
 dsh plugin --profile web add dsh-cost-meter
 ```
 
-**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.5.50`** — review the script before running):
+**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.5.51`** — review the script before running):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.50/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.5.51/install.ps1 | iex
 ```
 
 **Or a plain command line** (the machine must already have pnpm and git; also pinned to the tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.50
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.5.51
 ```
 
 Without git, use the GitHub tag archive:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.50.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.5.51.tar.gz
 ```
 
 After installing, **restart** `dsh web` (plugin rows, the Typert manifest and the client bundle are all scanned at startup):
@@ -281,6 +282,7 @@ dsh plugin --profile web add link:./dsh-cost-meter  # symlink; edit lib/client.j
 - The session badge is **billed exactly** at the moment each call is made (host-exported per-call cost), just like daily/monthly/cumulative totals and the budget;
 - Billing sources are the `usage` block of every model call (including sub-agents, compression, title generation and other auxiliary calls), matching the billable view;
 - Budget and over-budget warnings **only warn — they never block calls**.
+- **Plan/API dual-track billing** (issue #64): calls on subscription-style channels (MiniMax, manually-marked Codex, etc.) are recorded as catalog-price equivalents only; budget/today-cost/overview cards count the pay-as-you-go (API) channel exclusively. The Token Plan stats panel in Settings → Usage provides per-1% and full-window token/equivalent-cost estimates plus daily/weekly/monthly usage curves; classification is configurable per vendor and per provider:model.
 
 ## Data storage
 
@@ -351,6 +353,8 @@ dsh --profile web --port 3099                           # real startup (watch lo
 - Price sync overwrites the same-named models listed on the official page; custom model entries are unaffected;
 - Balance lookup needs network access to api.deepseek.com and a valid API key; **the API key is only ever sent to the official domain** (if baseURL points at a non-official host, balance queries refuse to run — model requests are unaffected);
 - The OpenCode Go quota endpoint is the official opencode.ai endpoint (community-documented); if its response shape changes, the Settings page shows an error and the display can be turned off in Display settings;
+- The per-1% quota / full-window figures in Token Plan stats are estimates: vendors only report percentages (no official absolute volumes), so the plugin derives them from local ledger usage and sampled percent deltas — for cross-plan comparison only;
+- Plan/API classification is inferred from channel and config; mixed subscription/PAYG usage of one vendor (e.g. Kimi) can be overridden per provider:model in settings.
 - A restart of `dsh web` is required after installing/updating the plugin.
 
 ## Update history
