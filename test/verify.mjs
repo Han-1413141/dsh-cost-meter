@@ -1557,7 +1557,7 @@ console.log('[ok] 宽泛匹配与跨厂商兑底(路由 provider 费用为零修
   // 旧 v3 checkpoint(ver 不匹配)隔离——宿主 ver 检查拒绝旧行并全量 refold,
   // 不会对旧结构 state 调用 parse。
   const projRow = { ver: def.stateVersion, seq: events.length, val: structuredClone(projState) }
-  assert.equal(projRow.ver, 6, 'stateVersion 为 6(旧 v5 checkpoint 触发重放自愈而非 parse)')
+  assert.equal(projRow.ver, 7, 'stateVersion 为 7(旧 v6 checkpoint 触发重放自愈而非 parse)')
   usageProjectionStateSchema.parse(projRow.val)
   // ⑤ issue #43 崩溃点复现对照:缺 stateSchema 的定义(fork 0.2.0 场景)在
   // restore 路径抛出与 issue 报错完全一致的 TypeError。
@@ -2046,7 +2046,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(scheduled >= 1, '清洗后调度落盘')
   // 投影与启动接线:源码结构断言(投影无独立运行时入口,行为经宿主重放自愈)。
   const indexSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
-  assert.ok(indexSource.includes('stateVersion: 6'), '投影 stateVersion 5→6:触发宿主重放,受污染投影自愈(issue #61 多 end-seed 修复)')
+  assert.ok(indexSource.includes('stateVersion: 7'), '投影 stateVersion 6→7:触发宿主重放,受污染投影自愈(issue #63 非 fork 会话 length 误作 seedLength 修复)')
   assert.ok(indexSource.includes("if (event.type === 'session')") && indexSource.includes('createdAt') && indexSource.includes('seedLength'), '投影记录会话创建时刻与 seedLength(旧宿主兼容+多 end-seed 延迟扣除)')
   assert.ok(indexSource.includes("if (event.type === 'session/end-seed')"), '投影识别 session/end-seed fork 种子边界(issue #55)')
   assert.ok(indexSource.includes('isSeedBySeq') && indexSource.includes('isSeedByLength') && indexSource.includes('seedEndSeq'), '投影按 seq/length/time 三重过滤种子段(issue #55/#61)')
@@ -2179,6 +2179,45 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.equal(st2.seedEndSeq, 4, 'own 后 end-seed 不更新边界')
   rmSync(projRoot2, { recursive: true, force: true })
   console.log('[ok] 投影多 end-seed 延迟扣除(issue #61)通过')
+}
+
+// 8e-2c) 非 fork 会话 length 误作 seedLength 修复(issue #63):普通会话的 session 事件若携带 length(日志总长度)被误作种子边界,会导致代币漏计。
+{
+  const { __testProjection } = await import('../lib/index.js')
+  const { makeCostUsageProjection } = __testProjection
+  const cfg = sanitizeConfig({})
+  const projRoot3 = join(tmpdir(), `cm-proj-nonfork-length-${Date.now()}`)
+  mkdirSync(projRoot3, { recursive: true })
+  const projLedger3 = new Ledger(cfg, {}, join(projRoot3, 'ledger.json'))
+  const def3 = makeCostUsageProjection(projLedger3)
+  const ev3 = (type, seq, extra) => ({ type, seq, ...extra })
+  const at3 = Date.now()
+  const logNonFork = [
+    ev3('session', 0, { createdAt: at3, length: 2 }),
+    ev3('request/header', 1, { time: at3 + 1000, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } }),
+    ev3('assistant/message', 1, { time: at3 + 2000, data: { turn: 1, step: 1, usage: { inputTokens: 100, outputTokens: 10, cacheReadTokens: 1000, cacheWriteTokens: 0 } } }),
+    ev3('assistant/message', 2, { time: at3 + 3000, data: { turn: 1, step: 2, usage: { inputTokens: 200, outputTokens: 20, cacheReadTokens: 2000, cacheWriteTokens: 0 } } }),
+  ]
+  let st3 = def3.init()
+  for (const e of logNonFork) st3 = def3.apply(st3, e)
+  assert.equal(st3.totals.input, 300, '非 fork 会话 length=2 不应过滤,全部计入(issue #63)')
+  assert.equal(st3.totals.cacheRead, 3000, '非 fork 会话缓存全计入')
+  assert.equal(st3.seedLength, -1, '非 fork 会话 seedLength 保持 -1')
+  // 对照:同 length 的 fork 会话应按 length 作种子边界回退
+  const logForkLen = [
+    ev3('session', 0, { createdAt: at3, length: 2, parentSession: 'parent-sess' }),
+    ev3('request/header', 1, { time: at3 - 5000, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } }),
+    ev3('assistant/message', 1, { time: at3 - 4000, data: { turn: 1, step: 1, usage: { inputTokens: 100, outputTokens: 10, cacheReadTokens: 1000, cacheWriteTokens: 0 } } }),
+    ev3('session/end-seed', 1, { time: at3 - 3000 }),
+    ev3('request/header', 2, { time: at3 + 1000, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } }),
+    ev3('assistant/message', 2, { time: at3 + 2000, data: { turn: 1, step: 2, usage: { inputTokens: 200, outputTokens: 20, cacheReadTokens: 2000, cacheWriteTokens: 0 } } }),
+  ]
+  let stForkLen = def3.init()
+  for (const e of logForkLen) stForkLen = def3.apply(stForkLen, e)
+  // length=2 作为种子边界,seq 1 的种子应被扣回,仅 seq2 的 own 保留
+  assert.equal(stForkLen.totals.input, 200, 'fork 会话 length=2 回退为种子边界,种子扣回仅 own 计入')
+  rmSync(projRoot3, { recursive: true, force: true })
+  console.log('[ok] 非 fork 会话 length 不误作 seedLength(issue #63)通过')
 }
 
 // 8e-3) 手动价格映射裸 DeepSeek 名兜底(issue #56):v1.5.42 及之前设置页下拉框把

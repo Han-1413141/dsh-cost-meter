@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.50] - 2026-08-25
+
+### 修复
+
+- **对话框下方本会话费用/Token 与今日会话不一致(issue #63, 感谢 @Alan0x01 报告)**:`v1.5.47` 为修复 fork 徽章全量而引入 `seedLength` 时,`lib/index.js:326` 将 `event.length`(普通会话日志总长度)无条件回退为 `seedLength`,导致非 fork 会话早期的 `seq < length` 事件被误判为种子段过滤(例: 89 次调用的会话若 `length=80`,则前 80 段被过滤,仅余少量),表现为对话框下方“本会话 ¥0.31 · 输入 9K …”远小于设置页“今日会话”(账本 `today.sessions`)与 DSH 原生行的 127K/8.3M。`v1.5.50` 改为仅显式 `seedLength` 字段生效,`length` 仅当 header 携带 `parentSession` (确认为 fork 会话)时才回退;投影 `stateVersion` `6→7` 使旧 checkpoint 全量重放自愈,`verify.mjs` 新增非 fork/ fork length 行为级断言。
+
 ## [1.5.49] - 2026-08-25
 
 ### 修复

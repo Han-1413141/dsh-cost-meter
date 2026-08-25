@@ -3,6 +3,9 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.50(2026-08-25)—— 修复 非 fork 会话代币漏计
+- **修复: 对话框下方本会话统计与今日会话不一致(issue #63 @Alan0x01)**:普通会话的 `length` 被误作 `seedLength` 导致早期 token 被过滤为种子,现仅显式 `seedLength` 生效,`length` 仅 fork 时回退;`stateVersion 6→7` 触发重放自愈。
+
 ## v1.5.49(2026-08-25)—— 修复 人民币币种会话费用虚高
 - **修复: 人民币价格会话费用虚高(issue #62 @Alan0x01)**:`CNY` 价格直接计为美元后展示再 `×7.2`,现投影与客户端回退均按 `÷exchangeRate` 落库为美元,显示往返一致。
 
