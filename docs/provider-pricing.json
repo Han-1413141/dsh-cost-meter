@@ -1,17 +1,17 @@
 {
-  "generatedAt": "2026-08-18",
+  "generatedAt": "2026-08-25",
   "note": "Auto-generated from lib/pricing.js DEFAULT_PROVIDER_PRICE_TABLE. USD per 1M tokens; unpriced entries have no verified official price.",
   "providers": {
     "openai": {
       "models": {
         "gpt-5.6-sol": {
-          "input": 5,
-          "cachedInput": 0.5,
-          "output": 30,
+          "input": 2,
+          "cachedInput": 0.2,
+          "output": 10,
           "billingMode": "flat",
           "sourceUrl": "https://opencode.ai/docs/zen",
-          "checkedAt": "2026-08-17",
-          "notes": "≤272K 档;超过 272K 输入按 $10/$45 计;缓存写入 $6.25"
+          "checkedAt": "2026-08-25",
+          "notes": "≤272K 档;超过 272K 按 $4/$15 计(缓存读 $0.40、写入 $5);缓存写入 $2.50;目录标注 2026-09-18 前为五折促销价(issue #58)"
         },
         "gpt-5.6-terra": {
           "input": 2,
@@ -287,7 +287,7 @@
           "billingMode": "flat",
           "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
           "checkedAt": "2026-08-17",
-          "notes": "2026 年底前促销价;2027 起 $1.5/$7.5;Zen 网关按 $1.5/$7.5"
+          "notes": "2026 年底前促销价;2027 起 $1.5/$7.5;Go 网关按 $1.5/$7.5"
         },
         "gemini-3.6-flash": {
           "input": 1.5,
@@ -365,7 +365,7 @@
           "billingMode": "flat",
           "sourceUrl": "https://opencode.ai/docs/zen",
           "checkedAt": "2026-08-17",
-          "notes": "官方人民币价 ¥20/¥100/缓存¥2 每百万;此处为 Zen 网关美元价"
+          "notes": "官方人民币价 ¥20/¥100/缓存¥2 每百万;此处为 Go 网关美元价"
         },
         "kimi-k2.7-code": {
           "input": 0.95,
@@ -605,6 +605,30 @@
         }
       }
     },
+    "meta": {
+      "models": {
+        "muse-spark-1.2": {
+          "input": 1.25,
+          "cachedInput": 0.15,
+          "output": 4.25,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-25"
+        }
+      }
+    },
+    "meituan": {
+      "models": {
+        "longcat-2.0": {
+          "input": 0.3,
+          "cachedInput": 0.006,
+          "output": 1.2,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-25"
+        }
+      }
+    },
     "nvidia": {
       "models": {
         "nvidia/nemotron-3-ultra-550b-a55b": {
@@ -647,9 +671,12 @@
           "checkedAt": "2026-08-17"
         },
         "glm-5.3": {
-          "unpriced": true,
+          "input": 1.4,
+          "cachedInput": 0.26,
+          "output": 4.4,
           "billingMode": "flat",
-          "notes": "Go 目录在册;官方未公布单价"
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-25"
         },
         "glm-5.2": {
           "input": 1.4,
@@ -770,6 +797,23 @@
           "billingMode": "flat",
           "sourceUrl": "https://opencode.ai/docs/go",
           "checkedAt": "2026-08-17"
+        },
+        "longcat-2.0": {
+          "input": 0.3,
+          "cachedInput": 0.006,
+          "output": 1.2,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-25"
+        },
+        "muse-spark-1.2-contributor": {
+          "input": 0.1,
+          "cachedInput": 0.002,
+          "output": 0.2,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-08-25",
+          "notes": "低价换取提示词/补全用于训练 Meta 模型;限地区"
         }
       }
     }

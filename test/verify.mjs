@@ -1075,7 +1075,8 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   assert.ok(clientSource.includes('const [busyKey, setBusyKey] = useState(null)'), 'busyKey useState 存在')
   const qstripBody = clientSource.slice(clientSource.indexOf('function QuotaStrip('), clientSource.indexOf('function QuotaStripGuide('))
   assert.ok(qstripBody.indexOf('const [busyKey, setBusyKey] = useState(null)') < qstripBody.indexOf('if (!state) return null'), 'Hook 先于条件返回(React 规则)')
-  assert.ok(clientSource.includes("key === 'budget' ? api.reload() : key === 'go' ? api.refreshGoQuota() : api.refreshCodingPlan(key)"), '点击按 key 三路分发刷新')
+  assert.ok(clientSource.includes("key === 'budget' ? api.reload()") && clientSource.includes("key === 'go' ? api.refreshGoQuota()") && clientSource.includes("api.refreshCodingPlan(key)"), '点击按 key 多路分发刷新')
+  assert.ok(clientSource.includes("key === 'codex' ? fetchCodexQuota(true)"), 'Codex chip 点击走客户端重探(issue #59)')
   assert.ok(clientSource.includes('clickableRefreshProps(busy, () => doRefresh(c.key))'), 'chip 复用可点击属性 helper(role/tabIndex/aria-busy/键盘)')
   assert.ok(clientSource.includes("'cm-qseg'") && clientSource.includes("'cm-qsep'"), '厂商多窗口分段渲染与竖分隔线样式类存在')
   console.log('[ok] 输入框上方额度横条(默认值/校验/清洗/双端声明/接线/首次引导/点击刷新与厂商融合)通过')
@@ -1108,7 +1109,7 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   assert.equal((clientSource.match(/useClickRefresh\(api \? \(\) => api\.refreshCustomBalance\(\) : null\)/g) ?? []).length, 2, '自定义余额框/行均接 refreshCustomBalance')
   assert.ok(clientSource.includes("useClickRefresh(api ? () => api.refreshCodingPlan(id) : null)"), '通用 Coding Plan 图框接 refreshCodingPlan(id)')
   assert.ok(clientSource.includes("useClickRefresh(api ? () => api.refreshCodingPlan('minimax') : null)"), 'MiniMax 图框接 refreshCodingPlan(minimax)')
-  assert.equal((clientSource.match(/api: props\.api/g) ?? []).length, 6, 'SidebarFooter 六处渲染均透传 api')
+  assert.equal((clientSource.match(/api: props\.api/g) ?? []).length, 7, 'SidebarFooter 七处渲染均透传 api(六类图框 + Codex 卡片)')
   // 可点击语义与视觉反馈:a11y(role/tabIndex/aria-busy/键盘)、CSS(cursor/hover/busy 呼吸)。
   assert.ok(clientSource.includes('const clickableRefreshProps = (busy, run) => ({'), '可点击属性 helper 存在')
   assert.ok(clientSource.includes("role: 'button'") && clientSource.includes("tabIndex: 0") && clientSource.includes("'aria-busy': busy ? 'true' : 'false'"), 'role=button + tabIndex + aria-busy')
@@ -1428,15 +1429,27 @@ assert.ok(Object.keys(catalog).length >= 10, '目录含全部内置厂商')
 assert.ok(catalog.deepseek['DeepSeek v4']['deepseek-v4-flash']?.peak !== undefined, 'DeepSeek 目录含峰谷两档')
 assert.ok(catalog.moonshot['Kimi K2']['kimi-k2.6'] !== undefined, 'Kimi 家族分组')
 assert.ok(catalog.anthropic['Claude 4.5']['claude-opus-4-5'] !== undefined, 'Claude 家族分组')
-// 6.3.1 OpenCode Go 订阅非 DeepSeek 的 17 个模型在册,关键模型有价;DeepSeek 以官方主表为准不重复收录。
+// 6.3.1 OpenCode Go 订阅非 DeepSeek 的 19 个模型在册,关键模型有价;DeepSeek 以官方主表为准不重复收录。
 const goModels = Object.values(catalog['opencode-go']).reduce((acc, fam) => acc.concat(Object.keys(fam)), [])
-assert.ok(goModels.length >= 17, 'OpenCode Go 目录 ≥17 个模型: ' + goModels.length)
+assert.ok(goModels.length >= 19, 'OpenCode Go 目录 ≥19 个模型: ' + goModels.length)
 assert.equal(catalog['opencode-go'] && Object.values(catalog['opencode-go']).flatMap(fam => Object.keys(fam)).includes('deepseek-v4-flash'), false, 'Go 目录不重复收录 DeepSeek V4(以官方为准)')
 assert.equal(catalog.openai['GPT-5.6']['gpt-5.6-luna'].input, 0.2, 'GPT-5.6 Luna 输入价')
 assert.equal(catalog['opencode-go']['GPT']['gpt-5.6-luna'].output, 1.2, 'Go 目录 GPT-5.6 Luna 输出价')
-assert.equal(catalog['z-ai']['GLM-5']['glm-5.3'].unpriced, true, 'GLM-5.3 无官方价不编造')
+assert.equal(catalog['z-ai']['GLM-5']['glm-5.3'].unpriced, true, 'GLM-5.3 无官方价不编造(z-ai 维持 unpriced)')
 assert.ok(catalog.google['Gemini 3.6 Flash']['gemini-3.6-flash'].output === 7.5, 'Gemini 3.6 Flash 已核价')
 assert.ok(catalog.anthropic['Claude Fable']['claude-fable-5'].output === 50, 'Claude Fable 5 已核价')
+// 6.3.2 OpenCode 目录价格漂移夹具(issue #58):Sol 2026-08 下旬降价六成、glm-5.3 登上 Go 目录价、三个新模型。
+assert.equal(catalog.openai['GPT-5.6']['gpt-5.6-sol'].input, 2, 'gpt-5.6-sol 输入价已随目录更新为 $2(issue #58)')
+assert.equal(catalog.openai['GPT-5.6']['gpt-5.6-sol'].output, 10, 'gpt-5.6-sol 输出价已更新为 $10')
+assert.equal(catalog.openai['GPT-5.6']['gpt-5.6-sol'].cachedInput, 0.2, 'gpt-5.6-sol 缓存读已更新为 $0.20')
+assert.ok(String(catalog.openai['GPT-5.6']['gpt-5.6-sol'].notes ?? '').includes('272K'), 'Sol notes 保留长上下文档说明')
+assert.equal(catalog['opencode-go']['GLM']['glm-5.3'].input, 1.4, 'opencode-go.glm-5.3 按目录价补齐 $1.40(issue #58)')
+assert.equal(catalog['opencode-go']['GLM']['glm-5.3'].cachedInput, 0.26, 'opencode-go.glm-5.3 缓存读 $0.26')
+assert.ok(catalog.meta?.['Muse Spark']?.['muse-spark-1.2'] !== undefined, 'Zen 新模型 muse-spark-1.2 在册(Meta 家族)')
+assert.equal(catalog.meta['Muse Spark']['muse-spark-1.2'].input, 1.25, 'muse-spark-1.2 输入价')
+assert.ok(catalog.meituan?.['LongCat']?.['longcat-2.0'] !== undefined, 'Go 新模型 longcat-2.0 在册(美团 LongCat)')
+assert.equal(catalog.meituan['LongCat']['longcat-2.0'].cachedInput, 0.006, 'longcat-2.0 缓存读 $0.006')
+assert.equal(catalog['opencode-go']['Muse Spark']['muse-spark-1.2-contributor'].input, 0.1, 'Go 目录 muse-spark-1.2-contributor 输入价 $0.10')
 // 6.4 Kimi 余额解析与端点白名单。
 assert.equal(parseKimiBalance({ available_balance: 12345 }).balance.text, '余额 ¥123.45', 'Kimi 余额分→元换算')
 assert.equal(parseKimiBalance({ available_balance: 8 }).balance.text, '余额 ¥8.00', '小额视为元单位')
@@ -2981,6 +2994,32 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   // 通用卡片样式:宽标签与文本窗口行的 CSS。
   assert.ok(planSrc.includes('.cm-mm-row.wide .cm-bbox-label{') && planSrc.includes('.cm-mm-row.wide .cm-mm-text{'), '通用卡片行样式存在')
   console.log('[ok] Coding Plan 侧边栏显示(display 门控/通用卡片/双语文案/设置页下拉)通过')
+}
+
+// 进度条方向统一 + 充值直达 + Codex 周额度(issues #57 / #59)。
+{
+  const src = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  // issue #57:MiniMax 卡片改为「已用」方向填充,与通用卡片/额度横条一致;余量换算函数移除。
+  assert.ok(!src.includes('miniMaxRemainPct') && !src.includes('miniMaxRemainLevel'), 'issue #57: 余量口径渲染路径已删除')
+  assert.ok(src.includes('function planWindowUsedPct(win)'), 'issue #57: 已用百分比 helper 存在')
+  const mmBody = src.slice(src.indexOf('function miniMaxRow('), src.indexOf('function MiniMaxPlanCard('))
+  assert.ok(mmBody.includes("pct >= 100 ? 'over' : pct >= 80 ? 'warn' : 'ok'"), 'issue #57: MiniMax 告警阈值与 CodingPlanBox 同口径')
+  assert.ok(mmBody.includes("width: (pct ?? 0) + '%'"), 'issue #57: 进度条按已用百分比填充')
+  // issue #59-1:充值直达链接。
+  assert.ok(src.includes("https://platform.deepseek.com/usage"), 'issue #59: DeepSeek 充值页 URL 在册')
+  assert.equal([...src.matchAll(/rechargeLinkEl\(t\)/g)].length, 3, 'issue #59: 充值链接在 helper 定义与余额行/图框两处渲染共出现三次')
+  assert.ok(src.includes('.cm-bal-link{'), 'issue #59: 充值链接样式存在')
+  assert.ok(src.includes('balanceRechargeLink:') && [...src.matchAll(/balanceRechargeLink:/g)].length === 2, 'issue #59: 充值提示文案 zh/en 各一份')
+  // issue #59-2:Codex 周额度客户端探测模块。
+  assert.ok(src.includes("'/plugins/dsh-openai-codex/auth/status'"), 'issue #59: dsh-codex-connect 状态路由在册')
+  assert.ok(src.includes('function parseCodexStatus(data)'), 'issue #59: auth/status 解析器存在')
+  assert.ok(src.includes("data.status !== 'signed-in'") && src.includes('Number(w.windowSeconds) === CODEX_WEEK_SECONDS'), 'issue #59: 仅接受已登录的 codex 周窗口')
+  assert.ok(src.includes('100 - Number(win.remainingPercent)'), 'issue #59: remainingPercent 折算为已用口径(与 #57 一致)')
+  assert.ok(src.includes('function CodexPlanBox(props)'), 'issue #59: Codex 侧边栏卡片组件存在')
+  assert.ok(src.includes('!codexOn && !budgetOn'), 'issue #59: SidebarFooter 门控纳入 codexOn')
+  assert.ok(src.includes("key: 'codex',"), 'issue #59: 额度横条 Codex chip 接线')
+  assert.ok(src.includes('codexQuotaTitle:') && [...src.matchAll(/codexQuotaTitle:/g)].length === 2, 'issue #59: Codex 标题文案 zh/en 各一份')
+  console.log('[ok] 进度条方向统一(#57)/充值直达(#59)/Codex 周额度(#59)源码接线通过')
 }
 
 // Coding Plan 刷新间隔控件(issue #33):每家设置区「刷新间隔(分钟)」写回 refreshMinutes。

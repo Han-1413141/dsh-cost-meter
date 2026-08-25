@@ -5,3 +5,4 @@ bin/
 .workbuddy/
 HANDOFF.md
 /.idea/
+.tmp-issue59/
