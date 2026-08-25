@@ -3131,7 +3131,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const authA = volcengineAuthorization({ accessKeyId: 'AK1', secretAccessKey: 'SK1', query: { Version: '2024-01-01', Action: 'GetAFPUsage' }, datetime: fixedDate })
   const authB = volcengineAuthorization({ accessKeyId: 'AK1', secretAccessKey: 'SK1', query: { Action: 'GetAFPUsage', Version: '2024-01-01' }, datetime: fixedDate })
   assert.equal(authA.Authorization, authB.Authorization, 'query 排序不影响签名')
-  assert.deepEqual(VOLCENGINE_ACTIONS, ['GetUsageDetails', 'GetPersonalPlan', 'GetAFPUsage'], 'Action 白名单按优先级')
+  assert.deepEqual(VOLCENGINE_ACTIONS, ['GetAFPUsage', 'GetUsageDetails', 'GetPersonalPlan'], 'Action 白名单按优先级(实测 GetAFPUsage 无参可用,优先以减少 400)')
   // 3) 解析器:arkcli 形态(session/weekly/monthly → fiveHour/weekly/monthly)
   const arkcliData = {
     items: [
@@ -3165,6 +3165,13 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.equal(usageParsed.fiveHour.percent, 25, 'UsageDetails FiveHour 300/1200=25%')
   assert.equal(usageParsed.weekly.percent, 10, 'UsageDetails Weekly 900/9000=10%')
   assert.equal(usageParsed.monthly.percent, 16.7, 'UsageDetails Monthly (18000-15000)/18000≈16.7%')
+  // 4b) AFPDaily / daily 窗口(实测 GetAFPUsage 返回 daily,需兼容)
+  const dailyData = {
+    ResponseMetadata: {},
+    Result: { UsageDetails: [{ QuotaType: 'AFPDaily', Total: 100, Used: 0, ResetTime: '2026-08-26T00:00:00Z' }] },
+  }
+  const dailyParsed = parseVolcengineUsage(dailyData)
+  assert.equal(dailyParsed.daily.percent, 0, 'AFPDaily 归一为 daily')
   // 5) 解析器:扁平窗口对象兜底
   const flatData = {
     Result: {

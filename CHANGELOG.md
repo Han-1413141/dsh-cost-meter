@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.48] - 2026-08-25
+
+### 修复
+
+- **火山方舟 GET 用量探测优化(issue #60 反馈, 感谢 @sanqiPanax 实测)**:`GetAFPUsage` 无参即可返回 5h/weekly/monthly+daily 三窗,而 `GetUsageDetails` 裸调 400(缺 `Filter.StartTime`),原顺序 `GetUsageDetails → GetPersonalPlan → GetAFPUsage` 会先 400 再成功。`v1.5.48` 将 `VOLCENGINE_ACTIONS` 优先级调整为 `GetAFPUsage → GetUsageDetails → GetPersonalPlan`,减少一次 400 探测;同时解析器新增 `daily`/`AFPDaily` 归一(映射为 `daily` 窗口)与中文“日”兼容,未知小写窗口保留原名展示而非丢弃,避免 `AFPDaily 0%` 等窗口丢失。
+
 ## [1.5.47] - 2026-08-25
 
 ### 修复

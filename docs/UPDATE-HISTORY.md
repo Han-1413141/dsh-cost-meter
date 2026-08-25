@@ -3,6 +3,9 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.48(2026-08-25)—— 修复 火山方舟探测顺序与 daily 窗口
+- **修复: 火山方舟 GET 用量探测优化(issue #60 反馈 @sanqiPanax)**:`GetAFPUsage` 优先,减少 `GetUsageDetails` 400 探测;新增 `daily`/`AFPDaily` 窗口归一。
+
 ## v1.5.47(2026-08-25)—— 修复 fork 多 end-seed 边界
 - **修复: fork 会话徽章仍显示全量费用(issue #61, 跟进 @csliuchi)**:`v1.5.43` 的 `end-seed` 取首个边界,父会话重启的 `end-seed` 被拷进种子段导致中间种子漏扣(256 条 usage);`v1.5.47` 改为取种子段内最大边界、延迟至首个 own 事件整段扣回,header 的 `seedLength` 作为边界,子会话自身重启的 `end-seed` 过滤; `stateVersion` 5→6 触发重放自愈。
 
