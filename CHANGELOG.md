@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.5.49] - 2026-08-25
+
+### 修复
+
+- **官方价格币种为人民币时会话费用虚高(issue #62, 感谢 @Alan0x01 报告)**:切换为 `CNY` 并同步中文官方页后,会话标题栏/输入区徽章仍按人民币价直接计为美元,再经展示汇率 `×7.2` 放大,导致费用偏高约 7 倍。`store.account` 对 DeepSeek 主表 `CNY` 成本已正确 `÷exchangeRate` 落库为美元,而会话投影 `lib/index.js` 的 `makeCostUsageProjection` 与客户端回退路径 `lib/client.js` 的 `usageCost` 未做同口径折算。`v1.5.49` 在投影与客户端回退路径均补上 `usdFromCost` 判定(`deepseek-peak` 且 `prices.currency==='CNY'` 时 `÷exchangeRate`),使徽章与账本/预算/历史保持同一汇率往返,切换币种前后成本一致;`verify.mjs` 补充 CNY 投影单测与显示往返断言。
+
 ## [1.5.48] - 2026-08-25
 
 ### 修复

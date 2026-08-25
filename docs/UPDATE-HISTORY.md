@@ -3,6 +3,9 @@
 > 本文是面向使用者的版本更新总览;逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.5.49(2026-08-25)—— 修复 人民币币种会话费用虚高
+- **修复: 人民币价格会话费用虚高(issue #62 @Alan0x01)**:`CNY` 价格直接计为美元后展示再 `×7.2`,现投影与客户端回退均按 `÷exchangeRate` 落库为美元,显示往返一致。
+
 ## v1.5.48(2026-08-25)—— 修复 火山方舟探测顺序与 daily 窗口
 - **修复: 火山方舟 GET 用量探测优化(issue #60 反馈 @sanqiPanax)**:`GetAFPUsage` 优先,减少 `GetUsageDetails` 400 探测;新增 `daily`/`AFPDaily` 窗口归一。
 
