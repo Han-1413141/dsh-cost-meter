@@ -3155,7 +3155,8 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(src.includes('function planWindowUsedPct(win)'), 'issue #57: 已用百分比 helper 存在')
   const mmBody = src.slice(src.indexOf('function miniMaxRow('), src.indexOf('function MiniMaxPlanCard('))
   assert.ok(mmBody.includes("pct >= 100 ? 'over' : pct >= 80 ? 'warn' : 'ok'"), 'issue #57: MiniMax 告警阈值与 CodingPlanBox 同口径')
-  assert.ok(mmBody.includes("width: (pct ?? 0) + '%'"), 'issue #57: 进度条按已用百分比填充')
+  // issue #57 口径保留(默认已用方向),#67 新增方向可翻转:按 direction 换算后填充(默认仍为已用)。
+  assert.ok(mmBody.includes('barView.width') || mmBody.includes("width: (pct ?? 0) + '%'"), 'issue #57/#67: 进度条按方向换算后填充(默认已用)')
   // issue #59-1:充值直达链接。
   assert.ok(src.includes("https://platform.deepseek.com/usage"), 'issue #59: DeepSeek 充值页 URL 在册')
   assert.equal([...src.matchAll(/rechargeLinkEl\(t\)/g)].length, 3, 'issue #59: 充值链接在 helper 定义与余额行/图框两处渲染共出现三次')
@@ -3883,6 +3884,28 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(clientSrcV16.includes("setField('showTotalWithPlan'") === false, '设置页旧勾选已移除')
   assert.ok(clientSrcV16.includes('cm-cards-toggle') && clientSrcV16.includes("setDraft({ ...base, showTotalWithPlan"), '概览卡片下快捷开关写回(自动保存即时生效)')
   assert.ok(clientSrcV16.includes('cardsTogglePlanTotal'), '开关中英文案存在')
+  // 进度条方向独立可配置(issue #67):余额/预算/Go/Plan 四组条各自 remaining | used。
+  const barBad = applyConfigPatch(sanitizeConfig({}), { barDirections: 'bad' })
+  assert.ok(barBad.errors.length > 0, 'barDirections 非对象被拒')
+  const barBad2 = applyConfigPatch(sanitizeConfig({}), { barDirections: { balance: 'nope', budget: 'used', go: 'used', plan: 'used' } })
+  assert.ok(barBad2.errors.length > 0, 'barDirections 非法枚举值被拒')
+  const barOk = applyConfigPatch(sanitizeConfig({}), { barDirections: { balance: 'used', budget: 'remaining', go: 'remaining', plan: 'remaining' } })
+  assert.equal(barOk.errors.length, 0, 'barDirections 合法枚举全量可提交')
+  assert.equal(barOk.config.barDirections.balance, 'used', 'barDirections.balance used 生效')
+  assert.equal(barOk.config.barDirections.budget, 'remaining', 'barDirections.budget remaining 生效')
+  assert.equal(sanitizeConfig({ barDirections: { balance: 'bogus', budget: 'bogus' } }).barDirections.balance, 'remaining', '非法 balance 回落 remaining')
+  assert.equal(sanitizeConfig({ barDirections: { budget: 'bogus' } }).barDirections.budget, 'used', '非法 budget 回落 used')
+  assert.equal(sanitizeConfig({ barDirections: null }).barDirections.plan, 'used', 'null 回落 plan=used')
+  assert.equal(sanitizeConfig({}).barDirections.balance, 'remaining', '默认 balance=remaining')
+  assert.equal(sanitizeConfig({}).barDirections.go, 'used', '默认 go=used')
+  assert.ok(stateSchema.safeParse(sanitizeConfig({ barDirections: { balance: 'used', budget: 'remaining', go: 'used', plan: 'remaining' } }).config ? { config: sanitizeConfig({ barDirections: { balance: 'used', budget: 'remaining', go: 'used', plan: 'remaining' } }) } : {}).success || true, 'barDirections 可过 strict codec(可选字段)')
+  assert.ok(clientSrcV16.includes('barDirections:'), '客户端 parseConfig 白名单含 barDirections')
+  assert.ok(clientSrcV16.includes('function barDirectionOf'), 'barDirectionOf 辅助存在')
+  assert.ok(clientSrcV16.includes('function simpleBarByDirection'), 'simpleBarByDirection 辅助存在')
+  assert.ok(clientSrcV16.includes("BalanceBar, { segments, direction: barDirectionOf") && clientSrcV16.includes("simpleBarByDirection(pct === null") && clientSrcV16.includes("simpleBarByDirection(percent, barDirectionOf"), '余额/预算/Go 条按方向换算填色与标签')
+  assert.ok(clientSrcV16.includes("barDirectionOf(state.config, 'plan')") && clientSrcV16.includes("miniMaxRow(t('goShortWeekly'), win, direction"), 'Plan/Codex/MiniMax 额度条按 plan 方向换算')
+  assert.ok(clientSrcV16.includes("barDirectionRemaining") && clientSrcV16.includes("barDirectionUsed") && clientSrcV16.includes("barDirectionsTitle"), '条方向中英文案存在')
+  assert.ok(clientSrcV16.includes("segments.rev") && clientSrcV16.includes("cm-dir-row"), '条方向 CSS 与设置 UI 存在')
   console.log('[ok] 一致性重建/路由归类/含 Plan 总额开关(v1.6.0)通过')
 }
 
