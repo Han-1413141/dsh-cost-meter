@@ -6,3 +6,5 @@ bin/
 HANDOFF.md
 /.idea/
 .tmp-issue59/
+/opencode.json
+
