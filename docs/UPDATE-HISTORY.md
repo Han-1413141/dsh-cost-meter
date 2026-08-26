@@ -3,6 +3,13 @@
 > 本文是面向使用者的版本更新总览；逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.6.2(2026-08-26)— 💰 计费逻辑专项审计修复
+- **修复(高危):客户端回退计价金额放大汇率倍**(parseConfig 白名单丢 prices.currency,CNY 价目下徽章/明细 ×7.2)、**第三方模型「取消挂载」失效**(mergeDeep 把已删模型复活)、**自定义余额空值强转残留**(null/空串伪装成「余额 $0」,B-3 变体)。
+- **修复(计费正确性):模型名数字分叉三条绕过路径**(`glm-5.3` 套 `glm-5` 旧价 ~29% 低计,双端镜像同步)/ **usage:null 判空击穿**(投影中断、有效快照被覆盖致整次调用漏计)/ **Anthropic 子配额覆盖主周窗**(`seven_day_sonnet` 顶替整体百分比)/ **backfill 全覆盖判定漏 reasoning** / **apiCost>cost 倒挂封顶** / **hunyuan-a13b CNY 价按 USD 入账(~7 倍高估)折算修正**。
+- **修复(额度/面板):MiniMax 国际域 Key 401 即失败**(换域重试补齐,issue #42 同型)/ **Kimi 滚动窗落 48h 兜底**(满窗估算单位错配)/ **清空价格档写显式 0 价**(该档静默变免费;输入组件 emptyMode 三档语义)/ **官方余额符号错位**(¥53 显示成 $53)/ **跨厂商兑底 billingMode 失步**(客户端 flat vs 服务端峰谷两档)。
+- **加固:中文峰窗口正则放宽**(官方页紧凑排版不再静默沿用旧窗口)、turn/step 去重键与回放对齐、fetchWithRetry 保留调用方取消信号(AbortSignal.any 组合)。
+- 测试 verify.mjs 全量通过并补 20+ 条回归断言;OpenCode 目录夹具 70/70 对齐。
+
 ## v1.6.1(2026-08-26)—🛡 全仓安全审计修复
 - **修复(高危×3):账本退出丢写**(close 先关门再落盘,最终 flush 从未生效)/ **发版脚本命令注入**(UPDATE-HISTORY 标题拼进 shell,改 execFileSync 数组参数)/ **Go 月窗空值崩溃**(额度框 monthly 未判空,整树崩溃)。
 - **修复(计费正确性):路由调用小时桶漏记**(今日段本地量系统性偏低)、**历史重算 apiCost 倒挂**、**DeepSeek 分支两桶简写 NaN 入账**、**SCNet 周期末日少一天**。
