@@ -3818,8 +3818,9 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(clientSrcV16.includes('displayCostOf(state.today, config)'), '概览卡片走展示口径')
   assert.ok(!clientSrcV16.includes("moneyCostOf(state.today)"), '旧 moneyCostOf 卡片消费点已全部替换')
   assert.ok(clientSrcV16.includes("showTotalWithPlan: v.showTotalWithPlan === true"), '读侧白名单')
-  assert.ok(clientSrcV16.includes("setField('showTotalWithPlan'", ), '设置页勾选项写回')
-  assert.ok(clientSrcV16.includes('showTotalWithPlanLabel'), '中英文案存在')
+  assert.ok(clientSrcV16.includes("setField('showTotalWithPlan'") === false, '设置页旧勾选已移除')
+  assert.ok(clientSrcV16.includes('cm-cards-toggle') && clientSrcV16.includes("setDraft({ ...base, showTotalWithPlan"), '概览卡片下快捷开关写回(自动保存即时生效)')
+  assert.ok(clientSrcV16.includes('cardsTogglePlanTotal'), '开关中英文案存在')
   console.log('[ok] 一致性重建/路由归类/含 Plan 总额开关(v1.6.0)通过')
 }
 

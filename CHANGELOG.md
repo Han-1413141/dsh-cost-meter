@@ -11,7 +11,7 @@
 ### 新增
 
 - **路由调用归类**:provider 为空/'deepseek' 且模型不在 DeepSeek 主表(canon 等价)、但在第三方目录命中的调用(Go/Zen 网关路由落账 provider 缺失的场景),自动按 'go' 归类继续判定——不再误入真金白银;真 DeepSeek 官方模型不受影响,`planBilling.models` 覆盖优先。宿主 account/重建迁移/backfill 回放/客户端镜像全链路生效。
-- **「含 Plan 总额」全局开关(showTotalWithPlan)**:设置 → 显示设置新增勾选项;关闭(默认)= 真金白银口径(apiCost,全部按量渠道);开启 = 总等值金额(cost,含 Plan 订阅等值)。作用范围:概览三卡、侧边栏今日徽章及悬停、预算图框与预算已用%(宿主 budgetUsed 同步分支)、历史/今日会话/会话排行表格、热图悬停、会话徽章与 dock(开启时回到单一总额展示)。配置全链路(defaultConfig/校验/清洗/strict codec/读侧白名单)齐备。
+- **「含 Plan 总额」全局开关(showTotalWithPlan)**:概览页汇总卡片下方新增快捷开关(随自动保存即时生效);关闭(默认)= 真金白银口径(apiCost,全部按量渠道);开启 = 总等值金额(cost,含 Plan 订阅等值)。作用范围:概览三卡、侧边栏今日徽章及悬停、预算图框与预算已用%(宿主 budgetUsed 同步分支)、历史/今日会话/会话排行表格、热图悬停、会话徽章与 dock(开启时回到单一总额展示)。配置全链路(defaultConfig/校验/清洗/strict codec/读侧白名单)齐备。
 
 ## [1.5.53] - 2026-08-25
 
