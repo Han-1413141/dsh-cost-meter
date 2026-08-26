@@ -3792,10 +3792,10 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const rbBy = rbDay.byProviderModel
   assert.equal(rbBy['zen:gpt-5.6-luna'].apiCost, 0, 'Go 订阅模型桶归零')
   assert.equal(rbBy['zen:deepseek-v4-pro'].apiCost, 0, 'zen 路由 DeepSeek 模型归 Go 订阅(用户澄清)')
-  assert.equal(rbBy['modlens-zen:deepseek-v4-flash'].apiCost, 0, 'modlens-zen 存量桶特判归 Go')
+  assert.equal(rbBy['modlens-zen:deepseek-v4-flash'].apiCost, 0.1, 'modlens-zen 无特判,存量桶按普通规则归 api')
   assert.ok(Math.abs(rbBy['deepseek-official:deepseek-v4-flash'].apiCost - 0.1) < 1e-9, '官方直连桶保持 API')
-  // 容器 = Σ桶 api(0.1)+ 残差(cost 1.5 − Σ桶 cost 1.0 = 0.5,归 API)
-  assert.ok(Math.abs(rbDay.apiCost - 0.6) < 1e-9, `容器 api = Σ桶 0.1 + 残差 0.5 = 0.6(实得 ${rbDay.apiCost})`)
+  // 容器 = Σ桶 api(official 0.1 + modlens-zen 0.1)+ 残差(cost 1.5 − Σ桶 cost 1.0 = 0.5,归 API)
+  assert.ok(Math.abs(rbDay.apiCost - 0.7) < 1e-9, `容器 api = Σ桶 0.2 + 残差 0.5 = 0.7(实得 ${rbDay.apiCost})`)
   assert.equal(splitLedgerApiCost(rbLedger), 0, '重建幂等(重跑零改动)')
   // modlens-zen 增量分离:运行时分类器不含该别名,新调用归 api。
   assert.equal(planProviderIdOf('modlens-zen'), null, '运行时别名表不含 modlens-zen')
