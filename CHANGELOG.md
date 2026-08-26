@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.0] - 2026-08-25
+
+### 修复
+
+- **累计费用失真(桶/容器 apiCost 脱节,用户实测:插件 $5.26 vs 桶级分布 $12.41)**:`splitLedgerApiCost` 此前只重算容器级(day/session)、从不回写桶级;而每次加载时 `sanitizeDays` 会把缺 `apiCost` 的旧桶回落为「全额 cost」——各天容器值来自不同时刻的计算,互相矛盾且与桶级分布脱节。现升级为**计费口径一致性重建**(迁移标记 `billing-rebuild-v3`,幂等):桶级 apiCost 按分类回写、容器 = Σ桶。
+- **无模型明细的历史残差漏计**:日合计存在但 byProviderModel 缺失的差额(用户账本 08-17 达 $2.80)此前不进任何口径。按用户决定,**残差归 API**(宁多勿少):容器 apiCost = Σ桶 + max(0, cost − Σ桶cost),会话级同理。
+- **modlens-zen 包装前缀归类(按用户决定分时段)**:历史存量桶在重建迁移中特判归 Go 订阅(apiCost 剔除);运行时别名表不含该前缀——迁移后的新调用照常按 api 计费。
+
+### 新增
+
+- **路由调用归类**:provider 为空/'deepseek' 且模型不在 DeepSeek 主表(canon 等价)、但在第三方目录命中的调用(Go/Zen 网关路由落账 provider 缺失的场景),自动按 'go' 归类继续判定——不再误入真金白银;真 DeepSeek 官方模型不受影响,`planBilling.models` 覆盖优先。宿主 account/重建迁移/backfill 回放/客户端镜像全链路生效。
+- **「含 Plan 总额」全局开关(showTotalWithPlan)**:设置 → 显示设置新增勾选项;关闭(默认)= 真金白银口径(apiCost,全部按量渠道);开启 = 总等值金额(cost,含 Plan 订阅等值)。作用范围:概览三卡、侧边栏今日徽章及悬停、预算图框与预算已用%(宿主 budgetUsed 同步分支)、历史/今日会话/会话排行表格、热图悬停、会话徽章与 dock(开启时回到单一总额展示)。配置全链路(defaultConfig/校验/清洗/strict codec/读侧白名单)齐备。
+
 ## [1.5.53] - 2026-08-25
 
 ### 修复

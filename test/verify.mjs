@@ -3753,6 +3753,74 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.equal(stats2.recostedBuckets, 0, 'repairLedgerPricing 幂等(重跑零改动)')
   assert.equal(JSON.stringify(repairLedger.days), JSON.stringify(before), '重跑后账本不变')
   console.log('[ok] strict codec 盲区与历史定价修复(repairLedgerPricing)通过')
+
+  // ── 10.18) 一致性重建 + 路由归类 + 「含 Plan 总额」开关(v1.6.0)──
+  // 路由判定:provider 空/'deepseek' 且模型属第三方目录 → 按 go 归类。
+  const rtCfg = sanitizeConfig({})
+  const rtEnabled = enabledPlanSetOf(rtCfg) // goQuota 默认开 → 含 go
+  assert.equal(billingClassOf('deepseek', 'minimax-m3', rtCfg.planBilling, rtEnabled, catalogPrices), 'plan', 'deepseek 渠道第三方模型(minimax-m3)按路由归 go')
+  assert.equal(billingClassOf('', 'gpt-5.6-luna', rtCfg.planBilling, rtEnabled, catalogPrices), 'plan', '空 provider + luna 按路由归 go')
+  assert.equal(billingClassOf('deepseek', 'minimax-m3', rtCfg.planBilling, new Set(), catalogPrices), 'api', 'go 未启用时路由调用回落 api')
+  assert.equal(billingClassOf('deepseek', 'deepseek-v4-flash', rtCfg.planBilling, rtEnabled, catalogPrices), 'api', '真 DeepSeek 官方模型不误判')
+  const rtOverride = sanitizeConfig({})
+  rtOverride.planBilling.models['go:minimax-m3'] = 'api'
+  assert.equal(billingClassOf('deepseek', 'minimax-m3', rtOverride.planBilling, rtEnabled, catalogPrices), 'api', 'models 覆盖优先于路由判定')
+
+  // 一致性重建:复刻 08-15 式账本(桶 apiCost=cost 全额残留、容器旧值、无明细残差)。
+  const rebuildHome = join(tmpdir(), 'dsh-cost-meter-test-rebuild-v3')
+  rmSync(rebuildHome, { recursive: true, force: true })
+  process.env.DSH_HOME = rebuildHome
+  const rbLedger = Ledger.open()
+  rbLedger.config.goQuota.enabled = true
+  const rbKey = localDayKey(Date.now())
+  rbLedger.days[rbKey] = {
+    ...zeroDay(rbKey),
+    input: 300000, output: 0, calls: 4,
+    cost: 1.5, apiCost: 0.3, // 容器旧值(与桶脱节);cost 含 $0.5 无明细残差
+    byProviderModel: {
+      // 全部桶按 sanitize 回落态:apiCost = cost 全额
+      'zen:gpt-5.6-luna': { input: 100000, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.5, apiCost: 0.5 },
+      'zen:deepseek-v4-pro': { input: 100000, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.3, apiCost: 0.3 },
+      'modlens-zen:deepseek-v4-flash': { input: 50000, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.1, apiCost: 0.1 },
+      'deepseek-official:deepseek-v4-flash': { input: 50000, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.1, apiCost: 0.1 },
+    },
+    sessions: [],
+  }
+  const rbTouched = splitLedgerApiCost(rbLedger)
+  assert.ok(rbTouched >= 1, '重建改动记录')
+  const rbDay = rbLedger.days[rbKey]
+  const rbBy = rbDay.byProviderModel
+  assert.equal(rbBy['zen:gpt-5.6-luna'].apiCost, 0, 'Go 订阅模型桶归零')
+  assert.equal(rbBy['zen:deepseek-v4-pro'].apiCost, 0, 'zen 路由 DeepSeek 模型归 Go 订阅(用户澄清)')
+  assert.equal(rbBy['modlens-zen:deepseek-v4-flash'].apiCost, 0, 'modlens-zen 存量桶特判归 Go')
+  assert.ok(Math.abs(rbBy['deepseek-official:deepseek-v4-flash'].apiCost - 0.1) < 1e-9, '官方直连桶保持 API')
+  // 容器 = Σ桶 api(0.1)+ 残差(cost 1.5 − Σ桶 cost 1.0 = 0.5,归 API)
+  assert.ok(Math.abs(rbDay.apiCost - 0.6) < 1e-9, `容器 api = Σ桶 0.1 + 残差 0.5 = 0.6(实得 ${rbDay.apiCost})`)
+  assert.equal(splitLedgerApiCost(rbLedger), 0, '重建幂等(重跑零改动)')
+  // modlens-zen 增量分离:运行时分类器不含该别名,新调用归 api。
+  assert.equal(planProviderIdOf('modlens-zen'), null, '运行时别名表不含 modlens-zen')
+  rbLedger.account({ input: 10000, output: 0 }, 'deepseek-v4-flash', 'sess-modlens', Date.now(), 'modlens-zen')
+  const rbAfterAccount = rbLedger.days[rbKey]
+  assert.ok(rbAfterAccount.byProviderModel['modlens-zen:deepseek-v4-flash'].apiCost > 0, '迁移后 modlens-zen 新调用按 api 计入')
+
+  // 「含 Plan 总额」开关全链路。
+  const swpBad = applyConfigPatch(sanitizeConfig({}), { showTotalWithPlan: 'yes' })
+  assert.ok(swpBad.errors.length > 0, '非布尔 showTotalWithPlan 被拒')
+  const swpOk = applyConfigPatch(sanitizeConfig({}), { showTotalWithPlan: true })
+  assert.equal(swpOk.errors.length, 0 && swpOk.config.showTotalWithPlan, true, '合法布尔生效')
+  assert.equal(sanitizeConfig({ showTotalWithPlan: 'bogus' }).showTotalWithPlan, false, '非法值清洗回默认')
+  // host budgetUsed 分支接线。
+  const indexSrcV16 = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.ok(/showTotalWithPlan === true/.test(indexSrcV16) && /budgetCostOf/.test(indexSrcV16), 'host budgetUsed 按开关分支')
+  // 客户端接线:displayCostOf 替换全部金额消费点 + 读侧白名单 + 设置勾选。
+  const clientSrcV16 = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  assert.ok(clientSrcV16.includes('function displayCostOf'), 'displayCostOf 辅助存在')
+  assert.ok(clientSrcV16.includes('displayCostOf(state.today, config)'), '概览卡片走展示口径')
+  assert.ok(!clientSrcV16.includes("moneyCostOf(state.today)"), '旧 moneyCostOf 卡片消费点已全部替换')
+  assert.ok(clientSrcV16.includes("showTotalWithPlan: v.showTotalWithPlan === true"), '读侧白名单')
+  assert.ok(clientSrcV16.includes("setField('showTotalWithPlan'", ), '设置页勾选项写回')
+  assert.ok(clientSrcV16.includes('showTotalWithPlanLabel'), '中英文案存在')
+  console.log('[ok] 一致性重建/路由归类/含 Plan 总额开关(v1.6.0)通过')
 }
 
 console.log('[ok] 全部验证通过')
