@@ -503,6 +503,17 @@ const priceDeletePatch = applyConfigPatch(reloaded.config, {
 })
 assert.equal(priceDeletePatch.errors.length, 0, '价格模型删除补丁合法')
 assert.deepEqual(Object.keys(priceDeletePatch.config.prices.models), ['deepseek-v4-flash'], '删除模型后服务端不恢复旧模型')
+// 第三方渠道 models 同为替换语义(ProviderPriceCard 取消挂载走同一条 diff 补丁路径):
+// 补丁内出现该 provider 的 models 对象即整体替换,mergeDeep 不得复活被删除的模型。
+const provDeleteBase = applyConfigPatch(sanitizeConfig({}), {
+  prices: { providers: { openai: { models: { 'gpt-keep': { input: 1, output: 2 }, 'gpt-gone': { input: 3, output: 4 } } } } },
+})
+assert.equal(provDeleteBase.errors.length, 0, '第三方双模型初始补丁合法')
+const provDeletePatch = applyConfigPatch(provDeleteBase.config, {
+  prices: { providers: { openai: { models: { 'gpt-keep': { input: 1, output: 2 } } } } },
+})
+assert.equal(provDeletePatch.errors.length, 0, '第三方模型删除补丁合法')
+assert.deepEqual(Object.keys(provDeletePatch.config.prices.providers.openai.models), ['gpt-keep'], '取消挂载第三方模型后服务端不恢复旧模型')
 console.log('[ok] peakNotice 配置与价格模型删除校验通过')
 
 // 4.2) 旧账本兼容回归:历史版本曾写入 reasoning: null 等非法数值,
@@ -645,6 +656,10 @@ const anthropicWindows = parseAnthropicUsage({
 })
 assert.equal(anthropicWindows.five_hour.percent, 34, 'Anthropic 5 小时窗口百分比')
 assert.equal(anthropicWindows.seven_day.percent, 12, 'Anthropic 7 天窗口百分比')
+// 子配额窗口(seven_day_sonnet 等)与主窗共用 canonicalWindowKey 键,后解析的
+// 子配额会覆盖主窗采样列与面板百分比——必须整体丢弃。
+assert.equal(anthropicWindows.seven_day_sonnet, undefined, 'Anthropic 子配额窗口(seven_day_sonnet)丢弃')
+assert.equal(parseAnthropicUsage({ seven_day_sonnet: { utilization: 3 } }), null, '仅子配额时视为无窗口')
 assert.equal(anthropicWindows.five_hour.resetsAt, new Date(1746540000_000).toISOString(), 'Anthropic 重置时刻 ISO 化')
 assert.equal(anthropicWindows.junk, undefined, '非窗口字段忽略')
 assert.equal(parseAnthropicUsage({ junk: 3 }), null, '无窗口时解析失败')
@@ -1432,6 +1447,13 @@ assert.equal(matchModelId('totally-unknown-model', dsCandidates), null, '阈值�
 assert.equal(matchModelId('glm-5.3', ['glm-5.2', 'glm-5.1']), null, '分歧位为版本号时拒绝跨版本匹配')
 assert.equal(matchModelId('claude-opus-4-9', ['claude-opus-4-8']), null, '同家族不同版本不误配')
 assert.equal(matchModelId('glm-5', ['glm-5.3', 'glm-5.2']), 'glm-5.3', '前缀式家族匹配保留(请求名更泛)')
+// 数字分叉守卫覆盖宽泛包含/前缀阶段(此前守卫只在家族 token 阶段,'glm-53'
+// 包含 'glm5' 即命中旧版低价):候选是请求前缀且余量全为数字 → 版本分叉拒绝;
+// '-128k' 等容量后缀(余量非纯数字)不受影响。
+assert.equal(matchModelId('glm-5.3', ['glm-5']), null, 'containment 阶段数字分叉拒绝(glm-5.3 不落 glm-5 旧价)')
+assert.equal(matchModelId('gpt-5.9', ['gpt-5', 'gpt-5-nano']), null, 'prefix 阶段数字分叉拒绝(gpt-5.9 的 .9)')
+assert.equal(matchModelId('deepseek-v4-flash-128k', dsCandidates), 'deepseek-v4-flash', '容量后缀 -128k 前缀匹配保留')
+assert.equal(matchModelId('claude-opus-4-20250514', ['claude-opus-4']), 'claude-opus-4', '日期快照经去饰等价仍命中')
 assert.equal(matchModelId('', dsCandidates), null, '空 id 安全')
 // 6.2 providerPriceEntryFor:auto/exact 与手动覆盖。
 const dsPrices = { models: DEFAULT_PRICE_TABLE.models, default: DEFAULT_PRICE_TABLE.default }
@@ -1663,7 +1685,7 @@ assert.ok(CODING_PLAN_ENDPOINTS.zai[0].endsWith('bigmodel.cn/api/monitor/usage/q
 assert.ok(CODING_PLAN_ENDPOINTS.zai.slice(2).some(u => u.includes('/v3/')), 'Z.ai v3 旧计费端点保留兜底(issue #17)')
 {
   const codingPlansSource = readFileSync(new URL('../lib/coding-plans.js', import.meta.url), 'utf8')
-  assert.ok(codingPlansSource.includes("if (provider === 'zai' || isKimiCoding) { lastError = error; continue }"), 'Z.ai 单域 401 换域重试(两域 Key 不互通);kimi 订阅端点 401 降级 PAYG 兜底(issue #53)')
+  assert.ok(codingPlansSource.includes("if (provider === 'zai' || provider === 'minimax' || isKimiCoding) { lastError = error; continue }"), 'Z.ai/minimax 单域 401 换域重试(双域 Key 不互通);kimi 订阅端点 401 降级 PAYG 兜底(issue #53)')
   // issue #44:全部端点失败时,解析失败(200 但结构不对)优先于最后端点的 404 报出,
   // 避免 v4 计费端点 404 盖住 monitor 端点解析失败的真实原因。
   assert.ok(codingPlansSource.includes('parseError ??= error'), '200-but-parse-null 错误单独保留')
@@ -2262,6 +2284,12 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const clientSource = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
   assert.ok(clientSource.includes("value: 'deepseek:' + id"), '设置页下拉框 DeepSeek 目标存带前缀的值(issue #56 根因)')
   assert.ok(clientSource.includes("if (provider !== 'deepseek' && !provider.includes('deepseek')") && clientSource.includes("matchModelIdLocal(override, Object.keys(dsModels))"), '客户端 resolveClientPrice 同口径裸名兜底(未命中列表/徽章估算与计费一致)')
+  // 客户端计费口径接线:parseConfig 白名单保留 prices.currency(CNY 价目下
+  // 回退计价必须除汇率,否则展示金额放大汇率倍);跨厂商兑底 billingMode 与
+  // 服务端 bestMode 对齐;数字分叉守卫双端同步。
+  assert.ok(clientSource.includes("currency: typeof v.prices?.currency === 'string'"), '客户端 parseConfig 保留 prices.currency')
+  assert.ok(clientSource.includes("bestMode = modelsCat[h]?.billingMode === 'deepseek-peak' ? 'deepseek-peak' : 'flat'"), '客户端跨厂商兑底 billingMode 与服务端同口径')
+  assert.ok(clientSource.includes("if (/^\\d{1,2}$/.test(canon.slice(idx + cc.length))) continue") && clientSource.includes("if (/^\\d{1,2}$/.test(rest.replace(/^[-_./:]+/, ''))) continue"), '客户端 matchModelIdLocal 数字分叉守卫与 pricing.js 同步')
   console.log('[ok] 手动价格映射裸 DeepSeek 名兜底(宿主+客户端双端/语义保留/下拉框根因修复)通过')
 }
 
@@ -2359,6 +2387,22 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
     assert.equal(billed.length, 1, '流中途抛错,已捕获 usage 仍在 finally 记账')
     assert.equal(billed[0].usage.inputTokens, 7, '崩溃流记账数据完整')
     assert.equal(chunks.length, 2, '崩溃前的块已透传')
+  }
+  // ④b usage:null 击穿防护:错误收尾路径的空 usage 块不得覆盖先前捕获的
+  // 有效快照(旧判空 !== undefined 会放行 null,整次调用漏计)。
+  {
+    const { billed, listener } = makeBilled()
+    const adapters = { 'deepseek-official': async function* () {
+      yield { type: 'usage', usage: { inputTokens: 11, outputTokens: 4, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 } }
+      yield { type: 'usage', usage: null }
+      yield { type: 'finish' }
+    } }
+    const llm = options => listener(options, () => adapters[options.provider](options))
+    const chunks = []
+    for await (const chunk of llm({ provider: 'deepseek-official', model: 'deepseek-v4-flash', sessionId: 's-null' })) chunks.push(chunk)
+    assert.equal(chunks.length, 3, 'usage:null 块原样透传给宿主')
+    assert.equal(billed.length, 1, 'null usage 后仍以先前有效快照记账')
+    assert.equal(billed[0].usage.inputTokens, 11, '记账取有效快照而非被 null 覆盖')
   }
   // ⑤ 接线:index.js 使用 createLlmStreamBilling 且 migrations 门控 provider-dedup-v1。
   {
@@ -3162,6 +3206,16 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.equal(extractByRule(payload, { op: 'divide', path: 'data.total_available', by: 0 }), null, 'divide 除数为 0 返回 null')
   assert.equal(extractByRule(payload, { op: 'divide', path: 'data.total_available' }), null, 'divide 缺除数返回 null')
   assert.equal(extractByRule(payload, { op: 'divide', path: 'data.name', by: 500000 }), null, 'divide 目标非数字返回 null')
+  // 空值强转防护(B-3 残留变体):Number(null)/Number('')/Number(false) 都是 0,
+  // 绝不能把「提取失败」伪装成 remaining:0 的成功提取。
+  assert.equal(extractByRule({ r: null }, 'r'), null, 'null 路径返回 null(不强转 0)')
+  assert.equal(extractByRule({ r: false }, 'r'), null, '布尔值返回 null(不强转)')
+  assert.equal(extractByRule({ r: '' }, 'r'), '', '空串原样交回外层 fail-loud(queryCustomBalance 抛错)')
+  assert.equal(extractByRule({ t: 100, u: null }, { op: 'subtract', paths: ['t', 'u'] }), null, 'subtract 成员为 null 整体失败(不静默按 0)')
+  assert.equal(extractByRule({ v: null }, { op: 'divide', path: 'v', by: 2 }), null, 'divide 目标为 null 返回 null')
+  assert.equal(extractByRule({ a: ' 42.5 ' }, 'a'), 42.5, '带空白纯数值串仍可解析')
+  assert.equal(extractByRule({ a: '1e3' }, 'a'), 1000, '科学计数法字符串仍可解析')
+  assert.equal(extractByRule({ a: '1,234' }, 'a'), '1,234', '千分位串原样交回外层 fail-loud')
   console.log('[ok] 自定义余额 extract 规则(路径/常量/add/subtract/divide)通过')
 }
 
@@ -3308,6 +3362,14 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.equal(canonicalWindowKey('monthly'), 'monthly', 'monthly')
   assert.equal(canonicalWindowKey('AFPDaily'), 'daily', 'AFPDaily → daily')
   assert.equal(canonicalWindowKey('general'), 'general', '未知窗口保留原样小写')
+  // 滚动窗命名(Kimi limits[] duration+timeUnit):按时间量级归入最近标准周期,
+  // 避免落进 periodStartOf 48h 兜底导致满窗估算单位错配;分钟级维持原样。
+  assert.equal(canonicalWindowKey('5h'), 'fiveHour', "滚动窗 '5h' → fiveHour")
+  assert.equal(canonicalWindowKey('1w'), 'weekly', "滚动窗 '1w' → weekly(自然周基线)")
+  assert.equal(canonicalWindowKey('1d'), 'daily', "滚动窗 '1d' → daily")
+  assert.equal(canonicalWindowKey('2d'), 'weekly', "滚动窗 '2d' → 最近周档(优于 48h 兜底)")
+  assert.equal(canonicalWindowKey('1mo'), 'monthly', "滚动窗 '1mo' → monthly")
+  assert.equal(canonicalWindowKey('30m'), '30m', "分钟级滚动窗 '30m' 维持原样")
   // 周期起点:周一为周起点、月起点为本月 1 日。
   const wednesdayNoon = Date.parse('2026-08-26T12:00:00') // 本地周三
   assert.equal(new Date(periodStartOf('weekly', wednesdayNoon)).getDay(), 1, 'weekly 起点 = 周一')
