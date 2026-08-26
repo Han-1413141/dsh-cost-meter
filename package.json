@@ -1,6 +1,6 @@
 {
   "name": "dsh-cost-meter",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "DeepSeek Harness 会话费用统计插件:本会话成本、当日费用、历史记录与官方价格同步,支持多厂商多模型价格计费(内置 90+ 模型价格目录与自动匹配)、主流 Coding Plan 订阅额度查询与显示(9 家,含 SCNet Token Plan 本地 Credits 计量与火山方舟 Volcano Ark Coding Plan AK/SK 签名查询)、自定义 Provider 余额查询(可配任意 HTTP 端点)与余额进度条、峰谷计价时段显示与切换前弹窗/系统通知提醒(位置/提前量/类型可配),界面中英双语。Session cost tracking plugin for DeepSeek Harness: per-conversation cost, daily totals, history and official price sync, with multi-vendor model pricing (built-in 90+ model catalog with auto-matching), Coding Plan quota queries & display for 9 vendors (incl. local credits metering for the SCNet Token Plan and Volcano Ark Coding Plan via AK/SK signature), plan/API dual-track billing with per-1% & full-window Token Plan usage estimates, custom provider balance lookup (configurable HTTP endpoint) and balance progress bar, plus peak/off-peak pricing display with pre-switch popup & system-notification alerts (position / lead time / type configurable), in a bilingual (Chinese/English) UI.",
   "type": "module",
   "main": "lib/index.js",

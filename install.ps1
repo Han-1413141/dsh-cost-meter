@@ -6,13 +6,13 @@
 .DESCRIPTION
   无需克隆仓库:自动补齐 pnpm,再经 dsh plugin 把插件装进 web profile。
   安装链全程固定到 $Rev 发布 tag(pnpm 版本同样固定),可审计、可复现:
-   - git 源固定到 tag:  github:Han-1413141/dsh-cost-meter#v1.6.0
+   - git 源固定到 tag:  github:Han-1413141/dsh-cost-meter#v1.6.1
    - 无 git 时用 tag 打包直链(内容与 tag 一一对应)
    - pnpm 固定版本:     11.21.0(corepack prepare / npm i -g pnpm@11.21.0)
   已安装时重跑本脚本即可对齐到当前脚本固定的版本。
 
   一键用法(复制整行到 PowerShell 粘贴回车;先审阅再运行):
-    irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.6.0/install.ps1 | iex
+    irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.6.1/install.ps1 | iex
 
   手动用法(先下载本文件审阅):
     powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
@@ -27,7 +27,7 @@ $ErrorActionPreference = 'Stop'
 $Package      = 'dsh-cost-meter'
 $Owner        = 'Han-1413141'
 $Repo         = 'dsh-cost-meter'
-$Rev          = 'v1.6.0'   # 固定发布 tag:发布新版本时同步更新此值与 README 中的安装行
+$Rev          = 'v1.6.1'   # 固定发布 tag:发布新版本时同步更新此值与 README 中的安装行
 $PnpmVersion  = '11.21.0'   # 固定 pnpm 版本,保证安装链可复现
 $GitSpec = "github:$Owner/$Repo#$Rev"
 $TarSpec = "https://github.com/$Owner/$Repo/archive/refs/tags/$Rev.tar.gz"
@@ -48,7 +48,10 @@ if (-not (Has 'dsh')) {
 if (-not (Has 'pnpm')) {
   if (Has 'corepack') {
     Info "pnpm 不在 PATH 上,尝试 corepack 激活固定版本 pnpm@$PnpmVersion ..."
-    corepack prepare "pnpm@$PnpmVersion" --activate 2>$null | Out-Null
+    $env:COREPACK_ENABLE_DOWNLOAD_PROMPT = '0'
+    $prevEap = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { corepack prepare "pnpm@$PnpmVersion" --activate 2>&1 | Out-Null } finally { $ErrorActionPreference = $prevEap }
   }
   if (-not (Has 'pnpm')) {
     Info "corepack 不可用,改用 npm 全局安装固定版本 pnpm@$PnpmVersion ..."
@@ -73,7 +76,11 @@ $profileManifest = Join-Path $dshHome "profiles\$Profile\package.json"
 $installed = $false
 $devLink = $null
 if (Test-Path $profileManifest) {
-  $manifest = Get-Content $profileManifest -Raw | ConvertFrom-Json
+  try {
+    $manifest = Get-Content $profileManifest -Raw | ConvertFrom-Json
+  } catch {
+    Fail "profile 清单解析失败: $profileManifest"
+  }
   if ($manifest.dependencies) {
     $dep = $manifest.dependencies.PSObject.Properties | Where-Object { $_.Name -eq $Package }
     if ($dep) {

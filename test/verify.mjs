@@ -899,13 +899,13 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
 {
   const p1 = scnetPlanPeriod(Date.parse('2026-08-19T10:00:00+08:00'), '2026-08-05')
   assert.equal(p1.fromKey, '2026-08-05', '周期起点为订阅日')
-  assert.equal(p1.toKeyInclusive, '2026-09-04', '周期末日为次月对应日的前一天')
+  assert.equal(p1.toKeyInclusive, '2026-09-05', '周期末日为次月对应日(含当日 23:59:59,v1.6.1 边界修正)')
   const p2 = scnetPlanPeriod(Date.parse('2026-08-01T00:00:00+08:00'), '')
   assert.equal(p2.fromKey, '2026-08-01', '无订阅日起点按自然月')
   assert.equal(p2.toKeyInclusive, '2026-08-31', '自然月末')
   const p3 = scnetPlanPeriod(Date.parse('2026-02-10T12:00:00+08:00'), '2026-01-31')
   assert.equal(p3.fromKey.startsWith('2026-01-31'), true, '1/31 订阅在 2 月仍属上一周期')
-  assert.equal(p3.toKeyInclusive, '2026-02-27', '1/31 订阅的 2 月周期末钳制到 27(23:59:59)')
+  assert.equal(p3.toKeyInclusive, '2026-02-28', '1/31 订阅的 2 月周期末钳制到 28(含当日,v1.6.1 边界修正)')
   const p4 = scnetPlanPeriod(Date.parse('2027-01-15T00:00:00+08:00'), '2026-08-05')
   assert.equal(p4.fromKey, '2027-01-05', '跨年多周期推进')
 }
@@ -2049,7 +2049,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const ledger = new Ledger(cfg, { [seedKey]: seedDayPolluted, [ownKey]: ownDayPolluted }, join(root, 'ledger.json'))
   let scheduled = 0
   ledger.scheduleWrite = () => { scheduled += 1 }
-  const repaired = repairForkSeed(ledger, root)
+  const repaired = await repairForkSeed(ledger, root)
   assert.equal(repaired.scanned, 2, '扫描两份会话日志')
   assert.equal(repaired.sessions, 1, '只有 fork 会话被清洗')
   assert.equal(repaired.days, 1, '只有种子日(D1)被扣除——own 日无种子事件,不动')
@@ -2408,7 +2408,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const ledger = new Ledger(cfg, { [dayKey]: day, '2026-08-23': day2 }, join(tmpdir(), `cm-dedupe-${Date.now()}.json`))
   let scheduled = 0
   ledger.scheduleWrite = () => { scheduled += 1 }
-  const repaired = repairProviderDupes(ledger)
+  const repaired = await repairProviderDupes(ledger)
   assert.equal(repaired.groups, 2, '两组重复(day 容器与 session 容器各一组)')
   assert.ok(Math.abs(repaired.removedCost - 4 * 0.3147) < 1e-12, 'day+session 各扣除两份重复金额')
   // day 容器:剩 vision 独立 + 三选一(字母序第一个);顶层合计修正为真实值。
@@ -2427,7 +2427,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.equal(day2.calls, 4, '同模型不同 calls 不合并,顶层不动')
   assert.equal(day2.byProviderModel['gamma:model-x'].calls, 2, '同模型不同 calls 条目不动')
   // 幂等:再跑无变化(生产由 migrations 门控,函数自身亦无残留可清)。
-  const again = repairProviderDupes(ledger)
+  const again = await repairProviderDupes(ledger)
   assert.equal(again.groups, 0, '二次执行无重复组')
   assert.equal(again.removedCost, 0, '二次执行无扣除')
   assert.equal(day.calls, 64, '二次执行数据不变')

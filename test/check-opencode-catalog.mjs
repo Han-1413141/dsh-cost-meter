@@ -36,7 +36,7 @@ const tierOf = name => {
 const baseName = name => String(name ?? '').replace(/\s*\([^)]*\)\s*$/, '').trim()
 
 async function fetchPage(url) {
-  const resp = await fetch(url, { headers: { 'user-agent': 'dsh-cost-meter-check/1.0' } })
+  const resp = await fetch(url, { headers: { 'user-agent': 'dsh-cost-meter-check/1.0' }, signal: AbortSignal.timeout(15000) })
   if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${url}`)
   return resp.text()
 }
@@ -71,6 +71,7 @@ function parsePage(html) {
           input: num(row[1]),
           output: num(row[2]),
           cached: num(row[3]),
+          raw: [row[0], row[1], row[2], row[3]].filter(Boolean).join(' / '),
         })
       }
     }
@@ -81,15 +82,19 @@ function parsePage(html) {
 // 页面定价行 → 基础档 Map(id → 行)。「> 变体」跳过;「≤」视作该模型的基础档。
 function priceRowsById(page) {
   const map = new Map()
+  const unparsed = new Map() // 行存在但价格解析失败:id → 原始行文本(仅用于报错文案)
   for (const p of page.prices) {
     if (p.tier === 'gt') continue
-    if (p.input === null || p.output === null) continue // Free / 免费档 / 非数值
     const key = canon(baseName(p.name))
     const id = page.nameToId.get(key) ?? page.nameToId.get(key.replace(/-/g, ' '))
     if (!id) continue
+    if (p.input === null || p.output === null) { // Free / 免费档 / 非数值
+      if (!unparsed.has(id)) unparsed.set(id, p.raw)
+      continue
+    }
     if (!map.has(id)) map.set(id, p)
   }
-  return map
+  return { map, unparsed }
 }
 
 const failures = []
@@ -106,15 +111,19 @@ for (const group of Object.values(DEFAULT_PROVIDER_PRICE_TABLE)) {
 for (const { name, url } of PAGES) {
   const html = await fetchPage(url)
   const page = parsePage(html)
-  const byId = priceRowsById(page)
+  const { map: byId, unparsed: unparseableById } = priceRowsById(page)
   const covered = new Set(byId.keys())
   for (const [provider, group] of Object.entries(DEFAULT_PROVIDER_PRICE_TABLE)) {
     for (const [modelId, entry] of Object.entries(group.models)) {
       if (entry.sourceUrl !== url) continue
       if (entry.unpriced === true) continue
-      const row = byId.get(modelId.toLowerCase())
+      const lowerId = modelId.toLowerCase()
+      const row = byId.get(lowerId)
       if (row === undefined) {
-        failures.push(`${provider}/${modelId}: 表内引用了 ${name} 目录,但页面上找不到该模型的定价行`)
+        const rawRow = unparseableById.get(lowerId)
+        failures.push(rawRow !== undefined
+          ? `${provider}/${modelId}: 找到定价行但价格无法解析(${rawRow})`
+          : `${provider}/${modelId}: 表内引用了 ${name} 目录,但页面上找不到该模型的定价行`)
         continue
       }
       checked++

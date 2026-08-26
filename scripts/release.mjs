@@ -15,14 +15,14 @@
  *   4. 工作树干净、在 master、与 origin/master 同步(正式发版时)。
  */
 
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..')
-const run = (cmd, opts = {}) => execSync(cmd, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts })
-const sh = cmd => { try { return run(cmd).trim() } catch (e) { return null } }
+const run = (file, args, opts = {}) => execFileSync(file, args, { cwd: repoRoot, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...opts })
+const sh = (file, args, opts = {}) => { try { return run(file, args, opts).trim() } catch (e) { return null } }
 
 const args = new Set(process.argv.slice(2))
 const DRY = args.has('--dry')
@@ -37,6 +37,7 @@ const fail = msg => { failures++; console.error('× ' + msg) }
 const pkg = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'))
 const V = pkg.version
 const TAG = 'v' + V
+if (!/^v\d+\.\d+\.\d+$/.test(TAG)) fail(`package.json 版本号「${V}」不是规范的 x.y.z,拒绝发版`)
 log(`▶ 版本:${V}(tag ${TAG})  模式:${DRY ? 'DRY 干跑' : REGEN ? '仅生成发布素材' : '正式发版'}\n`)
 
 // ── 1. 五处版本对齐 ──────────────────────────────────────────────────────
@@ -101,7 +102,19 @@ const vEsc = V.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 const histTitle = history.match(new RegExp(`^## v${vEsc}\\([^)]*\\)—— (.+)$`, 'm'))?.[1]
 const releaseTitle = `v${V}${histTitle ? ' — ' + histTitle : ''}`
 
-// ── 4. 发布素材:docs/release-notes/v<V>.md(缺则由 CHANGELOG 生成)────
+// ── 4. git 状态 ──────────────────────────────────────────────────────────
+const branch = sh('git', ['rev-parse', '--abbrev-ref', 'HEAD'])
+const dirty = sh('git', ['status', '--porcelain'])
+const sb = sh('git', ['status', '-sb']) ?? ''
+const synced = !/\[ahead \d+/.test(sb) && !/\[behind \d+/.test(sb)
+if (branch !== 'master') fail(`当前分支是 ${branch},应在 master`)
+if (dirty) fail(`工作树不干净:\n${dirty}`)
+if (!synced) fail('本地与 origin/master 不同步(先 git push)')
+if (failures) { console.error(`\n共 ${failures} 项 git 检查未过,终止。`); process.exit(1) }
+log('✓ git:master 分支、工作树干净、与远端同步')
+
+// ── 5. 发布素材:docs/release-notes/v<V>.md(缺则由 CHANGELOG 生成,git 检查后再落盘,
+//        否则刚生成的文件会弄脏工作树导致首次发版必败)──────────────────────
 const notesDir = join(repoRoot, 'docs', 'release-notes')
 const notesPath = join(notesDir, `${TAG}.md`)
 const upgrade = `\n## 升级\n\n已安装用户在任意终端重跑一行即可(重跑即为更新):\n\n\`\`\`powershell\nirm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/${TAG}/install.ps1 | iex\n\`\`\`\n\n升级后**重启 dsh web** 使插件服务端代码生效,浏览器端刷新页面即可。\n`
@@ -114,42 +127,31 @@ if (existsSync(notesPath)) {
   log(`(dry)将生成 docs/release-notes/${TAG}.md`)
 }
 
-if (failures) { console.error(`\n共 ${failures} 项检查未过,终止。`); process.exit(1) }
-
-// ── 5. git 状态 ──────────────────────────────────────────────────────────
-const branch = sh('git rev-parse --abbrev-ref HEAD')
-const dirty = sh('git status --porcelain')
-const sb = sh('git status -sb') ?? ''
-const synced = !/\[ahead \d+/.test(sb) && !/\[behind \d+/.test(sb)
-if (branch !== 'master') fail(`当前分支是 ${branch},应在 master`)
-if (dirty) fail(`工作树不干净:\n${dirty}`)
-if (!synced) fail('本地与 origin/master 不同步(先 git push)')
-if (failures) { console.error(`\n共 ${failures} 项 git 检查未过,终止。`); process.exit(1) }
-log('✓ git:master 分支、工作树干净、与远端同步')
-
 if (REGEN) { log('\n--regen-notes 完成(素材已写盘,未发布)。'); process.exit(0) }
 
 // ── 6. tag 与 Release ────────────────────────────────────────────────────
-const tagExists = sh(`git rev-parse -q --verify ${TAG}`) !== null
+const tagExists = sh('git', ['rev-parse', '-q', '--verify', TAG]) !== null
 if (DRY) {
   log(`\n【DRY】将执行:\n  git tag ${TAG}${tagExists ? '(已存在,跳过)' : ''}\n  git push origin ${TAG}\n  gh release create ${TAG} --title "${releaseTitle}" --notes-file docs/release-notes/${TAG}.md`)
-  log(`【DRY】tag 现状:${tagExists ? '已存在' : '不存在'};Release 现状:${sh(`gh release view ${TAG} --json tagName`) ? '已存在' : '不存在'}`)
+  log(`【DRY】tag 现状:${tagExists ? '已存在' : '不存在'};Release 现状:${sh('gh', ['release', 'view', TAG, '--json', 'tagName']) ? '已存在' : '不存在'}`)
   process.exit(0)
 }
 if (!tagExists) {
-  run(`git tag ${TAG}`, { stdio: 'inherit' })
-  run(`git push origin ${TAG}`, { stdio: 'inherit' })
+  run('git', ['tag', TAG], { stdio: 'inherit' })
+  run('git', ['push', 'origin', TAG], { stdio: 'inherit' })
   log(`✓ 已打并推送 ${TAG}`)
 } else {
   log(`• ${TAG} 已存在,跳过打 tag`)
 }
-const releaseExists = sh(`gh release view ${TAG} --json tagName`) !== null
+const releaseExists = sh('gh', ['release', 'view', TAG, '--json', 'tagName']) !== null
 if (!releaseExists) {
-  run(`gh release create ${TAG} --title "${releaseTitle}" --notes-file docs/release-notes/${TAG}.md`, { stdio: 'inherit' })
+  run('gh', ['release', 'create', TAG, '--title', releaseTitle, '--notes-file', `docs/release-notes/${TAG}.md`], { stdio: 'inherit' })
 } else {
-  run(`gh release edit ${TAG} --notes-file docs/release-notes/${TAG}.md`, { stdio: 'inherit' })
+  run('gh', ['release', 'edit', TAG, '--notes-file', `docs/release-notes/${TAG}.md`], { stdio: 'inherit' })
   log(`• Release ${TAG} 已存在,已用本地文案覆盖更新`)
 }
-const verify = JSON.parse(sh(`gh release view ${TAG} --json tagName,isDraft,publishedAt`))
+const verifyRaw = sh('gh', ['release', 'view', TAG, '--json', 'tagName,isDraft,publishedAt'])
+if (!verifyRaw) { console.error('× 无法读取 release 校验信息(gh 未安装或网络失败?)'); process.exit(1) }
+const verify = JSON.parse(verifyRaw)
 if (verify.tagName !== TAG || verify.isDraft) { console.error('× Release 校验失败:' + JSON.stringify(verify)); process.exit(1) }
 log(`\n✅ 发版完成:${TAG} @ ${verify.publishedAt}(isDraft=${verify.isDraft})`)

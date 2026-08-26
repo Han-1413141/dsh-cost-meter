@@ -1,5 +1,11 @@
 import { readFileSync } from 'node:fs'
-const html = readFileSync(process.env.TEMP + '\\ds-pricing.html', 'utf8')
+import { join } from 'node:path'
+const tmpDir = process.env.TEMP ?? process.env.TMPDIR
+if (!tmpDir) {
+  console.error('× 未找到临时目录(TEMP / TMPDIR 均未设置),请设置环境变量后重试')
+  process.exit(1)
+}
+const html = readFileSync(join(tmpDir, 'ds-pricing.html'), 'utf8')
 function stripTags(s) {
   return String(s).replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()
 }

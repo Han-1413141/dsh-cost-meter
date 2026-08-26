@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.6.1] - 2026-08-26
+
+### 修复(全仓安全审计)
+
+- **账本退出丢写(高危)**:`Ledger.close()` 先置 `closed` 再调 `flush()`,而 `flush()` 对 closed 状态直接返回——「卸载/退出前最终落盘」从未生效,每次进程退出丢失最后 ≤2 秒防抖窗口内的全部入账。现先强制落盘再关门;顺带修复写失败后 `pendingWrite` 已复位导致数据永不重试的问题(失败自动按防抖重排,关门前不丢)。
+- **发版脚本命令注入(高危)**:`scripts/release.mjs` 把取自 UPDATE-HISTORY 标题的发布标题未转义拼进 `execSync` shell 串——恶意 PR 可在维护者发版机上以仓库凭据执行任意命令。全部改为 `execFileSync` 数组参数绕开 shell,并新增 tag 格式白名单校验。
+- **面板空指针崩溃(高危)**:Go 额度框对 `monthly` 窗口未判空(rolling/weekly 均有守卫),宿主下发单窗空值时整个渲染树崩溃。补齐空值守卫,与侧边栏口径一致显示 '—'。
+- **路由调用小时桶漏记(计费正确性)**:provider 为空/'deepseek' 且命中第三方目录的路由调用被归为 plan 类却不写 provider×小时桶,而整天段聚合又计入——今日段本地量系统性偏低,额度估算同步失真。现在 account 与聚合共用同一路由兜底判定(`isRoutedThirdPartyCall` 转正为导出)。
+- **官方余额对账告警失效**:客户端 `parseState` 重建 state 时丢弃宿主下发的 `reconcile` 字段,漂移警告 ⚠ 永不显示。补齐解析。
+- **自定义余额提取失败误显 $0**:`extractByRule` 失败返回 null 而 `Number(null)===0`,提取规则配错时静默变成「余额 0/预算打满」的正常读数。null 不再被当作 0,缺失/非法照常报错。
+- **历史重算后 apiCost 倒挂**:backfill 按事件时刻重算容器 cost 后不重算 apiCost,向下修正出现 apiCost>cost 的双轨倒挂。重算末尾统一跑一遍幂等的 `splitLedgerApiCost`(有变化才触发落盘)。
+- **非法会话条目残留空指针**:`sanitizeDays` 对损坏会话 `continue` 保留 null 元素,后续 `account()` 的 `sessions.find` 读 `.id` 即崩。改为原地过滤剔除。
+- **计费流中断泄漏**:llm/stream 计费包裹在消费方提前 break 时从不关闭下游迭代器——上游请求继续跑到完(厂商照扣全额)而 usage 无人消费。finally 中向下游传播取消(`iterator.return`)。
+- **额度查询击穿回退链**:coding-plans 非 volcengine 路径的 `response.json()` 无保护,200+HTML(Cloudflare 页)直接抛异常冲出多端点串行回退。补 try/catch 归一为软错误继续下一端点。
+- **DeepSeek 分支价格条目未规范化**:同函数内 provider 分支与跨库兑底均做 normalizePrice,唯独 DeepSeek 直查路径原样返回——两桶简写配置产出 NaN 成本入账。全路径统一 normalize。
+- **SCNet 订阅周期末日少一天**:显式 planStart 时周期末日落在次月对应日前一天,对应日全天用量滚入下期、resetAt 显示偏早。改用排他次日边界(含对应日 23:59:59.999)。
+- **设置页自动保存基线竞态**:防抖保存 diff 对最新服务端配置比较,并发写入方(另一窗口/引导按钮/轮询)的键会被草稿旧值回滚。改为每份草稿冻结基线(frozen baseline)后再 diff。
+- 其余批次:历史表格并行加载互斥导致的假「暂无会话」、会话排行乱序响应覆盖、「添加模型」首帧空指针、Codex 徽章误随 Coding Plan 开关隐藏、token 格式化 1000K 边界、numInput 负数入参、峰谷生效时刻非法日期静默失效、Kimi/MiniMax 百分比负值钳制、格式化注释与实现矛盾等。
+
+### 加固
+
+- 账本文件损坏/版本不受支持时先把原文件改名备份(`ledger.json.corrupt-*`)再按空账本启动,不再被下一次落盘无声覆盖。
+- 配置补丁合并前结构化克隆,拒绝的补丁不再把就地规范化泄入活配置;mergeDeep 跳过 `__proto__`/`constructor`/`prototype`;价格表查询全部改自有属性判定(模型 id 为 `__proto__` 不再把原型当价格);默认价表深拷贝,杜绝嵌套档位跨实例共享。
+- 凭据模板替换改函数形式,密钥值含 `$&`/`$$` 等特殊序列不再损坏 header;HTML 实体解码单趟化消除双重解码;官方页金额解析支持千分位逗号与括号价;目录抓取/校验脚本加超时。
+- 路由分类缓存改 WeakMap(长驻进程不再随配置保存次数线性增长);小时桶修剪结果回赋内存;启动导入扫描让出事件循环(大会话库不再冻结 UI);backfill 提前丢弃打包行(内存占用减半以上);AbortError 仅在旧版 undici 超时形态下重试,手动取消不再盲重。
+- install.ps1:corepack 引导兼容 PS5.1 stderr 重定向坑(npm 回退分支恢复可达),profile 清单解析失败给出明确报错;清空全部历史时连 Plan 采样/小时桶/余额基准一并清理;插件卸载时清理启动导入定时器。
+
 ## [1.6.0] - 2026-08-25
 
 ### 修复
