@@ -51,6 +51,7 @@
 | AI 价格同步 | [提示词](docs/AI-PRICE-SYNC-PROMPT.md) | DeepSeek 官方同步;其他 provider 使用已核对的官方价格目录与手动配置 |
 | 模型与 Plan 适配说明 | [适配文档](docs/model-and-plan-adaptation.md) | 各厂商模型计费与 8 家 Coding Plan 的适配矩阵、自动匹配机制与价格来源([English](docs/model-and-plan-adaptation.en.md)) |
 | 峰/谷切换提醒图解 | [提醒文档](docs/peak-alert.md) | 峰谷切换前弹窗与系统通知的完整图解:效果截图(中/英)、设置项说明与使用建议([English](docs/peak-alert.en.md)) |
+| Token Plan 用量统计图解 | [面板文档](docs/token-plan-stats.md) | 每 1% 与满窗估算的四列含义、首尾差分估算方法与精度标注、口径边界(只统计 dsh 内调用)与用量曲线说明([English](docs/token-plan-stats.md#english)) |
 | 多 provider 计费 | 设置页 / 账本 | 支持 OpenAI、Anthropic、Google Gemini、Mistral 等 provider 的 input/output、缓存与 reasoning token 价格,按 provider+model 隔离计费 |
 | 模型名自动匹配 | 设置页 / 账本 | 未知模型 id 自动匹配价格表:忽略大小写/空格/横杠/点号与括号附注,归一化等价或请求名包含表内模型名即命中(如 `gpt5.6 luna(go)`);路由 provider(opencode/zen 等)下跨厂商全库查找;可关闭为仅精确;未命中模型可手动指定计费条目 |
 | 拓展价格表 | 设置页 → 拓展价格表 | 内置各厂商、按模型家族分类的参考价格目录(点开展开,厂商默认折叠);一键挂载参与计费,挂载的第三方模型默认收入表内可编辑;逐模型「在费用设置直接显示」开关自选哪些模型(含 DeepSeek)在「价格表」区直接显示 |
