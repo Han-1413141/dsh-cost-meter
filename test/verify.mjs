@@ -55,7 +55,7 @@ import {
   HOUR_BUCKET_RETENTION_MS,
   DEFAULT_PLAN_PROVIDER_CLASS,
 } from '../lib/plan-billing.js'
-import { backfillLegacyLedger, importLegacyHistory, listSessionLogs, readSessionRecords, replaySessionRecords, repairForkSeed, repairProviderDupes, scanZstdFrames } from '../lib/backfill.js'
+import { backfillLegacyLedger, importLegacyHistory, listSessionLogs, readSessionRecords, replaySessionRecords, repairForkSeed, repairProviderDupes, recomputeLedgerPricingBasis, scanZstdFrames } from '../lib/backfill.js'
 import { createLlmStreamBilling } from '../lib/billing-stream.js'
 import { TYPERT, stateSchema } from '../lib/typert.host.js'
 import { isTransientFetchError, fetchWithRetry } from '../lib/net.js'
@@ -2671,6 +2671,97 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const backfillSrc70 = readFileSync(new URL('../lib/backfill.js', import.meta.url), 'utf8')
   assert.ok(backfillSrc70.includes('isWrapperProviderId(provider)'), '回放器跳过包装层 provider 状态')
   console.log('[ok] modlens 包装层去重(id 判定/四形态清洗/幂等/保守分支/回放单记/接线)通过')
+}
+
+// 8h-2) v1.6.7:峰谷生效时刻锚点修复(同步重置致峰时历史半价)+ 币种切换全量换基准。
+{
+  // A-1) 源哨兵:页面无生效时间时不再把 peakEffectiveAt 重置为「同步时刻」。
+  const idxSrc167 = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.ok(!idxSrc167.includes('patch.peakEffectiveAt = new Date()'), 'fetchPrices 不再把无生效时间的同步重置为 new Date()(半价根因已删)')
+  assert.ok(idxSrc167.includes("typeof parsed.effectiveAt === 'string' && !Number.isNaN(Date.parse(parsed.effectiveAt))"), '仅页面带合法生效时间才更新 peakEffectiveAt')
+
+  // A-2) tierFor 半价缺陷回归:生效时刻被污染为同步时刻(晚于事件)时,分界后
+  // 的峰时事件回落 base 档(内置表 base 与谷档同值 → 峰时事件被半价);钳到
+  // 历史分界后恢复 peak 档。
+  const peakAt167 = Date.parse('2026-08-17T02:00:00Z') // 工作日峰窗内
+  const polluted167 = { enabled: true, effectiveAtMs: Date.parse('2026-08-27T12:06:04.107Z'), windows: DEFAULT_PEAK_WINDOWS }
+  assert.deepEqual(tierFor(pro, peakAt167, polluted167), { cacheHit: pro.cacheHit, cacheMiss: pro.cacheMiss, output: pro.output }, '污染形态复现:生效时刻晚于事件 → 峰时事件回落 base 档(半价)')
+  assert.deepEqual(tierFor(pro, peakAt167, { enabled: true, effectiveAtMs: BOUNDARY_MS, windows: DEFAULT_PEAK_WINDOWS }), pro.peak, '钳到历史分界后峰时事件按 peak 档计费')
+
+  // A-3) clamp 迁移行为级:污染配置启动时钳到历史分界,二次启动幂等。
+  const prevHome167 = process.env.DSH_HOME
+  const rootA167 = join(tmpdir(), `cm-e2e-clamp-${Date.now()}`)
+  mkdirSync(join(rootA167, 'storages', 'cost-meter'), { recursive: true })
+  writeFileSync(join(rootA167, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({ version: 1, config: { peakEffectiveAt: '2026-08-27T12:06:04.107Z' }, days: {} }))
+  process.env.DSH_HOME = rootA167
+  const { runStartupImports } = await import('../lib/index.js')
+  const ledgerA167 = Ledger.open()
+  assert.equal(ledgerA167.config.peakEffectiveAt, '2026-08-27T12:06:04.107Z', '污染配置按原样加载')
+  await runStartupImports(ledgerA167, join(rootA167, 'sessions'))
+  assert.equal(ledgerA167.config.peakEffectiveAt, LEGACY_BASE_BOUNDARY, '污染的生效时刻被钳到历史分界')
+  assert.ok(ledgerA167.migrations.includes('peak-effective-at-clamp-v1'), '迁移标记写入')
+  await runStartupImports(ledgerA167, join(rootA167, 'sessions'))
+  assert.equal(ledgerA167.config.peakEffectiveAt, LEGACY_BASE_BOUNDARY, '二次启动幂等(不再重复钳制)')
+  rmSync(rootA167, { recursive: true, force: true })
+  if (prevHome167 === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = prevHome167
+
+  // B) 币种切换全量换基准端到端:USD 口径账本切 CNY 后,能被日志完整回放的
+  // 会话行按 CNY 表逐事件重定价(峰时事件按 peak 档 = 谷档 2 倍,联动 BUG A
+  // 的档位判定),覆盖不全的会话保持原口径,日聚合同步调整,幂等。
+  const rootB167 = join(tmpdir(), `cm-e2e-cnyrecompute-${Date.now()}`)
+  const bucketsB = { input: 1_000_000, output: 500_000, cacheRead: 2_000_000, cacheWrite: 0 }
+  const mkLogB = (id, usage) => [
+    JSON.stringify({ type: 'session', version: 0, id, createdAt: peakAt167 - 60_000, delegationDepth: 0 }),
+    JSON.stringify({ type: 'request/header', seq: 0, time: peakAt167 - 60_000, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } }),
+    JSON.stringify({ type: 'assistant/message', seq: 0, time: peakAt167, data: { turn: 1, step: 1, usage } }),
+  ].join('\n') + '\n'
+  mkdirSync(join(rootB167, '--proj--', 'session-b'), { recursive: true })
+  writeFileSync(join(rootB167, '--proj--', 'session-b', 'session.jsonl'), mkLogB('session-b', { inputTokens: bucketsB.input, outputTokens: bucketsB.output, cacheReadTokens: bucketsB.cacheRead, cacheWriteTokens: 0 }))
+  // 覆盖不全的会话(账本 token 与日志不一致,模拟日志部分清理):保持原口径。
+  mkdirSync(join(rootB167, '--proj--', 'session-c'), { recursive: true })
+  writeFileSync(join(rootB167, '--proj--', 'session-c', 'session.jsonl'), mkLogB('session-c', { inputTokens: 999, outputTokens: 100, cacheReadTokens: 0, cacheWriteTokens: 0 }))
+  const ledgerB = new Ledger(sanitizeConfig({}), {}, join(rootB167, 'ledger.json'))
+  ledgerB.scheduleWrite = () => {}
+  // 切换前:USD 口径入账(峰时事件按 USD 表 peak 档)。
+  ledgerB.account(bucketsB, 'deepseek-v4-flash', 'session-b', peakAt167)
+  ledgerB.account({ input: 3000, output: 100, cacheRead: 0, cacheWrite: 0 }, 'deepseek-v4-flash', 'session-c', peakAt167)
+  const dayKeyB = localDayKey(peakAt167)
+  const rowB = ledgerB.days[dayKeyB].sessions.find(s => s.id === 'session-b')
+  const rowC = ledgerB.days[dayKeyB].sessions.find(s => s.id === 'session-c')
+  const usdCostB = rowB.cost
+  const usdCostC = rowC.cost
+  const dayCostBeforeB = ledgerB.days[dayKeyB].cost
+  // USD 峰档 = 0.014×2M + 0.44×1M + 1.32×0.5M = 1.128(谷档恰为其半)。
+  assert.ok(Math.abs(usdCostB - 1.128) < 1e-9, '切换前 USD 口径按峰档计费(1.128)')
+  // 切换到 CNY 价表(峰 = 2×谷)。
+  const cnyPatchB = applyConfigPatch(ledgerB.config, {
+    pricingCurrency: 'CNY',
+    exchangeRate: 7.2,
+    prices: {
+      currency: 'CNY',
+      models: { 'deepseek-v4-flash': { cacheHit: 0.02, cacheMiss: 1, output: 2, offPeak: { cacheHit: 0.02, cacheMiss: 1, output: 2 }, peak: { cacheHit: 0.04, cacheMiss: 2, output: 4 } } },
+      default: { cacheHit: 0.02, cacheMiss: 1, output: 2 },
+    },
+  })
+  assert.equal(cnyPatchB.errors.length, 0, 'CNY 价表补丁通过: ' + cnyPatchB.errors.join(';'))
+  ledgerB.config = cnyPatchB.config
+  const statsB = await recomputeLedgerPricingBasis(ledgerB, rootB167)
+  assert.equal(statsB.recostedSessions, 1, '完整覆盖的会话按 CNY 表重定价')
+  assert.equal(statsB.skippedSessions, 1, '覆盖不全的会话跳过(保持 USD 口径)')
+  // CNY 峰档 = 0.04×2M + 2×1M + 4×0.5M = ¥4.08,除汇率 7.2 入账。
+  const expectCnyPeakB = usdFromCost(4.08, 'CNY', 7.2)
+  assert.ok(Math.abs(rowB.cost - expectCnyPeakB) < 1e-12, '会话行金额 = CNY 表峰档折算(¥4.08/7.2)')
+  assert.ok(Math.abs(rowB.cost - usdFromCost(2.04, 'CNY', 7.2) * 2) < 1e-12, '峰时事件按 2 倍 peak 档(BUG A 联动:同桶谷时恰为其半)')
+  assert.ok(Math.abs(rowC.cost - usdCostC) < 1e-15, '覆盖不全的会话金额不动')
+  // 日聚合同步调整:原值 − 旧会话金额 + 新会话金额。
+  assert.ok(Math.abs(ledgerB.days[dayKeyB].cost - (dayCostBeforeB - usdCostB + expectCnyPeakB)) < 1e-12, '日聚合按差额同步调整')
+  // 幂等:二次重算结果不变。
+  const statsB2 = await recomputeLedgerPricingBasis(ledgerB, rootB167)
+  assert.equal(statsB2.recostedSessions, 1, '二次重算仍完整替换(幂等)')
+  assert.ok(Math.abs(rowB.cost - expectCnyPeakB) < 1e-12, '幂等:金额不因二次重算漂移')
+  rmSync(rootB167, { recursive: true, force: true })
+  console.log('[ok] v1.6.7 峰谷生效时刻锚点 + 币种切换换基准(源哨兵/半价回归/clamp 幂等/CNY 端到端/跳过分支/日聚合)通过')
 }
 
 // 8c) 会话标题配置链与 schema:showSessionId 三处齐全;sessionSchema 接受可选 title。

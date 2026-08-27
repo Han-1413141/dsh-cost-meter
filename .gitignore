@@ -6,5 +6,8 @@ bin/
 HANDOFF.md
 /.idea/
 .tmp-issue59/
+.tmp-*
+.tmp-npm-cache/
+.zcode/
 /opencode.json
 
