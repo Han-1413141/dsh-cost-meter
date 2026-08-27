@@ -86,5 +86,12 @@
     "en",
     "language"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "prepare": "node scripts/build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.7"
+  }
 }
