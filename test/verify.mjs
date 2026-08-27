@@ -2412,6 +2412,37 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
     assert.equal(billed.length, 1, 'null usage 后仍以先前有效快照记账')
     assert.equal(billed[0].usage.inputTokens, 11, '记账取有效快照而非被 null 覆盖')
   }
+  // ⑤ 峰谷档位按「请求发起」时刻:注入时钟使发起=峰窗末前 40 秒、完成已在下一
+  // 谷段——atMs 必须携带发起时刻(旧实现传完成时刻,跨点调用会被算进另一个峰位)。
+  {
+    const startBoundary = Date.parse('2026-08-27T09:59:20Z') // 北京 17:59:20,峰窗 06–10 UTC 内
+    let ticks = 0
+    const billed = []
+    const listener = createLlmStreamBilling({
+      account: (usage, model, sessionId, atMs) => billed.push({ atMs }),
+      now: () => (ticks++ === 0 ? startBoundary : startBoundary + 3_600_000),
+    })
+    const adapters = { 'deepseek-official': async function* () {
+      await new Promise(resolve => setTimeout(resolve, 15)) // 模拟流跑到整点之后才结束
+      yield { type: 'usage', usage: { inputTokens: 5, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 } }
+      yield { type: 'finish' }
+    } }
+    const llm = options => listener(options, () => adapters[options.provider](options))
+    const passthrough = []
+    for await (const chunk of llm({ provider: 'deepseek-official', model: 'deepseek-v4-flash', sessionId: 's-start' })) passthrough.push(chunk)
+    assert.equal(passthrough.length, 2, 'usage/finish 两块原样透传')
+    assert.equal(billed.length, 1, '注时钟流恰记一次')
+    assert.equal(billed[0].atMs, startBoundary, 'atMs 为请求发起时刻(而非完成时刻)')
+  }
+  // ⑤b 金额级佐证:同一组 token 在峰窗末前/后一秒计价差一倍(tierFor 按 atMs 归档)。
+  {
+    const entryP = { cacheHit: 0.014, cacheMiss: 0.44, output: 1.32, offPeak: { cacheHit: 0.007, cacheMiss: 0.22, output: 0.66 } }
+    const peakCfg = { enabled: true, effectiveAtMs: 0, windows: [{ start: 6, end: 10 }] }
+    const tokens = { input: 1_000_000, output: 0, cacheRead: 0, cacheWrite: 0 }
+    const inPeak = costOf(tokens, entryP, Date.parse('2026-08-27T09:59:59Z'), peakCfg)
+    const outPeak = costOf(tokens, entryP, Date.parse('2026-08-27T10:00:01Z'), peakCfg)
+    assert.ok(Math.abs(inPeak - outPeak * 2) < 1e-12, '跨峰谷整点两侧费率恰为两倍(发起时刻决定归属)')
+  }
   // ⑤ 接线:index.js 使用 createLlmStreamBilling 且 migrations 门控 provider-dedup-v1。
   {
     const indexSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')

@@ -233,22 +233,22 @@
 dsh plugin --profile web add dsh-cost-meter
 ```
 
-**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.6.5`**,建议先下载审阅再运行):
+**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.6.6`**,建议先下载审阅再运行):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.6.5/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.6.6/install.ps1 | iex
 ```
 
 **或直接命令行**(机器上需已有 pnpm 与 git;同样固定到 tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.6.5
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.6.6
 ```
 
 没有 git 时可用 GitHub tag 打包直链:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.6.5.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.6.6.tar.gz
 ```
 
 安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):
@@ -265,7 +265,7 @@ dsh web
 
 处理:
 
-1. **升级到 v1.6.5+**:三个运行时依赖(`@deepseek-ai/dsh-credentials`、`@deepseek-ai/dsh-home-paths`、`zod`)已全部精确锁版——锁定版本的发布时间固定不变,对任意年龄阈值永远满足,本插件不再可能触发该错误;
+1. **升级到 v1.6.6+**:三个运行时依赖(`@deepseek-ai/dsh-credentials`、`@deepseek-ai/dsh-home-paths`、`zod`)已全部精确锁版——锁定版本的发布时间固定不变,对任意年龄阈值永远满足,本插件不再可能触发该错误;
 2. 若报错由**其他插件**的依赖触发,可在 profile 目录的 `pnpm-workspace.yaml`(默认 `$DSH_HOME/profiles/web/pnpm-workspace.yaml`)按报错列出的条目追加排除后重试:
 
 ```yaml
@@ -300,6 +300,8 @@ dsh plugin --profile web add link:./dsh-cost-meter  # 符号链接,改 lib/clien
 - 账本金额恒以**美元**存储,币种/汇率仅影响显示(默认 1 USD = 7.2 CNY,可改);
 - 会话徽章与当日/月度/累计、预算一样,按每次调用的**实际时刻精确计费**(宿主导出的逐次成本);
 - 计费来源为每次模型调用的 usage 块(含子代理、压缩、标题等辅助调用),与账单口径一致;
+- **峰谷档位按请求发起时刻判定**(v1.6.6):流式调用可能跨峰谷边界整点,以完成时刻归档会把数分钟前发起的请求算进另一个峰位;
+- **官方账单对齐口径**:① 与官方实时数字存在**分钟级时差**属预期——账本 2 秒防抖落盘,关停瞬间仍在途的流会被服务端照常扣费而 usage 块无人接收(缺口集中在缓存命中列);② reasoning tokens 由 API 单独上报且**不计费**,token 列为五桶合计,与官方「三列」天然对不齐,**对账请以金额为准**;③ 「价格币种」设为人民币时按官方 CNY 价目直计入账,与人民币账单币种一致(CNY 计价账号推荐);设为 USD 时显示金额经固定汇率折算,与 CNY 直计存在结构性细差(两套价目比值非均匀);
 - 预算与超支提示**仅提醒,不阻止调用**。
 - **Plan/API 双轨计费**(issue #64):订阅制渠道(MiniMax / Codex 手动标记等)的调用金额只记「等值」,预算/今日费用/概览卡片等金额展示仅统计按量计费(API)部分;
 - **「含 Plan 总额」开关**:概览页汇总卡片下的快捷开关切换全部金额展示口径——关闭时仅计真金白银(API 渠道),开启后显示含 Plan 等值的总金额;网关路由(provider 缺失)调用的第三方目录模型自动归入对应订阅归类,无模型明细的历史残差计入 API 口径;设置 → 用量 的 Token Plan 统计面板提供每 1% 额度与满窗的 token/等值金额估算与日/周/月曲线;分类可在配置中按厂商或 provider:model 级覆盖。

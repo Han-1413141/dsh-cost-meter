@@ -231,22 +231,22 @@ Real captures from an actual DSH sidebar of the period strip and collapsed verti
 dsh plugin --profile web add dsh-cost-meter
 ```
 
-**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.6.5`** — review the script before running):
+**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.6.6`** — review the script before running):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.6.5/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.6.6/install.ps1 | iex
 ```
 
 **Or a plain command line** (the machine must already have pnpm and git; also pinned to the tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.6.5
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.6.6
 ```
 
 Without git, use the GitHub tag archive:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.6.5.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.6.6.tar.gz
 ```
 
 After installing, **restart** `dsh web` (plugin rows, the Typert manifest and the client bundle are all scanned at startup):
@@ -263,7 +263,7 @@ Cause: your environment (pnpm config or a policy bundled into the invoking insta
 
 Fix:
 
-1. **Upgrade to v1.6.5+**: all three runtime dependencies (`@deepseek-ai/dsh-credentials`, `@deepseek-ai/dsh-home-paths`, `zod`) are now exact-pinned — a pinned version's publish date never changes, so it satisfies any age threshold and this plugin can no longer trigger the error;
+1. **Upgrade to v1.6.6+**: all three runtime dependencies (`@deepseek-ai/dsh-credentials`, `@deepseek-ai/dsh-home-paths`, `zod`) are now exact-pinned — a pinned version's publish date never changes, so it satisfies any age threshold and this plugin can no longer trigger the error;
 2. If the error is triggered by **another plugin's** dependencies instead, append an exclusion for the offending `name@version` printed in the error to the profile's `pnpm-workspace.yaml` (default `$DSH_HOME/profiles/web/pnpm-workspace.yaml`) and retry:
 
 ```yaml
@@ -298,6 +298,8 @@ dsh plugin --profile web add link:./dsh-cost-meter  # symlink; edit lib/client.j
 - The ledger always stores amounts in **USD**; currency and FX rate only affect display (default 1 USD = 7.2 CNY, configurable);
 - The session badge is **billed exactly** at the moment each call is made (host-exported per-call cost), just like daily/monthly/cumulative totals and the budget;
 - Billing sources are the `usage` block of every model call (including sub-agents, compression, title generation and other auxiliary calls), matching the billable view;
+- **Peak/off-peak tiers follow the request-initiation moment** (v1.6.6): a streaming call can span the tier boundary hour; attributing by completion time would put a request started minutes earlier into the wrong tier;
+- **Aligning with official bills**: ① minute-level lag vs live official numbers is expected — the ledger flushes on a 2s debounce, and streams still in flight at shutdown are billed server-side while their usage block is never received (the gap concentrates in cache-hit columns); ② reasoning tokens are reported separately by the API and are **not billed** — the token columns sum five buckets and will never line up with the official three columns, so **reconcile by amount**; ③ with pricing currency set to CNY, entries are recorded directly on the official CNY price list (recommended for CNY-billed accounts); with USD, displayed amounts go through a fixed FX rate and carry a small structural difference (the two lists' per-column ratios are not uniform);
 - Budget and over-budget warnings **only warn — they never block calls**.
 - **Plan/API dual-track billing** (issue #64): calls on subscription-style channels (MiniMax, manually-marked Codex, etc.) are recorded as catalog-price equivalents only; budget/today-cost/overview cards count the pay-as-you-go (API) channel exclusively.
 - **Full-repo security audit fixes**: resolved 3 high-risk findings — ledger writes lost on exit (close/flush ordering), command injection in the release script, panel null-pointer crash on null Go monthly window — plus 30+ medium/low issues including missing hour-bucket entries for routed calls, dead balance-reconciliation warnings, failed custom-balance extraction silently showing $0, and leaked upstream streams on consumer abort; ledger corruption auto-backup, write-failure retry, config-patch atomicity and prototype-chain hardening included. Itemized list: [CHANGELOG.md](CHANGELOG.md).

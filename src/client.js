@@ -655,6 +655,7 @@ window.__ModuleLoader__.load({
         cardMonth: '本月费用',
         cardTotal: '累计费用',
         cardTotalSub: '自账本建立以来 · 调用 {calls} 次',
+        cardsFootnote: '口径说明:金额为最近一次落盘快照(2 秒防抖;正常关闭会先强制落盘再退出),与官方实时账单存在分钟级时差属预期;tokens 列为输入+输出+缓存+推理的合计——推理 tokens 由 API 单独上报且不计费(官方账单将其并入「输出」列展示),对账请以金额为准。',
         todaySessions: '今日会话',
         historyExpandHint: '点击日期行可展开当日会话明细',
         historySessionsLoading: '会话明细加载中…',
@@ -1059,6 +1060,7 @@ window.__ModuleLoader__.load({
         cardMonth: 'This month',
         cardTotal: 'All time',
         cardTotalSub: 'Since the ledger was created · Calls {calls}',
+        cardsFootnote: 'Notes: amounts reflect the latest ledger snapshot (2s debounce; clean shutdown flushes everything first), so minute-level lag vs the live official bill is expected. Token columns sum input+output+cache+reasoning; reasoning tokens are reported separately by the API and are not billed (the official bill folds them into its output column) — reconcile by amount.',
         todaySessions: "Today's sessions",
         historyExpandHint: 'Click a date row to expand its session details',
         historySessionsLoading: 'Loading session details…',
@@ -5543,6 +5545,10 @@ window.__ModuleLoader__.load({
             value: formatMoneyUsd(displayCostOf(state.total, config), config),
             sub: t('cardTotalSub', { calls: state.total.calls }),
           })),
+        // 快照时点与 tokens 口径脚注(用户实测对账疑问:官方 5.64 vs 本地 5.78):
+        // 防抖落盘产生分钟级时差;reasoning 由 API 单列上报但不计费,token 合计
+        // 天然对不齐,引导以金额对账。
+        el('p', { className: 'cm-note', key: 'cards-footnote' }, t('cardsFootnote')),
         // 「含 Plan 总额」快捷开关:紧贴汇总卡片下方,切换全部金额展示口径
         // (关 = 真金白银 API 渠道;开 = 含 Plan 订阅等值),随自动保存即时生效。
         el('label', { className: 'cm-cards-toggle', title: t('cardsTogglePlanTotalHint') },
