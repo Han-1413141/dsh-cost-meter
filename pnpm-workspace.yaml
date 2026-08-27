@@ -1,5 +1,10 @@
 allowBuilds:
   esbuild: true
+# minimumReleaseAgeExclude only applies where this file is read, i.e. dev/CI
+# installs inside THIS repo (an end-user `dsh plugin add` verifies against the
+# PROFILE directory's workspace config). Production deps are exact-pinned in
+# package.json precisely so user-side lockfile entries never float onto a
+# freshly published version that a minimum-release-age policy would reject.
 minimumReleaseAgeExclude:
   - '@deepseek-ai/cordis@4.0.1'
   - '@deepseek-ai/cosmokit@1.8.2'
@@ -8,3 +13,4 @@ minimumReleaseAgeExclude:
   - '@deepseek-ai/schemastery@3.18.1'
   - '@deepseek-ai/dsh-brand@0.1.0-rc.6'
   - '@deepseek-ai/dsh-credentials@0.1.0-rc.6'
+  - 'esbuild@0.28.1'

@@ -233,28 +233,44 @@
 dsh plugin --profile web add dsh-cost-meter
 ```
 
-**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.6.3`**,建议先下载审阅再运行):
+**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.6.4`**,建议先下载审阅再运行):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.6.3/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.6.4/install.ps1 | iex
 ```
 
 **或直接命令行**(机器上需已有 pnpm 与 git;同样固定到 tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.6.3
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.6.4
 ```
 
 没有 git 时可用 GitHub tag 打包直链:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.6.3.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.6.4.tar.gz
 ```
 
 安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):
 
 ```sh
 dsh web
+```
+
+### 安装排障:ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION
+
+症状:`dsh plugin --profile web add` 阶段安装失败,pnpm 报 `[ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION] N lockfile entries failed verification`。
+
+原因:你的环境(pnpm 配置或上层安装器自带策略)启用了「最小发布年龄」供应链保护——lockfile 中**发布时间距今小于阈值**的包一律拒绝。插件 v1.6.3 及更早版本的生产依赖是浮动区间,首次安装会解析到当时最新发布版(实测 `^0.1.0-rc.6` 漂到仅发布一周左右的 rc.8),在该策略下即被拒绝。
+
+处理:
+
+1. **升级到 v1.6.4+**:三个运行时依赖(`@deepseek-ai/dsh-credentials`、`@deepseek-ai/dsh-home-paths`、`zod`)已全部精确锁版——锁定版本的发布时间固定不变,对任意年龄阈值永远满足,本插件不再可能触发该错误;
+2. 若报错由**其他插件**的依赖触发,可在 profile 目录的 `pnpm-workspace.yaml`(默认 `$DSH_HOME/profiles/web/pnpm-workspace.yaml`)按报错列出的条目追加排除后重试:
+
+```yaml
+minimumReleaseAgeExclude:
+  - '<报错中的包名>@<版本>'
 ```
 
 ### 更新 / 卸载

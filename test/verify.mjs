@@ -4096,4 +4096,19 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   console.log('[ok] 一致性重建/路由归类/含 Plan 总额开关(v1.6.0)通过')
 }
 
+// ===== 生产依赖精确锁版门禁(issue #72:浮动区间会漂到新发布版,触发 pnpm
+// minimumReleaseAge 供应链策略,全新安装报 ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION)=====
+{
+  const pkg = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'package.json'), 'utf8'))
+  const offenders = Object.entries(pkg.dependencies ?? {})
+    .filter(([, spec]) => !/^[0-9A-Za-z]/.test(String(spec)) || /^[\^~><=]/.test(String(spec)))
+  assert.deepEqual(offenders, [], `生产依赖必须精确锁版(不得使用 ^~/区间),违规:${offenders.map(([n, s]) => `${n}@${s}`).join(', ')}`)
+  assert.equal(pkg.dependencies.zod, '4.4.3', 'zod 锁定 4.4.3')
+  assert.equal(pkg.dependencies['@deepseek-ai/dsh-credentials'], '0.1.0-rc.6', 'dsh-credentials 锁定 0.1.0-rc.6')
+  assert.equal(pkg.dependencies['@deepseek-ai/dsh-home-paths'], '0.1.0-rc.6', 'dsh-home-paths 锁定 0.1.0-rc.6')
+  const wsYaml = readFileSync(join(import.meta.dirname, '..', 'pnpm-workspace.yaml'), 'utf8')
+  assert.ok(wsYaml.includes("esbuild@0.28.1"), 'workspace 排除表包含 esbuild(本仓开发安装受年龄策略时放行)')
+  console.log('[ok] 生产依赖精确锁版门禁(#72 防回归)通过')
+}
+
 console.log('[ok] 全部验证通过')

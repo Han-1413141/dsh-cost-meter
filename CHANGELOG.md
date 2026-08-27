@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.6.4] - 2026-08-27
+
+### 修复
+
+- **全新安装报 `ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`(issue #72)**:生产依赖此前是浮动区间(`^0.1.0-rc.6`、`^4.4.3`),首次安装时 pnpm 会把区间解析到**当时最新发布版**——实测 `^0.1.0-rc.6` 漂到 2026-08-19 才发布的 rc.8;启用了「最小发布年龄」供应链策略的 pnpm 环境(pnpm 配置或上层安装器自带)在校验 profile lockfile 时直接拒绝这类过新条目,一键安装失败。三个运行时依赖 `@deepseek-ai/dsh-credentials`、`@deepseek-ai/dsh-home-paths`、`zod` 全部改为精确锁版:锁定版本的发布时间是固定值,对任意年龄阈值永远满足,该错误对本插件不再可能复发。附带说明:插件仓库内的 `minimumReleaseAgeExclude` 只在本仓开发/CI 安装(读取本仓 workspace 配置)生效,end-user 安装的外层校验读取的是 profile 目录自己的配置,不能替代锁版——文件内已加注释固化该边界,排除表补入 `esbuild@0.28.1`;README 中英版安装章节同步新增该错误的排障条目。
+
 ## [1.6.3] - 2026-08-27
 
 ### 修复
