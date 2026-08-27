@@ -30,8 +30,10 @@ import {
   LEGACY_BASE_PRICES_CNY,
   usdFromCost,
   providerPriceEntryFor,
+  isWrapperProviderId,
+  wrapperUpstreamProvider,
 } from '../lib/pricing.js'
-import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays, officialCostOfDay, splitLedgerApiCost, zeroDay, repairLedgerPricing } from '../lib/store.js'
+import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays, officialCostOfDay, splitLedgerApiCost, zeroDay, repairLedgerPricing, dedupeWrapperProviderDays } from '../lib/store.js'
 import {
   billingClassOf,
   enabledPlanSetOf,
@@ -2485,6 +2487,161 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   console.log('[ok] 包装路由重复清洗(三份合一/顶层与 session 修正/独立记录与近似指纹不动/幂等)通过')
 }
 
+// 8h) modlens 视觉包装层重复计费(issue #70):包装层 id 判定 / 上游推导 /
+// 账本四形态清洗 / 回放与投影跳过 / 实时钩子与迁移接线。
+{
+  // 1) 包装层 id 判定与上游推导
+  assert.equal(isWrapperProviderId('modlens-opencode-go'), true, 'modlens-<upstream> 判包装层')
+  assert.equal(isWrapperProviderId('deepseek-modlens'), true, 'deepseek-modlens 判包装层')
+  assert.equal(isWrapperProviderId('deepseek-modlens-vision'), false, '深层包装变体不属于本次跳过范围(仍由 ALS 嵌套标记处理)')
+  assert.equal(isWrapperProviderId('opencode-go'), false, '上游 id 不判包装层')
+  assert.equal(isWrapperProviderId(''), false, '空串不判包装层')
+  assert.equal(isWrapperProviderId(null), false, 'null 不判包装层')
+  assert.equal(wrapperUpstreamProvider('modlens-opencode-go'), 'opencode-go', 'modlens-<upstream> 上游推导')
+  assert.equal(wrapperUpstreamProvider('deepseek-modlens'), 'deepseek-official', '官方路由包装上游为 deepseek-official')
+  assert.equal(wrapperUpstreamProvider('opencode-go'), null, '非包装层上游推导为 null')
+  assert.equal(wrapperUpstreamProvider('modlens-'), null, '空上游段为 null')
+  // 2) 账本清洗:形态 1(镜像对,复刻 issue #70 报告者 08-26 账本)
+  const mkBucket = (input, cacheRead, calls, cost) => ({ input, output: Math.round(input / 20), cacheRead, cacheWrite: 0, reasoning: 0, calls, cost, apiCost: cost })
+  const mirrorPair = {
+    date: '2026-08-26',
+    byProviderModel: {
+      'opencode-go:deepseek-v4-flash': mkBucket(1421798, 47876864, 426, 1.5427),
+      'modlens-opencode-go:deepseek-v4-flash': mkBucket(1421798, 47876864, 426, 1.5427),
+    },
+    sessions: [],
+  }
+  mirrorPair.input = 2 * 1421798
+  mirrorPair.output = 2 * Math.round(1421798 / 20)
+  mirrorPair.cacheRead = 2 * 47876864
+  mirrorPair.cacheWrite = 0
+  mirrorPair.reasoning = 0
+  mirrorPair.calls = 852
+  mirrorPair.cost = 2 * 1.5427
+  mirrorPair.apiCost = 2 * 1.5427
+  const days1 = { '2026-08-26': mirrorPair }
+  const r1 = dedupeWrapperProviderDays(days1)
+  assert.equal(r1.removed, 1, '镜像对扣除 1 条包装层条目')
+  assert.equal(r1.renamed, 0, '镜像对无改挂')
+  assert.deepEqual(Object.keys(mirrorPair.byProviderModel), ['opencode-go:deepseek-v4-flash'], '镜像对只剩上游键')
+  assert.equal(mirrorPair.calls, 426, '顶层 calls 减半恢复真实值')
+  assert.equal(mirrorPair.input, 1421798, '顶层 input 减半恢复真实值')
+  assert.ok(Math.abs(mirrorPair.cost - 1.5427) < 1e-9, '顶层金额减半恢复真实值')
+  assert.ok(Math.abs(mirrorPair.apiCost - 1.5427) < 1e-9, '顶层 apiCost 同步扣除')
+  // 幂等:二次运行无包装层键,零改动。
+  const r1again = dedupeWrapperProviderDays(days1)
+  assert.equal(r1again.removed + r1again.renamed, 0, '二次执行零改动(幂等)')
+  // 3) 形态 3(仅包装层入账,#48 合并残留):改挂上游键,合计不动。
+  const soloWrapper = {
+    date: '2026-08-22',
+    byProviderModel: { 'modlens-opencode-go:deepseek-v4-flash': mkBucket(1000, 5000, 10, 0.2) },
+    sessions: [],
+    input: 1000, output: 50, cacheRead: 5000, cacheWrite: 0, reasoning: 0, calls: 10, cost: 0.2, apiCost: 0.2,
+  }
+  const r3 = dedupeWrapperProviderDays({ '2026-08-22': soloWrapper })
+  assert.equal(r3.renamed, 1, '仅包装层条目改挂上游键')
+  assert.deepEqual(Object.keys(soloWrapper.byProviderModel), ['opencode-go:deepseek-v4-flash'], '键名改挂上游 provider')
+  assert.equal(soloWrapper.calls, 10, '合计不动(calls)')
+  assert.ok(Math.abs(soloWrapper.cost - 0.2) < 1e-9, '合计不动(cost)')
+  // 4) 形态 2(混存残留:包装层 = #48 合并残留 + 新镜像,上游 = 新镜像)
+  const mixed = {
+    date: '2026-08-24',
+    byProviderModel: {
+      'modlens-opencode-go:model-a': mkBucket(3000, 0, 30, 0.3), // 残留 20 + 新镜像 10
+      'opencode-go:model-a': mkBucket(1000, 0, 10, 0.1), // 新镜像
+    },
+    sessions: [],
+    input: 4000, output: 200, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 40, cost: 0.4, apiCost: 0.4,
+  }
+  const r2 = dedupeWrapperProviderDays({ '2026-08-24': mixed })
+  assert.equal(r2.renamed, 1, '混存形态改挂 1 条')
+  assert.equal(r2.removed, 0, '混存形态无扣除删除')
+  assert.deepEqual(Object.keys(mixed.byProviderModel), ['opencode-go:model-a'], '上游键被替换为包装层全量份')
+  assert.equal(mixed.byProviderModel['opencode-go:model-a'].calls, 30, '保留份为包装层全量(真实值)')
+  assert.equal(mixed.calls, 30, '顶层 calls 修正为真实值(旧 40)')
+  assert.ok(Math.abs(mixed.cost - 0.3) < 1e-9, '顶层金额修正为真实值')
+  // 5) 形态 4(直连 + 包装混存:上游 = 直连 + 全部包装,包装层 = 纯镜像子集)
+  const direct = {
+    date: '2026-08-25',
+    byProviderModel: {
+      'opencode-go:model-a': mkBucket(3000, 0, 30, 0.3), // 直连 20 + 包装 10
+      'modlens-opencode-go:model-a': mkBucket(1000, 0, 10, 0.1), // 纯镜像
+    },
+    sessions: [],
+    input: 4000, output: 200, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 40, cost: 0.4, apiCost: 0.4,
+  }
+  const r4 = dedupeWrapperProviderDays({ '2026-08-25': direct })
+  assert.equal(r4.removed, 1, '直连混存形态扣除包装层镜像')
+  assert.deepEqual(Object.keys(direct.byProviderModel), ['opencode-go:model-a'], '上游键保留全量')
+  assert.equal(direct.byProviderModel['opencode-go:model-a'].calls, 30, '上游键含直连+包装全量')
+  assert.equal(direct.calls, 30, '顶层 calls 修正')
+  assert.ok(Math.abs(direct.cost - 0.3) < 1e-9, '顶层金额修正')
+  // 6) 保守分支:互不为子集的条目不动。
+  const ambiguous = {
+    date: '2026-08-27',
+    byProviderModel: {
+      'opencode-go:model-a': { input: 1000, output: 50, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 10, cost: 0.1, apiCost: 0.1 },
+      'modlens-opencode-go:model-a': { input: 999, output: 60, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 9, cost: 0.09, apiCost: 0.09 },
+    },
+    sessions: [],
+    input: 1999, output: 110, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 19, cost: 0.19, apiCost: 0.19,
+  }
+  const snapshot = JSON.stringify(ambiguous)
+  const r6 = dedupeWrapperProviderDays({ '2026-08-27': ambiguous })
+  assert.equal(r6.removed + r6.renamed, 0, '互不为子集保守不动')
+  assert.equal(JSON.stringify(ambiguous), snapshot, '数据逐字节不变')
+  // 7) 会话容器同构清洗。
+  const sessMirror = {
+    date: '2026-08-26',
+    byProviderModel: {
+      'opencode-go:model-a': mkBucket(100, 0, 2, 0.02),
+      'modlens-opencode-go:model-a': mkBucket(100, 0, 2, 0.02),
+    },
+    sessions: [{
+      id: 's-70', at: 1756200000000,
+      byProviderModel: {
+        'opencode-go:model-a': mkBucket(100, 0, 2, 0.02),
+        'modlens-opencode-go:model-a': mkBucket(100, 0, 2, 0.02),
+      },
+      input: 200, output: 10, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 4, cost: 0.04, apiCost: 0.04,
+    }],
+    input: 200, output: 10, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 4, cost: 0.04, apiCost: 0.04,
+  }
+  const r7 = dedupeWrapperProviderDays({ '2026-08-26': sessMirror })
+  assert.equal(r7.removed, 2, 'day 与 session 容器各扣 1 条镜像')
+  assert.equal(sessMirror.sessions[0].calls, 2, 'session 顶层 calls 修正')
+  assert.deepEqual(Object.keys(sessMirror.sessions[0].byProviderModel), ['opencode-go:model-a'], 'session 镜像键删除')
+  // 8) 回放跳过:同一调用两套 header+usage(包装层 + 上游),只记上游。
+  const cfg70 = sanitizeConfig({})
+  const events70 = [
+    { type: 'session', id: 's-70', createdAt: 1756200000000, time: 1756200000000, seq: 0 },
+    { type: 'request/header', time: 1756200001000, seq: 1, data: { header: { config: { provider: 'modlens-opencode-go', model: 'deepseek-v4-flash' } } } },
+    { type: 'assistant/chunk', time: 1756200002000, seq: 2, turn: 0, step: 0, data: { chunk: { type: 'usage', usage: { inputTokens: 1200, outputTokens: 30, cacheReadTokens: 400, cacheWriteTokens: 0, reasoningTokens: 0 } } } },
+    { type: 'request/header', time: 1756200003000, seq: 3, data: { header: { config: { provider: 'opencode-go', model: 'deepseek-v4-flash' } } } },
+    { type: 'assistant/chunk', time: 1756200004000, seq: 4, turn: 0, step: 0, data: { chunk: { type: 'usage', usage: { inputTokens: 1200, outputTokens: 30, cacheReadTokens: 400, cacheWriteTokens: 0, reasoningTokens: 0 } } } },
+  ]
+  const replayed70 = replaySessionRecords(events70, cfg70, null)
+  const day70 = Object.values(replayed70.days)[0]
+  assert.equal(day70['opencode-go:deepseek-v4-flash'].calls, 1, '回放对包装层双事件只记 1 次调用(旧版记 2 次)')
+  assert.deepEqual(Object.keys(day70), ['opencode-go:deepseek-v4-flash'], '回放只落上游键(无 modlens-* 键)')
+  assert.equal(day70['opencode-go:deepseek-v4-flash'].input, 1200, '上游份 token 完整')
+  // 对照:无包装层时同规则不受影响(单 header+usage 恰记一次)。
+  const plain70 = replaySessionRecords([
+    { type: 'session', id: 's-plain', createdAt: 1756200000000, time: 1756200000000, seq: 0 },
+    { type: 'request/header', time: 1756200001000, seq: 1, data: { header: { config: { provider: 'opencode-go', model: 'deepseek-v4-flash' } } } },
+    { type: 'assistant/chunk', time: 1756200002000, seq: 2, turn: 0, step: 0, data: { chunk: { type: 'usage', usage: { inputTokens: 1200, outputTokens: 30, cacheReadTokens: 400, cacheWriteTokens: 0, reasoningTokens: 0 } } } },
+  ], cfg70, null)
+  assert.equal(Object.values(Object.values(plain70.days)[0])[0].calls, 1, '无包装直连回放恰记一次')
+  // 9) 接线:index.js 实时钩子跳过包装层事件 + 投影跳过 + 启动清洗迁移门控。
+  const indexSrc70 = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.ok(indexSrc70.includes('isWrapperProviderId(provider)'), '实时 llm/stream 计费回调跳过包装层 provider')
+  assert.ok(indexSrc70.includes('isWrapperProviderId(state.provider)'), 'costUsage 投影跳过包装层 provider 状态')
+  assert.ok(indexSrc70.includes('dedupeWrapperProviderDays(ledger.days') && indexSrc70.includes("'modlens-wrapper-dedup-v1'"), '启动清洗接入一次性迁移(migrations 标记防重跑)')
+  const backfillSrc70 = readFileSync(new URL('../lib/backfill.js', import.meta.url), 'utf8')
+  assert.ok(backfillSrc70.includes('isWrapperProviderId(provider)'), '回放器跳过包装层 provider 状态')
+  console.log('[ok] modlens 包装层去重(id 判定/四形态清洗/幂等/保守分支/回放单记/接线)通过')
+}
+
 // 8c) 会话标题配置链与 schema:showSessionId 三处齐全;sessionSchema 接受可选 title。
 {
   assert.ok(applyConfigPatch(sanitizeConfig({}), { showSessionId: 'yes' }).errors.length > 0, 'showSessionId 非布尔被拒绝')
@@ -3253,7 +3410,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const authA = volcengineAuthorization({ accessKeyId: 'AK1', secretAccessKey: 'SK1', query: { Version: '2024-01-01', Action: 'GetAFPUsage' }, datetime: fixedDate })
   const authB = volcengineAuthorization({ accessKeyId: 'AK1', secretAccessKey: 'SK1', query: { Action: 'GetAFPUsage', Version: '2024-01-01' }, datetime: fixedDate })
   assert.equal(authA.Authorization, authB.Authorization, 'query 排序不影响签名')
-  assert.deepEqual(VOLCENGINE_ACTIONS, ['GetAFPUsage', 'GetUsageDetails', 'GetPersonalPlan'], 'Action 白名单按优先级(实测 GetAFPUsage 无参可用,优先以减少 400)')
+  assert.deepEqual(VOLCENGINE_ACTIONS, ['GetCodingPlanUsage', 'GetAFPUsage', 'GetUsageDetails', 'GetPersonalPlan'], 'Action 白名单按优先级(CodingPlan 官方接口 GetCodingPlanUsage 置首,issue #71)')
   // 3) 解析器:arkcli 形态(session/weekly/monthly → fiveHour/weekly/monthly)
   const arkcliData = {
     items: [
@@ -3294,6 +3451,30 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   }
   const dailyParsed = parseVolcengineUsage(dailyData)
   assert.equal(dailyParsed.daily.percent, 0, 'AFPDaily 归一为 daily')
+  // 4c) GetCodingPlanUsage 官方形态(issue #71 实测 by @suyukun):
+  // Result.QuotaUsage[] + Level 窗口名 + 仅 Percent(无 used/total)+ ResetTimestamp 秒。
+  const codingPlanData = {
+    ResponseMetadata: { RequestId: 'x', Action: 'GetCodingPlanUsage', Version: '2024-01-01' },
+    Result: {
+      Status: 'Running',
+      UpdateTimestamp: 1787809945,
+      QuotaUsage: [
+        { Level: 'session', Percent: 0.86, ResetTimestamp: 1787827338, Cap: 100 },
+        { Level: 'weekly', Percent: 24.4, ResetTimestamp: 1788105600, Cap: 100 },
+        { Level: 'monthly', Percent: 62.2, ResetTimestamp: 1789747199, Cap: 100 },
+      ],
+      HasReward: false,
+    },
+  }
+  const codingPlanParsed = parseVolcengineUsage(codingPlanData)
+  assert.equal(codingPlanParsed.fiveHour.percent, 0.9, 'QuotaUsage Level=session → fiveHour(0.86%)')
+  assert.equal(codingPlanParsed.weekly.percent, 24.4, 'QuotaUsage Level=weekly 直取 Percent')
+  assert.equal(codingPlanParsed.monthly.percent, 62.2, 'QuotaUsage Level=monthly 直取 Percent')
+  assert.equal(codingPlanParsed.fiveHour.resetsAt, new Date(1787827338 * 1000).toISOString(), 'ResetTimestamp unix 秒 → ISO')
+  assert.equal(codingPlanParsed.weekly.resetsAt, new Date(1788105600 * 1000).toISOString(), 'weekly 重置时刻同样归一')
+  // 旧字段(QuotaType/UsageDetails)不受影响:同条目 Level 优先于 QuotaType。
+  const mixedEntry = { Result: { QuotaUsage: [{ Level: 'session', QuotaType: 'IgnoreMe', Percent: 5, ResetTimestamp: 1787827338 }] } }
+  assert.equal(parseVolcengineUsage(mixedEntry).fiveHour.percent, 5, 'Level 候选优先于 QuotaType')
   // 5) 解析器:扁平窗口对象兜底
   const flatData = {
     Result: {

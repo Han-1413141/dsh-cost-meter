@@ -3,6 +3,11 @@
 > 本文是面向使用者的版本更新总览；逐条开发记录见 [CHANGELOG.md](../CHANGELOG.md),完整提交历史见
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
+## v1.6.3(2026-08-27)—— modlens 包装层重复计费修复 + 火山方舟 Coding Plan 额度解析
+- **修复:modlens 视觉包装层重复计费(issue #70,报告 @lucas-wang-1)**:modlens 为纯文本模型路由自动注册 `modlens-<upstream>` 视觉包装模型并在监听器体内再发起一次上游调用,逃逸嵌套调用标记,实时钩子/会话投影/历史回放把同一次调用记两遍(token/费用翻倍)。三个计费入口统一跳过包装层 provider,只记上游真实流;**历史账本一次性清洗**(镜像对扣除、合并残留改挂上游等四形态,幂等迁移 `modlens-wrapper-dedup-v1`)。
+- **修复:火山方舟 Coding Plan 额度解析失败(issue #71,报告 @suyukun)**:Action 白名单缺官方用量接口 `GetCodingPlanUsage`(原首位的 `GetAFPUsage` 实为 AgentPlan 接口,CodingPlan 用户拿到全 0/空)。补 `Result.QuotaUsage[]` / `Level` 三窗解析,原 Action 保留兜底。
+- 测试 verify.mjs 全量通过,新增 modlens 去重(id 判定/四形态清洗/回放单记/接线)与火山 CodingPlan 解析两组回归。
+
 ## v1.6.2(2026-08-26)— 💰 计费逻辑专项审计修复
 - **修复(高危):客户端回退计价金额放大汇率倍**(parseConfig 白名单丢 prices.currency,CNY 价目下徽章/明细 ×7.2)、**第三方模型「取消挂载」失效**(mergeDeep 把已删模型复活)、**自定义余额空值强转残留**(null/空串伪装成「余额 $0」,B-3 变体)。
 - **修复(计费正确性):模型名数字分叉三条绕过路径**(`glm-5.3` 套 `glm-5` 旧价 ~29% 低计,双端镜像同步)/ **usage:null 判空击穿**(投影中断、有效快照被覆盖致整次调用漏计)/ **Anthropic 子配额覆盖主周窗**(`seven_day_sonnet` 顶替整体百分比)/ **backfill 全覆盖判定漏 reasoning** / **apiCost>cost 倒挂封顶** / **hunyuan-a13b CNY 价按 USD 入账(~7 倍高估)折算修正**。

@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.3] - 2026-08-27
+
+### 修复
+
+- **modlens 视觉包装层重复计费(issue #70,报告 @lucas-wang-1)**:modlens 插件为承载纯文本模型的 provider 路由自动注册 `modlens-<upstream>`(官方路由为 `deepseek-modlens`)视觉包装模型,并在监听器体内再发起一次上游 `llm.stream` 转发同一份 usage——该内层分发逃逸 billing-stream 的 ALS 嵌套深度标记,实时钩子、会话投影与历史回放照单全收,同一次调用在上游与包装层两个 provider 键下各入账一次,token/费用整体翻倍。新增统一判定 `isWrapperProviderId` / `wrapperUpstreamProvider`,三个计费入口(实时 llm/stream 钩子、costUsage 投影、backfill 回放)对包装层 provider 事件一律跳过,只记上游真实流。
+- **modlens 历史翻倍账本一次性清洗(迁移 `modlens-wrapper-dedup-v1`)**:与 #48 指纹合并(provider-dedup-v1,保留字母序第一个键)的遗留交互区分四种形态逐容器(day 与其下每个 session)修正——镜像对扣除包装层份;#48 合并残留 + 新镜像混存(上游 ⊆ 包装层)扣除上游键、包装层全量改挂上游;仅包装层入账的残留改挂上游;同日直连 + 包装混存(包装层 ⊆ 上游)扣除纯镜像份。互不为子集的条目保守不动;改挂后按新 provider 重算 plan/api 分类;幂等。
+- **火山方舟 Coding Plan 额度解析失败(issue #71,报告 @suyukun)**:管控面 Action 白名单缺 `GetCodingPlanUsage`——该接口才是 CodingPlan 官方用量接口,无参即返回 `Result.QuotaUsage[]` 三窗(session/weekly/monthly,只含 `Percent`);而位列首位的 `GetAFPUsage` 实为 AgentPlan 接口,CodingPlan 用户拿到全 0/空。`GetCodingPlanUsage` 置于白名单首位,解析器补 `QuotaUsage` 数组与 `Level` 窗名字段(session/weekly/monthly),原 Action 保留作兜底变体。
+
 ## [1.6.2] - 2026-08-26
 
 ### 修复(计费逻辑专项审计)
