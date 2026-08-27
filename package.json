@@ -92,6 +92,6 @@
     "prepare": "node scripts/build.mjs"
   },
   "devDependencies": {
-    "esbuild": "^0.27.7"
+    "esbuild": "^0.28.1"
   }
 }
