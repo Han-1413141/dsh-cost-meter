@@ -231,22 +231,22 @@ Real captures from an actual DSH sidebar of the period strip and collapsed verti
 dsh plugin --profile web add dsh-cost-meter
 ```
 
-**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.6.4`** — review the script before running):
+**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.6.5`** — review the script before running):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.6.4/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.6.5/install.ps1 | iex
 ```
 
 **Or a plain command line** (the machine must already have pnpm and git; also pinned to the tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.6.4
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.6.5
 ```
 
 Without git, use the GitHub tag archive:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.6.4.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.6.5.tar.gz
 ```
 
 After installing, **restart** `dsh web` (plugin rows, the Typert manifest and the client bundle are all scanned at startup):
@@ -263,7 +263,7 @@ Cause: your environment (pnpm config or a policy bundled into the invoking insta
 
 Fix:
 
-1. **Upgrade to v1.6.4+**: all three runtime dependencies (`@deepseek-ai/dsh-credentials`, `@deepseek-ai/dsh-home-paths`, `zod`) are now exact-pinned — a pinned version's publish date never changes, so it satisfies any age threshold and this plugin can no longer trigger the error;
+1. **Upgrade to v1.6.5+**: all three runtime dependencies (`@deepseek-ai/dsh-credentials`, `@deepseek-ai/dsh-home-paths`, `zod`) are now exact-pinned — a pinned version's publish date never changes, so it satisfies any age threshold and this plugin can no longer trigger the error;
 2. If the error is triggered by **another plugin's** dependencies instead, append an exclusion for the offending `name@version` printed in the error to the profile's `pnpm-workspace.yaml` (default `$DSH_HOME/profiles/web/pnpm-workspace.yaml`) and retry:
 
 ```yaml

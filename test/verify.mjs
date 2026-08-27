@@ -2697,8 +2697,19 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   r = reconcileBalanceDelta(cnyBase, { ...bal(0), currency: 'USD' }, 0.5, day, t1)
   assert.equal(r.event.kind, 'structure-reset', '币种切换重置参考点(USD 0.00 误读不再触发 drift)')
   assert.equal(r.ref.currency, 'USD', '重置后基准带新币种')
-  r = reconcileBalanceDelta(cnyBase, { ...bal(96), currency: 'CNY' }, 0.9, day, t1)
-  assert.equal(r.event.kind, 'ok', '同币种正常对账不受影响')
+  r = reconcileBalanceDelta(cnyBase, { ...bal(96), currency: 'CNY' }, 1 / 7.2, day, t1)
+  assert.equal(r.event.kind, 'ok', '同币种按默认汇率折算后与账本一致判 ok(¥1≈$0.1389@7.2,旧断言的跨币种直比即缺陷本身)')
+  // 币种折算(CNY 余额 vs USD 账本):跨币种直比曾让 ¥ 计价账号恒报 drift 且变动被错标 $。
+  r = reconcileBalanceDelta(cnyBase, { ...bal(91.66), currency: 'CNY' }, 0, day, t1, { exchangeRate: 7.2 })
+  assert.equal(r.event.kind, 'drift', 'CNY 账本为 0 时报 drift')
+  assert.ok(Math.abs(r.event.spent - 5.34) < 1e-9, 'drift.spent 为原生(¥)金额')
+  assert.ok(Math.abs(r.event.spentUsd - 5.34 / 7.2) < 1e-9, 'drift.spentUsd 按传入汇率折算')
+  assert.equal(r.event.spentCurrency, 'CNY', 'drift 携带原生币种供文案取符号')
+  r = reconcileBalanceDelta(cnyBase, { ...bal(91.66), currency: 'CNY' }, 0.74, day, t1, { exchangeRate: 7.2 })
+  assert.equal(r.event.kind, 'ok', '折算后与账本一致判 ok(此前跨币种直比恒 drift)')
+  const indexSrcRecon = readFileSync(join(import.meta.dirname, '..', 'lib', 'index.js'), 'utf8')
+  assert.ok(indexSrcRecon.includes('exchangeRate: ledger.config.exchangeRate'), '对账调用传入汇率做折算')
+  assert.ok(indexSrcRecon.includes('spentCurrency'), '提示按余额真实币种取符号')
   // 旧参考点无币种标记(升级前账本):重置一次基准。
   const legacyBase = { date: day, total: 10, granted: 1, topped: 9, at: t0 }
   r = reconcileBalanceDelta(legacyBase, { ...bal(9), currency: 'CNY' }, 0.95, day, t1)
@@ -2746,6 +2757,15 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.equal(officialCostOfDay({ date: '2026-08-21', calls: 2, cost: 1.23 }), 1.23, '无 byProviderModel 的旧数据退回全量')
   assert.equal(officialCostOfDay({ ...mixedDay, byProviderModel: {} }), 1.1, '空 byProviderModel 退回全量')
   assert.equal(officialCostOfDay(undefined), 0, '无当日记录返回 0')
+  // 'deepseek-official' 是 profile 内置官方路由的实际 provider id(账本键形如
+  // deepseek-official:deepseek-v4-flash);漏认会让今日官方费用恒为 $0,余额对账恒报 drift。
+  assert.equal(
+    officialCostOfDay({ date: 'd', byProviderModel: { 'deepseek-official:deepseek-v4-flash': { cost: 2 }, 'deepseek:v4': { cost: 1 }, 'go:deepseek-v4-flash': { cost: 5 } } }),
+    3,
+    '官方渠道含 deepseek-official 键(go 网关不计入)',
+  )
+  const storeSrcRecon = readFileSync(join(import.meta.dirname, '..', 'lib', 'store.js'), 'utf8')
+  assert.ok(storeSrcRecon.includes("provider !== 'deepseek' && provider !== 'deepseek-official'"), 'officialCostOfDay 双官方键判定在源码中')
   // Ledger.todayOfficialCost():今日键聚合;纯 Plan/自定义渠道用户为 0;无今日记录为 0。
   const cfg36 = sanitizeConfig({})
   const todayKey36 = localDayKey(Date.now())
