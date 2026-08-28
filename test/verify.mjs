@@ -33,7 +33,7 @@ import {
   isWrapperProviderId,
   wrapperUpstreamProvider,
 } from '../lib/pricing.js'
-import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays, officialCostOfDay, splitLedgerApiCost, zeroDay, repairLedgerPricing, dedupeWrapperProviderDays } from '../lib/store.js'
+import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays, officialCostOfDay, splitLedgerApiCost, zeroDay, repairLedgerPricing, dedupeWrapperProviderDays, stripSecrets, secretRefOf, readSecret, SECRET_TARGETS } from '../lib/store.js'
 import {
   billingClassOf,
   enabledPlanSetOf,
@@ -873,7 +873,10 @@ const cpPatch = applyConfigPatch(reloaded.config, {
 })
 assert.equal(cpPatch.errors.length, 0, 'codingPlans 补丁合法')
 assert.equal(cpPatch.config.codingPlans.anthropic.enabled, true, 'anthropic 启用生效')
-assert.equal(cpPatch.config.codingPlans.anthropic.apiKey, 'sk-ant-test', 'anthropic Key 保留')
+// v1.6.8 密钥治理:密钥不再经 updateConfig 传递(必须走 setCredential 写凭据库),
+// 补丁中的密钥字段一律剥离——否则明文会重新回到 config,既不会落盘(stripSecrets 挡住)
+// 但也永远不会被 runSecretMigration 迁走,事实上造成密钥丢失。
+assert.equal(cpPatch.config.codingPlans.anthropic.apiKey, '', '补丁中的密钥字段被剥离(改走 setCredential)')
 assert.equal(cpPatch.config.codingPlans.zai.enabled, false, '非法 enabled 回退 false')
 assert.equal(cpPatch.config.codingPlans.zai.display, 'settings', '非法 display 回退 settings')
 assert.equal(cpPatch.config.codingPlans.zai.refreshMinutes, 15, '非法 refreshMinutes 回退 15')
@@ -3463,7 +3466,8 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   // issue #57 口径保留(默认已用方向),#67 新增方向可翻转:按 direction 换算后填充(默认仍为已用)。
   assert.ok(mmBody.includes('barView.width') || mmBody.includes("width: (pct ?? 0) + '%'"), 'issue #57/#67: 进度条按方向换算后填充(默认已用)')
   // issue #59-1:充值直达链接。
-  assert.ok(src.includes("https://platform.deepseek.com/usage"), 'issue #59: DeepSeek 充值页 URL 在册')
+  // CodeQL #7 误报:这是断言源码里「充值链接字符串存在」的存在性检查,并非用子串匹配做 URL 净化。
+  assert.ok(src.includes("https://platform.deepseek.com/usage"), 'issue #59: DeepSeek 充值页 URL 在册') // codeql[js/incomplete-url-substring-sanitization]
   assert.equal([...src.matchAll(/rechargeLinkEl\(t\)/g)].length, 3, 'issue #59: 充值链接在 helper 定义与余额行/图框两处渲染共出现三次')
   assert.ok(src.includes('.cm-bal-link{'), 'issue #59: 充值链接样式存在')
   assert.ok(src.includes('balanceRechargeLink:') && [...src.matchAll(/balanceRechargeLink:/g)].length === 2, 'issue #59: 充值提示文案 zh/en 各一份')
@@ -3638,15 +3642,20 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   // 老配置仅 apiKey 承载 AK 时迁移
   const volcCfgLegacy = sanitizeConfig({ codingPlans: { volcengine: { enabled: true, apiKey: 'AKLEGACY' } } })
   assert.equal(volcCfgLegacy.codingPlans.volcengine.accessKeyId, 'AKLEGACY', 'apiKey 迁移为 accessKeyId')
-  // 校验 applyConfigPatch
-  const volcPatch = applyConfigPatch(sanitizeConfig({}), { codingPlans: { volcengine: { enabled: true, accessKeyId: 'AK2', secretAccessKey: 'SK2' } } })
+  // 校验 applyConfigPatch(v1.6.8 密钥治理:补丁中的 AK/SK 一律剥离,改走 setCredential;
+  // enable/display/refreshMinutes 等非密钥字段仍正常生效)
+  const volcPatch = applyConfigPatch(sanitizeConfig({}), { codingPlans: { volcengine: { enabled: true, display: 'both', accessKeyId: 'AK2', secretAccessKey: 'SK2' } } })
   assert.equal(volcPatch.errors.length, 0, 'volcengine 补丁合法')
-  assert.equal(volcPatch.config.codingPlans.volcengine.accessKeyId, 'AK2', '补丁生效')
+  assert.equal(volcPatch.config.codingPlans.volcengine.enabled, true, '补丁的 enabled 生效')
+  assert.equal(volcPatch.config.codingPlans.volcengine.display, 'both', '补丁的 display 生效')
+  assert.equal(volcPatch.config.codingPlans.volcengine.accessKeyId, '', '补丁中的 AK 被剥离(改走 setCredential)')
+  assert.equal(volcPatch.config.codingPlans.volcengine.secretAccessKey, '', '补丁中的 SK 被剥离(改走 setCredential)')
   // 7) 客户端文案与输入框存在
   const clientSrc = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
   assert.ok(clientSrc.includes('volcengineAccessKeyIdLabel') && clientSrc.includes('volcengineSecretAccessKeyLabel'), '客户端双凭据文案存在')
   assert.ok(clientSrc.includes('volcengineNote'), '客户端说明文案存在')
-  assert.ok(clientSrc.includes("setPlan(id, 'accessKeyId'") && clientSrc.includes("setPlan(id, 'secretAccessKey'"), '客户端双输入框写回')
+  // v1.6.8 密钥治理:AK/SK 双输入框改走 write-only CredentialField,目标为凭据库引用键。
+  assert.ok(clientSrc.includes("target: 'codingPlans.volcengine.ak'") && clientSrc.includes("target: 'codingPlans.volcengine.sk'"), '客户端 AK/SK 双输入框写回凭据库')
   assert.ok(clientSrc.includes("id === 'volcengine'"), '客户端 volcengine 分支渲染')
   assert.ok(clientSrc.includes("STRIP_VENDOR_SHORT") && clientSrc.includes("volcengine: 'Ark'"), '横条短标签包含 volcengine')
   // 8) 端点白名单
@@ -4251,6 +4260,190 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const wsYaml = readFileSync(join(import.meta.dirname, '..', 'pnpm-workspace.yaml'), 'utf8')
   assert.ok(wsYaml.includes("esbuild@0.28.1"), 'workspace 排除表包含 esbuild(本仓开发安装受年龄策略时放行)')
   console.log('[ok] 生产依赖精确锁版门禁(#72 防回归)通过')
+}
+
+// ===== v1.6.8 密钥治理:落盘/下发双路径脱敏 + 存量明文自动导入凭据库(P0-1/P0-2)=====
+{
+  const SECRET_SAMPLES = {
+    go: 'sk-go-PLAINTEXT-0001',
+    anthropic: 'sk-ant-PLAINTEXT-0002',
+    zai: 'sk-zai-PLAINTEXT-0003',
+    volcAk: 'AKID-PLAINTEXT-0004',
+    volcSk: 'SK-PLAINTEXT-0005',
+    scnet: 'scnet-PLAINTEXT-0006',
+  }
+  const mkSecretConfig = () => sanitizeConfig({
+    goQuota: { enabled: true, apiKey: SECRET_SAMPLES.go },
+    codingPlans: {
+      anthropic: { enabled: true, apiKey: SECRET_SAMPLES.anthropic },
+      zai: { enabled: true, apiKey: SECRET_SAMPLES.zai },
+      volcengine: { enabled: true, accessKeyId: SECRET_SAMPLES.volcAk, secretAccessKey: SECRET_SAMPLES.volcSk },
+      scnet: { enabled: true, apiKey: SECRET_SAMPLES.scnet },
+    },
+  })
+
+  // 1) stripSecrets:输出不含任何密钥明文、保留空占位字段形状(strict codec),且不改原对象。
+  const cfgWithSecrets = mkSecretConfig()
+  const stripped = stripSecrets(cfgWithSecrets)
+  const strippedJson = JSON.stringify(stripped)
+  for (const value of Object.values(SECRET_SAMPLES)) {
+    assert.ok(!strippedJson.includes(value), `stripSecrets 清空明文(${value.slice(0, 10)}…)`)
+  }
+  assert.equal(stripped.goQuota.apiKey, '', 'goQuota 空占位保留(字段形状不变)')
+  assert.equal(stripped.codingPlans.anthropic.apiKey, '', 'plan apiKey 空占位保留')
+  assert.equal(stripped.codingPlans.volcengine.accessKeyId, '', 'AK 空占位保留')
+  assert.equal(stripped.codingPlans.volcengine.secretAccessKey, '', 'SK 空占位保留')
+  assert.equal(stripped.codingPlans.scnet.apiKey, '', 'scnet 遗留 apiKey 一并清空(无凭据 ref)')
+  assert.equal(cfgWithSecrets.goQuota.apiKey, SECRET_SAMPLES.go, 'stripSecrets 不改原对象(内存运行时兜底仍可用)')
+  assert.ok(Array.isArray(SECRET_TARGETS) && SECRET_TARGETS.includes('goQuota') && SECRET_TARGETS.includes('codingPlans.volcengine.ak') && SECRET_TARGETS.includes('codingPlans.volcengine.sk'), 'SECRET_TARGETS 覆盖 goQuota 与火山双凭据')
+
+  // 2) Ledger.flush() 落盘结果不含密钥(空占位照写),内存 config 保留明文供兜底。
+  //    flush() 在 pendingWrite=false 时跳过,先 scheduleWrite 置脏再立即 flush;close() 收尾清掉防抖定时器。
+  const flushRoot = join(tmpdir(), `cm-secret-flush-${Date.now()}`)
+  mkdirSync(join(flushRoot, 'storages', 'cost-meter'), { recursive: true })
+  const flushLedger = new Ledger(mkSecretConfig(), {}, join(flushRoot, 'storages', 'cost-meter', 'ledger.json'))
+  flushLedger.scheduleWrite()
+  flushLedger.flush()
+  const onDisk = readFileSync(join(flushRoot, 'storages', 'cost-meter', 'ledger.json'), 'utf8')
+  for (const value of Object.values(SECRET_SAMPLES)) {
+    assert.ok(!onDisk.includes(value), `落盘文件不含明文(${value.slice(0, 10)}…)`)
+  }
+  assert.ok(onDisk.includes('"apiKey":""'), '落盘保留空占位字段形状')
+  assert.equal(flushLedger.config.goQuota.apiKey, SECRET_SAMPLES.go, '内存 config 保留明文(运行时兜底)')
+  flushLedger.close()
+  rmSync(flushRoot, { recursive: true, force: true })
+
+  // 3) runSecretMigration:成功 / 已配置 / 不可写 / 幂等 / 火山 AKID:SK 拆分 五条路径。
+  const { runSecretMigration, SECRET_MIGRATION_ID } = await import('../lib/index.js')
+  // 迁移内部会 scheduleWrite(2s 防抖定时器):所有临时账本 close() 后统一清理,
+  // 防止定时器在目录删除后反复重试写入(警告刷屏 + 进程不退出)。
+  const secretTmpRoots = []
+  const mkCreds = ({ configured = false, writable = true } = {}) => {
+    const calls = []
+    return {
+      calls,
+      async describe() { return { configured, writable, source: configured ? 'env' : '' } },
+      async set(ref, value) { calls.push(['set', String(ref), value]) },
+      async unset(ref) { calls.push(['unset', String(ref)]) },
+    }
+  }
+  const mkLedgerWithSecrets = (name, config) => {
+    const root = join(tmpdir(), `cm-secret-${name}-${Date.now()}`)
+    mkdirSync(join(root, 'storages', 'cost-meter'), { recursive: true })
+    secretTmpRoots.push(root)
+    return new Ledger(sanitizeConfig(config), {}, join(root, 'storages', 'cost-meter', 'ledger.json'))
+  }
+  const ctxOf = creds => ({ get: key => (key === 'credentials' ? creds : undefined) })
+
+  // 3a) 成功路径:明文 → set() → config 字段清空 → 迁移标记记入(幂等防重跑)。
+  const okLedger = mkLedgerWithSecrets('ok', { goQuota: { enabled: true, apiKey: SECRET_SAMPLES.go }, codingPlans: { anthropic: { enabled: true, apiKey: SECRET_SAMPLES.anthropic } } })
+  const okCreds = mkCreds({ configured: false, writable: true })
+  const okResult = await runSecretMigration(ctxOf(okCreds), okLedger)
+  assert.deepEqual(okResult.imported, ['goQuota', 'codingPlans.anthropic'], '成功路径导入目标与顺序')
+  assert.deepEqual(okCreds.calls.filter(c => c[0] === 'set').map(c => c[2]), [SECRET_SAMPLES.go, SECRET_SAMPLES.anthropic], 'set 收到完整明文(值不截断)')
+  assert.ok(okCreds.calls.some(c => c[0] === 'set' && c[1].includes('OPENCODE_GO_API_KEY')), 'goQuota 写入 OPENCODE_GO_API_KEY')
+  assert.equal(okLedger.config.goQuota.apiKey, '', '导入成功后 config 字段清空')
+  assert.equal(readSecret(okLedger.config, 'codingPlans.anthropic'), '', 'plan 遗留明文清空')
+  assert.ok(okLedger.migrations.includes(SECRET_MIGRATION_ID), '迁移完成标记已记入(下轮不重跑)')
+  assert.deepEqual(okLedger.secretMigration.pending, [], '成功路径无 pending')
+  // 幂等:重复执行不再 set(明文已清空,无东西可迁)。
+  const okCreds2 = mkCreds({ configured: false, writable: true })
+  const okResult2 = await runSecretMigration(ctxOf(okCreds2), okLedger)
+  assert.equal(okCreds2.calls.length, 0, '幂等:重复执行零 set')
+  assert.deepEqual(okResult2.imported, [], '幂等:无重复导入')
+  okLedger.flush()
+  const okDisk = readFileSync(okLedger.path, 'utf8')
+  assert.ok(!okDisk.includes(SECRET_SAMPLES.go) && !okDisk.includes(SECRET_SAMPLES.anthropic), '迁移后落盘复查无明文')
+  okLedger.close()
+
+  // 3b) 已配置路径:凭据库/环境已有值 → 只清空遗留明文,绝不覆盖。
+  const coveredLedger = mkLedgerWithSecrets('covered', { goQuota: { enabled: true, apiKey: SECRET_SAMPLES.go } })
+  const coveredCreds = mkCreds({ configured: true, writable: true })
+  const coveredResult = await runSecretMigration(ctxOf(coveredCreds), coveredLedger)
+  assert.equal(coveredCreds.calls.filter(c => c[0] === 'set').length, 0, '已配置路径不覆盖已有凭据')
+  assert.deepEqual(coveredResult.cleared, ['goQuota'], '遗留明文被清空')
+  assert.equal(coveredLedger.config.goQuota.apiKey, '', '已配置路径 config 清空')
+  coveredLedger.close()
+
+  // 3c) 不可写路径(writable=false 且未配置):明文保留 + pending(UI 提示),不记完成标记。
+  const pendingLedger = mkLedgerWithSecrets('pending', { goQuota: { enabled: true, apiKey: SECRET_SAMPLES.go } })
+  const pendingCreds = mkCreds({ configured: false, writable: false })
+  const pendingResult = await runSecretMigration(ctxOf(pendingCreds), pendingLedger)
+  assert.equal(pendingCreds.calls.filter(c => c[0] === 'set').length, 0, '不可写路径不冒险写入')
+  assert.equal(pendingLedger.config.goQuota.apiKey, SECRET_SAMPLES.go, '不可写路径明文保留(绝不静默丢弃用户密钥)')
+  assert.deepEqual(pendingResult.pending, ['goQuota'], '进入 pending 列表')
+  assert.ok(!pendingLedger.migrations.includes(SECRET_MIGRATION_ID), '不记完成标记(下个启动周期重试)')
+  pendingLedger.close()
+
+  // 3d) 火山 AKID:SK 冒号串拆分:整体串拆成双凭据分别 set,不把整串写进 VOLC_ACCESSKEY。
+  const splitLedger = mkLedgerWithSecrets('split', { codingPlans: { volcengine: { enabled: true, accessKeyId: 'AKID123:SECRET456' } } })
+  const splitCreds = mkCreds({ configured: false, writable: true })
+  const splitResult = await runSecretMigration(ctxOf(splitCreds), splitLedger)
+  const splitSets = splitCreds.calls.filter(c => c[0] === 'set')
+  assert.equal(splitSets.length, 2, '火山拆分后恰好两次 set')
+  assert.ok(splitSets.some(c => c[1].includes('VOLC_ACCESSKEY') && c[2] === 'AKID123'), 'AK 单独写入 VOLC_ACCESSKEY')
+  assert.ok(splitSets.some(c => c[1].includes('VOLC_SECRETKEY') && c[2] === 'SECRET456'), 'SK 单独写入 VOLC_SECRETKEY')
+  assert.deepEqual(splitResult.imported.sort(), ['codingPlans.volcengine.ak', 'codingPlans.volcengine.sk'], '火山双凭据都导入')
+  assert.equal(readSecret(splitLedger.config, 'codingPlans.volcengine.ak'), '', '拆分后 AK 字段清空')
+  assert.equal(readSecret(splitLedger.config, 'codingPlans.volcengine.sk'), '', '拆分后 SK 字段清空')
+  splitLedger.close()
+
+  // 4) buildState 下发脱敏(经真实 apply() → getState):config 只含空占位 + keyConfigured/keySource 状态,
+  //    全量快照可过 getState strict codec(新增 secretMigration/keyConfigured/keySource 已入 schema)。
+  const prevStateHome = process.env.DSH_HOME
+  const stateRoot = join(tmpdir(), `cm-secret-state-${Date.now()}`)
+  mkdirSync(join(stateRoot, 'storages', 'cost-meter'), { recursive: true })
+  writeFileSync(join(stateRoot, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({ version: 1, config: {
+    goQuota: { enabled: true, apiKey: SECRET_SAMPLES.go },
+    codingPlans: { anthropic: { enabled: true, apiKey: SECRET_SAMPLES.anthropic } },
+  }, days: {} }))
+  process.env.DSH_HOME = stateRoot
+  const stateCreds = mkCreds({ configured: true, writable: true })
+  const provided = {}
+  const { apply } = await import('../lib/index.js')
+  apply({
+    on: () => () => {},
+    effect: () => {},
+    inject: () => {},
+    provide: (k, v) => { provided[k] = v },
+    logger: console,
+    get: key => (key === 'credentials' ? stateCreds : key === 'settings' ? { get: () => ({}) } : undefined),
+  })
+  const state = await provided.costMeter.getState()
+  assert.equal(state.config.goQuota.apiKey, '', '下发的 goQuota.apiKey 恒为空串')
+  assert.equal(state.config.goQuota.keyConfigured, true, '下发密钥配置状态(keyConfigured)')
+  assert.equal(state.config.goQuota.keySource, 'env', '下发密钥来源(keySource)')
+  assert.equal(state.config.codingPlans.anthropic.apiKey, '', '下发的 plan apiKey 恒为空串')
+  assert.equal(state.config.codingPlans.anthropic.keyConfigured, true, '下发 plan 密钥配置状态')
+  const stateJson = JSON.stringify(state)
+  for (const value of Object.values(SECRET_SAMPLES)) {
+    assert.ok(!stateJson.includes(value), `下发的 state 不含密钥明文(${value.slice(0, 10)}…)`)
+  }
+  const codecStateV168 = TYPERT.invocations.find(i => i.method === 'getState').result.schema
+  const codecCheckV168 = codecStateV168.safeParse(JSON.parse(JSON.stringify(state)))
+  assert.ok(codecCheckV168.success, '含密钥状态字段的快照通过 getState strict codec:' + (codecCheckV168.success ? '' : JSON.stringify(codecCheckV168.error.issues.slice(0, 4))))
+  rmSync(stateRoot, { recursive: true, force: true })
+  if (prevStateHome === undefined) delete process.env.DSH_HOME
+  else process.env.DSH_HOME = prevStateHome
+
+  // 5) RPC descriptor 双侧对齐(v1.6.8 新增 setCredential/clearCredential)。
+  const setDesc = TYPERT.invocations.find(i => i.method === 'setCredential')
+  const clearDesc = TYPERT.invocations.find(i => i.method === 'clearCredential')
+  assert.ok(setDesc !== undefined && clearDesc !== undefined, '服务端 descriptors 含 setCredential/clearCredential')
+  assert.deepEqual(setDesc.parameters.map(p => p.name), ['target', 'value'], 'setCredential 参数 (target, value)')
+  assert.deepEqual(clearDesc.parameters.map(p => p.name), ['target'], 'clearCredential 参数 (target)')
+  assert.equal(secretRefOf('codingPlans.scnet'), null, 'scnet 无凭据引用(不在 SECRET_TARGETS)')
+  const clientSrcV168 = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
+  assert.ok(clientSrcV168.includes("id: 'dsh-cost-meter#costMeter/setCredential'") && clientSrcV168.includes("id: 'dsh-cost-meter#costMeter/clearCredential'"), '客户端 descriptors 与服务端双侧同步')
+  assert.ok(clientSrcV168.includes('function CredentialField') && clientSrcV168.includes('api.setCredential') && clientSrcV168.includes('api.clearCredential'), '客户端 write-only 凭据输入组件接线')
+  assert.ok(clientSrcV168.includes('function SecretMigrationNotice'), '客户端迁移提示组件存在')
+  // 补丁闸门:密钥不得经 updateConfig 回到 config(叠加此前 873 行/volcengine 两处断言)。
+  const goPatchGate = applyConfigPatch(sanitizeConfig({}), { goQuota: { apiKey: 'sk-via-patch' } })
+  assert.equal(goPatchGate.errors.length, 0, '含密钥补丁整体合法(非密钥字段不报错)')
+  assert.equal(goPatchGate.config.goQuota.apiKey, '', '补丁中的 goQuota.apiKey 被剥离')
+
+  for (const root of secretTmpRoots) rmSync(root, { recursive: true, force: true })
+  console.log('[ok] 密钥治理(落盘/下发脱敏/存量迁移五路径/strict codec/RPC 对齐)(v1.6.8)通过')
 }
 
 console.log('[ok] 全部验证通过')

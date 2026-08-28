@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.6.8] - 2026-08-28
+
+### 修复(密钥治理,安全专项)
+
+- **API Key 明文落盘(P0)**:v1.6.7 及更早把整个 config 原样序列化进 `$DSH_HOME/storages/cost-meter/ledger.json`——其中含 `goQuota.apiKey`、9 家 `codingPlans[*].apiKey`、火山方舟 `accessKeyId/secretAccessKey`,且写入未指定 mode(POSIX 下 0644),本机实测账本里存有两把明文 `sk-` 密钥。修复:新增 `stripSecrets`(store.js)——`flush()` 序列化前清空全部密钥字段(空占位字符串保形,strict codec 不受影响),**内存 config 仍保留明文供运行时解析兜底**;`applyConfigPatch` 最底层入口新增 `stripSecretPatch` 闸门,密钥不再能经配置补丁回到 config(updateConfig、测试、未来新增 RPC 一并受保护)。
+- **密钥明文回传前端(P0)**:`buildState` 把 `ledger.config` 原样下发、`mergedCodingPlans()` 再带一次 `apiKey`——前端 `type="password"` 只是 UI 掩码,值早已抵达浏览器。修复:`buildState` 转异步并下发 `stripSecrets` 后的副本;`mergedCodingPlans` 转异步,`apiKey` 恒为空串,改以 `keyConfigured/keySource`(来自凭据库 `describe()`,该接口专为配置 UI 设计、永不返回值本身)描述配置状态;前端设置页全部密钥输入框(OpenCode Go / 各 Coding Plan / 火山 AK/SK)替换为 write-only 的 `CredentialField` 组件——值只沿 `setCredential` 单向上行,保存后不回显,仅显示「已配置(来源 x)」状态;新增 `SecretMigrationNotice` 组件提示未能自动迁移的密钥。
+
+### 改进
+
+- **密钥统一由 DSH 凭据库托管**:新增 `setCredential(target, value)` / `clearCredential(target)` 两个 RPC(`target` ∈ `goQuota` | `codingPlans.<id>` | `codingPlans.volcengine.ak` / `.sk`),值只进宿主凭据库(`credentials.set/unset`),不再经 `updateConfig` 传递;读路径优先级调整为 **DSH 凭据库 → 环境变量 → 自动发现(opencode auth.json / Claude 登录态)→ config 遗留明文兜底**(末位兜底保证迁移时间窗内功能不中断),每次 per-operation 重新 resolve 不缓存。
+- **存量明文自动迁移**(升级即迁移):新增带 ctx 的异步启动钩子 `runSecretMigration`(挂在 `apply()` 内与历史导入同一个 3 秒延迟定时器,**先于**回填执行),把账本遗留明文逐项导入凭据库后清空 config 字段,迁移 id `secrets-to-credential-store-v1` 记入账本 migrations 防重跑。逐项四种结局:① 凭据库/环境已有值 → 只清空遗留明文,不覆盖;② 可写 → `set()` 成功后清空;③ 不可写且未配置 → **原样保留明文**并记入 `secretMigrationPending`(UI 提示手动导出对应环境变量),下个启动周期重试——绝不静默丢弃用户密钥;④ describe 不可用(宿主版本较旧)按③处理。火山 `AKID:SK` 整串先拆成 AK/SK 两字段再导入;全部处理完后立即落盘。
+- **自定义余额端点收紧**:`customBalance.request.url` 强制 https(明文 http 直接报错);`fetchWithRetry` 显式 `redirect: 'manual'` 并拒绝 3xx 响应——禁止自动跟随重定向把凭据头转发到其他主机;请求头含凭据占位符(`{{VAR}}`)时,目标主机不在 `customBalance.allowedHosts` 白名单内则拒绝,未配置白名单则放行但警告提示收紧。
+- **权限声明补真**:`dshhub.permissions.network` 从 4 个域名补全为代码实际出站的 16 个(opencode.ai、api.anthropic.com、api.z.ai、open.bigmodel.cn、www.minimaxi.com、www.minimax.io、api.kimi.com、api.moonshot.cn、openrouter.ai、api.siliconflow.cn、api.commandcode.ai、ax.ac.sugon.com + 既有 4 个);README 中英版补「密钥不落盘 / write-only 输入框」与「额度类端点仅在显式启用对应 Provider 时出站」说明。
+
+### 工程化
+
+- **CI 接入回归与产物门禁**:install-smoke workflow 在安装冒烟后追加 `node test/verify.mjs` 回归与 `node scripts/build.mjs && git diff --exit-code lib/client.js` 产物漂移检查(lib/client.js 是提交进仓库的压缩产物且无 prepack 钩子,此前全靠手工构建,实测发生过漂移);package.json 新增 `npm test` 与 `engines: node>=20`(与 dshhub.compatibility 对齐)。
+- **CodeQL 误报抑制**:#10(`test/check-opencode-catalog.mjs` 价目表单元格文本提取)与 #7(`test/verify.mjs` 充值链接存在性断言)均为测试断言而非安全净化,按真实告警规则加 `codeql[...]` 抑制注释;补发 v1.6.4 / v1.6.5 / v1.6.6 三份 release notes。
+
+### 破坏性变更
+
+- 密钥配置方式变更:设置页密码框从「可回填值的掩码框」变为 **write-only**(保存后不回显,只显示配置状态);升级后首次启动会自动把存量明文密钥导入 DSH 凭据库,宿主凭据服务不可写的场景下密钥保留在账本中并提示手动导出环境变量(见升级说明)。
+
+### 验证
+
+- verify.mjs 新增「密钥治理」回归块:`stripSecrets` 输出与 `flush()` 落盘文件不含任何密钥明文(空占位保形)、真实 `apply()` → `getState()` 下发 state 不含明文且可过 getState strict codec(新增 `secretMigration` / `keyConfigured` / `keySource` 字段已入 schema)、迁移五路径(成功 / 已配置不覆盖 / 不可写保留 + pending / 幂等零重复 set / 火山 AKID:SK 拆分)、`setCredential`/`clearCredential` descriptor 双侧对齐与 write-only 组件接线、配置补丁密钥剥离闸门。
+- `node test/verify.mjs` 全量通过;`node scripts/build.mjs` 后 lib/client.js 无漂移并同步提交(243,991 字节,DSH STORE 单文件上限 262,144)。
+
 ## [1.6.7] - 2026-08-27
 
 ### 修复(计费正确性)

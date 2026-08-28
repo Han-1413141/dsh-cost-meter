@@ -475,6 +475,15 @@ window.__ModuleLoader__.load({
         goQuotaKeyLabel: 'OpenCode Go API Key(可选,留空自动发现)',
         goMainLabel: 'Go 额度主档位',
         goDetailLabel: 'Go 图框详细信息',
+        // 密钥凭据库(v1.6.8)
+        credentialConfiguredOf: '已配置(来源:{source})',
+        credentialNotConfigured: '未配置',
+        credentialSave: '保存',
+        credentialClear: '清除',
+        credentialSaving: '保存中…',
+        credentialInputHint: '密钥只写入 DSH 凭据库,不保存在账本里,也不会回显。',
+        secretMigrationPending: '以下密钥仍以明文留在本地账本,未能自动迁入凭据库。请导出对应环境变量后重启:',
+        credentialUnknownTarget: '未知的密钥目标',
         budgetDetailLabel: '预算图框详细信息',
         refreshGoQuota: '刷新额度',
         goQuotaNotQueried: '未查询额度',
@@ -881,6 +890,15 @@ window.__ModuleLoader__.load({
         goQuotaKeyLabel: 'OpenCode Go API key (optional; empty = auto-detect)',
         goMainLabel: 'Go quota primary window',
         goDetailLabel: 'Go box details',
+        // 密钥凭据库(v1.6.8)
+        credentialConfiguredOf: 'Configured (source: {source})',
+        credentialNotConfigured: 'Not configured',
+        credentialSave: 'Save',
+        credentialClear: 'Clear',
+        credentialSaving: 'Saving…',
+        credentialInputHint: 'The key is written to the DSH credential store only — it is never saved in the ledger and never echoed back.',
+        secretMigrationPending: 'These credentials are still stored in plaintext in the local ledger and could not be migrated automatically. Export the matching environment variables and restart:',
+        credentialUnknownTarget: 'Unknown credential target',
         budgetDetailLabel: 'Budget box details',
         refreshGoQuota: 'Refresh quota',
         goQuotaNotQueried: 'Quota not queried',
@@ -1631,6 +1649,15 @@ window.__ModuleLoader__.load({
       if (v === null || typeof v !== 'object' || Array.isArray(v)) fail('topSessions', 'object')
       return v
     })
+    // 密钥目标与明文(v1.6.8):target 为受限枚举,明文仅单向上行,永不回传。
+    const credTargetCodec = codecOf(v => {
+      if (typeof v !== 'string') fail('target', 'string')
+      return v
+    })
+    const credValueCodec = codecOf(v => {
+      if (typeof v !== 'string') fail('value', 'string')
+      return v
+    })
 
     // ── RPC 贡献(与服务端 ./typert 清单一一对应) ───────────────────────────
 
@@ -1699,6 +1726,25 @@ window.__ModuleLoader__.load({
             { name: 'dir', wire: 'dir', source: 'json', codec: { mode: 'strict', typeSymbol: 'dsh-cost-meter#SessionSortDir', schema: sortCodec }, acceptsUndefined: true },
           ],
           result: { mode: 'strict', typeSymbol: 'dsh-cost-meter#TopSessions', schema: topSessionsCodec },
+        },
+        {
+          // 写入一枚密钥到 DSH 凭据库(v1.6.8):与服务端 typert 清单一一对应。
+          id: 'dsh-cost-meter#costMeter/setCredential', service: 'costMeter', namespace: 'costMeter', method: 'setCredential',
+          invocation: { kind: 'direct' },
+          parameters: [
+            { name: 'target', wire: 'target', source: 'json', codec: { mode: 'strict', typeSymbol: 'dsh-cost-meter#CredentialTarget', schema: credTargetCodec } },
+            { name: 'value', wire: 'value', source: 'json', codec: { mode: 'strict', typeSymbol: 'dsh-cost-meter#CredentialValue', schema: credValueCodec } },
+          ],
+          result: { mode: 'strict', typeSymbol: 'dsh-cost-meter#FetchPricesResult', schema: fetchCodec },
+        },
+        {
+          // 从 DSH 凭据库移除一枚密钥(v1.6.8)。
+          id: 'dsh-cost-meter#costMeter/clearCredential', service: 'costMeter', namespace: 'costMeter', method: 'clearCredential',
+          invocation: { kind: 'direct' },
+          parameters: [
+            { name: 'target', wire: 'target', source: 'json', codec: { mode: 'strict', typeSymbol: 'dsh-cost-meter#CredentialTarget', schema: credTargetCodec } },
+          ],
+          result: { mode: 'strict', typeSymbol: 'dsh-cost-meter#FetchPricesResult', schema: fetchCodec },
         },
       ],
     }
@@ -2153,6 +2199,87 @@ window.__ModuleLoader__.load({
     }
 
     const { createElement: el, Fragment, useState, useEffect, useRef } = React
+
+    /**
+     * 密钥输入控件(v1.6.8,write-only)。
+     *
+     * 密钥不再经 updateConfig 写入配置:值只沿 setCredential 单向送入 DSH 凭据库,
+     * 服务端永不回传明文(state 里的 apiKey 恒为空串),因此输入框**永不回填**——
+     * 已配置与否由服务端 describe() 得来,只显示「已配置(来源 x)」这类状态文案。
+     *
+     * 注意:本组件在 return 之前无条件调用全部 Hook(项目有 Hook 顺序门禁扫描)。
+     */
+    function CredentialField({ target, configured, source, t, api, placeholder, disabled }) {
+      const [text, setText] = useState('')
+      const [busy, setBusy] = useState(false)
+      const [msg, setMsg] = useState(null)
+      const blocked = disabled === true || busy
+      const save = async () => {
+        const value = text.trim()
+        if (value.length === 0 || blocked) return
+        setBusy(true)
+        setMsg(null)
+        try {
+          const result = await api.setCredential(target, value)
+          setText('')
+          setMsg({ kind: 'ok', text: result?.message ?? t('credentialSave') })
+        } catch (error) {
+          setMsg({ kind: 'err', text: String(error?.message ?? error) })
+        } finally {
+          setBusy(false)
+        }
+      }
+      const clear = async () => {
+        if (blocked) return
+        setBusy(true)
+        setMsg(null)
+        try {
+          const result = await api.clearCredential(target)
+          setText('')
+          setMsg({ kind: 'ok', text: result?.message ?? t('credentialClear') })
+        } catch (error) {
+          setMsg({ kind: 'err', text: String(error?.message ?? error) })
+        } finally {
+          setBusy(false)
+        }
+      }
+      return el('div', { className: 'cm-field' },
+        el('input', {
+          className: 'cm-input',
+          type: 'password',
+          value: text,
+          placeholder: typeof placeholder === 'string' ? placeholder : '',
+          disabled: blocked,
+          autoComplete: 'off',
+          onChange: event => setText(event.target.value),
+        }),
+        el('div', { className: 'cm-buttons' },
+          el('button', {
+            className: 'cm-btn small',
+            onClick: save,
+            disabled: blocked || text.trim().length === 0,
+          }, busy ? t('credentialSaving') : t('credentialSave')),
+          configured === true
+            ? el('button', { className: 'cm-btn small', onClick: clear, disabled: blocked }, t('credentialClear'))
+            : null),
+        el('span', { className: 'cm-hint' },
+          configured === true
+            ? t('credentialConfiguredOf', { source: typeof source === 'string' && source.length > 0 ? source : 'unknown' })
+            : t('credentialNotConfigured')),
+        el('span', { className: 'cm-hint' }, t('credentialInputHint')),
+        msg != null ? el('div', { className: 'cm-msg ' + msg.kind }, msg.text) : null)
+    }
+
+    /**
+     * 存量明文密钥未迁出提示(v1.6.8)。
+     * 仅在服务端报告有密钥无法自动导入凭据库时渲染,列出需要手动导出的环境变量名。
+     */
+    function SecretMigrationNotice({ pending, t }) {
+      if (!Array.isArray(pending) || pending.length === 0) return null
+      return el('div', { className: 'cm-msg err' },
+        el('div', null, t('secretMigrationPending')),
+        el('div', null, pending.join('、')))
+    }
 
     // ── 钱包图标:官方填充式单色 SVG(16×16),与 @deepseek-ai/dsh-client-ui-primitives 同构 ──
 
@@ -5191,30 +5318,35 @@ window.__ModuleLoader__.load({
             : id === 'volcengine'
               ? el(Fragment, null,
                 el('div', { className: 'cm-field' },
-                  el('label', null, t('volcengineAccessKeyIdLabel')),
-                  // 不回落显示旧 apiKey 字段(密钥回显泄露)。
-                  el('input', {
-                    className: 'cm-input', type: 'text',
-                    value: typeof cfgEntry.accessKeyId === 'string' ? cfgEntry.accessKeyId : '',
-                    placeholder: t('volcengineAccessKeyPlaceholder'),
-                    onChange: event => setPlan(id, 'accessKeyId', event.target.value),
-                  })),
+                  el('label', null, t('volcengineAccessKeyIdLabel'))),
+                // 密钥改由 DSH 凭据库托管(v1.6.8):不再读/写 config 里的明文,
+                // 经 setCredential / clearCredential 单向操作凭据库,输入框永不回显。
+                el(CredentialField, {
+                  target: 'codingPlans.volcengine.ak',
+                  configured: live.keyConfigured === true,
+                  source: live.keySource,
+                  t, api,
+                  placeholder: t('volcengineAccessKeyPlaceholder'),
+                }),
                 el('div', { className: 'cm-field' },
-                  el('label', null, t('volcengineSecretAccessKeyLabel')),
-                  el('input', {
-                    className: 'cm-input', type: 'password',
-                    value: typeof cfgEntry.secretAccessKey === 'string' ? cfgEntry.secretAccessKey : '',
-                    placeholder: t('volcengineSecretPlaceholder'),
-                    onChange: event => setPlan(id, 'secretAccessKey', event.target.value),
-                  })),
+                  el('label', null, t('volcengineSecretAccessKeyLabel'))),
+                el(CredentialField, {
+                  target: 'codingPlans.volcengine.sk',
+                  configured: live.keyConfigured === true,
+                  source: live.keySource,
+                  t, api,
+                  placeholder: t('volcengineSecretPlaceholder'),
+                }),
                 el('p', { className: 'cm-note' }, t('volcengineNote')))
-              : el('div', { className: 'cm-field' },
-                el('label', null, t('codingPlanKeyLabel')),
-                el('input', {
-                  className: 'cm-input', type: 'password',
-                  value: typeof cfgEntry.apiKey === 'string' ? cfgEntry.apiKey : '',
+              : el(Fragment, null,
+                el('div', { className: 'cm-field' },
+                  el('label', null, t('codingPlanKeyLabel'))),
+                el(CredentialField, {
+                  target: 'codingPlans.' + id,
+                  configured: live.keyConfigured === true,
+                  source: live.keySource,
+                  t, api,
                   placeholder: 'sk-…',
-                  onChange: event => setPlan(id, 'apiKey', event.target.value),
                 }))) : null,
           body,
           msgs[id] != null ? el('div', { className: 'cm-msg ' + msgs[id].kind }, msgs[id].text) : null)
@@ -5616,6 +5748,10 @@ window.__ModuleLoader__.load({
         : null,
         // ── 显示:界面语言、徽章/侧边栏位置、图框开关等 ──
         tab === 'display' ? el(Fragment, { key: 'display' },
+        // 存量明文密钥未迁出提示(v1.6.8):仅在确有密钥无法自动导入凭据库时出现。
+        state?.secretMigration?.pending?.length > 0
+          ? el(SecretMigrationNotice, { pending: state.secretMigration.pending, t })
+          : null,
         // 顶栏:界面语言
         el('div', { className: 'cm-toolbar' },
           el('div', { className: 'cm-field' },
@@ -5837,16 +5973,16 @@ window.__ModuleLoader__.load({
                 el('span', { className: 'cm-range-value' },
                   `${Math.min(60, Math.max(1, Math.floor(Number(draft?.goQuota?.refreshMinutes) || 15)))} ${t('goQuotaRefreshMinutesUnit')}`))),
             el('div', { className: 'cm-field' },
-              el('label', null, t('goQuotaKeyLabel')),
-              el('input', {
-                className: 'cm-input', type: 'password',
-                value: draft?.goQuota?.apiKey ?? '',
-                placeholder: 'sk-…',
-                onChange: event => {
-                  if (draft === null) return
-                  setDraft({ ...draft, goQuota: { ...(draft.goQuota ?? { display: 'both', refreshMinutes: 15, apiKey: '' }), apiKey: event.target.value } })
-                },
-              })),
+              el('label', null, t('goQuotaKeyLabel'))),
+            // 密钥改由 DSH 凭据库托管(v1.6.8):不再读/写 config.goQuota.apiKey,
+            // 经 setCredential / clearCredential 单向操作,输入框永不回显。
+            el(CredentialField, {
+              target: 'goQuota',
+              configured: config.goQuota?.keyConfigured === true,
+              source: config.goQuota?.keySource,
+              t, api,
+              placeholder: 'sk-…',
+            }),
             el('div', { className: 'cm-grid-group' }, t('quotaStripGroup')),
             el('div', { className: 'cm-field' },
               el('label', { className: 'cm-check' },
@@ -6168,6 +6304,23 @@ window.__ModuleLoader__.load({
           const result = await costMeter.refreshCodingPlan(provider)
           if (result === null || typeof result !== 'object' || result.ok !== true) {
             throw new Error(result?.error?.message ?? rpcT()('rpcSyncFailed'))
+          }
+          if (result.value.state !== undefined) store.set({ status: 'ready', error: null, state: result.value.state })
+          return result.value
+        },
+        // 密钥写入/清除(v1.6.8):值只沿此通道单向送入 DSH 凭据库,服务端永不回传明文。
+        setCredential: async (target, value) => {
+          const result = await costMeter.setCredential(target, value)
+          if (result === null || typeof result !== 'object' || result.ok !== true) {
+            throw new Error(result?.error?.message ?? result?.value?.message ?? rpcT()('rpcSyncFailed'))
+          }
+          if (result.value.state !== undefined) store.set({ status: 'ready', error: null, state: result.value.state })
+          return result.value
+        },
+        clearCredential: async target => {
+          const result = await costMeter.clearCredential(target)
+          if (result === null || typeof result !== 'object' || result.ok !== true) {
+            throw new Error(result?.error?.message ?? result?.value?.message ?? rpcT()('rpcSyncFailed'))
           }
           if (result.value.state !== undefined) store.set({ status: 'ready', error: null, state: result.value.state })
           return result.value

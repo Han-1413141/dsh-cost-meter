@@ -25,7 +25,9 @@ const num = s => {
   return m ? Number(m[1].replace(/,/g, '')) : null
 }
 const cellsOf = tr => [...tr.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/g)].map(m =>
-  m[1].replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim())
+  // CodeQL #10 误报:这是测试里从官方价目表 HTML 抽取单元格文本的存在性提取,不是安全净化——
+  // 输入是固定受信任页面,输出只参与断言比对,不会进入任何执行/渲染路径。
+  m[1].replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()) // codeql[js/incomplete-multi-character-sanitization]
 const canon = s => String(s ?? '').replace(/\s+/g, ' ').trim().toLowerCase()
 // 分档标注:(≤ 272K tokens)=基础档;(> 272K tokens)/(Off-Peak)/(Peak) 等为变体行。
 const tierOf = name => {
