@@ -1756,11 +1756,31 @@ window.__ModuleLoader__.load({
       if (typeof modelId === 'string' && modelId.length > 0 && models[modelId] !== undefined) return models[modelId]
       return table?.default ?? { cacheHit: 0, cacheMiss: 0, output: 0 }
     }
+    /** 一档价格补齐(v1.6.9 起与 lib/pricing.js completeTier 同口径的客户端镜像):
+     *  只认非负有限数字,补齐 cacheMiss/cacheHit 缺省;子档(offPeak/peak/legacyBase)同规则。 */
+    function normalizeClientTier(raw) {
+      if (raw === null || typeof raw !== 'object') return undefined
+      const n = key => {
+        const v = raw[key]
+        return typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined
+      }
+      const miss = n('cacheMiss') ?? n('input') ?? 0
+      const hit = n('cacheHit') ?? n('cachedInput') ?? n('cacheRead') ?? miss
+      const out = { cacheHit: hit, cacheMiss: miss, output: n('output') ?? 0 }
+      const reasoning = n('reasoning')
+      if (reasoning !== undefined) out.reasoning = reasoning
+      return out
+    }
     function normalizeClientPrice(raw) {
-      if (!raw || typeof raw !== 'object') return null
-      const miss = Number.isFinite(Number(raw.cacheMiss)) ? Number(raw.cacheMiss) : Number(raw.input) || 0
-      const hit = Number.isFinite(Number(raw.cacheHit)) ? Number(raw.cacheHit) : Number(raw.cachedInput ?? raw.cacheRead ?? miss)
-      return { cacheHit: hit, cacheMiss: miss, output: Number(raw.output) || 0, reasoning: Number(raw.reasoning) || 0 }
+      const base = normalizeClientTier(raw)
+      if (base === undefined) return null
+      // 峰谷/历史子档必须随主档一起保留:usageSplit 回退计价与 Plan 拆分靠 tierFor
+      // 取子档,剥掉会把峰时调用按基础价(= 谷价)重算、低估约一半(v1.6.9 审计修复)。
+      for (const key of ['offPeak', 'peak', 'legacyBase']) {
+        const tier = normalizeClientTier(raw[key])
+        if (tier !== undefined) base[key] = tier
+      }
+      return base
     }
     /** 周末全谷价生效时刻(UTC):2026-08-23(周日)00:00 北京时间(与 lib/pricing.js 同步)。 */
     const WEEKEND_OFFPEAK_EFFECTIVE_MS = Date.parse('2026-08-22T16:00:00Z')
@@ -1786,11 +1806,20 @@ window.__ModuleLoader__.load({
         return start < end ? hour >= start && hour < end : hour >= start || hour < end
       })
     }
+    /** 峰谷时代分界(与 lib/pricing.js LEGACY_BASE_BOUNDARY 同步):此前按当时基础价计费。 */
+    const LEGACY_BASE_BOUNDARY_MS = Date.parse('2026-08-16T16:00:00Z')
     function tierFor(entry, atMs, peak) {
       const base = entry ?? { cacheHit: 0, cacheMiss: 0, output: 0 }
       const asTier = price => ({ cacheHit: price.cacheHit, cacheMiss: price.cacheMiss, output: price.output, reasoning: price.reasoning ?? 0 })
+      // 峰谷时代之前按当时的基础价计费(历史正确;与 lib/pricing.js tierFor 同分支,
+      // v1.6.9 审计修复:客户端镜像此前缺该分支,分界前回放桶会按当前价重算)。
+      if (Number.isFinite(atMs) && atMs < LEGACY_BASE_BOUNDARY_MS) {
+        const lb = base.legacyBase
+        return lb === undefined ? asTier(base) : asTier(lb)
+      }
       if (peak?.enabled !== true) return asTier(base)
-      const effectiveAtMs = typeof peak.effectiveAtMs === 'number' ? peak.effectiveAtMs : undefined
+      // 非有限(如 Date.parse('') 的 NaN)视同「未知生效时刻」,与服务端 tierFor 同口径。
+      const effectiveAtMs = typeof peak.effectiveAtMs === 'number' && Number.isFinite(peak.effectiveAtMs) ? peak.effectiveAtMs : undefined
       if (isPeakHour(atMs, effectiveAtMs, peak.windows)) {
         const p = base.peak
         return p === undefined ? asTier(base) : asTier(p)
@@ -1841,7 +1870,10 @@ window.__ModuleLoader__.load({
     /** 已换算币种金额 → 显示字符串(符号 + 可调小数位)。 */
     function formatMoneyValue(value, config) {
       const symbol = typeof config?.symbol === 'string' && config.symbol.length > 0 ? config.symbol : '$'
-      const decimals = Math.max(0, Math.min(10, Math.floor(Number(config?.decimals) || 2)))
+      // 合法配置的 decimals:0 须保留(`Number(x) || 2` 会把 0 误抬成 2,
+      // 与 lib/pricing.js formatMoney 同规则;v1.6.9 审计修复客户端镜像漂移)。
+      const req = Number(config?.decimals)
+      const decimals = Math.max(0, Math.min(10, Number.isFinite(req) ? Math.floor(req) : 2))
       let effective = decimals
       if (value > 0 && value < Math.pow(10, -decimals)) effective = decimals + 2
       const fixed = value.toFixed(effective)
@@ -2395,7 +2427,10 @@ window.__ModuleLoader__.load({
     }
 
     // issue #36:官方余额进度条的「当日已用」只统计会扣 DeepSeek 开放平台余额的调用
-    // (byProviderModel 中 provider 前缀为 deepseek 的条目,含未标注 provider 的历史调用);
+    // (byProviderModel 中 provider 前缀为官方渠道的条目:账本记账时未标注 provider 的
+    // 'deepseek' 与 profile 内置官方路由实际落账的 'deepseek-official';宿主包装路由
+    // llm- 前缀与裸名同义,一并剥离——与 lib/store.js officialCostOfDay 同口径,v1.6.9
+    // 审计修复此前漏计 deepseek-official 键的问题);
     // Coding Plan / 自定义 Provider 等渠道的费用只体现在各自的额度条/余额条上。
     // 账本无按渠道拆分的旧数据(byProviderModel 缺失/为空)退回全量,保持升级前行为。
     function todayOfficialUsd(state) {
@@ -2405,7 +2440,9 @@ window.__ModuleLoader__.load({
       let sum = 0
       for (const [key, value] of Object.entries(by)) {
         const idx = key.indexOf(':')
-        if ((idx >= 0 ? key.slice(0, idx) : key) !== 'deepseek') continue
+        let provider = idx >= 0 ? key.slice(0, idx) : key
+        if (provider.startsWith('llm-')) provider = provider.slice(4)
+        if (provider !== 'deepseek' && provider !== 'deepseek-official') continue
         sum += Number(value?.cost) || 0
       }
       return sum

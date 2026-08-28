@@ -926,9 +926,16 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   const p1 = scnetPlanPeriod(Date.parse('2026-08-19T10:00:00+08:00'), '2026-08-05')
   assert.equal(p1.fromKey, '2026-08-05', '周期起点为订阅日')
   assert.equal(p1.toKeyInclusive, '2026-09-05', '周期末日为次月对应日(含当日 23:59:59,v1.6.1 边界修正)')
-  const p2 = scnetPlanPeriod(Date.parse('2026-08-01T00:00:00+08:00'), '')
-  assert.equal(p2.fromKey, '2026-08-01', '无订阅日起点按自然月')
-  assert.equal(p2.toKeyInclusive, '2026-08-31', '自然月末')
+  // 无订阅日(自然月缺省)按**运行时本地日历月**取周期:期望值必须随测试进程时区
+  // 推导而非写死月份——同一时刻(2026-08-01T00:00:00+08:00)在 UTC+8 是 8/1、
+  // 在 UTC 是 7/31,CI(UTC)首跑时曾因此误报(断言修为语义等价,时区无关)。
+  const p2Now = Date.parse('2026-08-01T00:00:00+08:00')
+  const p2Local = new Date(p2Now)
+  const p2Pad = n => String(n).padStart(2, '0')
+  const p2MonthEnd = new Date(p2Local.getFullYear(), p2Local.getMonth() + 1, 0)
+  const p2 = scnetPlanPeriod(p2Now, '')
+  assert.equal(p2.fromKey, `${p2Local.getFullYear()}-${p2Pad(p2Local.getMonth() + 1)}-01`, '无订阅日起点按自然月')
+  assert.equal(p2.toKeyInclusive, `${p2MonthEnd.getFullYear()}-${p2Pad(p2MonthEnd.getMonth() + 1)}-${p2Pad(p2MonthEnd.getDate())}`, '自然月末')
   const p3 = scnetPlanPeriod(Date.parse('2026-02-10T12:00:00+08:00'), '2026-01-31')
   assert.equal(p3.fromKey.startsWith('2026-01-31'), true, '1/31 订阅在 2 月仍属上一周期')
   assert.equal(p3.toKeyInclusive, '2026-02-28', '1/31 订阅的 2 月周期末钳制到 28(含当日,v1.6.1 边界修正)')
@@ -2497,7 +2504,10 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const repaired = await repairProviderDupes(ledger)
   assert.equal(repaired.groups, 2, '两组重复(day 容器与 session 容器各一组)')
   assert.ok(Math.abs(repaired.removedCost - 4 * 0.3147) < 1e-12, 'day+session 各扣除两份重复金额')
-  // day 容器:剩 vision 独立 + 三选一(字母序第一个);顶层合计修正为真实值。
+  // day 容器:剩 vision 独立 + 三选一;'deepseek-modlens-vision' 不在包装层判定范围
+  // (8h 断言,仍由 ALS 嵌套标记处理),故三键中无 isWrapperProviderId 命中的上游键
+  // 与深层变体同组时仍按字母序保留深层变体;纯 'deepseek-modlens' vs 上游键的成对
+  // 场景由 v1.6.9 审计回归块覆盖(优先保留上游键)。
   assert.deepEqual(Object.keys(day.byProviderModel).sort(), ['deepseek-modlens-vision:deepseek-v4-flash', 'deepseek-vision:deepseek-v4-flash'], '重复三份合并为一份(保留字母序第一个)')
   assert.equal(day.byProviderModel['deepseek-vision:deepseek-v4-flash'].calls, 24, 'vision 独立记录不动(calls)')
   assert.equal(day.byProviderModel['deepseek-modlens-vision:deepseek-v4-flash'].calls, 40, '保留份 calls 不变')
@@ -2909,7 +2919,8 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const cliSrc36 = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
   assert.ok(cliSrc36.includes('function todayOfficialUsd(state)'), 'client.js 定义 todayOfficialUsd')
   assert.ok(cliSrc36.includes("mode === 'official' ? todayOfficialUsd(state) : Number(state.today?.cost) || 0"), '官方余额分支使用官方渠道费用,自定义分支维持全量')
-  assert.ok(cliSrc36.includes("if ((idx >= 0 ? key.slice(0, idx) : key) !== 'deepseek') continue"), 'client 端按 provider 前缀过滤 deepseek')
+  assert.ok(cliSrc36.includes("if (provider !== 'deepseek' && provider !== 'deepseek-official') continue"), 'client 端按官方渠道前缀过滤(含 deepseek-official,v1.6.9 审计修复)')
+  assert.ok(cliSrc36.includes("if (provider.startsWith('llm-')) provider = provider.slice(4)"), 'client 端剥离 llm- 包装路由前缀(与 officialCostOfDay 同口径)')
   console.log('[ok] 官方渠道费用拆分(纯函数/Ledger 聚合/对账与进度条接线/旧数据退回)通过')
 }
 
@@ -4444,6 +4455,139 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
 
   for (const root of secretTmpRoots) rmSync(root, { recursive: true, force: true })
   console.log('[ok] 密钥治理(落盘/下发脱敏/存量迁移五路径/strict codec/RPC 对齐)(v1.6.8)通过')
+}
+
+// ── v1.6.9 计费审计回归:客户端/服务端口径漂移修复 ─────────────────────────
+// 来源:2026-08-28 全仓计费审计(docs/code-audit-2026-08-28.md)确认的三处客户端
+// 漂移(官方渠道键漏计 deepseek-official / 回退计价丢峰谷子档 / decimals=0 被抬成 2)
+// 与三处服务端加固(NaN 生效时刻口径、llm- 前缀官方渠道判定、清洗保留键优选)。
+{
+  // 1) 服务端 tierFor:effectiveAtMs 非有限(NaN)与 undefined 同口径——
+  //    NaN 曾致「峰侧按已生效取 peak 档、谷侧按未生效落 base 档」的不对称。
+  {
+    const entry = {
+      cacheHit: 0.007, cacheMiss: 0.22, output: 0.66,
+      offPeak: { cacheHit: 0.001, cacheMiss: 0.03, output: 0.09 },
+      peak: { cacheHit: 0.014, cacheMiss: 0.44, output: 1.32 },
+      legacyBase: { cacheHit: 0.0028, cacheMiss: 0.14, output: 0.28 },
+    }
+    const windows = [{ start: 1, end: 4 }, { start: 6, end: 10 }]
+    const peakMs = Date.parse('2026-08-25T07:30:00Z')
+    const offMs = Date.parse('2026-08-25T12:00:00Z')
+    for (const atMs of [peakMs, offMs]) {
+      assert.deepEqual(
+        tierFor(entry, atMs, { enabled: true, effectiveAtMs: NaN, windows }),
+        tierFor(entry, atMs, { enabled: true, effectiveAtMs: undefined, windows }),
+        'tierFor 对 NaN 生效时刻与 undefined 同口径',
+      )
+    }
+    assert.deepEqual(tierFor(entry, peakMs, { enabled: true, effectiveAtMs: NaN, windows }), { cacheHit: 0.014, cacheMiss: 0.44, output: 1.32 }, 'NaN 生效时刻下峰时仍取 peak 档')
+  }
+
+  // 2) officialCostOfDay:llm- 前缀剥离——llm-deepseek(官方路由包装)计入官方渠道,
+  //    llm-zen(第三方网关包装)不计;既有 deepseek/deepseek-official 判定不变。
+  {
+    const day = { date: '2026-08-28', calls: 4, cost: 1.0, byProviderModel: {
+      'deepseek:deepseek-v4-flash': { calls: 1, cost: 0.2 },
+      'deepseek-official:deepseek-v4-flash': { calls: 1, cost: 0.3 },
+      'llm-deepseek:deepseek-v4-flash': { calls: 1, cost: 0.1 },
+      'llm-zen:kimi-k2.6': { calls: 1, cost: 0.4 },
+    } }
+    assert.ok(Math.abs(officialCostOfDay(day) - 0.6) < 1e-12, '官方渠道费用 = deepseek + deepseek-official + llm-deepseek(0.6,不含 llm-zen)')
+  }
+
+  // 3) repairProviderDupes:保留键优先选非包装层(上游真实)键——
+  //    此前恒保留字母序第一,而 'deepseek-modlens:' 恰排在 'deepseek-official:' 之前,
+  //    官方键被删后需依赖 modlens-wrapper-dedup-v1 的形态 3 改挂才恢复正确。
+  {
+    const bucket = { input: 100, output: 10, cacheRead: 200, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.05, apiCost: 0.05 }
+    const day = {
+      date: '2026-08-28', input: 200, output: 20, cacheRead: 400, cacheWrite: 0, reasoning: 0, calls: 2, cost: 0.1, apiCost: 0.1,
+      byProviderModel: {
+        'deepseek-modlens:deepseek-v4-flash': { ...bucket },
+        'deepseek-official:deepseek-v4-flash': { ...bucket },
+      },
+      sessions: [],
+    }
+    const ledger = new Ledger(sanitizeConfig({}), { '2026-08-28': day }, join(tmpdir(), `cm-keep-v169-${Date.now()}.json`))
+    ledger.scheduleWrite = () => {}
+    const repaired = await repairProviderDupes(ledger)
+    assert.equal(repaired.groups, 1, '镜像对合并为一组')
+    assert.deepEqual(Object.keys(day.byProviderModel), ['deepseek-official:deepseek-v4-flash'], '保留上游真实键(deepseek-official),不再依赖后续迁移改挂')
+    assert.equal(day.calls, 1, '顶层 calls 扣除包装层份')
+    assert.ok(Math.abs(day.cost - 0.05) < 1e-12, '顶层金额扣除包装层份')
+    // 无包装层键的对照组:保持字母序保留第一个(合并语义不变,仅保留键优选变化)。
+    const day2 = {
+      date: '2026-08-27', input: 100, output: 10, cacheRead: 200, cacheWrite: 0, reasoning: 0, calls: 2, cost: 0.1, apiCost: 0.1,
+      byProviderModel: { 'beta:m': { ...bucket }, 'alpha:m': { ...bucket } },
+      sessions: [],
+    }
+    const ledger2 = new Ledger(sanitizeConfig({}), { '2026-08-27': day2 }, join(tmpdir(), `cm-keep2-v169-${Date.now()}.json`))
+    ledger2.scheduleWrite = () => {}
+    await repairProviderDupes(ledger2)
+    assert.deepEqual(Object.keys(day2.byProviderModel), ['alpha:m'], '无包装层键组仍按字母序保留')
+  }
+
+  // 4) 客户端计费助手与服务端同口径(行为级漂移防护):从 src/client.js 抽取纯助手
+  //    区段在 Node 求值,同一价表/同一时刻断言两侧档位与金额一致。
+  {
+    const clientSrc = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
+    const sliceStart = clientSrc.indexOf('function priceEntryFor(modelId, table)')
+    const sliceEnd = clientSrc.indexOf('function makeStore(initial)')
+    const todayStart = clientSrc.indexOf('function todayOfficialUsd(state)')
+    const todayEnd = clientSrc.indexOf('function todayUsedInBalanceCurrency(')
+    assert.ok(sliceStart > 0 && sliceEnd > sliceStart && todayStart > 0 && todayEnd > todayStart, '客户端计费助手区段定位成功(函数改名时同步本测试)')
+    const C = new Function(
+      clientSrc.slice(sliceStart, sliceEnd) + '\n' + clientSrc.slice(todayStart, todayEnd)
+      + '\nreturn { priceEntryFor, normalizeClientPrice, tierFor, costOfBuckets, usdFromCostLocal, formatMoneyValue, weekendZoneAt, isPeakHour, todayOfficialUsd }',
+    )()
+    // 4a) 子档保留:normalizeClientPrice 不再剥 offPeak/peak/legacyBase(修复前恒为 undefined)。
+    const entry = {
+      cacheHit: 0.007, cacheMiss: 0.22, output: 0.66,
+      offPeak: { cacheHit: 0.007, cacheMiss: 0.22, output: 0.66 },
+      peak: { cacheHit: 0.014, cacheMiss: 0.44, output: 1.32 },
+      legacyBase: { cacheHit: 0.0028, cacheMiss: 0.14, output: 0.28 },
+    }
+    const norm = C.normalizeClientPrice(entry)
+    assert.deepEqual(norm.peak, { cacheHit: 0.014, cacheMiss: 0.44, output: 1.32 }, '客户端 normalizeClientPrice 保留 peak 子档')
+    assert.deepEqual(norm.offPeak, { cacheHit: 0.007, cacheMiss: 0.22, output: 0.66 }, '客户端 normalizeClientPrice 保留 offPeak 子档')
+    assert.deepEqual(norm.legacyBase, { cacheHit: 0.0028, cacheMiss: 0.14, output: 0.28 }, '客户端 normalizeClientPrice 保留 legacyBase 子档')
+    // 4b) 与服务端 tierFor / costOf 全相位一致(峰时/谷时/周末/峰谷时代分界前)。
+    const windows = [{ start: 1, end: 4 }, { start: 6, end: 10 }]
+    const peakCfg = { enabled: true, effectiveAtMs: Date.parse('2026-08-01T00:00:00Z'), windows }
+    const tokens = { input: 1500000, output: 250000, cacheRead: 900000, cacheWrite: 100000, reasoning: 0 }
+    const atMatrix = [
+      ['峰时', Date.parse('2026-08-27T07:30:00Z')],
+      ['谷时', Date.parse('2026-08-27T12:00:00Z')],
+      ['周末全谷', Date.parse('2026-08-30T05:00:00Z')],
+      ['分界前', Date.parse('2026-08-01T00:00:00Z')],
+    ]
+    for (const [label, atMs] of atMatrix) {
+      const serverEntry = normalizePrice(entry)
+      const serverTier = tierFor(serverEntry, atMs, peakCfg)
+      const clientTier = C.tierFor(C.normalizeClientPrice(entry), atMs, peakCfg)
+      // 客户端 asTier 恒带 reasoning:0,服务端在无 reasoning 价时省略该键——语义等价,比较时归一。
+      const stripZeroReasoning = t => { const { reasoning, ...rest } = t; return (reasoning ?? 0) === 0 ? rest : t }
+      assert.deepEqual(stripZeroReasoning(clientTier), stripZeroReasoning(serverTier), `客户端与服务端档位一致(${label})`)
+      assert.ok(Math.abs(C.costOfBuckets(tokens, clientTier) - costOf(tokens, serverEntry, atMs, peakCfg)) < 1e-12, `客户端与服务端计费数学一致(${label})`)
+    }
+    // 峰时金额级佐证:修复前客户端回退路径按基础档(=谷价)重算,恰为峰价一半。
+    assert.ok(Math.abs(C.costOfBuckets({ input: 1000000, output: 0, cacheRead: 0, cacheWrite: 0 }, C.tierFor(C.normalizeClientPrice(entry), Date.parse('2026-08-27T07:30:00Z'), peakCfg)) - 0.44) < 1e-12, '客户端回退路径峰时按 peak 档计价(0.44/M,修复前为 0.22)')
+    // 4c) decimals=0 保留(v1.6.9 修复前被 `|| 2` 抬成 2)。
+    assert.equal(C.formatMoneyValue(1.4, { symbol: '$', decimals: 0 }), '$1', '客户端 decimals=0 不被抬成 2')
+    assert.equal(formatMoney(1.4, { symbol: '$', decimals: 0, exchangeRate: 1 }), '$1', '服务端 formatMoney decimals=0 同口径(双端一致)')
+    // 4d) todayOfficialUsd:deepseek-official 键计入(修复前恒漏,余额条当日段为 0),
+    //     llm- 前缀剥离与服务端 officialCostOfDay 同口径。
+    const todayState = { today: { cost: 1.0, byProviderModel: {
+      'deepseek:deepseek-v4-flash': { cost: 0.2 },
+      'deepseek-official:deepseek-v4-flash': { cost: 0.3 },
+      'llm-deepseek:deepseek-v4-flash': { cost: 0.1 },
+      'llm-zen:kimi-k2.6': { cost: 0.4 },
+    } } }
+    assert.ok(Math.abs(C.todayOfficialUsd(todayState) - 0.6) < 1e-12, '客户端当日官方费用 = 0.6(含 deepseek-official 与 llm-deepseek)')
+  }
+
+  console.log('[ok] v1.6.9 计费审计回归(NaN 生效时刻/llm- 前缀官方渠道/保留键优选/客户端子档与档位一致性/decimals=0)通过')
 }
 
 console.log('[ok] 全部验证通过')

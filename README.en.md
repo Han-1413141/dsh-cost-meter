@@ -6,7 +6,7 @@
 
 Per-conversation cost · daily totals · OpenCode Go subscription quota display · budget with usage percentage · official account balance · custom provider balance · balance progress bar · history · peak/off-peak pricing hours display (peak hours UTC 01:00–04:00, 06:00–10:00; from Aug 23, 2026 weekends are billed at off-peak prices all day, shown as “Weekend — all off-peak”) · pre-switch popup & system-notification alerts for peak/off-peak changes (position / lead time / alert type configurable) · one-click price sync from the official docs · Codex-style token usage heat grid · multi-vendor model pricing (built-in 90+ model price catalog with auto-matching) · mainstream Coding Plan quota queries & display (Anthropic / Z.ai / MiniMax / Kimi / OpenRouter / SiliconFlow / CommandCode / SCNet) plan/API dual-track billing (subscription quota vs pay-as-you-go money separated, per-1% & full-window token/equivalent-cost estimates with daily/weekly/monthly curves) · · quota strip above the input box (budget / Go / coding-plan usage in one row, toggleable)
 
-[![version](https://img.shields.io/badge/version-1.6.8-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.6.9-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm)](https://www.npmjs.com/package/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
@@ -231,22 +231,22 @@ Real captures from an actual DSH sidebar of the period strip and collapsed verti
 dsh plugin --profile web add dsh-cost-meter
 ```
 
-**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.6.8`** — review the script before running):
+**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.6.9`** — review the script before running):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.6.8/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.6.9/install.ps1 | iex
 ```
 
 **Or a plain command line** (the machine must already have pnpm and git; also pinned to the tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.6.8
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.6.9
 ```
 
 Without git, use the GitHub tag archive:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.6.8.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.6.9.tar.gz
 ```
 
 After installing, **restart** `dsh web` (plugin rows, the Typert manifest and the client bundle are all scanned at startup):
@@ -263,7 +263,7 @@ Cause: your environment (pnpm config or a policy bundled into the invoking insta
 
 Fix:
 
-1. **Upgrade to v1.6.7+**: all three runtime dependencies (`@deepseek-ai/dsh-credentials`, `@deepseek-ai/dsh-home-paths`, `zod`) are now exact-pinned — a pinned version's publish date never changes, so it satisfies any age threshold and this plugin can no longer trigger the error;
+1. **Upgrade to a version with exact-pinned dependencies**: all three runtime dependencies (`@deepseek-ai/dsh-credentials`, `@deepseek-ai/dsh-home-paths`, `zod`) are now exact-pinned — a pinned version's publish date never changes, so it satisfies any age threshold and this plugin can no longer trigger the error;
 2. If the error is triggered by **another plugin's** dependencies instead, append an exclusion for the offending `name@version` printed in the error to the profile's `pnpm-workspace.yaml` (default `$DSH_HOME/profiles/web/pnpm-workspace.yaml`) and retry:
 
 ```yaml
@@ -299,8 +299,8 @@ dsh plugin --profile web add link:./dsh-cost-meter  # symlink; edit lib/client.j
 - The session badge is **billed exactly** at the moment each call is made (host-exported per-call cost), just like daily/monthly/cumulative totals and the budget;
 - Billing sources are the `usage` block of every model call (including sub-agents, compression, title generation and other auxiliary calls), matching the billable view;
 - **Peak/off-peak tiers follow the request-initiation moment**: a streaming call can span the tier boundary hour; attributing by completion time would put a request started minutes earlier into the wrong tier;
-- **Peak effective-time anchoring** (v1.6.7): the official pricing page no longer lists an effective time, and price sync no longer resets the peak effective moment to "now" — historical recomputes (session projection refolds / per-model backfill) always tier events against the 2026-08-16 16:00 UTC boundary, so peak-hour history is no longer re-costed at half price; ledgers polluted earlier are clamped back automatically on upgrade (idempotent migration);
-- **Switching pricing currency re-bases the whole history** (v1.6.7): after the pricing-currency setting flips and re-syncs, historical entries are re-costed on the new price table in the background (days fully covered by session logs are replaced wholesale; sessions whose logs were cleaned keep their original basis), so history and the official bill share one basis, with a notice on completion; on upgrading to this version, existing ledgers that had switched currency and ended up with mixed bases are recomputed once automatically;
+- **Peak effective-time anchoring**: the official pricing page no longer lists an effective time, and price sync no longer resets the peak effective moment to "now" — historical recomputes (session projection refolds / per-model backfill) always tier events against the 2026-08-16 16:00 UTC boundary, so peak-hour history is no longer re-costed at half price; ledgers polluted earlier are clamped back automatically on upgrade (idempotent migration);
+- **Switching pricing currency re-bases the whole history**: after the pricing-currency setting flips and re-syncs, historical entries are re-costed on the new price table in the background (days fully covered by session logs are replaced wholesale; sessions whose logs were cleaned keep their original basis), so history and the official bill share one basis, with a notice on completion; on upgrading to this version, existing ledgers that had switched currency and ended up with mixed bases are recomputed once automatically;
 - **Aligning with official bills**: ① minute-level lag vs live official numbers is expected — the ledger flushes on a 2s debounce, and streams still in flight at shutdown are billed server-side while their usage block is never received (the gap concentrates in cache-hit columns); ② reasoning tokens are reported separately by the API and are **not billed** — the token columns sum five buckets and will never line up with the official three columns, so **reconcile by amount**; ③ with pricing currency set to CNY, entries are recorded directly on the official CNY price list (recommended for CNY-billed accounts); with USD, displayed amounts go through a fixed FX rate and carry a small structural difference (the two lists' per-column ratios are not uniform);
 - Budget and over-budget warnings **only warn — they never block calls**.
 - **Plan/API dual-track billing** (issue #64): calls on subscription-style channels (MiniMax, manually-marked Codex, etc.) are recorded as catalog-price equivalents only; budget/today-cost/overview cards count the pay-as-you-go (API) channel exclusively.
@@ -310,7 +310,7 @@ dsh plugin --profile web add link:./dsh-cost-meter  # symlink; edit lib/client.j
 ## Data storage
 
 - Ledger: `$DSH_HOME/storages/cost-meter/ledger.json` (atomic write + 2-second debounce; retained per `historyDays`, up to 200 per-session entries per day);
-- **API keys never touch disk** (since v1.6.8): all credentials (OpenCode Go key, coding-plan keys, Volcano AK/SK) live only in the DSH credential store — neither the ledger file nor anything sent back to the settings page contains plaintext; the settings inputs are write-only and never echo a saved key back;
+- **API keys never touch disk**: all credentials (OpenCode Go key, coding-plan keys, Volcano AK/SK) live only in the DSH credential store — neither the ledger file nor anything sent back to the settings page contains plaintext; the settings inputs are write-only and never echo a saved key back;
 - Every settings change is **saved instantly and automatically** (600 ms debounce) — no manual save needed;
 - Delete the ledger file to reset everything, or use “Clear all history” in Settings;
 - Privacy boundary: balance/quota endpoints (official balance and each coding plan) **only get contacted after you explicitly enable the corresponding provider** — no network traffic for disabled ones.

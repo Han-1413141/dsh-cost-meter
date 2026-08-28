@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.6.9] - 2026-08-28
+
+### 修复(计费审计:客户端/服务端口径漂移)
+
+背景:对全仓计费与核心链路做了一次完整代码审计(报告:[docs/code-audit-2026-08-28.md](docs/code-audit-2026-08-28.md))。核心计费链路(实时钩子 → 账本 → 投影 → 回放/回填 → 双轨 apiCost)复核无误;本版修复审计确认的三处客户端漂移与三处服务端加固。
+
+- **官方余额条「当日已用」漏计 `deepseek-official` 键(客户端)**:`todayOfficialUsd` 只把 provider 前缀为 `deepseek` 的桶计入官方渠道,而 profile 内置官方路由实际落账键形如 `deepseek-official:模型`(v1.6.5 服务端已确认)——侧边栏官方余额进度条的当日段在纯官方路由账本上恒为 0/偏低,且与服务端 `officialCostOfDay`(双前缀口径)数字不一致。修复:客户端补 `deepseek-official` 双前缀判定,并同口径剥离宿主包装路由 `llm-` 前缀。
+- **客户端回退计价丢失峰谷子档(峰时低估约 50%)**:`normalizeClientPrice` 只保留 `{cacheHit,cacheMiss,output,reasoning}`,把 `offPeak/peak/legacyBase` 子档剥掉;`usageSplit`(会话含 Plan 类模型时的 API/Plan 拆分路径,以及旧快照缺精确成本时的回退路径)据此调 `tierFor`,峰时只能取基础档(=谷价)。实测:峰时 2M 输入 + 1M 输出,服务端 $2.20、客户端回退估 $1.10。修复:子档随主档一并保留(`normalizeClientTier` 与服务端 `completeTier` 同口径),客户端 `tierFor` 补峰谷时代分界 `legacyBase` 分支——四相位(峰/谷/周末/分界前)档位与金额恢复与服务端逐位一致。
+- **decimals=0 显示被抬成 2(客户端,纯显示)**:`formatMoneyValue` 的 `Number(config?.decimals) || 2` 把合法的 0 抬成 2,与服务端 `formatMoney`(专门修过同款坑并注释)实现漂移。修复:0 保留,缺省才回落 2。
+- **官方渠道判定补 `llm-` 前缀剥离(服务端 `officialCostOfDay`)**:计价(`providerPriceEntryFor`)与 Plan 归类(`planProviderIdOf`)都会剥宿主包装路由的 `llm-` 前缀,官方渠道判定此前不剥——`llm-deepseek` 形态落账会被漏计。现剥前缀后判定(`llm-zen` 等第三方网关仍不计入)。
+- **包装层重复清洗保留键优选(服务端 `repairProviderDupes`)**:指纹分组此前恒保留字母序第一个键,而 `deepseek-modlens:` 恰排在 `deepseek-official:` 之前——官方键被删、包装层键存活,需依赖后续 `modlens-wrapper-dedup-v1` 形态 3 改挂才恢复正确。现排序优先保留非包装层(上游真实)键,同包装层性时仍按字母序;合并语义不变。
+- **`tierFor` 对 NaN 生效时刻口径归一(服务端 + 客户端)**:`effectiveAtMs` 为 NaN 时,`isPeakHour` 视作已生效而 offPeak 分支视作未生效——谷时段落 base 档、峰时段取 peak 档的不对称。现非有限值一律归一为「未知生效时刻」,两侧同口径(默认表 base=offPeak 同值,实际行为不变,仅消除 footgun)。
+
+### 修复(CI:install-smoke 两腿回归门禁红)
+
+- **时区炸弹:自然月用例硬编码期望值,v1.6.8 起回归门禁进 CI 后首跑即红**:`scnetPlanPeriod` 自然月用例断言输入 `2026-08-01T00:00:00+08:00` 的周期起点恒为 `'2026-08-01'`,而实现按**运行时本地日历**取自然月——CI(UTC)上该时刻是 7 月 31 日,函数正确返回 `'2026-07-01'`,ubuntu(51s)与 windows(9m59s,大头是 pnpm 安装耗时)两腿同断言失败。修复:期望值改由测试进程本地日历推导(起点取 `new Date(p2Now)` 的年月、月末同法),断言与实现同口径、任意时区自洽;本地以 TZ=UTC / UTC-8(洛杉矶)/ UTC+14(基里巴斯)/ UTC+8 四种时区全量复跑通过(Windows Node 支持 TZ 环境变量,可在本机模拟 CI 时区)。
+
+### 已知边界(复核确认,文档化,本版不改)
+
+- `repairProviderDupes` 的跨渠道指纹合并是启发式:两个真实渠道的桶六值全等且模型同名时会被误合并(一次性迁移,`provider-dedup-v1` 已打标不再重跑,存量风险有限);`deepseek-modlens-vision` 等深层变体不在 `isWrapperProviderId` 判定范围,同组无上游键时仍按字母序保留(既有测试 8g 语义)。
+- billing-stream ALS 嵌套标记的设计边界(R-7,源码注释已声明):若未来包装路由改为「拉取期惰性」发起上游流,需改按流实例区分标记;当前 modlens 实测为瀑布派发期急切发起,语义正确。
+- `canonicalWindowKey('2d') → weekly` 等滚动窗量级归并为刻意近似(源码注释已声明)。
+
+### 验证
+
+- verify.mjs 新增「v1.6.9 计费审计回归」块:NaN 生效时刻与 undefined 双口径一致;`llm-` 前缀官方渠道判定(llm-deepseek 计入 / llm-zen 不计);保留键优选(成对镜像保上游键 + 无包装层组仍按字母序的对照);**客户端助手区段抽取行为级漂移防护**——从 `src/client.js` 抽取纯计费助手在 Node 求值,断言子档保留、四相位档位与金额双端逐位一致、峰时金额级佐证(0.44/M,修复前 0.22)、decimals=0、`todayOfficialUsd` 双前缀。
+- 测试 8g 注释补充深层变体保留原因;issue #36 源哨兵更新为双前缀判定。
+- `node test/verify.mjs` 全量通过;`node scripts/build.mjs` 重建 lib/client.js(244,427 字节,DSH STORE 单文件上限 262,144)。
+
 ## [1.6.8] - 2026-08-28
 
 ### 修复(密钥治理,安全专项)

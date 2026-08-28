@@ -6,7 +6,7 @@
 
 本会话费用 · 当日费用 · OpenCode Go 订阅额度显示 · 预算与已用百分比 · 官方账户余额 · 自定义 Provider 余额查询(可配任意 HTTP 端点) · 余额三段进度条 · 历史记录 · 峰谷计价时段显示(UTC 01:00–04:00、06:00–10:00 为峰时段;2026-08-23 起周末全天按谷价,显示「周末时段——全谷价」) · 峰/谷切换前弹窗与系统通知提醒(位置/提前量/提醒类型可配) · 官方价格一键同步 · 类 Codex Token 用量热图 · 多厂商多模型价格计费(内置 90+ 模型价格目录与自动匹配) · 主流 Coding Plan 额度查询与显示(Anthropic / Z.ai / MiniMax / Kimi / OpenRouter / SiliconFlow / CommandCode / SCNet / 火山方舟 九家,含 Volcano Ark AK/SK 签名) · Plan/API 双轨计费(订阅额度与按量金额分离统计,每 1% 额度与满窗的 token/等值金额估算及日/周/月曲线) · 输入框上方额度横条(预算/Go/Coding Plan 用量一条横排显示,可开关)
 
-[![version](https://img.shields.io/badge/version-1.6.8-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.6.9-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm)](https://www.npmjs.com/package/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
@@ -233,22 +233,22 @@
 dsh plugin --profile web add dsh-cost-meter
 ```
 
-**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.6.8`**,建议先下载审阅再运行):
+**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.6.9`**,建议先下载审阅再运行):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.6.8/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.6.9/install.ps1 | iex
 ```
 
 **或直接命令行**(机器上需已有 pnpm 与 git;同样固定到 tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.6.8
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.6.9
 ```
 
 没有 git 时可用 GitHub tag 打包直链:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.6.8.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.6.9.tar.gz
 ```
 
 安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):
@@ -265,7 +265,7 @@ dsh web
 
 处理:
 
-1. **升级到 v1.6.7+**:三个运行时依赖(`@deepseek-ai/dsh-credentials`、`@deepseek-ai/dsh-home-paths`、`zod`)已全部精确锁版——锁定版本的发布时间固定不变,对任意年龄阈值永远满足,本插件不再可能触发该错误;
+1. **升级到含依赖精确锁版的版本**:三个运行时依赖(`@deepseek-ai/dsh-credentials`、`@deepseek-ai/dsh-home-paths`、`zod`)已全部精确锁版——锁定版本的发布时间固定不变,对任意年龄阈值永远满足,本插件不再可能触发该错误;
 2. 若报错由**其他插件**的依赖触发,可在 profile 目录的 `pnpm-workspace.yaml`(默认 `$DSH_HOME/profiles/web/pnpm-workspace.yaml`)按报错列出的条目追加排除后重试:
 
 ```yaml
@@ -301,8 +301,8 @@ dsh plugin --profile web add link:./dsh-cost-meter  # 符号链接,改 lib/clien
 - 会话徽章与当日/月度/累计、预算一样,按每次调用的**实际时刻精确计费**(宿主导出的逐次成本);
 - 计费来源为每次模型调用的 usage 块(含子代理、压缩、标题等辅助调用),与账单口径一致;
 - **峰谷档位按请求发起时刻判定**:流式调用可能跨峰谷边界整点,以完成时刻归档会把数分钟前发起的请求算进另一个峰位;
-- **峰谷生效时刻锚定**(v1.6.7):官方价格页已不再标注生效时间,价格同步不再把峰谷生效时刻重置为「同步时刻」——历史重算(会话投影回放 / 按模型回填)一律按 2026-08-16 16:00 UTC 分界判档,峰时历史事件不再被按谷价半价重算;此前被污染的存量账本升级时自动钳制修复(幂等迁移);
-- **币种切换即全量换基准**(v1.6.7):「价格币种」切换并同步后,历史账目按新价目在后台整体重算(会话日志覆盖完整的日子整体替换,日志已清理的会话保持原口径),历史与官方账单同基准,完成后有提示;升级到本版时,此前切换过币种而新旧口径并存的存量账本自动重算一次;
+- **峰谷生效时刻锚定**:官方价格页已不再标注生效时间,价格同步不再把峰谷生效时刻重置为「同步时刻」——历史重算(会话投影回放 / 按模型回填)一律按 2026-08-16 16:00 UTC 分界判档,峰时历史事件不再被按谷价半价重算;此前被污染的存量账本升级时自动钳制修复(幂等迁移);
+- **币种切换即全量换基准**:「价格币种」切换并同步后,历史账目按新价目在后台整体重算(会话日志覆盖完整的日子整体替换,日志已清理的会话保持原口径),历史与官方账单同基准,完成后有提示;升级到本版时,此前切换过币种而新旧口径并存的存量账本自动重算一次;
 - **官方账单对齐口径**:① 与官方实时数字存在**分钟级时差**属预期——账本 2 秒防抖落盘,关停瞬间仍在途的流会被服务端照常扣费而 usage 块无人接收(缺口集中在缓存命中列);② reasoning tokens 由 API 单独上报且**不计费**,token 列为五桶合计,与官方「三列」天然对不齐,**对账请以金额为准**;③ 「价格币种」设为人民币时按官方 CNY 价目直计入账,与人民币账单币种一致(CNY 计价账号推荐);设为 USD 时显示金额经固定汇率折算,与 CNY 直计存在结构性细差(两套价目比值非均匀);
 - 预算与超支提示**仅提醒,不阻止调用**。
 - **Plan/API 双轨计费**(issue #64):订阅制渠道(MiniMax / Codex 手动标记等)的调用金额只记「等值」,预算/今日费用/概览卡片等金额展示仅统计按量计费(API)部分;
@@ -312,7 +312,7 @@ dsh plugin --profile web add link:./dsh-cost-meter  # 符号链接,改 lib/clien
 ## 数据存储
 
 - 账本:`$DSH_HOME/storages/cost-meter/ledger.json`(原子写入 + 2 秒防抖;按 `historyDays` 保留,每日最多 200 个会话明细);
-- **API Key 不落盘**(v1.6.8 起):所有密钥(OpenCode Go Key、各 Coding Plan Key、火山 AK/SK)只存入 DSH 凭据库,账本文件与设置页回传均不含明文;设置页输入框为 write-only,保存后不可回显;
+- **API Key 不落盘**:所有密钥(OpenCode Go Key、各 Coding Plan Key、火山 AK/SK)只存入 DSH 凭据库,账本文件与设置页回传均不含明文;设置页输入框为 write-only,保存后不可回显;
 - 所有设置修改**即时自动保存**(600ms 防抖),无需手动保存;
 - 删除账本文件即可清零,或使用设置页「清除全部历史」;
 - 隐私边界:余额/额度类端点(官方余额与各 Coding Plan)**仅在用户显式启用对应 Provider 时**才会出站请求,未启用不产生任何网络流量。
