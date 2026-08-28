@@ -43,6 +43,13 @@ jobs:
       - name: Verify plugin joined the bundle graph
         shell: bash
         run: ${{ matrix.verify-cmd }}
+      # 回归与产物门禁需要工作区依赖(zod / dsh-credentials / dsh-home-paths / esbuild):
+      # 本 job 只做安装冒烟、从不装工作区依赖,故回归前按锁文件补装(pnpm v11.21 由
+      # install.ps1 在 Windows leg 供给、上一步在 Linux leg 显式安装)。--frozen-lockfile
+      # 保证 esbuild 与构建已提交 bundle 的 0.28.1 严格一致,产物比对逐字节可复现。
+      - name: Install workspace dependencies
+        shell: bash
+        run: pnpm install --frozen-lockfile
       # 回归门禁(v1.6.8):CI 此前只验证「能装上」,不验证「算得对」——
       # verify.mjs 回归套件(定价数学/峰谷边界/账本回归/端点白名单)此前完全靠人工执行。
       - name: Run regression suite
