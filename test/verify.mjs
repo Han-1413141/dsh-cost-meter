@@ -33,7 +33,7 @@ import {
   isWrapperProviderId,
   wrapperUpstreamProvider,
 } from '../lib/pricing.js'
-import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays, officialCostOfDay, splitLedgerApiCost, zeroDay, repairLedgerPricing, dedupeWrapperProviderDays, stripSecrets, secretRefOf, readSecret, SECRET_TARGETS } from '../lib/store.js'
+import { Ledger, applyConfigPatch, localDayKey, sanitizeConfig, reconcileBalanceDelta, pickBalanceInfo, sanitizeDays, officialCostOfDay, splitLedgerApiCost, zeroDay, repairLedgerPricing, dedupeWrapperProviderDays, unpriceLocalOriginModels, stripSecrets, secretRefOf, readSecret, SECRET_TARGETS } from '../lib/store.js'
 import {
   billingClassOf,
   enabledPlanSetOf,
@@ -2676,13 +2676,14 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
     { type: 'assistant/chunk', time: 1756200002000, seq: 2, turn: 0, step: 0, data: { chunk: { type: 'usage', usage: { inputTokens: 1200, outputTokens: 30, cacheReadTokens: 400, cacheWriteTokens: 0, reasoningTokens: 0 } } } },
   ], cfg70, null)
   assert.equal(Object.values(Object.values(plain70.days)[0])[0].calls, 1, '无包装直连回放恰记一次')
-  // 9) 接线:index.js 实时钩子跳过包装层事件 + 投影跳过 + 启动清洗迁移门控。
+  // 9) 接线:index.js 实时钩子走指纹窗口去重(包装层改挂上游,不再一律丢弃,
+  // issue #76)+ 投影改挂去重 + 启动清洗迁移门控。
   const indexSrc70 = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
-  assert.ok(indexSrc70.includes('isWrapperProviderId(provider)'), '实时 llm/stream 计费回调跳过包装层 provider')
-  assert.ok(indexSrc70.includes('isWrapperProviderId(state.provider)'), 'costUsage 投影跳过包装层 provider 状态')
+  assert.ok(indexSrc70.includes('usageDeduper.admit(sessionId, model, provider, buckets, atMs)'), '实时 llm/stream 计费回调经指纹窗口去重入账(包装层单链不再漏计)')
+  assert.ok(indexSrc70.includes('isWrapperProviderId(rawProvider)') && indexSrc70.includes('wrapperUpstreamProvider(rawProvider) ?? rawProvider'), 'costUsage 投影对包装层 provider 改挂上游(不再一律跳过)')
   assert.ok(indexSrc70.includes('dedupeWrapperProviderDays(ledger.days') && indexSrc70.includes("'modlens-wrapper-dedup-v1'"), '启动清洗接入一次性迁移(migrations 标记防重跑)')
   const backfillSrc70 = readFileSync(new URL('../lib/backfill.js', import.meta.url), 'utf8')
-  assert.ok(backfillSrc70.includes('isWrapperProviderId(provider)'), '回放器跳过包装层 provider 状态')
+  assert.ok(backfillSrc70.includes('isWrapperProviderId(provider)') && backfillSrc70.includes('wrapperUpstreamProvider(provider)'), '回放器对包装层样本改挂上游 + 指纹窗口判定')
   console.log('[ok] modlens 包装层去重(id 判定/四形态清洗/幂等/保守分支/回放单记/接线)通过')
 }
 
@@ -4684,6 +4685,323 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   }
 
   console.log('[ok] v1.6.10 跨天会话归账锁定 + 宿主/浏览器时区错位提示(issue #74)通过')
+}
+
+// ── v1.6.11:包装路由指纹窗口去重(#76 漏计修复)+ 本地模型零价 + serve-stale + 投影联动刷新 ──
+
+// 11-1) usage 指纹窗口去重器单元:改挂/两种到达序互斥/窗口过期/普通互不去重/硬化。
+{
+  const { createUsageDeduper, USAGE_DEDUP_WINDOW_MS } = await import('../lib/usage-dedup.js')
+  const T0 = 1756200000000
+  const mk = () => createUsageDeduper({ now: () => T0 })
+  const b = () => ({ input: 1200, output: 30, cacheRead: 400, cacheWrite: 0, reasoning: 0 })
+  // ① 包装层单链(转售路由 modlens-go-ds4f,上游不产生独立非包装流):改挂上游入账,
+  //    不再整单漏计(旧版对包装层一律丢弃,账本 sessions=0)。
+  {
+    const d = mk()
+    assert.equal(d.admit('s1', 'DeepSeek-V4-Flash', 'modlens-go-ds4f', b(), T0), 'go-ds4f', '包装层样本改挂上游 id 入账(issue #76 主修复)')
+  }
+  // ② 急切转发对·正序:包装层先到 → 改挂入账;上游后到 → 窗口内判重复跳过。
+  {
+    const d = mk()
+    assert.equal(d.admit('s1', 'deepseek-v4-flash', 'modlens-opencode-go', b(), T0), 'opencode-go', '包装层先到:改挂入账')
+    assert.equal(d.admit('s1', 'deepseek-v4-flash', 'opencode-go', b(), T0 + 50), null, '上游后到:同一指纹判重复(#70 语义保持)')
+  }
+  // ③ 急切转发对·反序:上游先到 → 照常入账;包装层后到 → 改挂后判重复跳过。
+  {
+    const d = mk()
+    assert.equal(d.admit('s1', 'deepseek-v4-flash', 'opencode-go', b(), T0), 'opencode-go', '上游先到:照常入账')
+    assert.equal(d.admit('s1', 'deepseek-v4-flash', 'modlens-opencode-go', b(), T0 + 50), null, '包装层后到:改挂后判重复(到达顺序无关)')
+  }
+  // ④ 窗口过期:超过窗口宽度的同指纹样本重新入账(独立调用不受去重影响)。
+  {
+    const d = mk()
+    assert.equal(d.admit('s1', 'm', 'deepseek', b(), T0), 'deepseek')
+    assert.equal(d.admit('s1', 'm', 'deepseek', b(), T0 + USAGE_DEDUP_WINDOW_MS + 1), 'deepseek', '窗口过期后重新入账')
+  }
+  // ⑤ 合法的两次同量普通调用互不去重(与旧行为一致,零回归)。
+  {
+    const d = mk()
+    assert.equal(d.admit('s1', 'm', 'deepseek', b(), T0), 'deepseek')
+    assert.equal(d.admit('s1', 'm', 'deepseek', b(), T0 + 100), 'deepseek', '普通×普通不去重')
+  }
+  // ⑥ 非字符串 provider(日志实测 [object Object])归一空串,由账本按缺省渠道处理。
+  {
+    const d = mk()
+    assert.equal(d.admit('s1', 'm', { evil: true }, b(), T0), '', '对象 provider 归一为空串(不产生脏键)')
+  }
+  // ⑦ 深层包装变体(deepseek-modlens-vision,不在前缀判定内)按原样入账(既有口径)。
+  {
+    const d = mk()
+    assert.equal(d.admit('s1', 'm', 'deepseek-modlens-vision', b(), T0), 'deepseek-modlens-vision', '深层变体不改挂')
+  }
+  console.log('[ok] usage 指纹窗口去重器(改挂/双序互斥/窗口过期/普通互不去重/硬化)通过')
+}
+
+// 11-2) 投影折叠指纹去重(issue #76):包装单链计入/急切对单记/旧 checkpoint 兼容/有界。
+{
+  const { __testProjection } = await import('../lib/index.js')
+  const { makeCostUsageProjection, usageProjectionStateSchema } = __testProjection
+  const projRoot11 = join(process.cwd(), '.tmp-proj-dedup')
+  mkdirSync(projRoot11, { recursive: true })
+  const projLedger11 = new Ledger(sanitizeConfig({}), {}, join(projRoot11, 'ledger.json'))
+  const def11 = makeCostUsageProjection(projLedger11)
+  const T0 = 1756200000000
+  const usage11 = { inputTokens: 1200, outputTokens: 30, cacheReadTokens: 400, cacheWriteTokens: 0, reasoningTokens: 0 }
+  // ① 包装单链:只有包装层 header+usage → 改挂 go-ds4f 计入(旧版投影恒 0)。
+  {
+    let st = def11.init()
+    for (const ev of [
+      { type: 'session', createdAt: T0 },
+      { type: 'request/header', time: T0 + 1000, data: { header: { config: { provider: 'modlens-go-ds4f', model: 'DeepSeek-V4-Flash' } } } },
+      { type: 'assistant/message', time: T0 + 2000, data: { turn: 0, step: 0, usage: usage11 } },
+    ]) st = def11.apply(st, ev)
+    assert.equal(st.totals.input, 1200, '包装单链投影不再恒 0(issue #76)')
+    assert.ok(st.byProviderModel?.['go-ds4f:DeepSeek-V4-Flash'] !== undefined, '改挂上游键计入 byProviderModel')
+    assert.equal(st.last.provider, 'go-ds4f', 'last.provider 为改挂后的上游 id')
+    usageProjectionStateSchema.parse(st)
+  }
+  // ② 急切转发对(包装层 + 上游两套 header+usage,不同 turn):只计一次。
+  {
+    let st = def11.init()
+    for (const ev of [
+      { type: 'session', createdAt: T0 },
+      { type: 'request/header', time: T0 + 1000, data: { header: { config: { provider: 'modlens-opencode-go', model: 'deepseek-v4-flash' } } } },
+      { type: 'assistant/message', time: T0 + 2000, data: { turn: 0, step: 0, usage: usage11 } },
+      { type: 'request/header', time: T0 + 3000, data: { header: { config: { provider: 'opencode-go', model: 'deepseek-v4-flash' } } } },
+      { type: 'assistant/message', time: T0 + 4000, data: { turn: 1, step: 0, usage: usage11 } },
+    ]) st = def11.apply(st, ev)
+    assert.equal(st.totals.input, 1200, '急切转发对只计一次(窗口去重)')
+    assert.deepEqual(Object.keys(st.byProviderModel ?? {}), ['opencode-go:deepseek-v4-flash'], '只落上游键')
+    usageProjectionStateSchema.parse(st)
+  }
+  // ③ 旧 checkpoint(无 recent 字段)恢复后可继续折叠并 parse。
+  {
+    let st = def11.init()
+    delete st.recent
+    st = def11.apply(st, { type: 'request/header', time: T0 + 1000, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } })
+    st = def11.apply(st, { type: 'assistant/message', time: T0 + 2000, data: { turn: 0, step: 0, usage: usage11 } })
+    assert.equal(st.totals.input, 1200, '旧 checkpoint 缺 recent 字段照常折叠')
+    usageProjectionStateSchema.parse(st)
+  }
+  // ④ recent 有界:窗口内灌 40 个不同指纹,滚动列表截断且 schema 可 parse。
+  {
+    let st = def11.init()
+    st = def11.apply(st, { type: 'request/header', time: T0 + 1000, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } })
+    for (let i = 0; i < 40; i++) {
+      st = def11.apply(st, { type: 'assistant/message', time: T0 + 2000 + i * 100, data: { turn: i, step: 0, usage: { ...usage11, inputTokens: 1000 + i } } })
+    }
+    assert.ok(Array.isArray(st.recent) && st.recent.length <= 25, '滚动指纹列表有界(≤25),实际 ' + (st.recent?.length ?? 'n/a'))
+    usageProjectionStateSchema.parse(st)
+  }
+  rmSync(projRoot11, { recursive: true, force: true })
+  console.log('[ok] 投影折叠指纹去重(包装单链计入/急切对单记/旧 checkpoint 兼容/有界)通过')
+}
+
+// 11-3) 回放两遍扫(issue #76):包装单链改挂计入;反序急切对仍单记;与实时投影同语义。
+{
+  const cfg11 = sanitizeConfig({})
+  const T0 = 1756200000000
+  const usageRow11 = { inputTokens: 1200, outputTokens: 30, cacheReadTokens: 400, cacheWriteTokens: 0, reasoningTokens: 0 }
+  // ① 包装单链(转售路由):只有包装层 header+usage → 改挂 go-ds4f 键计入(旧版整单丢失)。
+  const replayedChain11 = replaySessionRecords([
+    { type: 'session', id: 's-chain', createdAt: T0, time: T0, seq: 0 },
+    { type: 'request/header', time: T0 + 1000, seq: 1, data: { header: { config: { provider: 'modlens-go-ds4f', model: 'DeepSeek-V4-Flash' } } } },
+    { type: 'assistant/message', time: T0 + 2000, seq: 2, data: { turn: 0, step: 0, usage: usageRow11 } },
+  ], cfg11, null)
+  const dayChain11 = Object.values(replayedChain11.days)[0]
+  assert.deepEqual(Object.keys(dayChain11), ['go-ds4f:DeepSeek-V4-Flash'], '包装单链回放改挂上游键(旧版整单丢失)')
+  assert.equal(dayChain11['go-ds4f:DeepSeek-V4-Flash'].calls, 1, '包装单链回放恰记一次')
+  // ② 反序急切对:上游事件在前、包装层事件在后 → 仍只计一次上游键。
+  const replayedRev11 = replaySessionRecords([
+    { type: 'session', id: 's-rev', createdAt: T0, time: T0, seq: 0 },
+    { type: 'request/header', time: T0 + 1000, seq: 1, data: { header: { config: { provider: 'opencode-go', model: 'deepseek-v4-flash' } } } },
+    { type: 'assistant/message', time: T0 + 2000, seq: 2, data: { turn: 0, step: 0, usage: usageRow11 } },
+    { type: 'request/header', time: T0 + 3000, seq: 3, data: { header: { config: { provider: 'modlens-opencode-go', model: 'deepseek-v4-flash' } } } },
+    { type: 'assistant/message', time: T0 + 4000, seq: 4, data: { turn: 1, step: 0, usage: usageRow11 } },
+  ], cfg11, null)
+  const dayRev11 = Object.values(replayedRev11.days)[0]
+  assert.deepEqual(Object.keys(dayRev11), ['opencode-go:deepseek-v4-flash'], '反序急切对只落上游键')
+  assert.equal(dayRev11['opencode-go:deepseek-v4-flash'].calls, 1, '反序急切对恰记一次(预扫描窗口覆盖后到包装层)')
+  console.log('[ok] 回放两遍扫(包装单链改挂计入/反序急切对单记)通过')
+}
+
+// 11-4) 本地模型零价(issue #76 附带):不再误套云端价 + 云端回归 + 覆盖逃生门。
+{
+  const prices11 = sanitizeConfig({}).prices
+  assert.ok(prices11 && typeof prices11 === 'object', '默认价格表存在')
+  // ① 报告者形态:本地前缀模型此前经跨厂商兜底误套 qwen3.8-max($3.29/64 次),现在未定价。
+  assert.equal(providerPriceEntryFor('deepseek', 'lmstudio:qwen3.8-9b-heretic-uncensored-i1', prices11, { mode: 'auto' }).priced, false, '本地前缀模型不再误套云端价')
+  assert.equal(providerPriceEntryFor('lmstudio', 'qwen3.8-9b-heretic-uncensored-i1', prices11, { mode: 'auto' }).priced, false, '本地 provider 渠道未定价')
+  assert.equal(providerPriceEntryFor('opencode-go', 'ollama:llama3.3-70b', prices11, { mode: 'auto' }).priced, false, '跨厂商兜底跳过本地前缀模型')
+  // ② 云端模型定价不受影响(回归)。
+  assert.equal(providerPriceEntryFor('deepseek', 'deepseek-v4-flash', prices11, { mode: 'auto' }).priced, true, '云端 DeepSeek 照常定价')
+  assert.equal(providerPriceEntryFor('deepseek', 'qwen3.8-max', prices11, { mode: 'auto' }).priced, true, '云端 qwen3.8-max 照常定价(跨目录兑底保留)')
+  // ③ 覆盖逃生门:显式 priceOverrides 仍可为本地模型指定价格。
+  const over11 = providerPriceEntryFor('lmstudio', 'qwen3.8-9b-heretic-uncensored-i1', prices11, {
+    mode: 'auto',
+    overrides: { 'lmstudio:qwen3.8-9b-heretic-uncensored-i1': 'deepseek:deepseek-v4-flash' },
+  })
+  assert.equal(over11.priced, true, '显式覆盖仍可为本地模型定价(逃生门)')
+  console.log('[ok] 本地模型零价(误套修复/云端回归/覆盖逃生门)通过')
+}
+
+// 11-5) 本地模型误价一次性清洗迁移:历史桶归零 + 日/会话合计扣回 + 幂等。
+{
+  const root11 = join(tmpdir(), `cm-unprice-${Date.now()}`)
+  mkdirSync(root11, { recursive: true })
+  const ledger11 = new Ledger(sanitizeConfig({}), {}, join(root11, 'ledger.json'))
+  ledger11.scheduleWrite = () => {}
+  const T11 = 1756200000000
+  ledger11.days['2026-08-28'] = {
+    date: '2026-08-28', input: 65000, output: 8100, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 65,
+    cost: 3.79, apiCost: 3.79,
+    byProviderModel: {
+      'lmstudio:qwen3.8-9b-heretic-uncensored-i1': { input: 64000, output: 8000, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 64, cost: 3.29, apiCost: 3.29 },
+      'llm-lmstudio:qwen3.7-plus': { input: 500, output: 50, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 0, cost: 0.25, apiCost: 0.25 },
+      'deepseek:deepseek-v4-flash': { input: 1000, output: 100, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0.25, apiCost: 0.25 },
+    },
+    sessions: [{
+      id: 's-76', at: T11, input: 64000, output: 8000, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 64, cost: 3.29, apiCost: 3.29,
+      byProviderModel: {
+        'lmstudio:qwen3.8-9b-heretic-uncensored-i1': { input: 64000, output: 8000, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 64, cost: 3.29, apiCost: 3.29 },
+      },
+    }],
+  }
+  const r11 = unpriceLocalOriginModels(ledger11)
+  assert.equal(r11.zeroedBuckets, 3, 'day + session + llm- 前缀桶各归零一次')
+  const day11 = ledger11.days['2026-08-28']
+  assert.ok(Math.abs(day11.cost - 0.25) < 1e-9, '日合计扣回本地误价(3.79 → 0.25)')
+  assert.ok(Math.abs(day11.byProviderModel['lmstudio:qwen3.8-9b-heretic-uncensored-i1'].cost) < 1e-9, '本地桶费用归零')
+  assert.equal(day11.byProviderModel['lmstudio:qwen3.8-9b-heretic-uncensored-i1'].input, 64000, '本地桶 token 保留')
+  assert.ok(Math.abs(day11.byProviderModel['deepseek:deepseek-v4-flash'].cost - 0.25) < 1e-9, '正常桶不动')
+  assert.ok(Math.abs(day11.byProviderModel['llm-lmstudio:qwen3.7-plus'].cost) < 1e-9, 'llm- 前缀 provider 键识别为本地来源')
+  assert.ok(Math.abs(day11.sessions[0].cost) < 1e-9, '会话合计同步扣回')
+  const r11b = unpriceLocalOriginModels(ledger11)
+  assert.equal(r11b.zeroedBuckets, 0, '二次运行幂等')
+  rmSync(root11, { recursive: true, force: true })
+  console.log('[ok] 本地模型误价清洗迁移(归零/扣回/llm- 前缀/幂等)通过')
+}
+
+// 11-6) 今日费用实时化接线源哨兵:serve-stale + 客户端投影联动刷新。
+{
+  const idx11 = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.ok(idx11.includes('kick(balanceCache.fetchedAt > 0'), 'serve-stale:有过快照时余额刷新转后台')
+  assert.ok(idx11.includes('task.catch(() => {})'), 'serve-stale:后台任务拒绝被吞掉(无 unhandled rejection)')
+  const client11 = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
+  assert.ok(client11.includes('function useProjectionRefresh(props, usage)'), '客户端投影联动刷新 hook 存在')
+  assert.ok((client11.match(/useProjectionRefresh\(props, /g) || []).length >= 3, '会话徽章(dock/header)与侧边栏页脚三处挂载(覆盖 position=off)')
+  assert.ok(client11.includes("setTimeout(() => { props.api?.reload?.() }, 800)"), '800ms 防抖后触发 getState 重载(今日费用 ≈1s 更新)')
+  console.log('[ok] 今日费用实时化接线哨兵(serve-stale/投影联动刷新)通过')
+}
+
+// 11-7) 本地模型扩充清单 + 「__local__」零消耗哨兵(服务端解析)。
+{
+  const prices11b = sanitizeConfig({}).prices
+  // ① 哨兵:任意模型(含已命中云端模型)标记 __local__ → 未定价(费用 0)。
+  assert.equal(providerPriceEntryFor('deepseek', 'deepseek-v4-flash', prices11b, { mode: 'auto', overrides: { 'deepseek:deepseek-v4-flash': '__local__' } }).priced, false, '__local__ 哨兵把已命中模型标记为零消耗')
+  assert.equal(providerPriceEntryFor('opencode-go', 'some-model', prices11b, { mode: 'auto', overrides: { 'opencode-go:some-model': '__local__' } }).priced, false, '__local__ 哨兵(非 DeepSeek 渠道)同样生效')
+  // ② 扩充本地清单:vLLM / SGLang / TabbyAPI / lmdeploy 等。
+  assert.equal(providerPriceEntryFor('vllm', 'qwen3.8-9b-heretic', prices11b, { mode: 'auto' }).priced, false, 'vllm provider 识别为本地来源')
+  assert.equal(providerPriceEntryFor('deepseek', 'vllm:qwen3.8-9b-heretic', prices11b, { mode: 'auto' }).priced, false, 'vllm: 模型前缀识别为本地来源')
+  assert.equal(providerPriceEntryFor('deepseek', 'sglang:llama3.3-70b', prices11b, { mode: 'auto' }).priced, false, 'sglang: 前缀识别为本地来源')
+  assert.equal(providerPriceEntryFor('tabbyapi', 'mistral-nemo', prices11b, { mode: 'auto' }).priced, false, 'tabbyapi provider 识别为本地来源')
+  // ③ 云端回归(扩充不误伤)。
+  assert.equal(providerPriceEntryFor('deepseek', 'deepseek-v4-flash', prices11b, { mode: 'auto' }).priced, true, '云端 DeepSeek 不受扩充影响')
+  assert.equal(providerPriceEntryFor('opencode-go', 'qwen3.8-max', prices11b, { mode: 'auto' }).priced, true, '云端第三方条目不受扩充影响')
+  console.log('[ok] 本地清单扩充 + __local__ 零消耗哨兵(服务端解析)通过')
+}
+
+// 11-8) __local__ 哨兵端到端:入账零消耗 + updateConfig 写入后历史桶即时归零。
+{
+  // ① Ledger.account:哨兵覆盖下 token 照记、费用 0(非本地 provider 由哨兵驱动)。
+  const root11c = join(tmpdir(), `cm-local-sentinel-${Date.now()}`)
+  mkdirSync(root11c, { recursive: true })
+  const ledger11c = new Ledger(sanitizeConfig({}), {}, join(root11c, 'ledger.json'))
+  ledger11c.scheduleWrite = () => {}
+  ledger11c.config.priceOverrides['mycloud:special-model'] = '__local__'
+  ledger11c.account({ input: 1000, output: 100, cacheRead: 0, cacheWrite: 0, reasoning: 0 }, 'special-model', 's-local', Date.now(), 'mycloud')
+  const day11c = Object.values(ledger11c.days)[0]
+  assert.equal(day11c.input, 1000, '哨兵覆盖下 token 照记(input 桶)')
+  assert.equal(day11c.output, 100, '哨兵覆盖下 token 照记(output 桶)')
+  assert.ok(Math.abs(day11c.cost) < 1e-9, '哨兵覆盖下费用恒 0')
+  assert.ok(Math.abs(day11c.byProviderModel['mycloud:special-model'].cost) < 1e-9, '哨兵覆盖按原 provider 键入账')
+  rmSync(root11c, { recursive: true, force: true })
+
+  // ② updateConfig e2e:写入 __local__ 覆盖后,当日已误计金额即时归零(token 保留)。
+  const prevHome11 = process.env.DSH_HOME
+  const root11d = join(tmpdir(), `cm-local-override-${Date.now()}`)
+  mkdirSync(join(root11d, 'storages', 'cost-meter'), { recursive: true })
+  const todayKey11 = localDayKey(Date.now())
+  writeFileSync(join(root11d, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({
+    version: 1,
+    config: sanitizeConfig({}),
+    days: {
+      [todayKey11]: {
+        date: todayKey11, input: 100000, output: 10000, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 10,
+        cost: 1.25, apiCost: 1.25,
+        byProviderModel: {
+          'mycloud:special-model': { input: 100000, output: 10000, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 10, cost: 1.25, apiCost: 1.25 },
+        },
+        sessions: [],
+      },
+    },
+  }))
+  process.env.DSH_HOME = root11d
+  try {
+    const provided11 = {}
+    const { apply: apply11 } = await import('../lib/index.js')
+    apply11({
+      on: () => () => {},
+      effect: () => {},
+      inject: () => {},
+      provide: (k, v) => { provided11[k] = v },
+      logger: console,
+      get: key => (key === 'settings' ? { get: () => ({}) } : undefined),
+    })
+    const state11 = await provided11.costMeter.updateConfig({ priceOverrides: { 'mycloud:special-model': '__local__' } })
+    assert.ok(Math.abs(state11.today.cost) < 1e-9, 'updateConfig 写入 __local__ 后今日费用即时归零(1.25 → 0)')
+    assert.equal(state11.today.input, 100000, '归零只针对费用,token 保留')
+    const updInv11 = TYPERT.invocations.find(i => i.method === 'updateConfig')
+    if (updInv11 !== undefined && updInv11.result !== undefined) {
+      const codec11 = updInv11.result.schema.safeParse(JSON.parse(JSON.stringify(state11)))
+      assert.ok(codec11.success, '归零后快照仍通过 updateConfig strict codec:' + (codec11.success ? '' : JSON.stringify(codec11.error.issues.slice(0, 3))))
+    }
+  } finally {
+    rmSync(root11d, { recursive: true, force: true })
+    if (prevHome11 === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = prevHome11
+  }
+  console.log('[ok] __local__ 哨兵端到端(入账零消耗/updateConfig 即时归零/codec)通过')
+}
+
+// 11-9) 客户端镜像一致性 + UI 接线哨兵(本地判定双侧同输入同结果)。
+{
+  const clientSrc11 = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
+  const sliceStart11 = clientSrc11.indexOf('function priceEntryFor(modelId, table)')
+  const sliceEnd11 = clientSrc11.indexOf('function makeStore(initial)')
+  assert.ok(sliceStart11 > 0 && sliceEnd11 > sliceStart11, '客户端价格区段定位成功')
+  const C11 = new Function(clientSrc11.slice(sliceStart11, sliceEnd11) + '\nreturn { resolveClientPrice, isLocalOriginClient }')()
+  const prices11m = sanitizeConfig({}).prices
+  const matchConfig11 = { prices: prices11m, priceMatch: 'auto' }
+  // ① 哨兵(客户端):priced=false 且视为已人工指定(不进未命中列表)。
+  const sentinel11 = C11.resolveClientPrice('deepseek', 'deepseek-v4-flash', { ...matchConfig11, priceOverrides: { 'deepseek:deepseek-v4-flash': '__local__' } })
+  assert.equal(sentinel11.priced, false, '客户端哨兵 priced=false')
+  assert.equal(sentinel11.matched, true, '客户端哨兵视为已指定')
+  // ② 本地守卫(扩充名单)。
+  assert.equal(C11.resolveClientPrice('vllm', 'qwen3.8-9b', matchConfig11).priced, false, '客户端 vllm provider 守卫')
+  assert.equal(C11.resolveClientPrice('deepseek', 'ollama:llama3.3', matchConfig11).priced, false, '客户端 ollama: 前缀守卫')
+  assert.equal(C11.resolveClientPrice('deepseek', 'deepseek-v4-flash', matchConfig11).priced, true, '客户端云端回归')
+  // ③ 双侧漂移守卫:同输入同结果。
+  assert.equal(
+    C11.resolveClientPrice('lmstudio', 'qwen3.8-9b-heretic-uncensored-i1', matchConfig11).priced,
+    providerPriceEntryFor('lmstudio', 'qwen3.8-9b-heretic-uncensored-i1', prices11m, { mode: 'auto' }).priced,
+    '客户端/服务端本地判定一致(漂移守卫)')
+  // ④ UI 接线哨兵。
+  assert.ok(clientSrc11.includes("value: '__local__', label: t('overrideTargetLocal')"), '映射下拉提供「本地模型(零消耗)」选项')
+  assert.ok(clientSrc11.includes("t('matchedTitle')") && clientSrc11.includes('matchedKeys'), '「本月已命中模型」改映射区块接入')
+  assert.ok(clientSrc11.includes("t('matchedKeepAuto')"), '已命中模型行默认保持自动命中')
+  console.log('[ok] 客户端镜像一致性 + 本地零消耗 UI 接线哨兵通过')
 }
 
 console.log('[ok] 全部验证通过')

@@ -629,9 +629,13 @@ window.__ModuleLoader__.load({
         priceMatchExact: '仅精确匹配',
         priceMatchNote: '自动匹配顺序:精确 → 手动指定 → 去日期/版本后缀 → 前缀 → 家族相似;未命中时 DeepSeek 回退默认价,其他 provider 不计价。',
         unmatchedTitle: '最近出现但未命中价格的模型',
-        unmatchedHint: '按当前匹配模式未命中价格条目(含跨厂商兑底后仍按默认价兜底的);为其指定条目写入手动匹配覆盖,选择「默认价」即回退 DeepSeek 默认价。',
+        unmatchedHint: '按当前匹配模式未命中价格条目(含跨厂商兑底后仍按默认价兜底的);为其指定条目写入手动匹配覆盖,选择「默认价」即回退 DeepSeek 默认价。本地推理来源(lmstudio / ollama / vLLM 等)的模型已自动按零消耗处理;如需计费,可在此为其指定价格条目。',
         overrideTargetDefault: 'DeepSeek 默认价',
         overrideRemove: '移除',
+        overrideTargetLocal: '本地模型（零消耗）',
+        matchedTitle: '本月已命中价格的模型',
+        matchedHint: '以下模型已自动命中价格条目。在行内选择目标即可改挂其它条目,或选择「本地模型（零消耗）」把该模型标记为本地来源——token 照常统计、费用按 0 计,历史金额即时归零。写入后该行转入上方手动指定区。',
+        matchedKeepAuto: '保持自动命中',
         overrideNone: '暂无手动匹配覆盖。',
         mountedSuffix: '已挂载(参与计费)',
         flatInput: '输入',
@@ -1044,9 +1048,13 @@ window.__ModuleLoader__.load({
         priceMatchExact: 'Exact match only',
         priceMatchNote: 'Match order: exact → manual override → strip date/version suffix → prefix → family similarity. Unmatched DeepSeek ids fall back to the default price; other providers stay unpriced.',
         unmatchedTitle: 'Recently seen models without a price hit',
-        unmatchedHint: 'These found no price entry under the current match mode (including cross-vendor fallback), or fell back to the DeepSeek default. Pick which entry each one should bill against (saved as a manual override); “Default price” falls back to the DeepSeek default.',
+        unmatchedHint: 'These found no price entry under the current match mode (including cross-vendor fallback), or fell back to the DeepSeek default. Pick which entry each one should bill against (saved as a manual override); “Default price” falls back to the DeepSeek default. Models served by local runtimes (lmstudio / ollama / vLLM / …) are treated as zero-cost automatically; assign a price entry here to bill them.',
         overrideTargetDefault: 'DeepSeek default price',
         overrideRemove: 'Remove',
+        overrideTargetLocal: 'Local model (zero cost)',
+        matchedTitle: 'Models matched this month',
+        matchedHint: 'These models already auto-matched a price entry. Pick a target to re-map them, or pick “Local model (zero cost)” to mark them as local — tokens are still counted, cost is 0, and their historical amounts are zeroed immediately. Overridden rows move to the manual list above.',
+        matchedKeepAuto: 'Keep auto match',
         overrideNone: 'No manual match overrides.',
         mountedSuffix: 'Mounted (billed)',
         flatInput: 'Input',
@@ -1977,6 +1985,24 @@ window.__ModuleLoader__.load({
      *   matched: 是否命中显式价格条目(含跨厂商兑底);false = DeepSeek 默认价兜底或完全未命中,
      *   未命中列表据此判定(与计费口径一致,路由 provider 前缀不再误报)。
      */
+    // 本地推理来源判定(v1.6.11,与 lib/pricing.js isLocalOriginProviderOrModel 同
+    // 名单同口径;bundle 无法直接复用宿主模块,此处为镜像副本,双侧同输入同结果
+    // 由 verify.mjs 漂移守卫锁定)。
+    const LOCAL_PROVIDER_IDS = new Set([
+      'lmstudio', 'ollama', 'jan', 'gpt4all', 'koboldcpp', 'llamacpp', 'llama-cpp', 'localai',
+      'vllm', 'sglang', 'tabbyapi', 'lmdeploy', 'oobabooga', 'text-generation-webui', 'llama-server',
+    ])
+    const LOCAL_MODEL_PREFIXES = [
+      'lmstudio:', 'lmstudio/', 'ollama:', 'ollama/', 'jan:', 'jan/', 'gpt4all:', 'gpt4all/',
+      'koboldcpp:', 'koboldcpp/', 'llamacpp:', 'llamacpp/', 'llama-cpp:', 'llama-cpp/',
+      'localai:', 'localai/', 'vllm:', 'vllm/', 'sglang:', 'sglang/', 'tabbyapi:', 'tabbyapi/',
+      'lmdeploy:', 'oobabooga/', 'text-generation-webui/', 'llama-server:', 'gguf:', 'local:',
+    ]
+    function isLocalOriginClient(provider, modelId) {
+      if (typeof provider === 'string' && LOCAL_PROVIDER_IDS.has(provider)) return true
+      const model = typeof modelId === 'string' ? modelId.toLowerCase() : ''
+      return LOCAL_MODEL_PREFIXES.some(prefix => model.startsWith(prefix))
+    }
     function resolveClientPrice(providerRaw, modelId, config) {
       const prices = config?.prices ?? {}
       const mode = config?.priceMatch === 'exact' ? 'exact' : 'auto'
@@ -1987,6 +2013,9 @@ window.__ModuleLoader__.load({
       let targetProvider = provider
       let targetModel = modelId
       const override = overrides[provider + ':' + modelId]
+      // 「本地模型(零消耗)」哨兵(与 pricing.js 同口径):覆盖目标 __local__ →
+      // 未定价(token 照记、费用 0),matched=true 表示已人工指定。
+      if (override === '__local__') return { entry: null, priced: false, billingMode: 'flat', matched: true }
       if (typeof override === 'string' && override.length > 0) {
         const sep = override.indexOf(':')
         if (sep > 0 && override.slice(sep + 1).length > 0) {
@@ -1998,6 +2027,10 @@ window.__ModuleLoader__.load({
         if (targetProvider === 'deepseek' && targetModel === '__default__') {
           return { entry: prices.default ?? { cacheHit: 0, cacheMiss: 0, output: 0 }, priced: true, billingMode: 'deepseek-peak', matched: false }
         }
+      }
+      // 本地推理来源零价守卫(与 pricing.js 同口径,置于覆盖之后、目录匹配之前)。
+      if (isLocalOriginClient(targetProvider, targetModel)) {
+        return { entry: null, priced: false, billingMode: 'flat', matched: false }
       }
       if (targetProvider === 'deepseek' || targetProvider.includes('deepseek')) {
         const models = prices.models ?? {}
@@ -2360,9 +2393,37 @@ window.__ModuleLoader__.load({
 
     // ── 会话费用徽章(dock / header) ────────────────────────────────────────
 
+    // 投影联动刷新(今日费用实时化):costUsage 投影由宿主在每次 usage 入账时
+    // 推送,是「本次调用已结束入账」的实时信号。据此触发一次 800ms 防抖的
+    // getState,侧边栏「今日费用」从最坏 60s 轮询缩短到流结束后 ≈1s;60s 轮询
+    // 保留作兜底(跨会话/后台标签页场景)。挂在会话徽章(dock/header)与侧边栏
+    // 页脚三处,覆盖 position=off 等配置组合;投影不可用时静默退化。
+    // hooks 规则:必须在组件早退 return 之前调用(与 useProjection 同位)。
+    function useProjectionRefresh(props, usage) {
+      const primedRef = useRef(false)
+      const identityRef = useRef('')
+      const identity = usage !== null && typeof usage === 'object'
+        ? [usage.input, usage.cacheRead, usage.cacheWrite, usage.output, usage.reasoning, usage.cost]
+            .map(value => String(value ?? 0)).join('|')
+        : ''
+      useEffect(() => {
+        // 首次执行只记基准不触发:挂载/会话切换时的存量投影不构成「新入账」。
+        if (!primedRef.current) {
+          primedRef.current = true
+          identityRef.current = identity
+          return
+        }
+        if (identity === '' || identity === identityRef.current) return
+        identityRef.current = identity
+        const timer = setTimeout(() => { props.api?.reload?.() }, 800)
+        return () => clearTimeout(timer)
+      }, [identity])
+    }
+
     function SessionCost(props) {
       const usage = props.useProjection ? props.useProjection('costUsage') : undefined
       const costStore = props.useCost ? props.useCost(s => s) : undefined
+      useProjectionRefresh(props, usage)
       const config = costStore?.state?.config
       if (!usage || !config || (billedInput(usage) + (usage?.output ?? 0)) === 0) return null
       const t = makeT(resolveLocale(config.locale))
@@ -2400,6 +2461,7 @@ window.__ModuleLoader__.load({
     function DockLine(props) {
       const usage = props.useProjection ? props.useProjection('costUsage') : undefined
       const costStore = props.useCost ? props.useCost(s => s) : undefined
+      useProjectionRefresh(props, usage)
       const config = costStore?.state?.config
       if (!usage || !config) return null
       const input = usage.input ?? 0
@@ -3780,6 +3842,13 @@ window.__ModuleLoader__.load({
 
     function SidebarFooter(props) {
       const costStore = props.useCost ? props.useCost(s => s) : undefined
+      // 侧边栏页脚非会话作用域插槽:useProjection 在部分宿主/页面可能不可用或
+      // 抛错(无活跃会话),try/catch 退化,联动刷新随之失效(60s 轮询兜底)。
+      let projectionUsage
+      if (props.useProjection) {
+        try { projectionUsage = props.useProjection('costUsage') } catch { projectionUsage = undefined }
+      }
+      useProjectionRefresh(props, projectionUsage)
       const state = costStore?.state
       const wide = !!props.wide
       const rootRef = useRef(null)
@@ -6198,7 +6267,21 @@ window.__ModuleLoader__.load({
             return resolveClientPrice(provider, modelId, matchPrices).matched !== true
           })
           const rows = [...new Set([...unmatchedKeys, ...Object.keys(overrides)])]
+          // 本月已命中价格且未手动指定的 provider:model 键(v1.6.11):同样允许
+          // 改挂其它条目或标记为本地模型(零消耗)。数据取 state.month.byProviderModel
+          // (比今日覆盖面广);override 写入后该键转入上方 rows(手动指定区)展示。
+          const monthByProvider = state.month?.byProviderModel ?? {}
+          const matchedKeys = Object.keys(monthByProvider).filter(key => {
+            if (overrides[key] !== undefined) return false
+            const sep = key.indexOf(':')
+            const provider = (sep > 0 ? key.slice(0, sep) : 'deepseek').toLowerCase()
+            const modelId = sep > 0 ? key.slice(sep + 1) : key
+            return resolveClientPrice(provider, modelId, matchPrices).matched === true
+          }).sort()
   const targetOptions = [
+    // 「本地模型(零消耗)」哨兵(v1.6.11):__local__ 由服务端解析为未定价
+    // (token 照记、费用 0),历史桶随 updateConfig 即时归零。
+    { value: '__local__', label: t('overrideTargetLocal') },
     { value: 'deepseek:__default__', label: t('overrideTargetDefault') },
     // DeepSeek 目标必须带 'deepseek:' 前缀存储(issue #56):裸名会被按
     // 「同渠道换名」解析,跨渠道映射(如 cephalon:x → deepseek-v4-flash)查无此价。
@@ -6241,7 +6324,23 @@ window.__ModuleLoader__.load({
                     overrides[key] !== undefined
                       ? el('button', { className: 'cm-btn small', onClick: () => setOverride(key, '') }, t('overrideRemove'))
                       : null)))
-              : el('p', { className: 'cm-hint' }, t('overrideNone')))
+              : el('p', { className: 'cm-hint' }, t('overrideNone')),
+            // 已命中模型改映射(v1.6.11):默认「保持自动命中」,选择目标即写入手动覆盖。
+            matchedKeys.length > 0
+              ? el(Fragment, null,
+                el('h3', { className: 'cm-h' }, t('matchedTitle')),
+                el('p', { className: 'cm-hint' }, t('matchedHint')),
+                matchedKeys.map(key =>
+                  el('div', { key, className: 'cm-match-row' },
+                    el('span', null, prettyProviderKey(key)),
+                    el('select', {
+                      className: 'cm-input',
+                      value: '',
+                      onChange: event => { if (event.target.value !== '') setOverride(key, event.target.value) },
+                    },
+                      el('option', { value: '' }, t('matchedKeepAuto')),
+                      targetOptions.map(o => el('option', { key: o.value, value: o.value }, o.label))))))
+              : null)
         })(),
         // 拓展价格表(厂商/家族分类目录;挂载 ↔ 费用设置价格表)
         el(PriceCatalogPanel, { state, draft, setDraft, t }),
