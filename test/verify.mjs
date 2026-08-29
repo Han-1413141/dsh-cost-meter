@@ -4590,4 +4590,100 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   console.log('[ok] v1.6.9 计费审计回归(NaN 生效时刻/llm- 前缀官方渠道/保留键优选/客户端子档与档位一致性/decimals=0)通过')
 }
 
+// ── v1.6.10 跨天会话归账锁定 + 宿主/浏览器时区错位提示(issue #74) ──────────
+// 背景:#74 报告「跨天会话下今日消耗与本会话成本显示 ¥0,费用按会话开始日归账」。
+// 行为级验证证实当前实现**已按调用发生日归账**(account() 的日键取每次调用的
+// 发起时刻,与官方请求侧计费同口径);其症状与「宿主进程时区西于用户本地时区
+// (如宿主跑在 UTC,本地 +8 的 0-8 点调用记前一日)」完全吻合。本版:① 用测试
+// 锁定归账保证;② 宿主下发 IANA 时区名,客户端检测到与浏览器时区错位时提示,
+// 避免误判为漏计。
+{
+  // 1) 行为锁定:跨天会话按调用发生日拆分(时间戳取「今日本地午夜 ±60s」,任意时区自洽)。
+  {
+    const midnight = new Date()
+    midnight.setHours(0, 0, 0, 0)
+    const t1 = midnight.getTime() - 60_000
+    const t2 = midnight.getTime() + 60_000
+    const dayA = localDayKey(t1)
+    const dayB = localDayKey(t2)
+    const ledger = new Ledger(sanitizeConfig({}), {}, join(tmpdir(), `cm-crossday-${Date.now()}.json`))
+    ledger.scheduleWrite = () => {}
+    ledger.account({ input: 1000, output: 100 }, 'deepseek-v4-flash', 's-cross', t1, 'deepseek-official')
+    ledger.account({ input: 2000, output: 200 }, 'deepseek-v4-flash', 's-cross', t2, 'deepseek-official')
+    assert.deepEqual(Object.keys(ledger.days).sort(), [dayA, dayB].sort(), '跨天会话拆成两个日条目(按调用发生日,非会话开始日)')
+    assert.equal(ledger.days[dayA].calls, 1, '前一日条目只含前一日调用')
+    assert.equal(ledger.days[dayB].calls, 1, '今日条目只含今日调用')
+    assert.equal(ledger.days[dayA].sessions[0].id, 's-cross', '前一日会话行存在')
+    assert.equal(ledger.days[dayA].sessions[0].calls, 1, '前一日会话行 calls=1')
+    assert.equal(ledger.days[dayA].sessions[0].at, t1, '前一日会话行 at = 当日首次调用时刻')
+    assert.equal(ledger.days[dayB].sessions[0].calls, 1, '同一会话 id 在新日重新开行(calls=1)')
+    assert.equal(ledger.days[dayB].sessions[0].at, t2, '今日会话行 at = 当日首次调用时刻')
+    assert.equal(ledger.days[dayB].input, 2000, 'token 按发生日拆分')
+    assert.equal(ledger.today().calls, 1, 'today() 取今日条目(跨天会话的今日调用可见)')
+  }
+
+  // 2) 宿主 meta 下发 IANA 时区名(e2e:真实 apply() → getState)。
+  {
+    const prevHome = process.env.DSH_HOME
+    const tzRoot = join(tmpdir(), `cm-tz-meta-${Date.now()}`)
+    mkdirSync(join(tzRoot, 'storages', 'cost-meter'), { recursive: true })
+    process.env.DSH_HOME = tzRoot
+    const provided = {}
+    const { apply } = await import('../lib/index.js')
+    apply({
+      on: () => () => {},
+      effect: () => {},
+      inject: () => {},
+      provide: (k, v) => { provided[k] = v },
+      logger: console,
+      get: key => (key === 'settings' ? { get: () => ({}) } : undefined),
+    })
+    const state = await provided.costMeter.getState()
+    assert.equal(typeof state.meta.timezone, 'string', 'meta.timezone 为字符串')
+    assert.ok(state.meta.timezone.length > 0, '宿主机取到 IANA 时区名(CI/本机均可)')
+    assert.equal(state.meta.timezoneOffsetMinutes, -new Date().getTimezoneOffset(), 'meta 偏移与宿主进程一致')
+    const codecTz = TYPERT.invocations.find(i => i.method === 'getState').result.schema.safeParse(JSON.parse(JSON.stringify(state)))
+    assert.ok(codecTz.success, '含 meta.timezone 的快照通过 getState strict codec:' + (codecTz.success ? '' : JSON.stringify(codecTz.error.issues.slice(0, 3))))
+    rmSync(tzRoot, { recursive: true, force: true })
+    if (prevHome === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = prevHome
+  }
+
+  // 3) 客户端错位判定行为(经助手区段抽取求值,函数改名时同步本测试)。
+  {
+    const clientSrcTz = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
+    const sliceStartTz = clientSrcTz.indexOf('function priceEntryFor(modelId, table)')
+    const sliceEndTz = clientSrcTz.indexOf('function makeStore(initial)')
+    assert.ok(sliceStartTz > 0 && sliceEndTz > sliceStartTz, '客户端助手区段定位成功')
+    const CTz = new Function(clientSrcTz.slice(sliceStartTz, sliceEndTz) + '\nreturn { formatTzOffset, timezoneMismatchOf }')()
+    assert.equal(CTz.formatTzOffset(480), 'UTC+8', 'formatTzOffset 整小时')
+    assert.equal(CTz.formatTzOffset(-300), 'UTC-5', 'formatTzOffset 负偏移')
+    assert.equal(CTz.formatTzOffset(330), 'UTC+5:30', 'formatTzOffset 半小时偏移')
+    const browserOffset = -new Date().getTimezoneOffset()
+    assert.equal(CTz.timezoneMismatchOf({ meta: { timezoneOffsetMinutes: browserOffset } }), null, '宿主与浏览器同偏移不提示')
+    const hostOffsetTz = browserOffset === 0 ? 480 : 0
+    const mismatch = CTz.timezoneMismatchOf({ meta: { timezoneOffsetMinutes: hostOffsetTz, timezone: 'UTC' } })
+    assert.ok(mismatch !== null, '错位时返回提示对象')
+    assert.ok(mismatch.hostLabel.includes('UTC') && mismatch.hostLabel.includes('('), 'hostLabel 含 IANA 名与偏移标注')
+    assert.ok(mismatch.browserLabel.startsWith('UTC'), 'browserLabel 为浏览器 UTC 偏移')
+    assert.equal(CTz.timezoneMismatchOf({ meta: { timezoneOffsetMinutes: hostOffsetTz } }).hostLabel, CTz.formatTzOffset(hostOffsetTz), '无 IANA 名时 hostLabel 回退纯偏移')
+    assert.equal(CTz.timezoneMismatchOf(null), null, 'meta 缺失不误报')
+    assert.equal(CTz.timezoneMismatchOf({ meta: {} }), null, '偏移非法不误报')
+  }
+
+  // 4) 接线源哨兵。
+  {
+    const clientSrcTzWire = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
+    assert.ok(clientSrcTzWire.includes("t('timezoneHint'"), '概览页接线时区错位提示')
+    assert.ok(clientSrcTzWire.includes("timezone: typeof v.meta?.timezone === 'string' ? v.meta.timezone : ''"), '客户端解析 meta.timezone')
+    const idxSrcTz = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+    assert.ok(idxSrcTz.includes('function hostTimezone()'), '宿主 hostTimezone 助手存在')
+    assert.ok(idxSrcTz.includes('...(hostTimezone() ? { timezone: hostTimezone() } : {})'), '宿主有值才下发 timezone 键(网关拒绝显式 undefined)')
+    const tySrcTz = readFileSync(new URL('../lib/typert.host.js', import.meta.url), 'utf8')
+    assert.ok(tySrcTz.includes('timezone: z.string().optional()'), 'stateSchema meta.timezone 可选键')
+  }
+
+  console.log('[ok] v1.6.10 跨天会话归账锁定 + 宿主/浏览器时区错位提示(issue #74)通过')
+}
+
 console.log('[ok] 全部验证通过')

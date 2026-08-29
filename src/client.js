@@ -665,6 +665,7 @@ window.__ModuleLoader__.load({
         cardTotal: '累计费用',
         cardTotalSub: '自账本建立以来 · 调用 {calls} 次',
         cardsFootnote: '口径说明:金额为最近一次落盘快照(2 秒防抖;正常关闭会先强制落盘再退出),与官方实时账单存在分钟级时差属预期;tokens 列为输入+输出+缓存+推理的合计——推理 tokens 由 API 单独上报且不计费(官方账单将其并入「输出」列展示),对账请以金额为准。',
+        timezoneHint: '时区提示:「今日/本月」按宿主机时区 {host} 取日界,与当前浏览器({browser})不同——宿主机跨日界的时刻与本地不一致,你本地午夜后的调用会被记到前一日(并非漏计;官方余额对账也会因此提示偏差)。可在宿主机上以本地时区运行 dsh 使两者一致。',
         todaySessions: '今日会话',
         historyExpandHint: '点击日期行可展开当日会话明细',
         historySessionsLoading: '会话明细加载中…',
@@ -1079,6 +1080,7 @@ window.__ModuleLoader__.load({
         cardTotal: 'All time',
         cardTotalSub: 'Since the ledger was created · Calls {calls}',
         cardsFootnote: 'Notes: amounts reflect the latest ledger snapshot (2s debounce; clean shutdown flushes everything first), so minute-level lag vs the live official bill is expected. Token columns sum input+output+cache+reasoning; reasoning tokens are reported separately by the API and are not billed (the official bill folds them into its output column) — reconcile by amount.',
+        timezoneHint: "Timezone notice: today/this-month are keyed by the host machine's timezone {host}, which differs from this browser ({browser}) — the host's local midnight differs from yours, so calls made after your local midnight land on the previous day (not lost; balance reconciliation flags the same deviation). Run dsh on the host in your local timezone to align them.",
         todaySessions: "Today's sessions",
         historyExpandHint: 'Click a date row to expand its session details',
         historySessionsLoading: 'Loading session details…',
@@ -1602,6 +1604,7 @@ window.__ModuleLoader__.load({
         meta: {
           now: typeof v.meta?.now === 'number' ? v.meta.now : Date.now(),
           timezoneOffsetMinutes: typeof v.meta?.timezoneOffsetMinutes === 'number' ? v.meta.timezoneOffsetMinutes : 0,
+          timezone: typeof v.meta?.timezone === 'string' ? v.meta.timezone : '',
           dayKey: typeof v.meta?.dayKey === 'string' ? v.meta.dayKey : '',
           monthKey: typeof v.meta?.monthKey === 'string' ? v.meta.monthKey : '',
         },
@@ -2209,6 +2212,35 @@ window.__ModuleLoader__.load({
     }
     function billedInput(usage) {
       return (usage?.input ?? 0) + (usage?.cacheRead ?? 0) + (usage?.cacheWrite ?? 0)
+    }
+
+    // ── 时区错位提示(issue #74):「今日/本月」日键按宿主机进程时区取,宿主与
+    //    浏览器时区不同时,用户本地午夜后的调用会落到前一日键下(今日显示 ¥0、
+    //    官方余额对账报偏差)——检测到错位即在概览页提示,避免误判为漏计。──
+
+    /** UTC 偏移分钟数 → 'UTC+8' / 'UTC-5:30' 展示。 */
+    function formatTzOffset(minutes) {
+      const abs = Math.abs(Math.round(Number(minutes) || 0))
+      const h = Math.floor(abs / 60)
+      const m = abs % 60
+      return 'UTC' + (Number(minutes) < 0 ? '-' : '+') + h + (m > 0 ? ':' + String(m).padStart(2, '0') : '')
+    }
+    /**
+     * 宿主/浏览器时区错位判定。错位时返回 { hostLabel, browserLabel },否则 null。
+     * hostLabel 优先用宿主 IANA 名(meta.timezone,如 'Asia/Shanghai (UTC+8)'),
+     * 缺席回退纯偏移;browserLabel 用浏览器偏移(浏览器不暴露 IANA 名给同源代码)。
+     */
+    function timezoneMismatchOf(state) {
+      const meta = state?.meta
+      const hostOffset = Number(meta?.timezoneOffsetMinutes)
+      if (!Number.isFinite(hostOffset)) return null
+      const browserOffset = -new Date().getTimezoneOffset()
+      if (browserOffset === hostOffset) return null
+      const hostName = typeof meta?.timezone === 'string' && meta.timezone.length > 0 ? meta.timezone : ''
+      const hostLabel = hostName
+        ? hostName + ' (' + formatTzOffset(hostOffset) + ')'
+        : formatTzOffset(hostOffset)
+      return { hostLabel, browserLabel: formatTzOffset(browserOffset) }
     }
 
     // ── 客户端状态存储 ──────────────────────────────────────────────────────
@@ -5718,6 +5750,14 @@ window.__ModuleLoader__.load({
         // 防抖落盘产生分钟级时差;reasoning 由 API 单列上报但不计费,token 合计
         // 天然对不齐,引导以金额对账。
         el('p', { className: 'cm-note', key: 'cards-footnote' }, t('cardsFootnote')),
+        // 宿主/浏览器时区错位提示(issue #74):宿主以非本地时区运行时,「今日」
+        // 的日界与用户感知不同(本地午夜后的调用记前一日),避免误判为漏计。
+        (() => {
+          const tzMismatch = timezoneMismatchOf(state)
+          return tzMismatch !== null
+            ? el('p', { className: 'cm-note', key: 'tz-hint' }, t('timezoneHint', { host: tzMismatch.hostLabel, browser: tzMismatch.browserLabel }))
+            : null
+        })(),
         // 「含 Plan 总额」快捷开关:紧贴汇总卡片下方,切换全部金额展示口径
         // (关 = 真金白银 API 渠道;开 = 含 Plan 订阅等值),随自动保存即时生效。
         el('label', { className: 'cm-cards-toggle', title: t('cardsTogglePlanTotalHint') },
