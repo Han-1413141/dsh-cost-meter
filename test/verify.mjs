@@ -1619,7 +1619,7 @@ console.log('[ok] 宽泛匹配与跨厂商兑底(路由 provider 费用为零修
   // 旧 v3 checkpoint(ver 不匹配)隔离——宿主 ver 检查拒绝旧行并全量 refold,
   // 不会对旧结构 state 调用 parse。
   const projRow = { ver: def.stateVersion, seq: events.length, val: structuredClone(projState) }
-  assert.equal(projRow.ver, 7, 'stateVersion 为 7(旧 v6 checkpoint 触发重放自愈而非 parse)')
+  assert.equal(projRow.ver, 8, 'stateVersion 为 8(旧 v7 checkpoint 触发重放自愈而非 parse;v8 起折叠计入 compaction/summary)')
   usageProjectionStateSchema.parse(projRow.val)
   // ⑤ issue #43 崩溃点复现对照:缺 stateSchema 的定义(fork 0.2.0 场景)在
   // restore 路径抛出与 issue 报错完全一致的 TypeError。
@@ -2108,7 +2108,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(scheduled >= 1, '清洗后调度落盘')
   // 投影与启动接线:源码结构断言(投影无独立运行时入口,行为经宿主重放自愈)。
   const indexSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
-  assert.ok(indexSource.includes('stateVersion: 7'), '投影 stateVersion 6→7:触发宿主重放,受污染投影自愈(issue #63 非 fork 会话 length 误作 seedLength 修复)')
+  assert.ok(indexSource.includes('stateVersion: 8'), '投影 stateVersion 7→8:触发宿主重放,受污染投影自愈(issue #63 修复 + #77 折叠计入 compaction/summary)')
   assert.ok(indexSource.includes("if (event.type === 'session')") && indexSource.includes('createdAt') && indexSource.includes('seedLength'), '投影记录会话创建时刻与 seedLength(旧宿主兼容+多 end-seed 延迟扣除)')
   assert.ok(indexSource.includes("if (event.type === 'session/end-seed')"), '投影识别 session/end-seed fork 种子边界(issue #55)')
   assert.ok(indexSource.includes('isSeedBySeq') && indexSource.includes('isSeedByLength') && indexSource.includes('seedEndSeq'), '投影按 seq/length/time 三重过滤种子段(issue #55/#61)')
@@ -2683,7 +2683,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(indexSrc70.includes('isWrapperProviderId(rawProvider)') && indexSrc70.includes('wrapperUpstreamProvider(rawProvider) ?? rawProvider'), 'costUsage 投影对包装层 provider 改挂上游(不再一律跳过)')
   assert.ok(indexSrc70.includes('dedupeWrapperProviderDays(ledger.days') && indexSrc70.includes("'modlens-wrapper-dedup-v1'"), '启动清洗接入一次性迁移(migrations 标记防重跑)')
   const backfillSrc70 = readFileSync(new URL('../lib/backfill.js', import.meta.url), 'utf8')
-  assert.ok(backfillSrc70.includes('isWrapperProviderId(provider)') && backfillSrc70.includes('wrapperUpstreamProvider(provider)'), '回放器对包装层样本改挂上游 + 指纹窗口判定')
+  assert.ok(backfillSrc70.includes('isWrapperProviderId(sampleProvider)') && backfillSrc70.includes('wrapperUpstreamProvider(sampleProvider)'), '回放器对包装层样本改挂上游 + 指纹窗口判定')
   console.log('[ok] modlens 包装层去重(id 判定/四形态清洗/幂等/保守分支/回放单记/接线)通过')
 }
 
@@ -5002,6 +5002,103 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(clientSrc11.includes("t('matchedTitle')") && clientSrc11.includes('matchedKeys'), '「本月已命中模型」改映射区块接入')
   assert.ok(clientSrc11.includes("t('matchedKeepAuto')"), '已命中模型行默认保持自动命中')
   console.log('[ok] 客户端镜像一致性 + 本地零消耗 UI 接线哨兵通过')
+}
+
+// ── v1.6.12:压缩摘要调用计费(issue #77,compaction/summary 不再漏计) ──
+
+// 12-1) 投影折叠计入 compaction/summary:事件自带路由/两代形态/缺省回落/无 usage 不入账/包装改挂/键独立。
+{
+  const { __testProjection } = await import('../lib/index.js')
+  const { makeCostUsageProjection, usageProjectionStateSchema } = __testProjection
+  const projRoot12 = join(process.cwd(), '.tmp-proj-compaction')
+  mkdirSync(projRoot12, { recursive: true })
+  const projLedger12 = new Ledger(sanitizeConfig({}), {}, join(projRoot12, 'ledger.json'))
+  const def12 = makeCostUsageProjection(projLedger12)
+  const T0 = 1756200000000
+  const summaryUsage12 = { inputTokens: 536, outputTokens: 2436, cacheReadTokens: 41472, cacheWriteTokens: 0, reasoningTokens: 0 }
+  // ① 报告者形态(0.1.2-alpha.1):路由在 data.message.source,usage 在 data.usage(事件无 turn/step)。
+  {
+    let st = def12.init()
+    for (const ev of [
+      { type: 'session', createdAt: T0 },
+      { type: 'request/header', time: T0 + 1000, data: { header: { config: { provider: 'minimax-cn', model: 'MiniMax-M3' } } } },
+      { type: 'assistant/message', time: T0 + 2000, seq: 301, data: { turn: 1, step: 1, usage: { inputTokens: 130, outputTokens: 159, cacheReadTokens: 13824, cacheWriteTokens: 0, reasoningTokens: 0 } } },
+      { type: 'compaction/summary', time: T0 + 3000, seq: 402, data: { message: { source: { provider: 'minimax-cn', model: 'MiniMax-M3' } }, usage: summaryUsage12 } },
+    ]) st = def12.apply(st, ev)
+    assert.equal(st.totals.input, 130 + 536, '摘要调用 token 计入 totals(issue #77 此前漏计)')
+    assert.ok(st.byProviderModel?.['minimax-cn:MiniMax-M3'] !== undefined, '按事件自带路由归因')
+    assert.equal(st.last.key, 'compaction:402', '摘要样本使用独立去重键(不占 turn:step)')
+    usageProjectionStateSchema.parse(st)
+  }
+  // ② 当前 master 形态:路由在 data.{provider,model};缺路由回落 header 状态。
+  {
+    let st = def12.init()
+    for (const ev of [
+      { type: 'session', createdAt: T0 },
+      { type: 'request/header', time: T0 + 1000, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } },
+      { type: 'compaction/summary', time: T0 + 2000, seq: 10, data: { provider: 'deepseek-official', model: 'deepseek-v4-flash', usage: summaryUsage12 } },
+    ]) st = def12.apply(st, ev)
+    assert.ok(st.byProviderModel?.['deepseek-official:deepseek-v4-flash'] !== undefined, 'master 形态(data.provider/model)同样识别')
+    let st2 = def12.init()
+    for (const ev of [
+      { type: 'session', createdAt: T0 },
+      { type: 'request/header', time: T0 + 1000, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } },
+      { type: 'compaction/summary', time: T0 + 2000, seq: 11, data: { summary: [], usage: summaryUsage12 } },
+    ]) st2 = def12.apply(st2, ev)
+    assert.ok(st2.byProviderModel?.['deepseek:deepseek-v4-flash'] !== undefined, '事件无路由时回落 header 状态计费口径')
+  }
+  // ③ usage 缺省(可选字段)不入账;包装层路由改挂上游;与邻近循环步同指纹互不误杀。
+  {
+    let st = def12.init()
+    for (const ev of [
+      { type: 'session', createdAt: T0 },
+      { type: 'request/header', time: T0 + 1000, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } },
+      { type: 'compaction/summary', time: T0 + 2000, seq: 12, data: { summary: [] } },
+      { type: 'compaction/summary', time: T0 + 2100, seq: 13, data: { message: { source: { provider: 'modlens-go-ds4f', model: 'DeepSeek-V4-Flash' } }, usage: summaryUsage12 } },
+      { type: 'assistant/message', time: T0 + 2200, seq: 14, data: { turn: 1, step: 1, usage: summaryUsage12 } },
+    ]) st = def12.apply(st, ev)
+    assert.equal(st.totals.input, 536 + 536, '无 usage 的摘要不入账;摘要样本豁免指纹窗口(与邻近循环步同指纹互不误杀)')
+    assert.ok(st.byProviderModel?.['go-ds4f:DeepSeek-V4-Flash'] !== undefined, '摘要的包装层路由改挂上游 id')
+    assert.ok(st.byProviderModel?.['deepseek:deepseek-v4-flash'] !== undefined, '循环步样本照常计入')
+    usageProjectionStateSchema.parse(st)
+  }
+  rmSync(projRoot12, { recursive: true, force: true })
+  console.log('[ok] 投影折叠计入 compaction/summary(两代路由/回落/豁免窗口/包装改挂)通过')
+}
+
+// 12-2) 历史回放计入 compaction/summary,且与实时折叠逐位一致(漂移守卫)。
+{
+  const cfg12 = sanitizeConfig({})
+  const T0 = 1756200000000
+  const records12 = [
+    { type: 'session', id: 's-77', createdAt: T0, time: T0, seq: 0 },
+    { type: 'request/header', time: T0 + 1000, seq: 1, data: { header: { config: { provider: 'minimax-cn', model: 'MiniMax-M3' } } } },
+    { type: 'assistant/message', time: T0 + 2000, seq: 301, data: { turn: 1, step: 1, usage: { inputTokens: 130, outputTokens: 159, cacheReadTokens: 13824, cacheWriteTokens: 0, reasoningTokens: 0 } } },
+    { type: 'compaction/summary', time: T0 + 3000, seq: 402, data: { message: { source: { provider: 'minimax-cn', model: 'MiniMax-M3' } }, usage: { inputTokens: 536, outputTokens: 2436, cacheReadTokens: 41472, cacheWriteTokens: 0, reasoningTokens: 0 } } },
+    { type: 'assistant/message', time: T0 + 4000, seq: 501, data: { turn: 2, step: 1, usage: { inputTokens: 200, outputTokens: 50, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0 } } },
+  ]
+  const replayed12 = replaySessionRecords(records12, cfg12, null)
+  const day12 = Object.values(replayed12.days)[0]
+  assert.equal(day12['minimax-cn:MiniMax-M3'].input, 130 + 536 + 200, '回放计入摘要调用 token(此前漏计)')
+  assert.equal(day12['minimax-cn:MiniMax-M3'].calls, 3, '回放 calls 含摘要调用')
+  // 与实时折叠同输入同结果(净聚合漂移守卫):fold 的 byProviderModel 与回放逐位一致。
+  const { __testProjection } = await import('../lib/index.js')
+  const { makeCostUsageProjection } = __testProjection
+  const projRoot12b = join(process.cwd(), '.tmp-proj-compaction-eq')
+  mkdirSync(projRoot12b, { recursive: true })
+  const projLedger12b = new Ledger(sanitizeConfig({}), {}, join(projRoot12b, 'ledger.json'))
+  const def12b = makeCostUsageProjection(projLedger12b)
+  let st = def12b.init()
+  for (const ev of records12) st = def12b.apply(st, ev)
+  for (const [key, bucket] of Object.entries(st.byProviderModel ?? {})) {
+    const r = day12[key]
+    assert.ok(r !== undefined, '回放与折叠键集一致:' + key)
+    assert.equal(r.input, bucket.input, '回放与折叠 input 一致:' + key)
+    assert.equal(r.output, bucket.output, '回放与折叠 output 一致:' + key)
+    assert.equal(r.cacheRead, bucket.cacheRead, '回放与折叠 cacheRead 一致:' + key)
+  }
+  rmSync(projRoot12b, { recursive: true, force: true })
+  console.log('[ok] 历史回放计入 compaction/summary + 折叠/回放逐位一致通过')
 }
 
 console.log('[ok] 全部验证通过')

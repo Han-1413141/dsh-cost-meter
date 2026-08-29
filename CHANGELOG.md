@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.6.12] - 2026-08-29
+
+### 修复(issue #77:压缩摘要调用漏计,compaction/summary 不进折叠)
+
+- **报告**(lizhuojunx86):压缩(compaction)摘要调用是一次真实的 provider 计费(把旧上下文发给模型总结),usage 记录在 `compaction/summary` 事件上——但该事件是 log-only、不是循环步,折叠此前只认 `assistant/chunk` 与 `assistant/message` 两种事件,摘要调用的 token 全部漏计(报告者语料:3 次压缩共 48,895 token,单次 MiniMax-M3 摘要 44,444 token)。上游 DSH 自己的投影也有同样缺口(tokscale 已在 junhoyeo/tokscale#1162 侧修复)。
+- **核实**:摘要调用走 `ctx.llm.stream()`(上游 summarizer.ts `llmStreamCall: true`),**实时账本钩子本就覆盖**(侧边栏今日费用/账本不漏);漏的是会话投影(徽章)与历史回放。
+- **修复**:投影折叠与历史回放计入 `compaction/summary` 的 `data.usage`(可选字段,缺省不入账)——归因优先用事件自带路由(两代宿主形态 `data.message.source.{provider,model}` 与 `data.{provider,model}` 都兼容),缺省回落 header 计费口径;摘要样本用独立去重键 `compaction:<seq>`(不占 `(turn, step)`,与循环步的样本替换互不干扰);豁免包装层指纹窗口(单源事件,无转发对,消除与邻近循环步同指纹的极小误杀面)。
+- **stateVersion 7 → 8**:触发宿主对旧 checkpoint 全量重放,历史会话的摘要用量随之补齐(v1.6.11 的包装层改挂计数也一并自愈)。
+
+### 验证
+
+- verify.mjs 新增 2 个 v1.6.12 回归块:折叠(两代路由形态/缺省回落/无 usage 不入账/包装改挂/与邻近循环步同指纹互不误杀)与回放(计入摘要 + 折叠/回放净聚合逐位一致漂移守卫);stateVersion 哨兵更新。
+- 全量通过(TZ=本地 +8 与 TZ=UTC 双跑);客户端未改动,lib/client.js 无需重建。
+
 ## [1.6.11] - 2026-08-29
 
 ### 修复(issue #76:modlens 包装路由整单漏计)

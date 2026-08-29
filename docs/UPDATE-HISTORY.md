@@ -4,6 +4,10 @@
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
 
+## v1.6.12(2026-08-29)—— 🗜️ 压缩摘要调用计费补齐(issue #77)
+- **修复:压缩(compaction)摘要调用此前漏计**——长会话触发上下文压缩时,宿主会把旧上下文发给模型做一次摘要调用,这是真实的 provider 计费,但它的用量记录在 `compaction/summary` 事件上,会话徽章与历史回放此前都不识别(实测单次摘要 44,444 token 被记 0)。现两处均已计入;侧边栏账本原本就经实时流覆盖,不受影响。
+- 摘要调用按事件自带的路由(provider/model)归因,旧版宿主与新版两种字段形态都兼容;升级后宿主会对历史会话重新折叠,摘要用量自动补齐。
+
 ## v1.6.11(2026-08-29)—— 🧩 modlens 路由漏计修复 + 本地模型零消耗 + 今日费用实时化(issue #76)
 - **修复:modlens 包装路由的调用完全不进账**——`modlens-go-ds4f` 等转售路由整条链都是包装型 id,旧逻辑把包装层的用量一律丢弃、只等「上游真实流」,结果整单漏计(会话日志有用量、账本为空、今日费用恒 ¥0)。现改为指纹窗口去重:包装层用量改挂上游 id 后与真实流按「模型 + 五桶 token 逐位指纹(10 秒窗)」互斥,转发对无论先后只记一次,包装层单链照常入账;会话徽章与历史回放同语义。
 - **修复:本地模型被按云端价误计**——`lmstudio:qwen3.8-9b-…` 这类本地网关模型会被模糊匹配套上同家族云端单价(实测 64 次多计 $3.29)。现本地来源(lmstudio / ollama / vLLM / SGLang / TabbyAPI / Jan / GPT4All / llama.cpp / LocalAI / koboldcpp / lmdeploy / oobabooga / text-generation-webui / llama-server 及对应模型前缀)自动按零消耗处理(token 照记、费用 0);启动时一次性把历史误计金额归零。
