@@ -648,6 +648,14 @@ window.__ModuleLoader__.load({
         codingPlanCommandcode: 'CommandCode',
         codingPlanScnet: 'SCNet 超算互联网 Token Plan',
         codingPlanVolcengine: '火山方舟 Volcano Ark Coding Plan',
+        codingPlanQwen: '千问 Qwen Token Plan',
+        qwenPlanCreditsLabel: '月度 Credits 额度(个人版 Lite 5 万 / 标准版 50 万,以订阅页为准)',
+        qwenPlanStartLabel: '订阅起始日(可选,格式 YYYY-MM-DD;留空按自然月)',
+        qwenRatesLabel: 'Credits 抵扣率覆盖(可选;每百万 token 抵扣的 Credits,留空用内置表)',
+        qwenRatesModelPlaceholder: '模型名,如 qwen3.8-max-preview',
+        qwenRatePlaceholder: '费率',
+        qwenRatesAdd: '添加',
+        qwenLocalNote: '千问 Token Plan 无 API 额度查询端点(额度仅控制台可见):按官方 Credits 抵扣率由本地账本估算当前计费周期用量,实际消耗以控制台为准;内置表覆盖的模型自动折算,其余模型不计入,可在上方手动指定抵扣率。',
         scnetPlanCreditsLabel: '月度 Credits 额度(基础 60,000 / 标准 240,000 / 高级 600,000)',
         scnetPlanStartLabel: '订阅起始日(可选,格式 YYYY-MM-DD;留空按自然月)',
         scnetLocalNote: 'SCNet 无 API 额度查询端点:按官方 Credits 抵扣表(2026-08-11 生效)由本地账本估算当前计费周期用量,实际消耗以控制台账单为准;抵扣表覆盖的模型自动折算,其余模型不计入。',
@@ -1067,6 +1075,14 @@ window.__ModuleLoader__.load({
         codingPlanCommandcode: 'CommandCode',
         codingPlanScnet: 'SCNet Token Plan',
         codingPlanVolcengine: 'Volcano Ark Coding Plan',
+        codingPlanQwen: 'Qwen Token Plan (qianwenai.com)',
+        qwenPlanCreditsLabel: 'Monthly credits quota (personal Lite 50K / Standard 500K; see your plan page)',
+        qwenPlanStartLabel: 'Plan start date (optional, YYYY-MM-DD; empty = calendar month)',
+        qwenRatesLabel: 'Credits rate overrides (optional; credits deducted per 1M tokens; empty = built-in table)',
+        qwenRatesModelPlaceholder: 'Model name, e.g. qwen3.8-max-preview',
+        qwenRatePlaceholder: 'rate',
+        qwenRatesAdd: 'Add',
+        qwenLocalNote: 'Qwen Token Plan exposes no API quota endpoint (usage is console-only): the current billing period is estimated from the local ledger using official credits rates; actual consumption is subject to the console. Models covered by the built-in table are converted automatically; others can be assigned a rate above.',
         scnetPlanCreditsLabel: 'Monthly credits quota (Basic 60,000 / Standard 240,000 / Pro 600,000)',
         scnetPlanStartLabel: 'Plan start date (optional, YYYY-MM-DD; empty = calendar month)',
         scnetLocalNote: 'SCNet exposes no API quota endpoint: usage for the current billing period is estimated from the local ledger using the official credits deduction table (effective 2026-08-11); actual consumption is subject to the SCNet console. Only models covered by the table are counted.',
@@ -1397,9 +1413,10 @@ window.__ModuleLoader__.load({
                 display: e.display === 'sidebar' || e.display === 'both' || e.display === 'off' ? e.display : 'settings',
                 refreshMinutes: typeof e.refreshMinutes === 'number' && Number.isFinite(e.refreshMinutes) ? e.refreshMinutes : 15,
                 apiKey: typeof e.apiKey === 'string' ? e.apiKey : '',
-                // SCNet 本地计量字段(issue #26):其余厂商无此二键,缺省剔除。
+                // SCNet / 千问本地计量字段(issue #26/#78):其余厂商无此键,缺省剔除。
                 ...(typeof e.planCredits === 'number' && Number.isFinite(e.planCredits) && e.planCredits > 0 ? { planCredits: e.planCredits } : {}),
                 ...(typeof e.planStart === 'string' ? { planStart: e.planStart } : {}),
+                ...(e.rates !== null && typeof e.rates === 'object' && !Array.isArray(e.rates) ? { rates: e.rates } : {}),
                 // 火山方舟双凭据(issue #60)
                 ...(typeof e.accessKeyId === 'string' ? { accessKeyId: e.accessKeyId } : {}),
                 ...(typeof e.secretAccessKey === 'string' ? { secretAccessKey: e.secretAccessKey } : {}),
@@ -2129,7 +2146,7 @@ window.__ModuleLoader__.load({
     // ── Plan/API 双轨分类(issue #64):与 lib/plan-billing.js 同逻辑的镜像实现
     //    (bundle 无法导入 Node 模块,修改时两处同步)。──
     const PLAN_PROVIDER_ALIASES_LOCAL = { go: ['go', 'zen', 'opencode', 'opencode-go'] }
-    const PLAN_PROVIDER_IDS_LOCAL = ['anthropic', 'zai', 'minimax', 'kimi', 'openrouter', 'siliconflow', 'commandcode', 'scnet', 'volcengine', 'go']
+    const PLAN_PROVIDER_IDS_LOCAL = ['anthropic', 'zai', 'minimax', 'kimi', 'openrouter', 'siliconflow', 'commandcode', 'scnet', 'volcengine', 'qwen', 'go']
     function planProviderIdOfLocal(provider) {
       const name = String(provider ?? '').trim().toLowerCase()
       if (name.length === 0) return null
@@ -3536,6 +3553,7 @@ window.__ModuleLoader__.load({
       commandcode: 'CC',
       scnet: 'SCNet',
       volcengine: 'Ark',
+      qwen: 'Qwen',
     }
 
     function QuotaStrip(props) {
@@ -5312,6 +5330,7 @@ window.__ModuleLoader__.load({
       { id: 'commandcode', labelKey: 'codingPlanCommandcode' },
       { id: 'scnet', labelKey: 'codingPlanScnet' },
       { id: 'volcengine', labelKey: 'codingPlanVolcengine' },
+      { id: 'qwen', labelKey: 'codingPlanQwen' },
     ]
 
     /** Coding Plan 面板展开状态:localStorage 记住,默认折叠。 */
@@ -5340,6 +5359,39 @@ window.__ModuleLoader__.load({
         if (draft === null) return
         const base = draft.codingPlans ?? config.codingPlans ?? {}
         setDraft({ ...draft, codingPlans: { ...base, [id]: { ...(base[id] ?? {}), [field]: value } } })
+      }
+      // 千问抵扣率编辑(issue #78):文本输入暂存(空串 = 清除该费率,整模型三费率
+      // 全空时移除该键回落内置表);保存时由服务端 sanitize 收敛非法值。
+      const [qwenNewRateModel, setQwenNewRateModel] = useState('')
+      const ratesDraftOf = entry => (entry?.rates !== null && typeof entry?.rates === 'object' && !Array.isArray(entry.rates) ? entry.rates : {})
+      const setPlanRates = (model, field, raw) => {
+        if (draft === null) return
+        const base = draft.codingPlans ?? config.codingPlans ?? {}
+        const current = { ...((base.qwen ?? {}).rates ?? {}) }
+        const entry = { ...(current[model] ?? {}) }
+        const trimmed = String(raw).trim()
+        if (trimmed === '') delete entry[field]
+        else {
+          const n = Number(trimmed)
+          if (Number.isFinite(n) && n > 0) entry[field] = n
+        }
+        if (entry.input === undefined && entry.cachedInput === undefined && entry.output === undefined) delete current[model]
+        else current[model] = entry
+        setDraft({ ...draft, codingPlans: { ...base, qwen: { ...(base.qwen ?? {}), rates: current } } })
+      }
+      const setPlanRatesAdd = model => {
+        if (draft === null) return
+        const base = draft.codingPlans ?? config.codingPlans ?? {}
+        const current = { ...((base.qwen ?? {}).rates ?? {}) }
+        current[model] = { ...(current[model] ?? {}) }
+        setDraft({ ...draft, codingPlans: { ...base, qwen: { ...(base.qwen ?? {}), rates: current } } })
+      }
+      const setPlanRatesRemove = model => {
+        if (draft === null) return
+        const base = draft.codingPlans ?? config.codingPlans ?? {}
+        const current = { ...((base.qwen ?? {}).rates ?? {}) }
+        delete current[model]
+        setDraft({ ...draft, codingPlans: { ...base, qwen: { ...(base.qwen ?? {}), rates: current } } })
       }
       const doRefresh = async id => {
         if (busyId !== null) return
@@ -5427,32 +5479,62 @@ window.__ModuleLoader__.load({
               el('option', { value: 'off' }, t('off'))),
             el('span', { className: 'cm-hint' }, t('codingPlanDisplayNote'))) : null,
           // 刷新间隔(issue #33):进程内缓存过期分钟数,1-1440,保存后生效;
-          // SCNet 为本地计量(每次状态组装随账本重算,无缓存间隔),不显示该控件。
-          enabled && id !== 'scnet' ? el('div', { className: 'cm-field' },
+          // SCNet / 千问为本地计量(每次状态组装随账本重算,无缓存间隔),不显示该控件。
+          enabled && id !== 'scnet' && id !== 'qwen' ? el('div', { className: 'cm-field' },
             el('label', null, t('codingPlanRefreshIntervalLabel')),
             numInput({ value: typeof cfgEntry.refreshMinutes === 'number' && Number.isFinite(cfgEntry.refreshMinutes) && cfgEntry.refreshMinutes > 0 ? cfgEntry.refreshMinutes : 15 }, v => {
               setPlan(id, 'refreshMinutes', Math.min(1440, Math.max(1, Math.floor(v))))
             })) : null,
-          enabled ? (id === 'scnet'
+          enabled ? (id === 'scnet' || id === 'qwen'
             ? el(Fragment, null,
               el('div', { className: 'cm-field' },
-                el('label', null, t('scnetPlanCreditsLabel')),
+                el('label', null, t(id === 'qwen' ? 'qwenPlanCreditsLabel' : 'scnetPlanCreditsLabel')),
                 el('input', {
                   className: 'cm-input', type: 'number', min: '1', step: '1000',
-                  value: typeof cfgEntry.planCredits === 'number' && Number.isFinite(cfgEntry.planCredits) && cfgEntry.planCredits > 0 ? cfgEntry.planCredits : 240000,
+                  value: typeof cfgEntry.planCredits === 'number' && Number.isFinite(cfgEntry.planCredits) && cfgEntry.planCredits > 0 ? cfgEntry.planCredits : (id === 'qwen' ? 500000 : 240000),
                   onChange: event => {
                     const n = Number(event.target.value)
                     if (Number.isFinite(n) && n > 0) setPlan(id, 'planCredits', Math.floor(n))
                   },
                 })),
               el('div', { className: 'cm-field' },
-                el('label', null, t('scnetPlanStartLabel')),
+                el('label', null, t(id === 'qwen' ? 'qwenPlanStartLabel' : 'scnetPlanStartLabel')),
                 el('input', {
                   className: 'cm-input', type: 'date',
                   value: typeof cfgEntry.planStart === 'string' ? cfgEntry.planStart : '',
                   onChange: event => setPlan(id, 'planStart', event.target.value),
                 })),
-              el('p', { className: 'cm-note' }, t('scnetLocalNote')))
+              // 千问抵扣率覆盖(issue #78):模型名 + 输入/缓存读/输出三费率(每百万
+              // token 抵扣的 Credits);留空用内置表,改指模型按新表折算。
+              id === 'qwen' ? el(Fragment, null,
+                el('div', { className: 'cm-field' },
+                  el('label', null, t('qwenRatesLabel'))),
+                Object.keys(ratesDraftOf(cfgEntry)).sort().map(model => el('div', { key: model, className: 'cm-match-row' },
+                  el('span', { style: { minWidth: '120px' } }, model),
+                  ['input', 'cachedInput', 'output'].map(field => el('input', {
+                    key: field, className: 'cm-input narrow', type: 'number', min: '0', step: '0.1',
+                    value: ratesDraftOf(cfgEntry)[model]?.[field] ?? '',
+                    placeholder: t('qwenRatePlaceholder'),
+                    onChange: event => {
+                      const raw = event.target.value
+                      setPlanRates(model, field, raw)
+                    },
+                  })),
+                  el('button', { className: 'cm-btn small', onClick: () => setPlanRatesRemove(model) }, t('overrideRemove')))),
+                el('div', { className: 'cm-buttons' },
+                  el('input', {
+                    className: 'cm-input narrow', type: 'text', placeholder: t('qwenRatesModelPlaceholder'),
+                    value: qwenNewRateModel,
+                    onChange: event => setQwenNewRateModel(event.target.value),
+                  }),
+                  el('button', { className: 'cm-btn small', onClick: () => {
+                    const name = qwenNewRateModel.trim()
+                    if (name.length === 0) return
+                    setPlanRatesAdd(name)
+                    setQwenNewRateModel('')
+                  }, disabled: qwenNewRateModel.trim().length === 0 }, t('qwenRatesAdd'))))
+                : null,
+              el('p', { className: 'cm-note' }, t(id === 'qwen' ? 'qwenLocalNote' : 'scnetLocalNote')))
             : id === 'volcengine'
               ? el(Fragment, null,
                 el('div', { className: 'cm-field' },

@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.6.13] - 2026-08-31
+
+### 新增(issue #78:千问 Qwen Token Plan)
+
+- **千问 AI 平台(platform.qianwenai.com)Token Plan 个人版接入**:设置 → Coding Plan 新增「千问 Qwen Token Plan」卡片,支持侧边栏/设置页展示月度 Credits 用量百分比与已用/总额文本。
+- **实现方式:本地 Credits 计量(SCNet 同模式)**——调研确认千问平台未提供 API-Key 化的额度查询端点(额度仅控制台可见,查询需浏览器 cookie + 网关 sec_token 会话,第三方 CLI 无法安全复用);与 SCNet 一致按官方 Credits 抵扣率对本地账本估算当前计费周期(自然月或订阅锚日)用量,无需任何凭据,不发起网络请求。
+- **内置抵扣表**:Token Plan 个人版 10 个文本模型(qwen3.8-max-preview / qwen3.7-max / qwen3.7-plus / qwen3.6-flash / glm-5.2 / deepseek-v4-pro / deepseek-v4-flash / kimi-k2.7-code / kimi-k2.6 / minimax-m2.5)的输入/缓存读/输出三费率(每百万 token 抵扣的 Credits);模型名归一比较(大小写/连接符差异等价),不在表内且未手动指定的模型不计入。
+- **可配置**:月度 Credits 额度、订阅起始日(留空按自然月)、逐模型抵扣率覆盖(官方调整费率或表外模型可手动指定);非法值经配置清洗收敛(额度缺省 500000,费率仅正有限数保留)。
+- **计费归类**:qwen 渠道默认 `auto`(启用即按 Plan 类,金额只记等值不动真金白银,与 SCNet 一致);plan-billing 默认表与域名白名单(package.json dshhub 权限)同步登记。
+
+### 验证
+
+- verify.mjs 新增 2 个回归块:估算窗口(抵扣表折算含 cacheWrite 并入未命中/归一模型合并/覆盖优先/周期外日期不计/未匹配不计/非法额度 null)与配置清洗 + 默认归类 + 接线哨兵 + e2e(启用后快照状态/窗口/strict codec)。
+- 全量通过(TZ=本地 +8 与 TZ=UTC 双跑);lib/client.js 重建(253,754 字节,上限 262,144)。
+
 ## [1.6.12] - 2026-08-29
 
 ### 修复(issue #77:压缩摘要调用漏计,compaction/summary 不进折叠)

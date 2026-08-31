@@ -80,6 +80,8 @@ import {
   scnetPlanPeriod,
   scnetTokenPlanWindows,
   SCNET_CREDIT_RATES,
+  QWEN_CREDIT_RATES,
+  qwenTokenPlanWindows,
 } from '../lib/coding-plans.js'
 import { extractByRule } from '../lib/custom-balance.js'
 
@@ -5099,6 +5101,116 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   }
   rmSync(projRoot12b, { recursive: true, force: true })
   console.log('[ok] 历史回放计入 compaction/summary + 折叠/回放逐位一致通过')
+}
+
+// ── v1.6.13:千问 Qwen Token Plan 本地 Credits 计量(issue #78) ──
+
+// 13-1) qwenTokenPlanWindows:抵扣表折算/周期窗口/覆盖优先/未匹配不计/非法额度。
+{
+  const now13 = Date.parse('2026-08-31T10:00:00') // 本地时区当日
+  const todayKey13 = localDayKey(now13)
+  const days13 = {
+    [todayKey13]: {
+      date: todayKey13, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 0, cost: 0, apiCost: 0,
+      byProviderModel: {
+        // qwen3.8-max-preview:1M 未命中输入 + 2M 缓存读 + 1M 输出 → 60 + 12 + 60 = 132 Credits。
+        'qwen:qwen3.8-max-preview': { input: 1_000_000, output: 1_000_000, cacheRead: 2_000_000, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0, apiCost: 0 },
+        // 大小写/连接符差异归一后命中同一模型。
+        'qwen:Qwen3.8-Max-Preview': { input: 0, output: 0, cacheRead: 0, cacheWrite: 1_000_000, reasoning: 0, calls: 1, cost: 0, apiCost: 0 },
+        // 未匹配模型(不在内置表):不计入。
+        'qwen:some-unknown-model': { input: 5_000_000, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0, apiCost: 0 },
+      },
+      sessions: [],
+    },
+  }
+  const r13 = qwenTokenPlanWindows(days13, { planCredits: 500000, planStart: '' }, now13)
+  assert.ok(r13 !== null, '合法 planCredits 返回窗口')
+  // qwen3.8:未命中输入 1M + cacheWrite 1M(并入未命中)= 2M × 60 + 缓存读 2M × 6 + 输出 1M × 60 = 192。
+  assert.ok(Math.abs(r13.used - 192) < 1e-9, '抵扣表折算(未命中并入 cacheWrite,归一模型合并):' + r13.used)
+  assert.equal(r13.byModel['qwen38maxpreview'], r13.used, 'byModel 键为归一模型名')
+  assert.ok(r13.windows.monthly.percent < 1, '百分比窗口按月度总额折算(192/500000 舍入为 0)')
+  assert.ok(typeof r13.windows.credits.text === 'string' && r13.windows.credits.text.startsWith('192 /'), 'Credits 文本窗口含已用值')
+  // 覆盖优先:把 qwen3.8-max-preview 改为全 1 费率 → 5M(未命中 2M + 输出 1M + 缓存读 2M)。
+  const r13b = qwenTokenPlanWindows(days13, {
+    planCredits: 500000,
+    rates: { qwen38maxpreview: { input: 1, cachedInput: 1, output: 1 } },
+  }, now13)
+  assert.ok(Math.abs(r13b.used - 5) < 1e-9, '用户覆盖抵扣率优先于内置表:' + r13b.used)
+  // 非法额度 → null;缺省 planCredits 钳到 500000。
+  assert.equal(qwenTokenPlanWindows(days13, { planCredits: 0 }, now13), null, '非法 planCredits 返回 null')
+  assert.equal(qwenTokenPlanWindows(days13, { planCredits: -5 }, now13), null, '负数 planCredits 返回 null')
+  // 周期窗口:planStart 锚日只统计锚月内的天(远期日期不计)。
+  const days13c = {
+    '2026-07-15': { date: '2026-07-15', byProviderModel: { 'qwen:qwen3.7-max': { input: 1_000_000, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0, apiCost: 0 } }, sessions: [] },
+    [todayKey13]: { date: todayKey13, byProviderModel: { 'qwen:qwen3.7-max': { input: 1_000_000, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 0, apiCost: 0 } }, sessions: [] },
+  }
+  const r13c = qwenTokenPlanWindows(days13c, { planCredits: 100, planStart: '' }, now13)
+  assert.ok(Math.abs(r13c.used - 60) < 1e-9, '周期外日期不计入(仅本月 1M 输入 × 60)')
+  // 内置表非空且三费率齐全。
+  for (const [model, rate] of Object.entries(QWEN_CREDIT_RATES)) {
+    assert.ok(['input', 'cachedInput', 'output'].every(k => Number.isFinite(rate[k]) && rate[k] > 0), '内置抵扣率三费率齐全:' + model)
+  }
+  console.log('[ok] 千问 Token Plan 本地 Credits 计量(折算/覆盖优先/周期/未匹配不计/非法额度)通过')
+}
+
+// 13-2) 配置清洗 + 默认归类 + 接线哨兵 + e2e 快照。
+{
+  // ① sanitize:非法 planCredits 回落默认、rates 非法条目剔除、合法覆盖保留。
+  const dirty13 = sanitizeConfig({ codingPlans: { qwen: { enabled: true, display: 'dock', refreshMinutes: 0, apiKey: '', planCredits: 'x', planStart: 'bad', rates: {
+    qwen38maxpreview: { input: 1, cachedInput: 1, output: 1 },
+    badmodel: { input: -1, cachedInput: 1, output: 1 },
+    worsemodel: 'nope',
+  } } } })
+  const q13 = dirty13.codingPlans.qwen
+  assert.equal(q13.planCredits, 500000, '非法 planCredits 回落默认 500000')
+  assert.equal(q13.planStart, '', '非法 planStart 回落空串')
+  assert.deepEqual(Object.keys(q13.rates), ['qwen38maxpreview'], '非法抵扣率条目剔除,合法保留')
+  assert.deepEqual(q13.rates.qwen38maxpreview, { input: 1, cachedInput: 1, output: 1 }, '合法覆盖三费率完整保留')
+  assert.equal(q13.display, 'settings', '非法 display 回落')
+  assert.equal(q13.refreshMinutes, 15, '非法刷新间隔回落')
+  // ② 默认归类:qwen → auto(启用即 Plan 类;与 scnet 同型)。
+  const { DEFAULT_PLAN_PROVIDER_CLASS } = await import('../lib/plan-billing.js')
+  assert.equal(DEFAULT_PLAN_PROVIDER_CLASS.qwen, 'auto', 'qwen 默认计费类别 auto')
+  // ③ 注册表/端点/provider 清单接线。
+  assert.ok(CODING_PLAN_PROVIDER_IDS.includes('qwen'), 'qwen 进入 CODING_PLAN_PROVIDER_IDS')
+  assert.ok(CODING_PLAN_PROVIDERS.qwen !== undefined && Array.isArray(CODING_PLAN_PROVIDERS.qwen.credentialEnvs) && CODING_PLAN_PROVIDERS.qwen.credentialEnvs.length === 0, 'qwen 无凭据(本地计量)')
+  assert.deepEqual(CODING_PLAN_ENDPOINTS.qwen, [], 'qwen 无网络端点(本地计量)')
+  const pkg13 = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
+  assert.ok(pkg13.dshhub.permissions.network.includes('https://platform.qianwenai.com'), '域名白名单含千问控制台域')
+  const client13 = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
+  assert.ok(client13.includes("id: 'qwen', labelKey: 'codingPlanQwen'"), '设置页 qwen 卡接线')
+  assert.ok(client13.includes('qwenPlanCreditsLabel') && client13.includes('qwenLocalNote'), 'qwen 设置项双语文案存在')
+  // ④ e2e:启用 qwen 后 getState 快照含其窗口,且通过 strict codec。
+  const prevHome13 = process.env.DSH_HOME
+  const root13 = join(tmpdir(), `cm-qwen-e2e-${Date.now()}`)
+  mkdirSync(join(root13, 'storages', 'cost-meter'), { recursive: true })
+  process.env.DSH_HOME = root13
+  try {
+    const provided13 = {}
+    const { apply: apply13 } = await import('../lib/index.js')
+    apply13({
+      on: () => () => {},
+      effect: () => {},
+      inject: () => {},
+      provide: (k, v) => { provided13[k] = v },
+      logger: console,
+      get: key => (key === 'settings' ? { get: () => ({}) } : undefined),
+    })
+    const state13 = await provided13.costMeter.getState()
+    assert.ok(state13.codingPlans.qwen !== undefined, '快照含 qwen 条目')
+    assert.equal(state13.codingPlans.qwen.status, 'off', '未启用时状态 off')
+    assert.equal(state13.codingPlans.qwen.planCredits, 500000, '本地计量配置透传到快照')
+    const stateEn13 = await provided13.costMeter.updateConfig({ codingPlans: { qwen: { enabled: true, display: 'settings', refreshMinutes: 15, apiKey: '', planCredits: 500000, planStart: '', rates: {} } } })
+    assert.equal(stateEn13.codingPlans.qwen.status, 'ok', '启用且额度合法时状态 ok')
+    assert.ok(stateEn13.codingPlans.qwen.windows.monthly !== undefined && stateEn13.codingPlans.qwen.windows.credits !== undefined, '千问窗口(月度百分比 + Credits 文本)下发')
+    const codec13 = TYPERT.invocations.find(i => i.method === 'getState').result.schema.safeParse(JSON.parse(JSON.stringify(stateEn13)))
+    assert.ok(codec13.success, '含 qwen 的快照通过 getState strict codec:' + (codec13.success ? '' : JSON.stringify(codec13.error.issues.slice(0, 3))))
+  } finally {
+    rmSync(root13, { recursive: true, force: true })
+    if (prevHome13 === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = prevHome13
+  }
+  console.log('[ok] 千问配置清洗/默认归类/接线哨兵/e2e 快照(codec)通过')
 }
 
 console.log('[ok] 全部验证通过')
