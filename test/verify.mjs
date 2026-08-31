@@ -5321,4 +5321,64 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   console.log('[ok] 自定义余额多配置客户端接线哨兵通过')
 }
 
+// ── v1.7.1:v1.7.0 P0 回归——manifest 必须能通过宿主 typert-loader 真实校验 ──
+// v1.7.0 的 refreshCustomBalance 参数 codec 裸传 zod schema,被 typert-loader 以
+// 「parameter codec must use a strict codec」拒绝注册,dsh 完全无法启动。verify 只测
+// 服务端逻辑测不到 manifest 注册层;本块直接调用宿主(本机 npm global 安装的
+// @deepseek-ai/dsh 携带的)dsh-typert-loader 导出的 validateTypertManifest,对真实
+// TYPERT 清单全量校验——任何参数/result codec 形态错误(含 acceptsUndefined 缺失
+// 引发的网关 arguments-invalid)在测试期即暴露,不再等到用户启动失败。
+{
+  // resolve 宿主 typert-loader:本机未安装 dsh 时跳过(退化为形态自检,CI 环境
+  // pnpm install dsh 后全量生效)。
+  let validate = null
+  try {
+    const { createRequire } = await import('node:module')
+    const req = createRequire(import.meta.url)
+    validate = (await import(req.resolve('@deepseek-ai/dsh-typert-loader', { paths: [process.cwd()] }))).validateTypertManifest
+  } catch {
+    try {
+      validate = (await import('file:///F:/npm-global/node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/dsh-typert-loader/lib/index.js')).validateTypertManifest
+    } catch { validate = null }
+  }
+  const { TYPERT: manifest171 } = await import('../lib/typert.host.js')
+  assert.ok(Array.isArray(manifest171.invocations) && manifest171.invocations.length > 0, 'TYPERT.invocations 非空')
+  if (typeof validate === 'function') {
+    // 宿主真实校验:失败即抛错(manifest.package/face/schemas/model/invocations
+    // 逐层校验,含全部参数与 result codec 的 strict 形态)。
+    let validated = null
+    assert.doesNotThrow(() => { validated = validate('dsh-cost-meter', manifest171) }, 'TYPERT manifest 通过宿主 typert-loader 真实校验(v1.7.0 曾因裸 zod 参数 codec 被拒)')
+    assert.ok(validated !== null, '校验返回 manifest 本体')
+    // 针对性断言:refreshCustomBalance 的 index 参数必须是 strict codec 对象且
+    // 声明 acceptsUndefined(缺省调用等价全量刷新,网关 arguments-invalid 兜底)。
+    const inv171 = manifest171.invocations.find(i => i.method === 'refreshCustomBalance')
+    assert.ok(inv171 !== undefined, 'refreshCustomBalance invocation 存在')
+    const param171 = inv171.parameters.find(p => p.wire === 'index')
+    assert.ok(param171 !== undefined, 'index 参数声明存在')
+    assert.equal(param171.codec.mode, 'strict', 'index codec 为 strict 对象(非裸 zod schema)')
+    assert.equal(typeof param171.codec.typeSymbol, 'string', 'index codec 携带 typeSymbol')
+    assert.ok(param171.codec.schema !== null && typeof param171.codec.schema === 'object' && typeof param171.codec.schema.parse === 'function', 'index codec 由 zod v4 schema 支撑')
+    assert.equal(param171.acceptsUndefined, true, 'index 声明 acceptsUndefined(无参调用允许)')
+    // 全量扫:所有 invocation 的所有参数与 result codec 都必须是 strict 对象形态。
+    for (const inv of manifest171.invocations) {
+      for (const p of inv.parameters) {
+        assert.equal(p.codec?.mode, 'strict', `参数 codec 均为 strict 对象(${inv.method}/${p.wire})`)
+        assert.equal(typeof p.codec?.typeSymbol, 'string', `参数 codec 均携带 typeSymbol(${inv.method}/${p.wire})`)
+      }
+      assert.equal(inv.result?.mode, 'strict', `result codec 均为 strict 对象(${inv.method})`)
+    }
+  } else {
+    // 退化形态自检(无宿主环境):strict 对象形态逐项断言,防裸 schema 复发。
+    for (const inv of manifest171.invocations) {
+      for (const p of inv.parameters) {
+        assert.equal(p.codec?.mode, 'strict', `参数 codec 均为 strict 对象(${inv.method}/${p.wire})`)
+        assert.equal(typeof p.codec?.typeSymbol, 'string', `参数 codec 均携带 typeSymbol(${inv.method}/${p.wire})`)
+      }
+      assert.equal(inv.result?.mode, 'strict', `result codec 均为 strict 对象(${inv.method})`)
+    }
+    console.log('[注意] 本机未找到宿主 dsh-typert-loader,仅做形态自检(CI 全量生效)')
+  }
+  console.log('[ok] TYPERT manifest 宿主级校验(v1.7.0 启动失败回归修复)通过')
+}
+
 console.log('[ok] 全部验证通过')

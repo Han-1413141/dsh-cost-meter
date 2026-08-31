@@ -1689,6 +1689,12 @@ window.__ModuleLoader__.load({
       if (typeof v !== 'string') fail('provider', 'string')
       return v
     })
+    // 自定义余额条目索引(v1.7.1):0-7 整数或 undefined(缺省 = 全量刷新)。
+    const indexCodec = codecOf(v => {
+      if (v === undefined || v === null) return undefined
+      if (typeof v !== 'number' || !Number.isInteger(v) || v < 0 || v > 7) fail('index', '0-7 integer')
+      return v
+    })
     const dateCodec = codecOf(v => {
       if (typeof v !== 'string') fail('date', 'string')
       return v
@@ -1752,7 +1758,10 @@ window.__ModuleLoader__.load({
         },
         {
           id: 'dsh-cost-meter#costMeter/refreshCustomBalance', service: 'costMeter', namespace: 'costMeter', method: 'refreshCustomBalance',
-          invocation: { kind: 'direct' }, parameters: [],
+          invocation: { kind: 'direct' },
+          // index(v1.7.1):与宿主侧 manifest 同口径——acceptsUndefined 允许旧调用
+          // 不带参数(等价全量刷新);codec 与 providerCodec 同为本地 parse 形态。
+          parameters: [{ name: 'index', wire: 'index', source: 'json', acceptsUndefined: true, codec: { mode: 'strict', typeSymbol: 'dsh-cost-meter#CustomBalanceIndex', schema: indexCodec } }],
           result: { mode: 'strict', typeSymbol: 'dsh-cost-meter#FetchPricesResult', schema: fetchCodec },
         },
         {

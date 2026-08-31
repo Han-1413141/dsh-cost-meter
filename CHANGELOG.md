@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.1] - 2026-08-31
+
+### 修复(P0:v1.7.0 导致 dsh 无法启动)
+
+- **根因**:v1.7.0 给 `refreshCustomBalance` 新增的 `index` 参数,其 codec **裸传了 zod schema**(而非 typert 契约要求的 strict codec 对象 `{ mode: 'strict', typeSymbol, schema }`),typert-loader 在注册期即拒绝——**整个插件树加载失败,`dsh web` 无法启动**(`typert-loader: parameter codec must use a strict codec`)。verify 只测服务端逻辑,测不到 manifest 注册层,因此逃过了发布前检查与 CI。
+- **修复**:两侧 manifest(宿主 typert.host.js + 客户端)的 `index` 参数改为 strict codec 对象;并补 `acceptsUndefined: true`(网关按 wire 字段是否在 args 中判缺失,无此标志的 json 参数缺省会以 `arguments-invalid` 拒绝调用)——旧客户端的无参调用(等价全量刷新)继续可用。
+- **回归加固**:verify.mjs 新增「宿主级 manifest 校验」块——直接调用本机安装的 dsh 携带的 `dsh-typert-loader` 导出的 `validateTypertManifest`,对本插件真实 TYPERT 清单全量校验(所有参数/result codec 的 strict 形态逐项断言;无宿主环境时退化为形态自检)。此类错误此后在测试期即暴露,不再等到用户启动失败。
+- 附:用户侧观察到的 `dsh-typert-registry/client.js failed to load` 是宿主自身组件的浏览器端加载问题(与本插件无关,本插件不依赖也不引用该包);本机实测 v1.7.1 修复后 `dsh web` 正常启动。
+
+### 验证
+
+- 全量 101 块通过(TZ=本地 +8 与 TZ=UTC 双跑,含新增宿主级 manifest 校验块);本机 web profile(link: 本仓库)实测 `dsh web` 启动成功、无 typert 报错;lib/client.js 重建(258,211 字节,上限 262,144)。
+
 ## [1.7.0] - 2026-08-31
 
 ### 新增(issue #79:自定义 Provider 余额多配置)
