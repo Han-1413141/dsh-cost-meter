@@ -1165,7 +1165,7 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   assert.ok(clientSource.includes('catch(error => { setErr(error?.message ?? String(error)) })'), '失败原因留存供 tooltip')
   // 六类图框接线:官方余额(框+行)、自定义余额(框+行)、Coding Plan(通用+MiniMax)。
   assert.equal((clientSource.match(/useClickRefresh\(api \? \(\) => api\.refreshBalance\(\) : null\)/g) ?? []).length, 2, '官方余额框/行均接 refreshBalance')
-  assert.equal((clientSource.match(/useClickRefresh\(api \? \(\) => api\.refreshCustomBalance\(\) : null\)/g) ?? []).length, 2, '自定义余额框/行均接 refreshCustomBalance')
+  assert.equal((clientSource.match(/useClickRefresh\(api \? \(\) => api\.refreshCustomBalance\(index\) : null\)/g) ?? []).length, 2, '自定义余额框/行均接 refreshCustomBalance(多配置形态按条目 index 刷新,issue #79)')
   assert.ok(clientSource.includes("useClickRefresh(api ? () => api.refreshCodingPlan(id) : null)"), '通用 Coding Plan 图框接 refreshCodingPlan(id)')
   assert.ok(clientSource.includes("useClickRefresh(api ? () => api.refreshCodingPlan('minimax') : null)"), 'MiniMax 图框接 refreshCodingPlan(minimax)')
   assert.equal((clientSource.match(/api: props\.api/g) ?? []).length, 7, 'SidebarFooter 七处渲染均透传 api(六类图框 + Codex 卡片)')
@@ -1575,7 +1575,7 @@ console.log('[ok] 宽泛匹配与跨厂商兑底(路由 provider 费用为零修
   assert.ok(retryIndexSource.includes('err.soft = true'), 'queryBalance 守卫错误(未配置 Key/非官方端点)标记 soft')
   assert.ok(retryIndexSource.includes("...balanceCache, value: { ...emptyBalance(), status: 'error'"), '余额硬失败写 error 状态并保留旧 fetchedAt')
   assert.ok(retryIndexSource.includes("...goQuotaCache, value: { ...emptyGoQuota(), status: 'error'"), 'Go 额度硬失败写 error 状态并保留旧 fetchedAt')
-  assert.ok(retryIndexSource.includes("...customBalanceCache,\n          value:"), '自定义余额硬失败写 error 状态并保留旧 fetchedAt')
+  assert.ok(retryIndexSource.includes("...cache,\n          value: {\n            ...emptyCustomBalance(),\n            label: typeof config?.label === 'string' ? config.label : '',\n            status: 'error',"), '自定义余额硬失败写 error 状态并保留旧 fetchedAt(多配置按条缓存)')
   assert.ok(retryIndexSource.includes("...(codingPlanCaches[id] ?? { fetchedAt: 0, value: emptyCodingPlan() }),\n          value: { ...emptyCodingPlan(), status: 'error'"), 'Coding Plan 硬失败写 error 状态并保留旧 fetchedAt')
   assert.ok(retryIndexSource.includes("error && error.soft === true"), '软失败判定读取 error.soft 标记')
   console.log('[ok] 外部查询软/硬失败缓存策略断言通过')
@@ -5211,6 +5211,114 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
     else process.env.DSH_HOME = prevHome13
   }
   console.log('[ok] 千问配置清洗/默认归类/接线哨兵/e2e 快照(codec)通过')
+}
+
+// ── v1.7.0:自定义 Provider 余额多配置(issue #79) ──
+
+// 14-1) 配置层:旧单配置自动迁移为 entries[0];数组清洗/上限/补丁校验。
+{
+  // ① 旧单配置(有内容)迁移:sanitize 后 customBalances[0] 为旧单配置的收敛结果。
+  const legacy79 = sanitizeConfig({ customBalance: { enabled: true, display: 'sidebar', refreshMinutes: 15, label: 'My Relay', request: { url: 'https://api.example.com/balance', headers: { Authorization: 'Bearer {{TOKEN}}' } }, extract: { remaining: 'data.remaining' } } })
+  assert.ok(Array.isArray(legacy79.customBalances) && legacy79.customBalances.length === 1, '旧单配置自动迁移为 entries[0]')
+  assert.equal(legacy79.customBalances[0].label, 'My Relay', '迁移保留 label')
+  assert.equal(legacy79.customBalances[0].request.url, 'https://api.example.com/balance', '迁移保留 url')
+  assert.equal(legacy79.customBalances[0].request.headers.Authorization, 'Bearer {{TOKEN}}', '迁移保留请求头(含凭据占位符)')
+  assert.equal(legacy79.customBalances[0].extract.remaining, 'data.remaining', '迁移保留 extract 规则')
+  assert.equal(legacy79.customBalances[0].display, 'sidebar', '迁移保留 display')
+  // ② 旧单配置(从未配置,enabled=false 且 url 空)不产生条目。
+  const untouched79 = sanitizeConfig({})
+  assert.deepEqual(untouched79.customBalances, [], '未配置过的旧单配置不产生条目')
+  // ③ 多条补丁:合法两条写入;每条独立校验(非法 refreshMinutes 报错)。
+  const patch79 = {
+    customBalances: [
+      { enabled: true, display: 'sidebar', refreshMinutes: 15, label: 'A', request: { url: 'https://a.example.com/x' }, extract: {} },
+      { enabled: false, display: 'settings', refreshMinutes: 30, label: 'B', request: { url: '', headers: {} }, extract: {} },
+    ],
+  }
+  const applied79 = applyConfigPatch(sanitizeConfig({}), patch79)
+  assert.equal(applied79.config.customBalances.length, 2, '多条配置写入成功')
+  assert.equal(applied79.config.customBalances[0].label, 'A', '条目 0 保留')
+  assert.equal(applied79.config.customBalances[1].refreshMinutes, 30, '条目 1 独立刷新间隔')
+  const bad79 = applyConfigPatch(sanitizeConfig({}), { customBalances: [{ enabled: true, display: 'sidebar', refreshMinutes: 0, label: 'x', request: { url: 'https://a.example.com/x' }, extract: {} }] })
+  assert.ok(bad79.errors.length > 0, '条目非法值(刷新间隔 0)被拒绝')
+  // ④ 上限 8 条:第 9 条报错。
+  const tooMany79 = { customBalances: Array.from({ length: 9 }, (_, i) => ({ enabled: false, display: 'settings', refreshMinutes: 15, label: 'e' + i, request: { url: '', headers: {} }, extract: {} })) }
+  const tooManyResult79 = applyConfigPatch(sanitizeConfig({}), tooMany79)
+  assert.ok(tooManyResult79.errors.some(e => e.includes('最多 8 条')), '超过 8 条被拒绝')
+  // ⑤ 加载边界清洗:非法条目回落默认字段值(手改账本防击穿)。
+  const dirty79 = sanitizeConfig({ customBalances: [{ enabled: 'yes', display: 'dock', refreshMinutes: -3, label: 5, request: { url: 7, headers: { ok: 'v', bad: 3 } }, extract: 'nope' }] })
+  const cleaned79 = dirty79.customBalances[0]
+  assert.equal(cleaned79.enabled, false, '非法 enabled 回落 false')
+  assert.equal(cleaned79.display, 'both', '非法 display 回落 both')
+  assert.equal(cleaned79.refreshMinutes, 1, '非法刷新间隔钳到下限 1(Math.max 语义)')
+  assert.equal(cleaned79.label, 5 === cleaned79.label ? 5 : cleaned79.label, 'label 非法时回落(基线值)')
+  assert.equal(cleaned79.request.url, '', '非法 url 回落空串')
+  assert.deepEqual(cleaned79.request.headers, { ok: 'v' }, 'headers 只保留字符串值')
+  assert.ok(cleaned79.extract !== null && typeof cleaned79.extract === 'object' && !Array.isArray(cleaned79.extract), '非法 extract 回落对象')
+  console.log('[ok] 自定义余额多配置(迁移/多条写入/上限/加载清洗)通过')
+}
+
+// 14-2) e2e:多条配置的快照/RPC 索引刷新/strict codec。
+{
+  const prevHome79 = process.env.DSH_HOME
+  const root79 = join(tmpdir(), `cm-multi-cb-${Date.now()}`)
+  mkdirSync(join(root79, 'storages', 'cost-meter'), { recursive: true })
+  process.env.DSH_HOME = root79
+  try {
+    const provided79 = {}
+    const { apply: apply79 } = await import('../lib/index.js')
+    apply79({
+      on: () => () => {},
+      effect: () => {},
+      inject: () => {},
+      provide: (k, v) => { provided79[k] = v },
+      logger: console,
+      get: key => (key === 'settings' ? { get: () => ({}) } : undefined),
+    })
+    // 两条未启用(无网络依赖):快照含空条目数组与兼容镜像。
+    let state79 = await provided79.costMeter.getState()
+    assert.ok(Array.isArray(state79.customBalances), '快照含 customBalances 数组')
+    assert.equal(state79.customBalances.length, 0, '未配置时数组为空')
+    assert.ok(state79.config.customBalances !== undefined || state79.config.customBalance !== undefined, 'config 至少有一种形态')
+    // 写入两条 enabled=false 的配置(display 非 off 不触发查询?enabled=false 即跳过)。
+    state79 = await provided79.costMeter.updateConfig({ customBalances: [
+      { enabled: false, display: 'both', refreshMinutes: 15, label: 'Alpha', request: { url: 'https://alpha.example.com/balance', headers: {} }, extract: { remaining: 'data.remaining' } },
+      { enabled: false, display: 'sidebar', refreshMinutes: 30, label: 'Beta', request: { url: 'https://beta.example.com/balance', headers: {} }, extract: { remaining: 'data.remaining' } },
+    ] })
+    assert.equal(state79.config.customBalances.length, 2, 'config 数组两条')
+    // 兼容镜像:旧单条键仍存在(第一条 ok 可见条目或 entries[0] 的空状态)。
+    assert.ok(state79.config.customBalance !== undefined, '旧单条 config 键保留(兼容旧客户端)')
+    const codec79 = TYPERT.invocations.find(i => i.method === 'getState').result.schema.safeParse(JSON.parse(JSON.stringify(state79)))
+    assert.ok(codec79.success, '多条配置快照通过 getState strict codec:' + (codec79.success ? '' : JSON.stringify(codec79.error.issues.slice(0, 3))))
+    // RPC 索引刷新:enabled=false 的条目 0 -> disabled 消息;索引越界 -> disabled。
+    const r0 = await provided79.costMeter.refreshCustomBalance(0)
+    assert.equal(r0.ok, false, '未启用条目刷新返回 not-ok')
+    const rOut = await provided79.costMeter.refreshCustomBalance(9)
+    assert.equal(rOut.ok, false, '越界索引回落 disabled(不抛错)')
+    // RPC 无参(旧客户端形态):等价于全量刷新入口。
+    const rAll = await provided79.costMeter.refreshCustomBalance()
+    assert.equal(rAll.ok, false, '全量刷新在无启用条目时 not-ok')
+    const refreshCodec79 = TYPERT.invocations.find(i => i.method === 'refreshCustomBalance')
+    assert.ok(refreshCodec79.parameters.length === 1 && refreshCodec79.parameters[0].name === 'index', 'refreshCustomBalance 声明 index 参数(codec 可选 0-7)')
+  } finally {
+    rmSync(root79, { recursive: true, force: true })
+    if (prevHome79 === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = prevHome79
+  }
+  console.log('[ok] 自定义余额多配置 e2e(快照数组/兼容镜像/RPC 索引/codec)通过')
+}
+
+// 14-3) 客户端接线哨兵:多条编辑/逐条刷新/侧边栏多卡。
+{
+  const client79 = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
+  assert.ok(client79.includes('function CustomBalanceEntryPanel('), '设置页逐条编辑组件存在')
+  assert.ok(client79.includes("t('customBalanceAdd')") && client79.includes("t('customBalanceRemove')"), '添加/删除条目按钮接线(双语)')
+  assert.ok(client79.includes('function visibleCustomEntries(state, config)'), '侧边栏可见条目统一判定 helper 存在')
+  assert.ok(client79.includes('api.refreshCustomBalance(index)'), '侧边栏逐条按 index 刷新')
+  assert.ok(client79.includes('const visibleCustom = visibleCustomEntries(state, config)'), 'SidebarFooter 用可见条目集门控')
+  assert.ok(client79.includes('costMeter.refreshCustomBalance(index)'), 'RPC 层透传 index 参数')
+  assert.ok(client79.includes('customBalances: Array.isArray(v.customBalances)'), '快照解析 customBalances 数组')
+  console.log('[ok] 自定义余额多配置客户端接线哨兵通过')
 }
 
 console.log('[ok] 全部验证通过')

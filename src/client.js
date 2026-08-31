@@ -429,6 +429,10 @@ window.__ModuleLoader__.load({
         refreshing: '刷新中…',
         refreshBalance: '刷新余额',
         customBalanceTitle: '自定义 Provider 余额',
+        customBalanceMultiNote: '支持配置多个自定义提供商(最多 8 条),每条独立的请求与解析规则、独立开关与显示位置、独立刷新间隔;升级前的单条配置已自动迁移为第 1 条。',
+        customBalanceAdd: '添加配置',
+        customBalanceRemove: '删除',
+        customBalanceEmpty: '尚未配置自定义 Provider 余额,点击「添加配置」新建。',
         customBalanceConfigNote: '配置自定义 Provider 的余额查询请求与解析规则。请求头支持 {{ENV_VAR}} 占位符,从 DSH 凭据库或环境变量解析;extract 规则支持点路径、数字常量与 add / subtract / divide 运算(NewApi 等 quota 端点用 divide 按 500000 换算美元)。',
         customBalanceLabelZh: '中文名称',
         customBalanceLabelEn: '英文名称',
@@ -857,6 +861,10 @@ window.__ModuleLoader__.load({
         refreshing: 'Refreshing…',
         refreshBalance: 'Refresh balance',
         customBalanceTitle: 'Custom provider balance',
+        customBalanceMultiNote: 'Configure multiple custom providers (up to 8): each entry has its own request & extract rules, enable switch, display position and refresh interval; your previous single entry was migrated to #1 automatically.',
+        customBalanceAdd: 'Add entry',
+        customBalanceRemove: 'Remove',
+        customBalanceEmpty: 'No custom provider balance configured yet — click "Add entry" to create one.',
         customBalanceConfigNote: 'Configure the balance query request and extract rules. Headers support {{ENV_VAR}} placeholders resolved from DSH credentials or environment variables; extract rules accept dot paths, numeric constants, and add / subtract / divide operations (use divide with 500000 for NewApi-style quota endpoints).',
         customBalanceLabelZh: 'Chinese name',
         customBalanceLabelEn: 'English name',
@@ -1470,6 +1478,23 @@ window.__ModuleLoader__.load({
           request: v.customBalance.request && typeof v.customBalance.request === 'object' ? v.customBalance.request : { url: '' },
           extract: v.customBalance.extract && typeof v.customBalance.extract === 'object' ? v.customBalance.extract : {},
         },
+        // 多配置形态(v1.7.0,issue #79):运行期真源;旧 customBalance 键仅为
+        // 兼容镜像。快照缺数组时回落单条包装(旧宿主快照)。
+        customBalances: (() => {
+          const parseEntry = e => ({
+            enabled: e?.enabled === true,
+            label: typeof e?.label === 'string' ? e.label : '',
+            labelEn: typeof e?.labelEn === 'string' ? e.labelEn : '',
+            display: e?.display === 'sidebar' || e?.display === 'settings' || e?.display === 'off' ? e.display : 'both',
+            unit: e?.unit === 'CNY' || e?.unit === 'EUR' ? e.unit : 'USD',
+            refreshMinutes: typeof e?.refreshMinutes === 'number' && Number.isFinite(e.refreshMinutes) ? e.refreshMinutes : 15,
+            request: e?.request && typeof e.request === 'object' ? e.request : { url: '' },
+            extract: e?.extract && typeof e.extract === 'object' ? e.extract : {},
+          })
+          if (Array.isArray(v.customBalances)) return v.customBalances.filter(x => x !== null && typeof x === 'object').slice(0, 8).map(parseEntry)
+          if (v.customBalance !== undefined && v.customBalance !== null) return [parseEntry(v.customBalance)]
+          return []
+        })(),
         corner: {
           enabled: v.corner?.enabled === true,
           goRolling: v.corner?.goRolling !== false,
@@ -1563,6 +1588,8 @@ window.__ModuleLoader__.load({
         remaining: typeof v.remaining === 'number' && Number.isFinite(v.remaining) ? v.remaining : 0,
         maxBudget: typeof v.maxBudget === 'number' && Number.isFinite(v.maxBudget) ? v.maxBudget : null,
         spend: typeof v.spend === 'number' && Number.isFinite(v.spend) ? v.spend : null,
+        // 条目索引(v1.7.0,issue #79):多配置形态下逐条刷新按钮的定位依据。
+        index: typeof v.index === 'number' && Number.isFinite(v.index) && v.index >= 0 ? Math.floor(v.index) : null,
       }
     }
     const numOrNull = x => (typeof x === 'number' && Number.isFinite(x) ? x : null)
@@ -1617,7 +1644,12 @@ window.__ModuleLoader__.load({
         budgetUsed: typeof v.budgetUsed === 'number' && Number.isFinite(v.budgetUsed) ? v.budgetUsed : undefined,
         balance: v.balance === undefined || v.balance === null ? { status: 'off', message: '', fetchedAt: 0, currency: '', totalBalance: 0, grantedBalance: 0, toppedUpBalance: 0 } : parseBalance(v.balance, path + '.balance'),
         goQuota: v.goQuota === undefined || v.goQuota === null ? { status: 'off', message: '', fetchedAt: 0, rolling: null, weekly: null, monthly: null } : parseGoQuota(v.goQuota, path + '.goQuota'),
-        customBalance: v.customBalance === undefined || v.customBalance === null ? { status: 'off', message: '', fetchedAt: 0, label: '', unit: 'USD', remaining: 0, maxBudget: null, spend: null } : parseCustomBalance(v.customBalance, path + '.customBalance'),
+        customBalance: v.customBalance === undefined || v.customBalance === null ? { status: 'off', message: '', fetchedAt: 0, label: '', unit: 'USD', remaining: 0, maxBudget: null, spend: null, index: null } : parseCustomBalance(v.customBalance, path + '.customBalance'),
+        // 多配置形态(v1.7.0,issue #79):全部条目快照;缺失/畸形回落空数组
+        // (旧宿主快照),渲染退化为旧单条 customBalance 镜像。
+        customBalances: Array.isArray(v.customBalances)
+          ? v.customBalances.filter(x => x !== null && typeof x === 'object').map((x, i) => parseCustomBalance(x, path + '.customBalances[' + i + ']'))
+          : [],
         codingPlans: v.codingPlans !== null && typeof v.codingPlans === 'object' && !Array.isArray(v.codingPlans) ? v.codingPlans : {},
         // Token Plan 统计(issue #64):宽容解析,缺失/畸形回落 null(UI 隐藏面板)。
         planStats: parsePlanStats(v.planStats),
@@ -2559,11 +2591,11 @@ window.__ModuleLoader__.load({
       return sum
     }
 
-    function todayUsedInBalanceCurrency(state, config, mode, custom) {
+    function todayUsedInBalanceCurrency(state, config, mode, custom, entryCfg = null) {
       // 官方模式只取 deepseek 渠道费用;自定义 Provider 余额无渠道映射,维持全量(与既有行为一致)。
       const usd = mode === 'official' ? todayOfficialUsd(state) : Number(state.today?.cost) || 0
       if (mode === 'custom') {
-        const unit = customBalanceUnitOf(config, custom)
+        const unit = customBalanceUnitOf(config, custom, entryCfg)
         if (unit === 'USD') return usd
         const rate = Number(config?.exchangeRate)
         return usd * (Number.isFinite(rate) && rate > 0 ? rate : 1)
@@ -2586,12 +2618,12 @@ window.__ModuleLoader__.load({
       return { remainingPct, todayPct, spentPct, hasCap: true, pastSpend: pastSpend, today }
     }
 
-    function segmentsForCustomBalance(state, config) {
-      const custom = state.customBalance
-      const cap = resolveBalanceCap(config, custom)
-      const remaining = Number(custom?.remaining) || 0
-      const spend = Number(custom?.spend) || 0
-      const todayUsed = todayUsedInBalanceCurrency(state, config, 'custom', custom)
+    function segmentsForCustomBalance(state, config, custom = null, entryCfg = null) {
+      const target = custom ?? state.customBalance
+      const cap = resolveBalanceCap(config, target)
+      const remaining = Number(target?.remaining) || 0
+      const spend = Number(target?.spend) || 0
+      const todayUsed = todayUsedInBalanceCurrency(state, config, 'custom', target, entryCfg)
       return { cap, ...computeBalanceSegments({ remaining, spend, todayUsed, cap }) }
     }
 
@@ -2745,14 +2777,16 @@ window.__ModuleLoader__.load({
       return zh || en || '自定义余额'
     }
 
-    function customBalanceUnitOf(config, custom) {
-      const unit = config?.customBalance?.unit
+    // 多配置形态(v1.7.0,issue #79):unit/label 优先读条目自身配置,旧单条
+    // customBalance 作为回落(兼容旧快照/旧宿主)。
+    function customBalanceUnitOf(config, custom, entryCfg) {
+      const unit = entryCfg?.unit ?? config?.customBalance?.unit
       if (unit === 'CNY' || unit === 'EUR' || unit === 'USD') return unit
       return custom?.unit === 'CNY' || custom?.unit === 'EUR' ? custom.unit : 'USD'
     }
 
-    function formatCustomBalanceMoney(amount, config, custom) {
-      const unit = customBalanceUnitOf(config, custom)
+    function formatCustomBalanceMoney(amount, config, custom, entryCfg) {
+      const unit = customBalanceUnitOf(config, custom, entryCfg)
       const decimals = Math.max(2, Math.min(6, Math.floor(Number(config?.decimals) || 4)))
       const symbol = unit === 'CNY' ? '¥' : unit === 'EUR' ? '€' : '$'
       const value = Number(amount)
@@ -2762,21 +2796,23 @@ window.__ModuleLoader__.load({
       return symbol + fixed
     }
 
-    function customBalanceDetailText(custom, config, t, state) {
-      const remaining = formatCustomBalanceMoney(custom.remaining, config, custom)
-      const formatAmt = v => formatCustomBalanceMoney(v, config, custom)
+    // 多配置形态(v1.7.0,issue #79):以下四个渲染助手按「单条快照 + 单条配置」
+    // 参数化(custom, entryCfg);旧调用路径(全局 customBalance)由外层包装传入。
+    function customBalanceDetailText(custom, config, t, state, entryCfg = null) {
+      const remaining = formatCustomBalanceMoney(custom.remaining, config, custom, entryCfg)
+      const formatAmt = v => formatCustomBalanceMoney(v, config, custom, entryCfg)
       if (state && config.balance?.showProgressBar === true) {
-        const segments = segmentsForCustomBalance(state, config)
+        const segments = segmentsForCustomBalance(state, config, custom, entryCfg)
         return [
           balanceBarTooltipLines(t, formatAmt, segments, remaining, segments.cap),
           t('updatedAt', { time: custom.fetchedAt > 0 ? new Date(custom.fetchedAt).toLocaleTimeString() : '—' }),
         ].join(' · ')
       }
-      const spend = custom.spend !== null ? formatCustomBalanceMoney(custom.spend, config, custom) : '—'
-      const maxBudget = custom.maxBudget !== null ? formatCustomBalanceMoney(custom.maxBudget, config, custom) : '—'
+      const spend = custom.spend !== null ? formatCustomBalanceMoney(custom.spend, config, custom, entryCfg) : '—'
+      const maxBudget = custom.maxBudget !== null ? formatCustomBalanceMoney(custom.maxBudget, config, custom, entryCfg) : '—'
       const manualCap = Number(config?.balance?.budgetCap)
       const capLine = Number.isFinite(manualCap) && manualCap > 0
-        ? t('balanceBudgetCapLabel') + ': ' + formatCustomBalanceMoney(manualCap, config, custom)
+        ? t('balanceBudgetCapLabel') + ': ' + formatCustomBalanceMoney(manualCap, config, custom, entryCfg)
         : ''
       const base = custom.maxBudget !== null && custom.spend !== null
         ? t('customBalanceLine', {
@@ -2789,12 +2825,10 @@ window.__ModuleLoader__.load({
       return capLine ? base + ' · ' + capLine : base
     }
 
-    function customBalanceBoxBody(state, config, t) {
-      const custom = state.customBalance
-      const cfg = config.customBalance ?? {}
-      const label = resolveCustomBalanceLabel(cfg, resolveLocale(config?.locale))
-      const remaining = formatCustomBalanceMoney(custom.remaining, config, custom)
-      const segments = segmentsForCustomBalance(state, config)
+    function customBalanceBoxBody(state, config, t, custom, entryCfg) {
+      const label = resolveCustomBalanceLabel(entryCfg ?? config.customBalance ?? {}, resolveLocale(config?.locale))
+      const remaining = formatCustomBalanceMoney(custom.remaining, config, custom, entryCfg)
+      const segments = segmentsForCustomBalance(state, config, custom, entryCfg)
       return {
         level: 'ok',
         rail: Math.round(segments.remainingPct) + '%',
@@ -2806,15 +2840,47 @@ window.__ModuleLoader__.load({
       }
     }
 
+    // 多配置形态(v1.7.0,issue #79):Box/Row 逐条渲染。可见条目 = 配置数组中
+    // enabled 且 display 允许侧边栏的条目;快照缺失(未查询/查询失败)按各自状态
+    // 渲染。旧宿主快照(无 customBalances)由 parseConfig 回落单条包装,行为不变。
+    function visibleCustomEntries(state, config) {
+      const entries = config?.customBalances ?? []
+      const snapshots = Array.isArray(state?.customBalances) ? state.customBalances : []
+      const out = []
+      entries.forEach((entry, index) => {
+        if (entry?.enabled !== true) return
+        if (entry.display !== 'sidebar' && entry.display !== 'both') return
+        const snapshot = snapshots.find(s => s.index === index)
+          ?? (snapshots.length === 1 && entries.length === 1 ? snapshots[0] : null)
+        out.push({ index, entry, snapshot })
+      })
+      // 旧宿主快照(无数组):回落旧单条状态,保持升级前显示。
+      if (out.length === 0 && snapshots.length === 0 && config?.customBalance?.enabled === true
+        && (config.customBalance.display === 'sidebar' || config.customBalance.display === 'both')
+        && state?.customBalance?.status && state.customBalance.status !== 'off') {
+        out.push({ index: null, entry: config.customBalance, snapshot: state.customBalance })
+      }
+      return out
+    }
+
     function CustomBalanceBox(props) {
       const { state, wide, api } = props
-      const custom = state.customBalance
       const config = state.config
       const t = makeT(resolveLocale(config?.locale))
-      const refresh = useClickRefresh(api ? () => api.refreshCustomBalance() : null)
-      if (!custom || custom.status !== 'ok') return null
-      const view = customBalanceBoxBody(state, config, t)
-      const detail = [customBalanceDetailText(custom, config, t, state), ...clickRefreshTipLines(t, refresh)].join(' · ')
+      const visible = visibleCustomEntries(state, config)
+      if (visible.length === 0) return null
+      return el(Fragment, null, visible.map(({ index, entry, snapshot }) =>
+        el(CustomBalanceEntryBox, { key: 'cb-' + index, state, wide, api, t, index, entry, snapshot })))
+    }
+
+    function CustomBalanceEntryBox(props) {
+      const { state, wide, api, t, index, entry, snapshot } = props
+      const config = state.config
+      // 无快照(尚未查询)不渲染图框;error/off 状态由行组件渲染提示。
+      if (snapshot === null || snapshot === undefined || snapshot.status !== 'ok') return null
+      const refresh = useClickRefresh(api ? () => api.refreshCustomBalance(index) : null)
+      const view = customBalanceBoxBody(state, config, t, snapshot, entry)
+      const detail = [customBalanceDetailText(snapshot, config, t, state, entry), ...clickRefreshTipLines(t, refresh)].join(' · ')
       return el(Tooltip, { label: detail, side: 'right', delayMs: 300 },
         el('div', { className: 'cm-bbox clickable' + (view.level === 'ok' ? '' : ' ' + view.level) + (wide ? '' : ' rail') + (refresh.busy ? ' busy' : ''), ...clickableRefreshProps(refresh.busy, refresh.run) },
           wide ? view.body : el('div', { className: 'cm-bbox-rail cm-num' }, view.rail)))
@@ -2822,19 +2888,28 @@ window.__ModuleLoader__.load({
 
     function CustomBalanceRowContent(props) {
       const { state, wide, api } = props
-      const custom = state.customBalance
       const config = state.config
       const t = makeT(resolveLocale(config?.locale))
-      const refresh = useClickRefresh(api ? () => api.refreshCustomBalance() : null)
-      if (!custom || custom.status === 'off') return null
-      const label = resolveCustomBalanceLabel(config.customBalance ?? {}, resolveLocale(config?.locale))
+      const visible = visibleCustomEntries(state, config)
+      if (visible.length === 0) return null
+      return el(Fragment, null, visible.map(({ index, entry, snapshot }) =>
+        el(CustomBalanceEntryRow, { key: 'cbr-' + index, state, wide, api, t, index, entry, snapshot })))
+    }
+
+    function CustomBalanceEntryRow(props) {
+      const { state, wide, api, t, index, entry, snapshot } = props
+      const config = state.config
+      const custom = snapshot ?? { status: 'off', message: '', fetchedAt: 0, label: '', unit: 'USD', remaining: 0, maxBudget: null, spend: null, index }
+      if (custom.status === 'off') return null
+      const refresh = useClickRefresh(api ? () => api.refreshCustomBalance(index) : null)
+      const label = resolveCustomBalanceLabel(entry ?? config.customBalance ?? {}, resolveLocale(config?.locale))
       if (custom.status === 'error') {
         return el(Tooltip, { label: [custom.message || t('unknownError'), ...clickRefreshTipLines(t, refresh)].join('; '), side: 'right', delayMs: 300 },
           el('div', { className: 'cm-foot clickable' + (wide ? '' : ' cm-foot-rail') + ' cm-bal-err' + (refresh.busy ? ' busy' : ''), ...clickableRefreshProps(refresh.busy, refresh.run) },
             wide ? el(Fragment, null, label, ' ', el('span', { className: 'cm-num' }, t('queryFailed'))) : '⚠'))
       }
-      const amount = formatCustomBalanceMoney(custom.remaining, config, custom)
-      const detail = [customBalanceDetailText(custom, config, t, state), ...clickRefreshTipLines(t, refresh)].join(' · ')
+      const amount = formatCustomBalanceMoney(custom.remaining, config, custom, entry)
+      const detail = [customBalanceDetailText(custom, config, t, state, entry), ...clickRefreshTipLines(t, refresh)].join(' · ')
       return el(Tooltip, { label: detail, side: 'right', delayMs: 300 },
         el('div', { className: 'cm-foot clickable' + (wide ? '' : ' cm-foot-rail') + (refresh.busy ? ' busy' : ''), ...clickableRefreshProps(refresh.busy, refresh.run) },
           wide ? el(Fragment, null, label, ' ', el('span', { className: 'cm-num' }, amount)) : el(WalletIcon, { size: 16 })))
@@ -3772,8 +3847,8 @@ window.__ModuleLoader__.load({
       if (!state) return null
       const config = state.config
       const sidebarBalanceOn = config.balance?.display === 'sidebar' || config.balance?.display === 'both'
-      const sidebarCustomOn = config.customBalance?.enabled === true
-        && (config.customBalance?.display === 'sidebar' || config.customBalance?.display === 'both')
+      const sidebarCustomOn = (config?.customBalances ?? []).some(e => e?.enabled === true && (e.display === 'sidebar' || e.display === 'both'))
+        || (config.customBalance?.enabled === true && (config.customBalance?.display === 'sidebar' || config.customBalance?.display === 'both'))
       const sidebarPlansOn = CODING_PLAN_ROWS.some(r => {
         const entry = config.codingPlans?.[r.id]
         return entry?.enabled === true && (entry.display === 'sidebar' || entry.display === 'both')
@@ -3913,9 +3988,10 @@ window.__ModuleLoader__.load({
       const t = makeT(resolveLocale(config?.locale))
       const showBalance = (config.balance?.display === 'sidebar' || config.balance?.display === 'both')
         && config.hideOfficialBalance !== true
-      const showCustomBalance = config.customBalance?.enabled === true
-        && (config.customBalance?.display === 'sidebar' || config.customBalance?.display === 'both')
-        && state.customBalance?.status === 'ok'
+      // 多配置形态(v1.7.0,issue #79):可见性逐条判定(可见条目集由
+      // visibleCustomEntries 统一给出;组件内部逐条按快照状态渲染)。
+      const visibleCustom = visibleCustomEntries(state, config)
+      const showCustomBalance = visibleCustom.length > 0
       const showBalanceBar = showBalance && config.balance?.showProgressBar === true && state.balance?.status === 'ok'
       const showCustomBalanceBar = showCustomBalance && config.balance?.showProgressBar === true
       const goMainKey = config.goQuota?.main === 'weekly' || config.goQuota?.main === 'monthly' ? config.goQuota.main : 'rolling'
@@ -5053,58 +5129,71 @@ window.__ModuleLoader__.load({
         msg !== null ? el('div', { className: 'cm-msg ' + msg.kind }, msg.text) : null)
     }
 
-    const CUSTOM_BALANCE_OPEN_KEY = 'dsh-cost-meter.customBalance.open'
-    function readCustomBalanceOpen() {
-      try { return window.localStorage.getItem(CUSTOM_BALANCE_OPEN_KEY) !== '0' } catch { return true }
-    }
-
     function CustomBalancePanel(props) {
       const { state, api, t, draft, setDraft } = props
+      const config = state.config
+      // 多配置形态(v1.7.0,issue #79):entries 为运行期真源;旧单配置 customBalance
+      // 由 parseConfig/sanitizeConfig 迁移包装为 entries(编辑写回也走数组,单条键
+      // 由服务端镜像),旧宿主快照自动兼容。
+      const entries = draft?.customBalances ?? config.customBalances ?? []
+      const setEntries = next => {
+        if (draft === null) return
+        setDraft({ ...draft, customBalances: next })
+      }
+      const setEntry = (index, patch) => {
+        setEntries(entries.map((e, i) => i === index ? { ...e, ...patch } : e))
+      }
+      const removeEntry = index => {
+        setEntries(entries.filter((_, i) => i !== index))
+      }
+      const addEntry = () => {
+        if (entries.length >= 8) return
+        setEntries([...entries, {
+          enabled: false,
+          label: '',
+          labelEn: '',
+          display: 'both',
+          unit: 'USD',
+          refreshMinutes: 15,
+          request: { url: '', method: 'GET', headers: {} },
+          extract: {},
+        }])
+      }
+      return el('div', { className: 'cm-budget' },
+        el('div', { className: 'cm-budget-head' },
+          el('h3', { className: 'cm-h' }, t('customBalanceTitle')),
+          el('button', { className: 'cm-btn small', onClick: addEntry, disabled: entries.length >= 8 }, t('customBalanceAdd'))),
+        el('p', { className: 'cm-note' }, t('customBalanceMultiNote')),
+        entries.length === 0
+          ? el('p', { className: 'cm-hint' }, t('customBalanceEmpty'))
+          : entries.map((entry, index) =>
+            el(CustomBalanceEntryPanel, { key: 'cbe-' + index, state, api, t, entry, index, canRemove: entries.length > 1, onPatch: patch => setEntry(index, patch), onRemove: () => removeEntry(index) })))
+    }
+
+    function CustomBalanceEntryPanel(props) {
+      const { state, api, t, entry, index, canRemove, onPatch, onRemove } = props
       const [busy, setBusy] = useState(false)
       const [msg, setMsg] = useState(null)
-      const [open, setOpen] = useState(readCustomBalanceOpen)
-      const [headersText, setHeadersText] = useState('')
-      const [extractText, setExtractText] = useState('')
+      const [open, setOpen] = useState(false)
+      const [headersText, setHeadersText] = useState(() => JSON.stringify(entry.request?.headers ?? {}, null, 2))
+      const [extractText, setExtractText] = useState(() => JSON.stringify(entry.extract ?? {}, null, 2))
       const [jsonErr, setJsonErr] = useState({ headers: '', extract: '' })
       const openRef = useRef(false)
-      const custom = state.customBalance
       const config = state.config
-      const cfgEntry = draft?.customBalance ?? config.customBalance ?? {}
-      const enabled = cfgEntry.enabled === true
-      const toggleOpen = () => {
-        setOpen(value => {
-          const next = !value
-          try { window.localStorage.setItem(CUSTOM_BALANCE_OPEN_KEY, next ? '1' : '0') } catch { /* ignore */ }
-          return next
-        })
-      }
+      const snapshots = Array.isArray(state.customBalances) ? state.customBalances : []
+      const custom = snapshots.find(s => s.index === index) ?? null
+      const enabled = entry.enabled === true
+      const toggleOpen = () => { setOpen(v => !v) }
       useEffect(() => {
-        if (open) {
-          if (!openRef.current) {
-            setHeadersText(JSON.stringify(cfgEntry.request?.headers ?? {}, null, 2))
-            setExtractText(JSON.stringify(cfgEntry.extract ?? {}, null, 2))
-            setJsonErr({ headers: '', extract: '' })
-          }
-          openRef.current = true
-        } else {
-          openRef.current = false
+        if (open && !openRef.current) {
+          setHeadersText(JSON.stringify(entry.request?.headers ?? {}, null, 2))
+          setExtractText(JSON.stringify(entry.extract ?? {}, null, 2))
+          setJsonErr({ headers: '', extract: '' })
         }
-      }, [open, cfgEntry])
-      const setCustomBalance = (field, value) => {
-        if (draft === null) return
-        setDraft({ ...draft, customBalance: { ...(draft.customBalance ?? config.customBalance ?? {}), [field]: value } })
-      }
-      const setCustomBalanceRequest = (field, value) => {
-        if (draft === null) return
-        const cur = draft.customBalance ?? config.customBalance ?? {}
-        setDraft({
-          ...draft,
-          customBalance: {
-            ...cur,
-            request: { ...(cur.request ?? {}), [field]: value },
-          },
-        })
-      }
+        openRef.current = open
+      }, [open])
+      const setField = (field, value) => onPatch({ [field]: value })
+      const setRequest = (field, value) => onPatch({ request: { ...(entry.request ?? {}), [field]: value } })
       const applyHeadersText = text => {
         setHeadersText(text)
         try {
@@ -5112,7 +5201,7 @@ window.__ModuleLoader__.load({
           if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid')
           if (Object.values(parsed).some(value => typeof value !== 'string')) throw new Error('invalid') // 值必须是字符串(与服务端 strict 校验同口径)
           setJsonErr(err => ({ ...err, headers: '' }))
-          setCustomBalanceRequest('headers', parsed)
+          setRequest('headers', parsed)
         } catch {
           setJsonErr(err => ({ ...err, headers: t('customBalanceInvalidJson') }))
         }
@@ -5123,18 +5212,19 @@ window.__ModuleLoader__.load({
           const parsed = JSON.parse(text)
           if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid')
           setJsonErr(err => ({ ...err, extract: '' }))
-          setCustomBalance('extract', parsed)
+          setField('extract', parsed)
         } catch {
           setJsonErr(err => ({ ...err, extract: t('customBalanceInvalidJson') }))
         }
       }
       const doRefresh = async () => {
         // 门控用服务端已保存配置(而非草稿):避免刚勾选启用未过防抖保存时点刷新被服务端拒绝。
-        if (busy || config.customBalance?.enabled !== true) return
+        const saved = (config.customBalances ?? [])[index]
+        if (busy || saved?.enabled !== true) return
         setBusy(true)
         setMsg(null)
         try {
-          const result = await api.refreshCustomBalance()
+          const result = await api.refreshCustomBalance(index)
           setMsg({ kind: result.ok ? 'ok' : 'err', text: result.message })
         } catch (error) {
           setMsg({ kind: 'err', text: t('customBalanceRefreshFailed', { message: error?.message ?? String(error) }) })
@@ -5142,16 +5232,16 @@ window.__ModuleLoader__.load({
           setBusy(false)
         }
       }
-      const preview = custom?.status === 'ok'
+      const preview = custom !== null && custom.status === 'ok'
         ? el(Fragment, null,
           config.balance?.showProgressBar === true
             ? el('div', { className: 'cm-budget', style: { marginTop: '8px' } },
-              el(BalanceBar, { segments: segmentsForCustomBalance(state, config), direction: barDirectionOf(config, 'balance') }),
-              el('div', { className: 'cm-bal-line' }, customBalanceDetailText(custom, config, t, state)))
+              el(BalanceBar, { segments: segmentsForCustomBalance(state, config, custom, entry), direction: barDirectionOf(config, 'balance') }),
+              el('div', { className: 'cm-bal-line' }, customBalanceDetailText(custom, config, t, state, entry)))
             : el('div', { className: 'cm-bal-line' }, t('customBalanceRemaining', {
-              amount: formatCustomBalanceMoney(custom.remaining, config, custom),
+              amount: formatCustomBalanceMoney(custom.remaining, config, custom, entry),
             })))
-        : custom?.status === 'error'
+        : custom !== null && custom.status === 'error'
           ? el('div', { className: 'cm-bal-line err' }, custom.message || t('unknownError'))
           : el('div', { className: 'cm-bal-line' }, t('balanceNotQueried'))
       const configFields = open
@@ -5162,22 +5252,22 @@ window.__ModuleLoader__.load({
               el('label', null, t('customBalanceLabelZh')),
               el('input', {
                 className: 'cm-input',
-                value: cfgEntry.label ?? '',
-                onChange: event => setCustomBalance('label', event.target.value),
+                value: entry.label ?? '',
+                onChange: event => setField('label', event.target.value),
               })),
             el('div', { className: 'cm-field' },
               el('label', null, t('customBalanceLabelEn')),
               el('input', {
                 className: 'cm-input',
-                value: cfgEntry.labelEn ?? '',
-                onChange: event => setCustomBalance('labelEn', event.target.value),
+                value: entry.labelEn ?? '',
+                onChange: event => setField('labelEn', event.target.value),
               })),
             el('div', { className: 'cm-field' },
               el('label', null, t('customBalanceUnitLabel')),
               el('select', {
                 className: 'cm-input',
-                value: cfgEntry.unit === 'CNY' || cfgEntry.unit === 'EUR' ? cfgEntry.unit : 'USD',
-                onChange: event => setCustomBalance('unit', event.target.value),
+                value: entry.unit === 'CNY' || entry.unit === 'EUR' ? entry.unit : 'USD',
+                onChange: event => setField('unit', event.target.value),
               },
                 el('option', { value: 'USD' }, 'USD ($)'),
                 el('option', { value: 'CNY' }, 'CNY (¥)'),
@@ -5186,8 +5276,8 @@ window.__ModuleLoader__.load({
               el('label', null, t('customBalanceDisplayLabel')),
               el('select', {
                 className: 'cm-input',
-                value: cfgEntry.display ?? 'both',
-                onChange: event => setCustomBalance('display', event.target.value),
+                value: entry.display ?? 'both',
+                onChange: event => setField('display', event.target.value),
               },
                 el('option', { value: 'sidebar' }, t('balanceSidebar')),
                 el('option', { value: 'settings' }, t('balanceSettings')),
@@ -5195,13 +5285,13 @@ window.__ModuleLoader__.load({
                 el('option', { value: 'off' }, t('off')))),
             el('div', { className: 'cm-field' },
               el('label', null, t('customBalanceRefreshInterval')),
-              numInput({ value: cfgEntry.refreshMinutes ?? 15 }, v => setCustomBalance('refreshMinutes', Math.min(1440, Math.max(1, Math.floor(v)))))),
+              numInput({ value: entry.refreshMinutes ?? 15 }, v => setField('refreshMinutes', Math.min(1440, Math.max(1, Math.floor(v)))))),
             el('div', { className: 'cm-field' },
               el('label', null, t('customBalanceMethod')),
               el('select', {
                 className: 'cm-input',
-                value: cfgEntry.request?.method ?? 'GET',
-                onChange: event => setCustomBalanceRequest('method', event.target.value),
+                value: entry.request?.method ?? 'GET',
+                onChange: event => setRequest('method', event.target.value),
               },
                 el('option', { value: 'GET' }, 'GET'),
                 el('option', { value: 'POST' }, 'POST'))),
@@ -5209,9 +5299,9 @@ window.__ModuleLoader__.load({
               el('label', null, t('customBalanceUrl')),
               el('input', {
                 className: 'cm-input',
-                value: cfgEntry.request?.url ?? '',
+                value: entry.request?.url ?? '',
                 placeholder: 'https://example.com/key/info',
-                onChange: event => setCustomBalanceRequest('url', event.target.value),
+                onChange: event => setRequest('url', event.target.value),
               })),
             el('div', { className: 'cm-field', style: { gridColumn: '1 / -1' } },
               el('label', null, t('customBalanceHeaders')),
@@ -5231,14 +5321,15 @@ window.__ModuleLoader__.load({
                 onChange: event => applyExtractText(event.target.value),
               }),
               jsonErr.extract ? el('span', { className: 'cm-hint err' }, jsonErr.extract) : null)))
-        : el('p', { className: 'cm-note cm-collapsed-note' }, resolveCustomBalanceLabel(cfgEntry, resolveLocale(config?.locale)) || t('customBalanceTitle'))
-      return el('div', { className: 'cm-budget' },
+        : el('p', { className: 'cm-note cm-collapsed-note' }, resolveCustomBalanceLabel(entry, resolveLocale(config?.locale)) || t('customBalanceTitle'))
+      return el('div', { className: 'cm-budget', style: { marginTop: '10px' } },
         el('div', { className: 'cm-budget-head' },
-          el('h3', { className: 'cm-h' }, t('customBalanceTitle')),
+          el('h3', { className: 'cm-h' }, `#${index + 1} · ` + (resolveCustomBalanceLabel(entry, resolveLocale(config?.locale)) || t('customBalanceTitle'))),
           el('button', { className: 'cm-toggle-btn', onClick: toggleOpen }, open ? t('customBalanceCollapseConfig') : t('customBalanceOpenConfig')),
-          el('button', { className: 'cm-btn small', onClick: doRefresh, disabled: busy || config.customBalance?.enabled !== true }, busy ? t('refreshing') : t('refreshCustomBalance'))),
+          el('button', { className: 'cm-btn small', onClick: doRefresh, disabled: busy || enabled === false }, busy ? t('refreshing') : t('refreshCustomBalance')),
+          canRemove ? el('button', { className: 'cm-btn small', onClick: onRemove }, t('customBalanceRemove')) : null),
         el('label', { className: 'cm-check' },
-          el('input', { type: 'checkbox', checked: enabled === true, onChange: event => setCustomBalance('enabled', event.target.checked) }),
+          el('input', { type: 'checkbox', checked: enabled === true, onChange: event => setField('enabled', event.target.checked) }),
           el('span', null, t('enable'))),
         preview,
         configFields,
@@ -6550,8 +6641,11 @@ window.__ModuleLoader__.load({
           if (result.value.state !== undefined) store.set({ status: 'ready', error: null, state: result.value.state })
           return result.value
         },
-        refreshCustomBalance: async () => {
-          const result = await costMeter.refreshCustomBalance()
+        refreshCustomBalance: async (index = null) => {
+          // index(v1.7.0,issue #79):多配置形态下刷新指定条目;缺省全量(旧单条行为)。
+          const result = index === null || index === undefined
+            ? await costMeter.refreshCustomBalance()
+            : await costMeter.refreshCustomBalance(index)
           if (result === null || typeof result !== 'object' || result.ok !== true) {
             throw new Error(result?.error?.message ?? rpcT()('rpcSyncFailed'))
           }
