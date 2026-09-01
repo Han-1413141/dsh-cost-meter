@@ -590,13 +590,15 @@ window.__ModuleLoader__.load({
         modelStatsCostH: '费用排行',
         modelStatsTokensH: 'Token 消耗',
         modelStatsHitH: '缓存命中率',
+        modelStatsHitUnreported: '未上报?',
+        modelStatsHitUnreportedTip: '该模型累计多次长上下文调用而缓存命中恒为 0:大概率是中转/代理层剥掉了用量里的缓存字段(或中转请求导致缓存真实未命中),命中率无法统计,且金额按全未命中价计(为上界)。直连官方 API 可恢复准确的缓存命中与更低的金额。',
         modelStatsValueH: '性价比 · 每美元 token 数',
         modelStatsInput: '输入',
         modelStatsCache: '缓存',
         modelStatsOutput: '输出',
         modelStatsEmpty: '该时段暂无用量数据。',
         modelStatsBlended: '综合单价 {price}/M',
-        modelStatsNote: '口径:缓存命中率 = 缓存读 ÷ (缓存读 + 非缓存输入);综合单价 = 费用 ÷ 总 token × 1M(USD/M tokens);性价比 = 总 token ÷ 费用,越高越好;费用为账本按每次调用实际时刻计费的美元值。',
+        modelStatsNote: '口径:缓存命中率 = 缓存读 ÷ (缓存读 + 非缓存输入);「未上报?」= 用量疑似未含缓存字段(常见于中转/代理链路),命中率无法统计且金额按全未命中价计(上界);综合单价 = 费用 ÷ 总 token × 1M(USD/M tokens);性价比 = 总 token ÷ 费用,越高越好;费用为账本按每次调用实际时刻计费的美元值。',
         modelStatsLegacy: '未分模型(早期数据 · 按当时记录计费)',
         // Plan/API 双轨计费与 Token Plan 统计(issue #64)
         sessionLineSplit: '本会话 {amount}(API)· Plan 等值 {planAmount} · 输入 {input} · 缓存 {cache} · 输出 {output}',
@@ -1021,13 +1023,15 @@ window.__ModuleLoader__.load({
         modelStatsCostH: 'Cost ranking',
         modelStatsTokensH: 'Token usage',
         modelStatsHitH: 'Cache hit rate',
+        modelStatsHitUnreported: 'unreported?',
+        modelStatsHitUnreportedTip: 'This model has many long-context calls but zero cache hits: most likely a relay/proxy strips the cache fields from usage (or the relay genuinely breaks the prefix cache). The hit rate cannot be computed and the cost is priced as all-cache-miss (an upper bound). Connecting directly to the official API restores accurate cache hits and lower costs.',
         modelStatsValueH: 'Value · tokens per USD',
         modelStatsInput: 'Input',
         modelStatsCache: 'Cache',
         modelStatsOutput: 'Output',
         modelStatsEmpty: 'No usage data for this period.',
         modelStatsBlended: 'blended {price}/M',
-        modelStatsNote: 'Methodology: cache hit rate = cache reads ÷ (cache reads + non-cached input); blended price = cost ÷ total tokens × 1M (USD per 1M tokens); value = total tokens ÷ cost (higher is better). Costs are USD exactly as billed per call by the ledger.',
+        modelStatsNote: 'Methodology: cache hit rate = cache reads ÷ (cache reads + non-cached input); "unreported?" = usage likely carries no cache fields (common behind relays/proxies) — the hit rate cannot be computed and the cost is priced as all-cache-miss (upper bound); blended price = cost ÷ total tokens × 1M (USD per 1M tokens); value = total tokens ÷ cost (higher is better). Costs are USD exactly as billed per call by the ledger.',
         billingClassLabel: 'Billing class',
         billingClassPlan: 'Plan subscription',
         modelStatsLegacy: 'Unattributed (early data · billed as recorded)',
@@ -2158,6 +2162,20 @@ window.__ModuleLoader__.load({
       return { entry: null, priced: false, billingMode: 'flat', matched: false }
     }
     /** 投影 token 桶 → 按当前时刻档位计价的美元成本。 */
+    /**
+     * 缓存字段疑似未上报判定(issue #65 讨论,中转链路):
+     * 累计调用 ≥3 次、非缓存输入 ≥100k token(多轮长上下文)而缓存命中恒为 0——
+     * 直连 DeepSeek 的 prefix cache 在此形态下几乎必然命中,恒零大概率是中转/代理
+     * 剥掉了 usage 的缓存扩展字段(prompt_cache_hit_tokens 等)。真零命中(单轮短
+     * 上下文/冷启动)不满足量级阈值,不会被误标。
+     */
+    function cacheUnreportedOf(bucket) {
+      const calls = Number(bucket?.calls) || 0
+      const input = Number(bucket?.input) || 0
+      const cacheRead = Number(bucket?.cacheRead) || 0
+      return calls >= 3 && input >= 100_000 && cacheRead === 0
+    }
+
     function usageCost(usage, config) {
       if (!usage || !config) return 0
       // 宿主按事件时刻逐次计费的成本(历史正确,含峰谷时代前的旧基础价);
@@ -4790,13 +4808,14 @@ window.__ModuleLoader__.load({
           for (const key of Object.keys(map ?? {})) {
             const b = map[key]
             if (b === null || typeof b !== 'object') continue
-            const row = out[key] ?? (out[key] = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, cost: 0 })
+            const row = out[key] ?? (out[key] = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, cost: 0, calls: 0 })
             row.input += Number(b.input) || 0
             row.output += Number(b.output) || 0
             row.cacheRead += Number(b.cacheRead) || 0
             row.cacheWrite += Number(b.cacheWrite) || 0
             row.reasoning += Number(b.reasoning) || 0
             row.cost += Number(b.cost) || 0
+            row.calls += Number(b.calls) || 0
           }
         }
         if (source === 'today') add(modelMapOf(state.today))
@@ -4814,6 +4833,11 @@ window.__ModuleLoader__.load({
             // 计费方式(issue #64):plan=订阅额度(费用为等值口径),api=按量计费。
             cls: billingClassOfLocal(provider, model, config),
             hitRate: hitDen > 0 ? b.cacheRead / hitDen : null,
+            // 缓存字段疑似未上报(issue #65 讨论):多轮长上下文却恒零命中,直连
+            // DeepSeek 的 prefix cache 几乎不可能(同会话第二轮起大量命中)——大概率
+            // 是中转/代理层剥掉了 usage 的缓存扩展字段。此时命中率不可统计、金额按
+            // 全未命中价计(上界),界面明确标注而非误导性的 0.0%。
+            cacheUnreported: cacheUnreportedOf(b),
             blended: tokens > 0 && b.cost > 0 ? b.cost / tokens * 1e6 : null,
             perUsd: b.cost > 0 ? tokens / b.cost : null,
           }
@@ -4852,7 +4876,10 @@ window.__ModuleLoader__.load({
             // 1) 费用排行(降序,橙色条;Plan 行附计费方式标记)。
             el('div', { className: 'cm-mstats-h' }, t('modelStatsCostH')),
             rows.map(r => el(Fragment, { key: 'c:' + r.label },
-              barRow(r.label, maxCost > 0 ? r.cost / maxCost : 0, 'cost', formatMoneyUsd(r.cost, config), classChip(r)))),
+              barRow(r.label, maxCost > 0 ? r.cost / maxCost : 0, 'cost', formatMoneyUsd(r.cost, config),
+                el(Fragment, null,
+                  classChip(r),
+                  r.cacheUnreported ? el('span', { className: 'cm-plan-tag', title: t('modelStatsHitUnreportedTip') }, '⚠') : null)))),
             // 2) Token 消耗(堆叠:输入/缓存/输出)。
             el('div', { className: 'cm-mstats-h' }, t('modelStatsTokensH')),
             el('div', { className: 'cm-mstats-legend' },
@@ -4866,10 +4893,14 @@ window.__ModuleLoader__.load({
                 el('div', { className: 'cm-mstats-seg cache', style: { width: pct(maxTokens > 0 ? (r.cacheRead + r.cacheWrite) / maxTokens : 0) } }),
                 el('div', { className: 'cm-mstats-seg out', style: { width: pct(maxTokens > 0 ? (r.output + r.reasoning) / maxTokens : 0) } })),
               el('span', { className: 'cm-mstats-val' }, formatTokens(r.tokens)))),
-            // 3) 缓存命中率(绿条;无缓存流量的模型显示—)。
+            // 3) 缓存命中率(绿条;无缓存流量的模型显示—;疑似未上报(issue #65
+            // 中转链路)显示「未上报?」并附说明——此时金额按全未命中价计,为上界)。
             el('div', { className: 'cm-mstats-h' }, t('modelStatsHitH')),
             [...rows].sort((a, b) => (b.hitRate ?? -1) - (a.hitRate ?? -1)).map(r => el(Fragment, { key: 'h:' + r.label },
-              barRow(r.label, r.hitRate ?? 0, 'hit', r.hitRate === null ? '—' : (r.hitRate * 100).toFixed(1) + '%'))),
+              barRow(r.label, r.hitRate ?? 0, 'hit',
+                r.cacheUnreported ? t('modelStatsHitUnreported')
+                  : r.hitRate === null ? '—' : (r.hitRate * 100).toFixed(1) + '%',
+                r.cacheUnreported ? el('span', { className: 'cm-plan-tag', title: t('modelStatsHitUnreportedTip') }, '⚠') : null))),
             // 4) 性价比:每美元 token 数(紫条),右侧附综合单价。
             el('div', { className: 'cm-mstats-h' }, t('modelStatsValueH')),
             [...rows].sort((a, b) => (b.perUsd ?? -1) - (a.perUsd ?? -1)).map(r => el(Fragment, { key: 'v:' + r.label },

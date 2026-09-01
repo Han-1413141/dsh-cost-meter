@@ -5462,4 +5462,31 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   console.log('[ok] 对账警告币种符号一致(CNY 账户 e2e drift 文案)通过')
 }
 
+// ── v1.7.3:中转链路缓存字段未上报的显式标注(issue #65 讨论) ──
+
+// 16-1) cacheUnreportedOf 判定:量级阈值(多轮长上下文恒零命中才标);真零命中不误标。
+{
+  const clientSrc163 = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
+  const sliceStart163 = clientSrc163.indexOf('function priceEntryFor(modelId, table)')
+  const sliceEnd163 = clientSrc163.indexOf('function makeStore(initial)')
+  assert.ok(sliceStart163 > 0 && sliceEnd163 > sliceStart163, '客户端可测区段定位成功')
+  const C163 = new Function(clientSrc163.slice(sliceStart163, sliceEnd163) + '\nreturn { cacheUnreportedOf }')()
+  // 疑似未上报:≥3 次调用、非缓存输入 ≥100k、缓存读恒 0。
+  assert.equal(C163.cacheUnreportedOf({ calls: 5, input: 300_000, cacheRead: 0 }), true, '多轮长上下文恒零命中 → 疑似未上报')
+  assert.equal(C163.cacheUnreportedOf({ calls: 10, input: 500_000, cacheRead: 0, cacheWrite: 0 }), true, '含 cacheWrite=0 同判')
+  // 有命中则不标(正常链路)。
+  assert.equal(C163.cacheUnreportedOf({ calls: 5, input: 300_000, cacheRead: 120_000 }), false, '有缓存命中不标注')
+  // 真零命中(量级不足)不标:单轮/少量调用。
+  assert.equal(C163.cacheUnreportedOf({ calls: 1, input: 300_000, cacheRead: 0 }), false, '单次调用不标(冷启动属预期)')
+  assert.equal(C163.cacheUnreportedOf({ calls: 5, input: 2_000, cacheRead: 0 }), false, '短上下文不标(真零命中属预期)')
+  assert.equal(C163.cacheUnreportedOf({ calls: 2, input: 300_000, cacheRead: 0 }), false, '仅两次调用不标')
+  // 非法输入不标(缺省安全)。
+  assert.equal(C163.cacheUnreportedOf(null), false, '空桶不标')
+  // 16-2) 接线哨兵:命中率单元格与费用排行行均接「未上报?」标注 + 双语文案。
+  assert.ok(clientSrc163.includes("r.cacheUnreported ? t('modelStatsHitUnreported')"), '命中率单元格显示「未上报?」')
+  assert.ok((clientSrc163.match(/modelStatsHitUnreportedTip/g) ?? []).length >= 4, '费用行+命中率行均挂 ⚠ tooltip(双语文案定义 + 两处使用 ≥4 处引用)')
+  assert.ok(clientSrc163.includes('calls >= 3 && input >= 100_000 && cacheRead === 0'), '判定阈值锁定(3 次 + 100k 输入 + 恒零命中)')
+  console.log('[ok] 缓存字段未上报判定与标注(中转链路显式提示)通过')
+}
+
 console.log('[ok] 全部验证通过')
