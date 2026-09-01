@@ -458,6 +458,13 @@ window.__ModuleLoader__.load({
         balanceBudgetCapLabel: '额度上限 (可选)',
         balanceBudgetCapHint: '留空则优先使用 API 返回的 max_budget;仍无则显示整条浅蓝',
         customBalanceInvalidJson: 'JSON 格式无效',
+        // 自定义余额安全配置(v1.7.6,issue #86)
+        customBalanceHeadersVarNote: '值支持 {{VAR_NAME}} 占位符,从 DSH 凭据库/环境变量解析,不落盘。变量名参考 <ROUTE>_API_KEY:<ROUTE> 为模型页 Provider ID 大写、非字母数字换下划线,如 openai→OPENAI_API_KEY、abc23-d→ABC23_D_API_KEY;同名即共用同一把密钥。',
+        customBalanceAllowedHosts: '凭据白名单 (逗号分隔)',
+        customBalanceAllowedHostsHint: '请求头带密钥时仅放行列表内主机,留空则放行并警告,防导入他人配置外带密钥。',
+        customBalanceCredentialsTitle: '凭据输入',
+        customBalanceCredentialsHint: '为上方 {{VAR}} 占位符存入密钥(write-only,只写凭据库,不回显):',
+        customBalanceNoPlaceholders: '请求头还没有 {{VAR}} 占位符:填入如 "Authorization": "Bearer {{MY_API_KEY}}" 后这里会出现凭据输入框。',
         enable: '启用',
         customBalanceOpenConfig: '展开配置',
         customBalanceCollapseConfig: '收起配置',
@@ -623,7 +630,7 @@ window.__ModuleLoader__.load({
         planStatsMonthly: '每月',
         planStatsCurveEmpty: '采样区间尚不足(至少两次成功刷新且百分比有变化),曲线会在持续使用后逐步成形。',
         planStatsBarTip: '{date}:满窗估计 ≈ {full}(每 1% ≈ {per1})· 实际 {tokens} / {cost} · {intervals} 个采样区间',
-        planStatsNote: '口径:「金额」均为按目录 API 价折算的等值美元——订阅渠道消耗的是套餐额度,不动真金白银,预算/今日费用等金额展示只统计 API 渠道。本面板的「本周期实际(本地账本)」与每 1%/满窗估算只统计在 dsh 内发起的调用——其它机器/CLI 的消耗不进本地账本。每 1% 与满窗估算由额度刷新采样的首尾差分推算(连续可信段内中间读数的量化误差两两抵消);各家百分比读数存在个位级量化(显示 1% 的真实值可能在 0.5%~1.5%),差分跨度不足 5 个百分点时结果波动较大,方法列会标注「读数精度受限」。样本超 7 天或不足时回退「本周期实际 ÷ 当前已用%」折算。5 小时窗为滚动窗,周/月按本地日历;窗口边界按小时粒度对齐。注意:服务端「已用%」统计该账号全部用量,与本地统计之差即其它渠道消耗——同一 Key 在别处使用时本地偏低属预期;部分目录价含限时促销(如 gpt-5.6-sol 至 2026-09-18 五折)。SCNet 为本地 Credits 自估,不参与估算。',
+        planStatsNote: '口径:「金额」为目录 API 价等值——订阅渠道耗套餐额度,预算只计 API;估算只统计 dsh 内调用,服务端「已用%」为全账号口径。每 1%/满窗取可信采样段差分(短段波动大,标注「精度受限」)。5 小时窗滚动,周/月按本地日历。',
         billingClassLabel: '计费方式',
         billingClassPlan: 'Plan 订阅',
         catalogDisplayLabel: '在费用设置直接显示',
@@ -893,6 +900,13 @@ window.__ModuleLoader__.load({
         balanceBudgetCapLabel: 'Budget cap (optional)',
         balanceBudgetCapHint: 'Leave empty to use API max_budget; if still missing, show full light-blue bar',
         customBalanceInvalidJson: 'Invalid JSON',
+        // Custom-balance security settings (v1.7.6, issue #86)
+        customBalanceHeadersVarNote: 'Values support {{VAR_NAME}} placeholders resolved from the DSH credential store or env, never written to disk. The name follows <ROUTE>_API_KEY, where <ROUTE> is the Models-page Provider ID uppercased with non-alphanumerics replaced by underscores, e.g. openai→OPENAI_API_KEY, abc23-d→ABC23_D_API_KEY; sharing a name shares the same key.',
+        customBalanceAllowedHosts: 'Allowed hosts (comma-separated)',
+        customBalanceAllowedHostsHint: 'When headers carry credentials only listed hosts are allowed; leave empty to allow with a warning. Protects keys when importing someone else\'s config.',
+        customBalanceCredentialsTitle: 'Credential input',
+        customBalanceCredentialsHint: 'Store the key for each {{VAR}} placeholder above (write-only: stored in the DSH credential store, never echoed back):',
+        customBalanceNoPlaceholders: 'No {{VAR}} placeholders in the headers yet — add e.g. "Authorization": "Bearer {{MY_API_KEY}}" and a credential input will appear here.',
         enable: 'Enable',
         customBalanceOpenConfig: 'Expand config',
         customBalanceCollapseConfig: 'Collapse config',
@@ -1032,7 +1046,7 @@ window.__ModuleLoader__.load({
         modelStatsOutput: 'Output',
         modelStatsEmpty: 'No usage data for this period.',
         modelStatsBlended: 'blended {price}/M',
-        modelStatsNote: 'Methodology: cache hit rate = cache reads ÷ (cache reads + non-cached input); "unreported?" = usage likely carries no cache fields (common behind relays/proxies) — the hit rate cannot be computed and the cost is priced as all-cache-miss (upper bound); blended price = cost ÷ total tokens × 1M (USD per 1M tokens); value = total tokens ÷ cost (higher is better). Costs are USD exactly as billed per call by the ledger.',
+        modelStatsNote: 'Cache hit rate = cache reads ÷ (reads + non-cached input); "unreported?" = usage carries no cache fields (common behind relays), cost priced as all-miss (upper bound); blended = cost ÷ tokens × 1M; value = tokens ÷ cost (higher better). Costs are USD as billed.',
         billingClassLabel: 'Billing class',
         billingClassPlan: 'Plan subscription',
         modelStatsLegacy: 'Unattributed (early data · billed as recorded)',
@@ -1059,7 +1073,7 @@ window.__ModuleLoader__.load({
         planStatsMonthly: 'Monthly',
         planStatsCurveEmpty: 'Not enough sample intervals yet (at least two successful refreshes with a percent change); the curves will take shape with continued use.',
         planStatsBarTip: '{date}: full-window est. ≈ {full} (per 1% ≈ {per1}) · actual {tokens} / {cost} · {intervals} sample interval(s)',
-        planStatsNote: 'Scope: all amounts are catalog-price equivalents in USD — subscription channels consume plan quota, not real money; budget/today-cost displays only count the API channel. "This period actual (local ledger)" and the per-1%/full-window estimates only cover calls made inside dsh — usage from other machines/CLIs never enters the local ledger. Per-1% and full-window values come from end-to-end deltas over continuous trustworthy sample segments (quantization noise of intermediate readings cancels out). Percent readings carry ones-digit quantization (a displayed 1% may really be 0.5%-1.5%): when a segment spans fewer than 5 percentage points the result fluctuates heavily and the method column shows a "low reading precision" tag. Samples older than 7 days (or too few) fall back to "this period actual ÷ current used %" (live). The 5-hour window is rolling; week/month follow the local calendar; window edges align to whole hours. Note: server "used %" covers ALL usage of the account — the difference vs local stats is consumption elsewhere, so low local numbers are expected when the same key is used outside dsh. Some catalog prices are time-limited promos (e.g. gpt-5.6-sol at 50% off until 2026-09-18). SCNet is a local credits self-estimate and does not participate.',
+        planStatsNote: 'Scope: amounts are catalog-price equivalents — plans consume quota, budget counts API only. Estimates cover dsh-made calls only; server "used %" covers the whole account. Per-1%/full-window from trustworthy sample deltas (short segments fluctuate, tagged low-precision). 5h window rolling, week/month local calendar.',
         catalogDisplayLabel: 'Show directly in Cost settings',
         catalogDisplayHint: 'Only decides whether this model\'s price card appears directly in the Cost settings price table; mounting and billing are unaffected. When hidden, the mounted model stays editable inside the expanded vendor section of this catalog.',
         priceTableDisplayHint: 'Use the per-model “Show directly in Cost settings” toggle in the extended price catalog below to choose which models appear here; DeepSeek models default to direct display, third-party models default to the catalog once mounted.',
@@ -1069,7 +1083,7 @@ window.__ModuleLoader__.load({
         priceMatchExact: 'Exact match only',
         priceMatchNote: 'Match order: exact → manual override → strip date/version suffix → prefix → family similarity. Unmatched DeepSeek ids fall back to the default price; other providers stay unpriced.',
         unmatchedTitle: 'Recently seen models without a price hit',
-        unmatchedHint: 'These found no price entry under the current match mode (including cross-vendor fallback), or fell back to the DeepSeek default. Pick which entry each one should bill against (saved as a manual override); “Default price” falls back to the DeepSeek default. Models served by local runtimes (lmstudio / ollama / vLLM / …) are treated as zero-cost automatically; assign a price entry here to bill them.',
+        unmatchedHint: 'No price entry hit under the current match mode (incl. cross-vendor fallback), or fell back to the DeepSeek default. Pick which entry each bills against (saved as a manual override); “Default price” = DeepSeek default. Local-runtime models (lmstudio / ollama / vLLM / …) are zero-cost automatically; assign an entry here to bill them.',
         overrideTargetDefault: 'DeepSeek default price',
         overrideRemove: 'Remove',
         overrideTargetLocal: 'Local model (zero cost)',
@@ -1116,8 +1130,8 @@ window.__ModuleLoader__.load({
         cardMonth: 'This month',
         cardTotal: 'All time',
         cardTotalSub: 'Since the ledger was created · Calls {calls}',
-        cardsFootnote: 'Notes: amounts reflect the latest ledger snapshot (2s debounce; clean shutdown flushes everything first), so minute-level lag vs the live official bill is expected. Token columns sum input+output+cache+reasoning; reasoning tokens are reported separately by the API and are not billed (the official bill folds them into its output column) — reconcile by amount.',
-        timezoneHint: "Timezone notice: today/this-month are keyed by the host machine's timezone {host}, which differs from this browser ({browser}) — the host's local midnight differs from yours, so calls made after your local midnight land on the previous day (not lost; balance reconciliation flags the same deviation). Run dsh on the host in your local timezone to align them.",
+        cardsFootnote: 'Amounts reflect the latest ledger snapshot (2s debounce; clean shutdown flushes first), so minute-level lag vs the live official bill is expected. Token columns sum input+output+cache+reasoning; reasoning tokens are unbilled (the official bill folds them into output) — reconcile by amount.',
+        timezoneHint: "Timezone notice: today/this-month key by the host's timezone {host}, which differs from this browser ({browser}) — calls after your local midnight land on the previous day (not lost). Run dsh in your local timezone to align.",
         todaySessions: "Today's sessions",
         historyExpandHint: 'Click a date row to expand its session details',
         historySessionsLoading: 'Loading session details…',
@@ -1197,8 +1211,8 @@ window.__ModuleLoader__.load({
         pricingCurrencyLabel: 'Official price currency',
         pricingCurrencyUsd: 'USD (English official page)',
         pricingCurrencyCny: 'CNY (Chinese official page)',
-        pricingCurrencyNote: 'Chooses which language of the official pricing page "Sync from the official docs" fetches. After switching and re-syncing, history is re-costed on the new price table (sessions without full log coverage keep their original basis), so history and the official bill share one basis; the recompute runs in the background and notifies when done.',
-        priceTableNote: '"Off-peak / Peak" are the prices used once peak/off-peak pricing takes effect; calls before the 2026-08-16 16:00 UTC boundary are billed at the base prices of that time (legacyBase); cache writes are billed at the cache-hit price (matching the official rule). Models without a cache discount (e.g. Anthropic/Gemini) can be entered with just input and output prices — the hit price is then derived from the miss price. All settings changes are auto-saved.',
+        pricingCurrencyNote: 'Which language of the official pricing page "Sync" fetches. After re-syncing, history is re-costed on the new table (sessions without full log coverage keep their basis); the recompute runs in the background.',
+        priceTableNote: 'Off-peak/peak prices apply after the 2026-08-16 16:00 UTC boundary; earlier calls use the legacy base prices. Cache writes bill at the hit price. Models without a cache discount need only input+output. Auto-saved.',
         defaultModelId: 'default (fallback for unmatched models)',
         newModelPlaceholder: 'New model ID (e.g. deepseek-v4-pro)',
         addModel: 'Add model',
@@ -1211,7 +1225,7 @@ window.__ModuleLoader__.load({
         apply: 'Apply',
         cancel: 'Cancel',
         syncFromDocs: 'Sync prices from official docs',
-        syncScopeNote: 'Sync scope: "Sync prices from official docs" only updates DeepSeek official model prices (incl. peak/off-peak tiers). Third-party catalog prices (z-ai / Kimi / Qwen / Volcano etc.) do NOT change with this button — they are maintained per plugin release; if outdated, mount them in the extended price catalog and edit, or assign a price entry to any model via model-name matching.',
+        syncScopeNote: 'Sync scope: "Sync prices from official docs" only updates DeepSeek official prices (incl. peak/off-peak tiers). Third-party catalog prices (z-ai / Kimi / Qwen / Volcano etc.) change only per plugin release; to adjust, mount them in the extended catalog and edit, or match by model name.',
         confirmReset: 'Clear all history?',
         importLegacy: 'Import pre-install history',
         confirmImportLegacy: 'Confirm import? Replays all session logs and only fills dates/sessions missing from the ledger; existing records are untouched.',
@@ -1483,6 +1497,7 @@ window.__ModuleLoader__.load({
           refreshMinutes: typeof v.customBalance.refreshMinutes === 'number' && Number.isFinite(v.customBalance.refreshMinutes) ? v.customBalance.refreshMinutes : 15,
           request: v.customBalance.request && typeof v.customBalance.request === 'object' ? v.customBalance.request : { url: '' },
           extract: v.customBalance.extract && typeof v.customBalance.extract === 'object' ? v.customBalance.extract : {},
+          allowedHosts: Array.isArray(v.customBalance.allowedHosts) ? v.customBalance.allowedHosts.filter(h => typeof h === 'string') : [],
         },
         // 多配置形态(v1.7.0,issue #79):运行期真源;旧 customBalance 键仅为
         // 兼容镜像。快照缺数组时回落单条包装(旧宿主快照)。
@@ -1496,6 +1511,7 @@ window.__ModuleLoader__.load({
             refreshMinutes: typeof e?.refreshMinutes === 'number' && Number.isFinite(e.refreshMinutes) ? e.refreshMinutes : 15,
             request: e?.request && typeof e.request === 'object' ? e.request : { url: '' },
             extract: e?.extract && typeof e.extract === 'object' ? e.extract : {},
+            allowedHosts: Array.isArray(e?.allowedHosts) ? e.allowedHosts.filter(h => typeof h === 'string') : [],
           })
           if (Array.isArray(v.customBalances)) return v.customBalances.filter(x => x !== null && typeof x === 'object').slice(0, 8).map(parseEntry)
           if (v.customBalance !== undefined && v.customBalance !== null) return [parseEntry(v.customBalance)]
@@ -1656,6 +1672,12 @@ window.__ModuleLoader__.load({
         customBalances: Array.isArray(v.customBalances)
           ? v.customBalances.filter(x => x !== null && typeof x === 'object').map((x, i) => parseCustomBalance(x, path + '.customBalances[' + i + ']'))
           : [],
+        // {{VAR}} 占位符凭据状态(v1.7.6,issue #86):缺失/畸形回落空对象(凭据输入区全部按未配置渲染)。
+        customVarStatus: v.customVarStatus !== null && typeof v.customVarStatus === 'object' && !Array.isArray(v.customVarStatus)
+          ? Object.fromEntries(Object.entries(v.customVarStatus)
+            .filter(([, s]) => s !== null && typeof s === 'object')
+            .map(([name, s]) => [name, { configured: s.configured === true, source: typeof s.source === 'string' ? s.source : '' }]))
+          : {},
         codingPlans: v.codingPlans !== null && typeof v.codingPlans === 'object' && !Array.isArray(v.codingPlans) ? v.codingPlans : {},
         // Token Plan 统计(issue #64):宽容解析,缺失/畸形回落 null(UI 隐藏面板)。
         planStats: parsePlanStats(v.planStats),
@@ -5199,6 +5221,7 @@ window.__ModuleLoader__.load({
           refreshMinutes: 15,
           request: { url: '', method: 'GET', headers: {} },
           extract: {},
+          allowedHosts: [],
         }])
       }
       return el('div', { className: 'cm-budget' },
@@ -5219,6 +5242,7 @@ window.__ModuleLoader__.load({
       const [open, setOpen] = useState(false)
       const [headersText, setHeadersText] = useState(() => JSON.stringify(entry.request?.headers ?? {}, null, 2))
       const [extractText, setExtractText] = useState(() => JSON.stringify(entry.extract ?? {}, null, 2))
+      const [allowedHostsText, setAllowedHostsText] = useState(() => (entry.allowedHosts ?? []).join(', '))
       const [jsonErr, setJsonErr] = useState({ headers: '', extract: '' })
       const openRef = useRef(false)
       const config = state.config
@@ -5230,12 +5254,27 @@ window.__ModuleLoader__.load({
         if (open && !openRef.current) {
           setHeadersText(JSON.stringify(entry.request?.headers ?? {}, null, 2))
           setExtractText(JSON.stringify(entry.extract ?? {}, null, 2))
+          setAllowedHostsText((entry.allowedHosts ?? []).join(', '))
           setJsonErr({ headers: '', extract: '' })
         }
         openRef.current = open
       }, [open])
       const setField = (field, value) => onPatch({ [field]: value })
       const setRequest = (field, value) => onPatch({ request: { ...(entry.request ?? {}), [field]: value } })
+      // 请求头里出现的全部 {{VAR}} 占位符名(去重保序):驱动凭据输入区。
+      const placeholderVars = (() => {
+        const seen = new Set()
+        const out = []
+        for (const value of Object.values(entry.request?.headers ?? {})) {
+          if (typeof value !== 'string') continue
+          for (const match of value.matchAll(/\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g)) {
+            if (seen.has(match[1])) continue
+            seen.add(match[1])
+            out.push(match[1])
+          }
+        }
+        return out
+      })()
       const applyHeadersText = text => {
         setHeadersText(text)
         try {
@@ -5247,6 +5286,13 @@ window.__ModuleLoader__.load({
         } catch {
           setJsonErr(err => ({ ...err, headers: t('customBalanceInvalidJson') }))
         }
+      }
+      // 白名单文本 → 字符串数组:逗号/空白分隔,逐项 trim,空项丢弃;空数组不落字段
+      // (与服务端 sanitizeCustomEntry「hosts.length>0 才带 allowedHosts」口径一致)。
+      const applyAllowedHostsText = text => {
+        setAllowedHostsText(text)
+        const hosts = text.split(/[\s,;]+/).map(h => h.trim()).filter(h => h.length > 0)
+        setField('allowedHosts', hosts)
       }
       const applyExtractText = text => {
         setExtractText(text)
@@ -5347,6 +5393,7 @@ window.__ModuleLoader__.load({
               })),
             el('div', { className: 'cm-field', style: { gridColumn: '1 / -1' } },
               el('label', null, t('customBalanceHeaders')),
+              el('span', { className: 'cm-hint' }, t('customBalanceHeadersVarNote')),
               el('textarea', {
                 className: 'cm-input',
                 rows: 5,
@@ -5354,6 +5401,34 @@ window.__ModuleLoader__.load({
                 onChange: event => applyHeadersText(event.target.value),
               }),
               jsonErr.headers ? el('span', { className: 'cm-hint err' }, jsonErr.headers) : null),
+            // 凭据输入(v1.7.6,issue #86):请求头里每个 {{VAR}} 占位符一行 write-only 输入,
+            // 与 goQuota/codingPlans 的 CredentialField 同款(值走 setCredential,永不回显);
+            // 头里还没有占位符时给一行提示,引导改用占位符而非明文。
+            el('div', { className: 'cm-field', style: { gridColumn: '1 / -1' } },
+              el('label', null, t('customBalanceCredentialsTitle')),
+              placeholderVars.length > 0
+                ? el(Fragment, null,
+                  el('span', { className: 'cm-hint' }, t('customBalanceCredentialsHint')),
+                  placeholderVars.map(varName => el(CredentialField, {
+                    key: 'cb-var-' + varName,
+                    target: 'customVar:' + varName,
+                    configured: (state.customVarStatus?.[varName]?.configured ?? false) === true,
+                    source: state.customVarStatus?.[varName]?.source ?? '',
+                    t, api,
+                    placeholder: '{{' + varName + '}}',
+                  })))
+                : el('span', { className: 'cm-hint' }, t('customBalanceNoPlaceholders'))),
+            // 凭据白名单(v1.7.6,issue #86):携带密钥(占位符或明文)的请求只放行列表内
+            // 主机;逗号分隔文本 ↔ 字符串数组,同 headers 的草稿即时解析策略。
+            el('div', { className: 'cm-field', style: { gridColumn: '1 / -1' } },
+              el('label', null, t('customBalanceAllowedHosts')),
+              el('input', {
+                className: 'cm-input',
+                value: allowedHostsText,
+                placeholder: 'api.example.com, relay.example.org',
+                onChange: event => applyAllowedHostsText(event.target.value),
+              }),
+              el('span', { className: 'cm-hint' }, t('customBalanceAllowedHostsHint'))),
             el('div', { className: 'cm-field', style: { gridColumn: '1 / -1' } },
               el('label', null, t('customBalanceExtract')),
               el('textarea', {

@@ -5529,7 +5529,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   // 17-2) 同步范围消歧文案(双语)接线。
   const client85 = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
   assert.ok(client85.includes("t('syncScopeNote')"), '设置页同步区挂「同步范围说明」')
-  assert.ok(client85.includes('仅更新 DeepSeek 官方模型价') && client85.includes('only updates DeepSeek official model prices'), '消歧文案双语(说明按钮仅更新 DeepSeek 官方价)')
+  assert.ok(client85.includes('仅更新 DeepSeek 官方模型价') && client85.includes('only updates DeepSeek official prices'), '消歧文案双语(说明按钮仅更新 DeepSeek 官方价)')
   console.log('[ok] GLM-5.3/5.3-Flash 定价与同步范围消歧(issue #85)通过')
 }
 
@@ -5538,6 +5538,286 @@ function m_costOf85(entry, tokens) {
   return (Number(entry.cacheMiss) || 0) * ((Number(tokens.input) || 0) + (Number(tokens.cacheWrite) || 0)) / 1e6
     + (Number(entry.cacheHit) || 0) * (Number(tokens.cacheRead) || 0) / 1e6
     + (Number(entry.output) || 0) * (Number(tokens.output) || 0) / 1e6
+}
+
+// ── v1.7.6:自定义余额安全治理(issue #86) ─────────────────────────────
+// 18-1) looksLikeSecretHeaderValue 启发式:敏感头名/密钥形状/占位符豁免/普通值不误判。
+{
+  const { looksLikeSecretHeaderValue: s } = await import('../lib/store.js')
+  assert.equal(s('Authorization', 'Bearer sk-abc123'), true, 'Authorization 非占位符值一律判密钥')
+  assert.equal(s('X-Api-Key', 'whatever'), true, 'api-key 头名判密钥')
+  assert.equal(s('x-goog-api-key', 'x'), true, '变体头名(api-key/token/secret/cookie)判密钥')
+  assert.equal(s('Accept', 'application/json'), false, '普通头普通值不误判')
+  assert.equal(s('Content-Type', 'application/json'), false, 'Content-Type 不误判')
+  assert.equal(s('Accept', 'Bearer abc'), true, '普通头名 + Bearer 前缀仍判密钥(值形状)')
+  assert.equal(s('X-Title', 'sk-proj-abcdefghijk'), true, '普通头名 + sk- 前缀判密钥')
+  assert.equal(s('Authorization', '{{OPENAI_API_KEY}}'), false, '{{VAR}} 占位符豁免(安全引用)')
+  assert.equal(s('X-Api-Key', ''), false, '空值不判密钥')
+  assert.equal(s('X-Trace', 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2'), true, '≥32 位混合字母数字长串判密钥')
+  assert.equal(s('X-Trace', 'abcdefghij'), false, '短纯字母串不误判(如简单标记值)')
+  console.log('[ok] 密钥头启发式判定(issue #86)通过')
+}
+
+// 18-1b) queryCustomBalance 凭据外带防护:明文 key 与占位符同受 allowedHosts 约束。
+{
+  const { queryCustomBalance } = await import('../lib/custom-balance.js')
+  const mkCfg = (headers, allowedHosts) => ({
+    customBalance: {
+      enabled: true,
+      label: 'relay',
+      request: { url: 'https://relay.example.com/api/user/self', method: 'GET', headers },
+      extract: { remaining: 'data.remaining' },
+      ...(allowedHosts ? { allowedHosts } : {}),
+    },
+  })
+  const ctxNull = { get: () => undefined }
+  const realFetch = globalThis.fetch
+  let fetchCalled = false
+  globalThis.fetch = async () => { fetchCalled = true; return { ok: true, status: 200, json: async () => ({ data: { remaining: 42 } }) } }
+  try {
+    // 明文 key + 白名单不含该主机 → 拒绝,不发请求。
+    await assert.rejects(
+      () => queryCustomBalance(ctxNull, mkCfg({ Authorization: 'Bearer sk-PLAIN-86' }, ['other.example.com'])),
+      /not in customBalance\.allowedHosts/, '明文 key 命中外带防护(白名单外拒绝)')
+    assert.equal(fetchCalled, false, '被拒绝时未发起网络请求')
+    // 明文 key + 白名单含该主机 → 放行。
+    const ok = await queryCustomBalance(ctxNull, mkCfg({ Authorization: 'Bearer sk-PLAIN-86' }, ['relay.example.com']))
+    assert.equal(ok.remaining, 42, '白名单内明文 key 放行并解析')
+    assert.equal(fetchCalled, true, '白名单内发起了请求')
+    // 占位符(旧 v1.6.8 语义)同样受白名单约束。
+    await assert.rejects(
+      () => queryCustomBalance(ctxNull, mkCfg({ Authorization: 'Bearer {{MY_KEY}}' }, ['other.example.com'])),
+      /not in customBalance\.allowedHosts/, '占位符凭据同样受白名单约束')
+    // 普通头(无任何密钥)不受白名单影响。
+    const plain = await queryCustomBalance(ctxNull, mkCfg({ 'Content-Type': 'application/json' }, ['other.example.com']))
+    assert.equal(plain.remaining, 42, '普通头不受白名单影响')
+  } finally {
+    globalThis.fetch = realFetch
+  }
+  console.log('[ok] 凭据外带防护覆盖明文 key(issue #86)通过')
+}
+
+// 18-2) stripSecrets / stripSecretPatch / flush 落盘:自定义余额请求头明文密钥置空,
+//       占位符与普通头原样保留,内存 config 不改。
+{
+  const { stripSecretPatch } = await import('../lib/store.js')
+  const mkCbConfig = () => sanitizeConfig({
+    customBalances: [{
+      enabled: true,
+      label: 'relay',
+      request: {
+        url: 'https://relay.example.com/api/user/self',
+        method: 'GET',
+        headers: {
+          Authorization: 'Bearer sk-PLAINTEXT-CB-0001',
+          'X-Api-Key': 'sk-PLAINTEXT-CB-0002',
+          'Content-Type': 'application/json',
+          'X-Trace': '{{MY_TRACE_VAR}}',
+        },
+      },
+      extract: { remaining: 'data.quota_remain' },
+      allowedHosts: ['relay.example.com'],
+    }],
+  })
+  const cfg = mkCbConfig()
+  const stripped = stripSecrets(cfg)
+  const sHeaders = stripped.customBalances[0].request.headers
+  assert.equal(sHeaders.Authorization, '', 'stripSecrets 置空 Authorization 明文')
+  assert.equal(sHeaders['X-Api-Key'], '', 'stripSecrets 置空 X-Api-Key 明文')
+  assert.equal(sHeaders['Content-Type'], 'application/json', '普通头原样保留')
+  assert.equal(sHeaders['X-Trace'], '{{MY_TRACE_VAR}}', '{{VAR}} 占位符原样保留')
+  assert.equal(cfg.customBalances[0].request.headers.Authorization, 'Bearer sk-PLAINTEXT-CB-0001', 'stripSecrets 不改原对象(运行期兜底)')
+  // 补丁闸门:经 updateConfig 提交的明文同样置空(密钥只能走 setCredential)。
+  const patched = applyConfigPatch(mkCbConfig(), {
+    customBalance: {
+      enabled: true,
+      label: 'relay',
+      display: 'both',
+      refreshMinutes: 15,
+      request: {
+        url: 'https://relay.example.com/api/user/self',
+        method: 'GET',
+        headers: { Authorization: 'Bearer sk-PATCH-PLAINTEXT', 'Content-Type': 'application/json' },
+      },
+      extract: { remaining: 'data.quota_remain' },
+      allowedHosts: ['relay.example.com'],
+    },
+    customBalances: [{
+      enabled: true,
+      label: 'relay',
+      display: 'both',
+      refreshMinutes: 15,
+      request: {
+        url: 'https://relay.example.com/api/user/self',
+        method: 'GET',
+        headers: { Authorization: 'Bearer sk-PATCH-PLAINTEXT', 'Content-Type': 'application/json' },
+      },
+      extract: { remaining: 'data.quota_remain' },
+      allowedHosts: ['relay.example.com'],
+    }],
+  })
+  assert.equal(patched.errors.length, 0, '补丁合法(allowedHosts 字段接受)')
+  assert.equal(patched.config.customBalances[0].request.headers.Authorization, '', '补丁中的明文密钥头被置空')
+  assert.equal(patched.config.customBalance.request.headers.Authorization, '', '旧单条键补丁中的明文密钥头同样置空')
+  assert.equal(patched.config.customBalances[0].allowedHosts[0], 'relay.example.com', 'allowedHosts 随补丁保留')
+  // 落盘复查:ledger.json 不含任何明文。
+  const cbRoot = join(tmpdir(), `cm-cb-secret-${Date.now()}`)
+  mkdirSync(join(cbRoot, 'storages', 'cost-meter'), { recursive: true })
+  const cbLedger = new Ledger(mkCbConfig(), {}, join(cbRoot, 'storages', 'cost-meter', 'ledger.json'))
+  cbLedger.scheduleWrite()
+  cbLedger.flush()
+  const cbDisk = readFileSync(join(cbRoot, 'storages', 'cost-meter', 'ledger.json'), 'utf8')
+  assert.ok(!cbDisk.includes('sk-PLAINTEXT-CB-0001') && !cbDisk.includes('sk-PLAINTEXT-CB-0002'), '落盘文件不含明文密钥')
+  assert.ok(cbDisk.includes('{{MY_TRACE_VAR}}'), '落盘保留占位符')
+  assert.ok(cbDisk.includes('relay.example.com'), '落盘保留 allowedHosts')
+  cbLedger.close()
+  rmSync(cbRoot, { recursive: true, force: true })
+  console.log('[ok] 请求头脱敏三条路径(落盘/下发/补丁,issue #86)通过')
+}
+
+// 18-3) migrateCustomBalanceHeaderSecrets:成功导入+占位符替换 / 已配置不覆盖 /
+//       不可写保留明文 / 幂等。
+{
+  const { migrateCustomBalanceHeaderSecrets } = await import('../lib/index.js')
+  const mkCbLedger = (name, headers, allowedHosts) => {
+    const root = join(tmpdir(), `cm-cb-mig-${name}-${Date.now()}`)
+    mkdirSync(join(root, 'storages', 'cost-meter'), { recursive: true })
+    const ledger = new Ledger(sanitizeConfig({
+      customBalances: [{
+        enabled: true,
+        label: 'relay',
+        request: { url: 'https://relay.example.com/api/user/self', method: 'GET', headers },
+        extract: { remaining: 'data.quota_remain' },
+        ...(allowedHosts ? { allowedHosts } : {}),
+      }],
+    }), {}, join(root, 'storages', 'cost-meter', 'ledger.json'))
+    return { ledger, root }
+  }
+  const mkCredsLocal = ({ configured = false, writable = true } = {}) => {
+    const calls = []
+    return {
+      calls,
+      async describe() { return { configured, writable, source: configured ? 'env' : '' } },
+      async set(ref, value) { calls.push(['set', String(ref), value]) },
+      async unset(ref) { calls.push(['unset', String(ref)]) },
+    }
+  }
+  const ctxOf = creds => ({ get: key => (key === 'credentials' ? creds : undefined) })
+  const PLAIN = 'Bearer sk-MIGRATE-0001'
+
+  // 3a) 成功:明文 → set() → 头值替换为 {{CUSTOM_BALANCE_KEY_...}} 占位符。
+  const okPair = mkCbLedger('ok', { Authorization: PLAIN, 'Content-Type': 'application/json' })
+  const okCreds = mkCredsLocal({ configured: false, writable: true })
+  const okResult = await migrateCustomBalanceHeaderSecrets(ctxOf(okCreds), okPair.ledger)
+  assert.equal(okResult.imported.length, 1, '成功路径导入 1 个变量')
+  assert.ok(okCreds.calls[0][1].includes('CUSTOM_BALANCE_KEY_'), 'set 写入派生变量名(CUSTOM_BALANCE_KEY_ 前缀)')
+  const okHeader = okPair.ledger.config.customBalances[0].request.headers.Authorization
+  assert.ok(/^\{\{CUSTOM_BALANCE_KEY_[A-Z0-9a-f_]+\}\}$/.test(okHeader), '头值替换为同名占位符:' + okHeader)
+  assert.equal(okPair.ledger.config.customBalances[0].request.headers['Content-Type'], 'application/json', '普通头不动')
+  // 幂等:占位符不再判密钥,重复执行零 set。
+  const okCreds2 = mkCredsLocal({ configured: false, writable: true })
+  const okResult2 = await migrateCustomBalanceHeaderSecrets(ctxOf(okCreds2), okPair.ledger)
+  assert.equal(okCreds2.calls.length, 0, '幂等:重复执行零 set')
+  assert.equal(okResult2.imported.length, 0, '幂等:无重复导入')
+  // 迁移后落盘无明文。
+  okPair.ledger.scheduleWrite()
+  okPair.ledger.flush()
+  assert.ok(!readFileSync(okPair.ledger.path, 'utf8').includes('sk-MIGRATE-0001'), '迁移后落盘无明文')
+  okPair.ledger.close()
+
+  // 3b) 凭据库已配置:不覆盖,仍替换占位符(值以凭据库为准)。
+  const covPair = mkCbLedger('covered', { Authorization: PLAIN })
+  const covCreds = mkCredsLocal({ configured: true, writable: true })
+  const covResult = await migrateCustomBalanceHeaderSecrets(ctxOf(covCreds), covPair.ledger)
+  assert.equal(covCreds.calls.filter(c => c[0] === 'set').length, 0, '已配置不覆盖')
+  assert.equal(covResult.imported.length, 0, '已配置不计入 imported')
+  assert.ok(/^\{\{CUSTOM_BALANCE_KEY_/.test(covPair.ledger.config.customBalances[0].request.headers.Authorization), '已配置路径同样替换占位符')
+  covPair.ledger.close()
+
+  // 3c) 不可写:保留明文(运行期兜底),pending 提示,下轮重试。
+  const pndPair = mkCbLedger('pending', { Authorization: PLAIN })
+  const pndCreds = mkCredsLocal({ configured: false, writable: false })
+  const pndResult = await migrateCustomBalanceHeaderSecrets(ctxOf(pndCreds), pndPair.ledger)
+  assert.equal(pndResult.pending.length, 1, '不可写进入 pending')
+  assert.equal(pndPair.ledger.config.customBalances[0].request.headers.Authorization, PLAIN, '不可写保留明文(绝不丢密钥)')
+  pndPair.ledger.close()
+  for (const r of [okPair, covPair, pndPair]) rmSync(r.root, { recursive: true, force: true })
+  console.log('[ok] 请求头密钥迁移三路径(成功/已配置/不可写,issue #86)通过')
+}
+
+// 18-4) setCredential/clearCredential 的 customVar: 目标:合法名校验 + 真实 apply() e2e
+//       (customVarStatus 下发)。
+{
+  const prevStateHome = process.env.DSH_HOME
+  const varRoot = join(tmpdir(), `cm-cb-var-${Date.now()}`)
+  mkdirSync(join(varRoot, 'storages', 'cost-meter'), { recursive: true })
+  writeFileSync(join(varRoot, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({ version: 1, config: {
+    customBalances: [{
+      enabled: true,
+      label: 'relay',
+      display: 'settings',
+      request: { url: 'https://relay.example.com/api/user/self', method: 'GET', headers: { Authorization: 'Bearer {{MY_RELAY_KEY}}' } },
+      extract: { remaining: 'data.quota_remain' },
+      allowedHosts: ['relay.example.com'],
+    }],
+  }, days: {} }))
+  process.env.DSH_HOME = varRoot
+  const store86 = { MY_RELAY_KEY: false }
+  const varCreds = {
+    async describe(ref) { return { configured: store86[String(ref)] === true, writable: true, source: store86[String(ref)] === true ? 'env' : '' } },
+    async set(ref, value) { store86[String(ref)] = value.length > 0 },
+    async unset(ref) { delete store86[String(ref)] },
+  }
+  const provided86 = {}
+  const { apply } = await import('../lib/index.js')
+  apply({
+    on: () => () => {},
+    effect: () => {},
+    inject: () => {},
+    provide: (k, v) => { provided86[k] = v },
+    logger: console,
+    get: key => (key === 'credentials' ? varCreds : key === 'settings' ? { get: () => ({}) } : undefined),
+  })
+  const svc = provided86.costMeter
+  // ① getState:customVarStatus 下发(未配置)。
+  const st1 = await svc.getState()
+  assert.equal(st1.customVarStatus?.MY_RELAY_KEY?.configured, false, 'customVarStatus 下发未配置状态')
+  assert.equal(st1.config.customBalances[0].request.headers.Authorization, 'Bearer {{MY_RELAY_KEY}}', '占位符头原样下发')
+  // ② setCredential customVar:合法名写入 + 状态翻转。
+  const setOk = await svc.setCredential('customVar:MY_RELAY_KEY', 'sk-var-PLAINTEXT-0003')
+  assert.equal(setOk.ok, true, 'customVar 写入成功')
+  const st2 = await svc.getState()
+  assert.equal(st2.customVarStatus?.MY_RELAY_KEY?.configured, true, '写入后 customVarStatus 翻转为已配置')
+  // ③ 非法名 / 内置冲突名 / 缺名拒绝。
+  const bad1 = await svc.setCredential('customVar:lower_case', 'x')
+  assert.equal(bad1.ok, false, '小写变量名拒绝')
+  const bad2 = await svc.setCredential('customVar:CUSTOM_BALANCE_KEY_X', 'x')
+  assert.equal(bad2.ok, false, '保留前缀名拒绝')
+  const bad3 = await svc.setCredential('customVar:OPENCODE_GO_API_KEY', 'x')
+  assert.equal(bad3.ok, false, '与内置密钥同名拒绝(须走 goQuota 目标)')
+  const bad4 = await svc.setCredential('customVar:', 'x')
+  assert.equal(bad4.ok, false, '空变量名拒绝')
+  // ④ clearCredential customVar:移除 + 状态回落。
+  const clr = await svc.clearCredential('customVar:MY_RELAY_KEY')
+  assert.equal(clr.ok, true, 'customVar 移除成功')
+  const st3 = await svc.getState()
+  assert.equal(st3.customVarStatus?.MY_RELAY_KEY?.configured, false, '移除后状态回落未配置')
+  process.env.DSH_HOME = prevStateHome
+  console.log('[ok] customVar 凭据目标 e2e(写入/校验/移除/状态下发,issue #86)通过')
+}
+
+// 18-5) 客户端接线:allowedHosts 输入框 + 凭据输入区 + 命名规则说明 + parse 端同步。
+{
+  const client86 = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
+  assert.ok(client86.includes("t('customBalanceAllowedHosts')") && client86.includes('applyAllowedHostsText'), 'allowedHosts 输入框接线')
+  assert.ok(client86.includes("t('customBalanceHeadersVarNote')"), '请求头上方 {{VAR}} 命名规则说明')
+  assert.ok(client86.includes('customVar:'), '凭据输入区以 customVar: 目标调 setCredential')
+  assert.ok(client86.includes('customVarStatus'), 'parse 端解析 customVarStatus')
+  assert.ok(client86.includes('placeholderVars'), '占位符变量集合驱动凭据输入行')
+  assert.ok(client86.includes('allowedHosts: Array.isArray(e?.allowedHosts)'), 'parse 端保留 allowedHosts')
+  // typert 状态 schema 同步(旧快照兼容:optional)。
+  assert.ok(JSON.stringify(stateSchema.shape.customVarStatus).includes('configured') || stateSchema.shape.customVarStatus !== undefined, '状态 schema 含 customVarStatus')
+  console.log('[ok] 客户端/schema 接线(allowedHosts + 凭据输入 + 说明,issue #86)通过')
 }
 
 console.log('[ok] 全部验证通过')

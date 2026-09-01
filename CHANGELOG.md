@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.7.6] - 2026-09-01
+
+### 安全与体验(issue #86:自定义余额凭据治理)
+
+- **明文密钥永不落盘/下发**:v1.6.8 的密钥治理只覆盖 goQuota/codingPlans 专属字段,自定义余额请求头里的明文 key(`Bearer sk-…`、`X-Api-Key: …`)会原样写进 `ledger.json` 并随 getState 抵达浏览器。现 `stripSecrets`/`stripSecretPatch` 对 `customBalances[].request.headers` 按值形态判定脱敏——敏感头名(Authorization/api-key/token/secret/cookie 等)的非占位符值、典型密钥形状(Bearer/sk-/AIza/ghp_/JWT/≥32 位混合长串)一律置空;`{{VAR}}` 占位符与普通头(Content-Type 等)照常保留。落盘、下发、补丁三条路径同一闸门。
+- **存量明文自动迁移**:启动时把请求头遗留明文导入 DSH 凭据库,并把头值替换为 `{{CUSTOM_BALANCE_KEY_…}}` 占位符(名称由条目 host + 头名稳定哈希派生,跨重启一致,重启后功能不丢)。与 runSecretMigration 同一套结局语义:凭据库已配置不覆盖、不可写保留明文并提示,绝不静默丢密钥。
+- **凭据外带防护覆盖明文 key**:`usesCredentials` 判定从「{{VAR}} 占位符」扩展到「占位符或疑似明文密钥」——明文 key 发往白名单外主机同样直接拒绝(此前明文完全绕过 allowedHosts 校验,恰是最常见的外带场景)。
+- **UI 补齐**:条目面板新增「凭据白名单主机」输入框(allowedHosts,逗号分隔,此前有字段无 UI);「凭据输入」区为请求头中每个 `{{VAR}}` 占位符渲染 write-only 输入框(经 setCredential 新增 `customVar:<NAME>` 目标写凭据库,状态经 `customVarStatus` 下发,写后作废相关余额快照缓存);「请求头 (JSON)」上方新增变量命名规则说明(`<ROUTE>_API_KEY`:Provider ID 大写、非字母数字换下划线,与模型页同名即共用同一把密钥)。
+- **文档**:中英 README 补 `allowedHosts`、`{{VAR}}` 占位符、命名规则、明文迁移与白名单行为说明。
+
+### 验证
+
+- verify.mjs 新增回归块(18-1/18-1b/18-2/18-3/18-4/18-5):启发式判定、脱敏三路径(落盘/下发/补丁,含旧单条键)、迁移三路径(成功/已配置/不可写)+ 幂等、customVar e2e(写入/非法名/保留前缀/内置冲突/移除/状态下发)、外带防护覆盖明文 key、客户端与 schema 接线。
+- 全量通过(TZ=本地 +8 与 TZ=UTC 双跑);`dsh web` 实机启动冒烟通过(端口 3998/3999,插件加载无报错);lib/client.js 重建 262,062 字节(上限 262,144)。
+- 构建脚本字节口径统一:build.mjs 改用 UTF-8 字节(与 verify.mjs 门禁一致,此前为 UTF-16 字符数,中文文案下两者有差)。
+
+# Changelog
+
 ## [1.7.5] - 2026-09-01
 
 ### 修复(issue #85:GLM-5.3 定价与目录缺失)
