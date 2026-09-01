@@ -5381,4 +5381,85 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   console.log('[ok] TYPERT manifest 宿主级校验(v1.7.0 启动失败回归修复)通过')
 }
 
+// ── v1.7.2:对账警告同句币种符号一致(issue #81) ──
+
+// 15-1) 源级:cost 参数按余额账户币种同币种化(CNY 账户折算为 ¥ 并附 ≈USD)。
+{
+  const idx81 = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+  assert.ok(idx81.includes('const nativeCost = event =>'), 'nativeCost 助手存在(本地费用按账户币种显示)')
+  assert.ok(idx81.includes("'¥' + cny.toFixed(4) + '（≈' + usd(event.todayCost) + '）'"), 'CNY 账户:本地费用显示 ¥ 并附 ≈USD 参考')
+  assert.ok(idx81.includes('cost: nativeCost(event)'), 'reconcileWarn 的 cost 参数走 nativeCost(不再恒用 $)')
+  // 两侧对称:同一 currencyOf 判定驱动 cost 与 delta 的符号(仅此一处读取 spentCurrency)。
+  assert.ok(idx81.includes('const currencyOf = event =>'), '币种判定统一 currencyOf(cost/delta 共用)')
+  assert.equal((idx81.match(/spentCurrency/g) ?? []).length, 1, 'spentCurrency 仅在 currencyOf 一处读取(防口径漂移)')
+  console.log('[ok] 对账警告币种符号一致(源级接线)通过')
+}
+
+// 15-2) 行为级:e2e 触发 drift,CNY 账户的警告文案两侧均为 ¥;USD 账户两侧均为 $。
+{
+  const prevHome81 = process.env.DSH_HOME
+  const root81 = join(tmpdir(), `cm-reconcile-currency-${Date.now()}`)
+  mkdirSync(join(root81, 'storages', 'cost-meter'), { recursive: true })
+  // 预置:今日早间余额参考点(CNY 账户,总额 100)+ 今日本地费用 $3.99 → 同日晚间
+  // 拉取(总额 58,变动 ¥42)触发 drift。对账只在同日两次拉取间比对(跨天仅打基准)。
+  const todayKey81 = localDayKey(Date.now())
+  writeFileSync(join(root81, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({
+    version: 1,
+    config: sanitizeConfig({ balance: { reconcile: true }, exchangeRate: 7.2 }),
+    balanceRef: { date: todayKey81, total: 100, granted: 1, topped: 99, currency: 'CNY', at: Date.now() - 3600_000 },
+    days: {
+      [todayKey81]: {
+        date: todayKey81, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1,
+        cost: 3.99, apiCost: 3.99,
+        byProviderModel: { 'deepseek:deepseek-v4-flash': { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 3.99, apiCost: 3.99 } },
+        sessions: [],
+      },
+    },
+  }))
+  process.env.DSH_HOME = root81
+  const prevKey81 = process.env.DEEPSEEK_API_KEY
+  process.env.DEEPSEEK_API_KEY = 'sk-test-81'
+  try {
+    const provided81 = {}
+    // 拦截官方余额查询:注入 CNY 账户(总额 58 → 当日变动 ¥42,与 $3.99 偏差巨大)。
+    const origFetch81 = globalThis.fetch
+    globalThis.fetch = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        is_available: true,
+        balance_infos: [{ currency: 'CNY', total_balance: '58', granted_balance: '1', topped_up_balance: '57' }],
+      }),
+      text: async () => '',
+    })
+    try {
+      const { apply: apply81 } = await import('../lib/index.js')
+      apply81({
+        on: () => () => {},
+        effect: () => {},
+        inject: () => {},
+        provide: (k, v) => { provided81[k] = v },
+        logger: console,
+        get: key => (key === 'settings' ? { get: () => ({}) } : undefined),
+      })
+      const state81 = await provided81.costMeter.refreshBalance()
+      const msg81 = state81?.state?.reconcile?.message ?? ''
+      assert.ok(typeof msg81 === 'string' && msg81.length > 0, 'CNY 账户触发 drift 警告:' + JSON.stringify(state81?.state?.reconcile))
+      const hasYenCost = msg81.includes('¥') && /¥[\d.]+（≈\$/.test(msg81)
+      assert.ok(hasYenCost, 'cost 侧为 ¥ 并附 ≈USD(不再恒 $):' + msg81)
+      // delta 侧(CNY 账户)仍是 ¥ 原生 + ≈USD。
+      assert.ok(/变动 ¥[\d.]+/.test(msg81), 'delta 侧保持 ¥ 原生币种:' + msg81)
+    } finally {
+      globalThis.fetch = origFetch81
+    }
+  } finally {
+    rmSync(root81, { recursive: true, force: true })
+    if (prevKey81 === undefined) delete process.env.DEEPSEEK_API_KEY
+    else process.env.DEEPSEEK_API_KEY = prevKey81
+    if (prevHome81 === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = prevHome81
+  }
+  console.log('[ok] 对账警告币种符号一致(CNY 账户 e2e drift 文案)通过')
+}
+
 console.log('[ok] 全部验证通过')
