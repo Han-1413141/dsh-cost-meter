@@ -777,6 +777,7 @@ window.__ModuleLoader__.load({
         apply: '应用',
         cancel: '取消',
         syncFromDocs: '从官方文档同步价格',
+        syncScopeNote: '同步范围说明:「从官方文档同步价格」仅更新 DeepSeek 官方模型价(含峰谷档);第三方厂商的扩展目录价(z-ai / Kimi / Qwen / Volcano 等)不随该按钮变化,随插件版本发布维护,如有滞后可在「拓展价格表」挂载后编辑,或经「模型名匹配」为任意模型手动指定价格。',
         confirmReset: '确认清除全部历史?',
         importLegacy: '导入安装前历史',
         confirmImportLegacy: '确认导入?将回放全部会话日志,只补账本缺失的日期与会话,不影响已有记录。',
@@ -1210,6 +1211,7 @@ window.__ModuleLoader__.load({
         apply: 'Apply',
         cancel: 'Cancel',
         syncFromDocs: 'Sync prices from official docs',
+        syncScopeNote: 'Sync scope: "Sync prices from official docs" only updates DeepSeek official model prices (incl. peak/off-peak tiers). Third-party catalog prices (z-ai / Kimi / Qwen / Volcano etc.) do NOT change with this button — they are maintained per plugin release; if outdated, mount them in the extended price catalog and edit, or assign a price entry to any model via model-name matching.',
         confirmReset: 'Clear all history?',
         importLegacy: 'Import pre-install history',
         confirmImportLegacy: 'Confirm import? Replays all session logs and only fills dates/sessions missing from the ledger; existing records are untouched.',
@@ -6580,7 +6582,11 @@ window.__ModuleLoader__.load({
               : el('button', { className: 'cm-btn', onClick: () => setConfirmFetch(true), disabled: busy }, t('syncFromDocs'))),
           el('p', { className: 'cm-note' },
             t('lastSync', { time: config.fetchedAt !== null ? new Date(config.fetchedAt).toLocaleString() : t('neverSynced') })
-            + t('source', { source: config.priceSource === 'official' ? t('sourceOfficial') : t('sourceBundled') }))))
+            + t('source', { source: config.priceSource === 'official' ? t('sourceOfficial') : t('sourceBundled') })),
+          // 同步范围消歧(issue #85):同步按钮只抓 DeepSeek 官方定价页,第三方扩展目录价
+          // (z-ai / Kimi / Qwen 等)不随该按钮更新——随插件版本发布维护,可在「拓展价格表」
+          // 挂载/编辑或用「模型名匹配」为任意模型指定价格条目。
+          el('p', { className: 'cm-note' }, t('syncScopeNote'))))
         : null)
     }
 

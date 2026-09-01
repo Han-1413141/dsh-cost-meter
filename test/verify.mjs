@@ -1501,7 +1501,9 @@ assert.ok(goModels.length >= 19, 'OpenCode Go 目录 ≥19 个模型: ' + goMode
 assert.equal(catalog['opencode-go'] && Object.values(catalog['opencode-go']).flatMap(fam => Object.keys(fam)).includes('deepseek-v4-flash'), false, 'Go 目录不重复收录 DeepSeek V4(以官方为准)')
 assert.equal(catalog.openai['GPT-5.6']['gpt-5.6-luna'].input, 0.2, 'GPT-5.6 Luna 输入价')
 assert.equal(catalog['opencode-go']['GPT']['gpt-5.6-luna'].output, 1.2, 'Go 目录 GPT-5.6 Luna 输出价')
-assert.equal(catalog['z-ai']['GLM-5']['glm-5.3'].unpriced, true, 'GLM-5.3 无官方价不编造(z-ai 维持 unpriced)')
+// v1.7.5(issue #85):智谱官方已公布 GLM-5.3 定价(¥8/¥28/缓存¥2),z-ai 目录按
+// OpenCode Go 核价收录 $1.40/$0.26/$4.40;「维持 unpriced」的旧断言随之退役。
+assert.ok(catalog['z-ai']['GLM-5']['glm-5.3'].input === 1.4, 'GLM-5.3 已核价 $1.40(issue #85 补价)')
 assert.ok(catalog.google['Gemini 3.6 Flash']['gemini-3.6-flash'].output === 7.5, 'Gemini 3.6 Flash 已核价')
 assert.ok(catalog.anthropic['Claude Fable']['claude-fable-5'].output === 50, 'Claude Fable 5 已核价')
 // 6.3.2 OpenCode 目录价格漂移夹具(issue #58):Sol 2026-08 下旬降价六成、glm-5.3 登上 Go 目录价、三个新模型。
@@ -5494,6 +5496,48 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok((clientSrc163.match(/modelStatsHitUnreportedTip/g) ?? []).length >= 4, '费用行+命中率行均挂 ⚠ tooltip(双语文案定义 + 两处使用 ≥4 处引用)')
   assert.ok(clientSrc163.includes('calls >= 3 && input >= 100_000 && cacheRead === 0'), '判定阈值锁定(3 次 + 100k 输入 + 恒零命中)')
   console.log('[ok] 缓存字段未上报判定与标注(中转链路显式提示)通过')
+}
+
+// ── v1.7.5:GLM-5.3 补价 + GLM-5.3-Flash 新增 + 同步范围消歧(issue #85) ──
+
+// 17-1) 价格目录:z-ai glm-5.3 不再 unpriced;flash 两目录在册;三档价锁定。
+{
+  const { DEFAULT_PROVIDER_PRICE_TABLE, providerPriceEntryFor, buildPriceCatalog } = await import('../lib/pricing.js')
+  const catalog = { models: {}, default: {}, providers: DEFAULT_PROVIDER_PRICE_TABLE }
+  // ① z-ai.glm-5.3 补价(此前 unpriced,issue #85:智谱官方已公布定价)。
+  const r53 = providerPriceEntryFor('z-ai', 'glm-5.3', catalog, { mode: 'auto' })
+  assert.equal(r53.priced, true, 'z-ai glm-5.3 已定价(不再 unpriced)')
+  assert.ok(Math.abs(r53.entry.cacheMiss - 1.4) < 1e-9 && Math.abs(r53.entry.cacheHit - 0.26) < 1e-9 && Math.abs(r53.entry.output - 4.4) < 1e-9, 'glm-5.3 三档价 $1.40/$0.26/$4.40')
+  // ② glm-5.3-flash 双目录在册(OpenCode Go 目录 + z-ai 目录)。
+  const rFlashZai = providerPriceEntryFor('z-ai', 'glm-5.3-flash', catalog, { mode: 'auto' })
+  assert.equal(rFlashZai.priced, true, 'z-ai glm-5.3-flash 已定价')
+  assert.ok(Math.abs(rFlashZai.entry.cacheMiss - 0.15) < 1e-9 && Math.abs(rFlashZai.entry.cacheHit - 0.03) < 1e-9 && Math.abs(rFlashZai.entry.output - 0.5) < 1e-9, 'glm-5.3-flash 三档价 $0.15/$0.03/$0.50')
+  const rFlashGo = providerPriceEntryFor('opencode-go', 'glm-5.3-flash', catalog, { mode: 'auto' })
+  assert.equal(rFlashGo.priced, true, 'opencode-go(glm 路由)glm-5.3-flash 已定价')
+  // ③ 大小写差异命中(实测 provider 返回形态)。
+  assert.equal(providerPriceEntryFor('z-ai', 'GLM-5.3-Flash', catalog, { mode: 'auto' }).priced, true, '大小写差异归一化命中')
+  // ④ 扩展目录(PCATALOG)收录 flash 供挂载编辑。
+  const priceCatalog = buildPriceCatalog()
+  assert.ok(priceCatalog['z-ai']?.['GLM-5'] !== undefined || Object.keys(priceCatalog['z-ai'] ?? {}).some(fam => JSON.stringify(priceCatalog['z-ai'][fam]).includes('glm-5.3-flash')), '扩展目录含 glm-5.3-flash')
+  // ⑤ 随包发布的 provider-pricing.json 同步(闪存一致性)。
+  const shipped = JSON.parse(readFileSync(new URL('../docs/provider-pricing.json', import.meta.url), 'utf8'))
+  assert.ok(shipped.providers['z-ai'].models['glm-5.3-flash'] !== undefined, '发布的 json 目录含 glm-5.3-flash')
+  assert.equal(shipped.providers['z-ai'].models['glm-5.3'].unpriced, undefined, '发布的 json 目录 glm-5.3 不再 unpriced')
+  // ⑥ 计价冒烟:flash 1M 输入 + 1M 输出 = 0.15 + 0.5 = 0.65 USD。
+  const cost = m_costOf85(rFlashZai.entry, { input: 1_000_000, output: 1_000_000, cacheRead: 0, cacheWrite: 0 })
+  assert.ok(Math.abs(cost - 0.65) < 1e-9, 'flash 1M 输入 + 1M 输出计价 $0.65:' + cost)
+  // 17-2) 同步范围消歧文案(双语)接线。
+  const client85 = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
+  assert.ok(client85.includes("t('syncScopeNote')"), '设置页同步区挂「同步范围说明」')
+  assert.ok(client85.includes('仅更新 DeepSeek 官方模型价') && client85.includes('only updates DeepSeek official model prices'), '消歧文案双语(说明按钮仅更新 DeepSeek 官方价)')
+  console.log('[ok] GLM-5.3/5.3-Flash 定价与同步范围消歧(issue #85)通过')
+}
+
+// 计价助手(17-1⑥ 局部引用,免与顶部 import 名冲突)。
+function m_costOf85(entry, tokens) {
+  return (Number(entry.cacheMiss) || 0) * ((Number(tokens.input) || 0) + (Number(tokens.cacheWrite) || 0)) / 1e6
+    + (Number(entry.cacheHit) || 0) * (Number(tokens.cacheRead) || 0) / 1e6
+    + (Number(entry.output) || 0) * (Number(tokens.output) || 0) / 1e6
 }
 
 console.log('[ok] 全部验证通过')

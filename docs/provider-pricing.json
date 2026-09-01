@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-25",
+  "generatedAt": "2026-09-01",
   "note": "Auto-generated from lib/pricing.js DEFAULT_PROVIDER_PRICE_TABLE. USD per 1M tokens; unpriced entries have no verified official price.",
   "providers": {
     "openai": {
@@ -322,6 +322,15 @@
           "checkedAt": "2026-08-17",
           "notes": "≤200K 档;>200K 按 $4/$18 计"
         },
+        "gemini-3.1-pro": {
+          "input": 2,
+          "cachedInput": 0.2,
+          "output": 12,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-25",
+          "notes": "≤200K 档;>200K 按 $4/$18 计"
+        },
         "gemini-3-flash": {
           "input": 0.5,
           "cachedInput": 0.05,
@@ -397,9 +406,22 @@
     "z-ai": {
       "models": {
         "glm-5.3": {
-          "unpriced": true,
+          "input": 1.4,
+          "cachedInput": 0.26,
+          "output": 4.4,
           "billingMode": "flat",
-          "notes": "OpenCode Go 目录在册;官方/Zen 均未公布单价,不编造价格"
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-09-01",
+          "notes": "智谱国内直连 ¥8/¥28/缓存¥2(约 1.11/3.89/0.28 USD,目录价略高于直连)"
+        },
+        "glm-5.3-flash": {
+          "input": 0.15,
+          "cachedInput": 0.03,
+          "output": 0.5,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-09-01",
+          "notes": "Ox Alpha 普惠版(2026-08-26 发布,原生多模态);Go 目录与 Cloudflare 目录同价"
         },
         "glm-5.2": {
           "input": 1.4,
@@ -551,10 +573,10 @@
     "tencent": {
       "models": {
         "hunyuan-a13b": {
-          "input": 0.5,
-          "output": 2,
+          "input": 0.0694,
+          "output": 0.2778,
           "billingMode": "flat",
-          "notes": "Official price is CNY; catalog value requires currency conversion before use."
+          "notes": "官方价为 CNY ¥0.5/¥2 每百万 token,按默认展示汇率 7.2 折算为 USD 入账"
         },
         "hy3": {
           "input": 0.14,
@@ -667,8 +689,8 @@
           "cachedInput": 0.3,
           "output": 6,
           "billingMode": "flat",
-          "sourceUrl": "https://opencode.ai/docs/go",
-          "checkedAt": "2026-08-17"
+          "sourceUrl": "https://opencode.ai/docs/zen",
+          "checkedAt": "2026-08-25"
         },
         "glm-5.3": {
           "input": 1.4,
@@ -676,7 +698,15 @@
           "output": 4.4,
           "billingMode": "flat",
           "sourceUrl": "https://opencode.ai/docs/go",
-          "checkedAt": "2026-08-25"
+          "checkedAt": "2026-09-01"
+        },
+        "glm-5.3-flash": {
+          "input": 0.15,
+          "cachedInput": 0.03,
+          "output": 0.5,
+          "billingMode": "flat",
+          "sourceUrl": "https://opencode.ai/docs/go",
+          "checkedAt": "2026-09-01"
         },
         "glm-5.2": {
           "input": 1.4,
