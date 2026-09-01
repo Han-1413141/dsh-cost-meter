@@ -8,9 +8,9 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@deepseek-ai/cordis@4.0.1'
   - '@deepseek-ai/cosmokit@1.8.2'
-  - '@deepseek-ai/dsh-home-paths@0.1.0-rc.6'
-  - '@deepseek-ai/dsh-invariants@0.1.0-rc.6'
+  - '@deepseek-ai/dsh-home-paths@0.1.0-rc.8'
+  - '@deepseek-ai/dsh-invariants@0.1.0-rc.8'
   - '@deepseek-ai/schemastery@3.18.1'
   - '@deepseek-ai/dsh-brand@0.1.0-rc.6'
-  - '@deepseek-ai/dsh-credentials@0.1.0-rc.6'
-  - 'esbuild@0.28.1'
+  - '@deepseek-ai/dsh-credentials@0.1.0-rc.8'
+  - 'esbuild@0.28.2'

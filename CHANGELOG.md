@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.7.4] - 2026-09-01
+
+### 维护(依赖升级,#82/#83/#84)
+
+- **生产依赖**:`@deepseek-ai/dsh-credentials` 与 `@deepseek-ai/dsh-home-paths` 0.1.0-rc.6 → **0.1.0-rc.8**;`zod` 4.4.3 → **4.5.1**(devDependencies `esbuild` ^0.28.1 → ^0.28.2)。
+- **兼容性验证**:本地冻结安装(`pnpm install --frozen-lockfile`)下全量 104 测试块通过(本地 +8 与 TZ=UTC)、dsh 宿主级 typert manifest 校验通过、`dsh web` 实机启动冒烟通过;rc.8 的 peer 树(dsh-invariants@rc.8)与宿主 rc.1 共存无冲突。
+- **锁版门禁断言修正**:此前断言硬编码具体版本号(`zod 锁定 4.4.3` 等),任何 Dependabot 升级都会误报红——这是三个 PR CI 全红的根因(升级本身无问题)。现改为锁「精确版本格式 + zod 大版本 4」,并新增 workspace 排除表与 package.json 锁版的一致性断言(升级漏改 `pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude` 会在测试期暴露,而不是 CI 安装失败)。
+- pnpm-workspace.yaml 排除表与 lockfile 同步升级到 rc.8 / 0.28.2。
+
 ## [1.7.3] - 2026-09-01
 
 ### 改进(issue #65 讨论:中转链路缓存字段未上报的显式标注)

@@ -4262,17 +4262,24 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
 }
 
 // ===== 生产依赖精确锁版门禁(issue #72:浮动区间会漂到新发布版,触发 pnpm
-// minimumReleaseAge 供应链策略,全新安装报 ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION)=====
+// minimumReleaseAge 供应链策略,全新安装报 ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION)。
+// 断言只锁「精确版本格式」与「zod 大版本 4」——具体小版本由 Dependabot PR 升级,
+// 升级须同步 pnpm-workspace.yaml 的 minimumReleaseAgeExclude(见下方一致性断言)。=====
 {
   const pkg = JSON.parse(readFileSync(join(import.meta.dirname, '..', 'package.json'), 'utf8'))
   const offenders = Object.entries(pkg.dependencies ?? {})
     .filter(([, spec]) => !/^[0-9A-Za-z]/.test(String(spec)) || /^[\^~><=]/.test(String(spec)))
   assert.deepEqual(offenders, [], `生产依赖必须精确锁版(不得使用 ^~/区间),违规:${offenders.map(([n, s]) => `${n}@${s}`).join(', ')}`)
-  assert.equal(pkg.dependencies.zod, '4.4.3', 'zod 锁定 4.4.3')
-  assert.equal(pkg.dependencies['@deepseek-ai/dsh-credentials'], '0.1.0-rc.6', 'dsh-credentials 锁定 0.1.0-rc.6')
-  assert.equal(pkg.dependencies['@deepseek-ai/dsh-home-paths'], '0.1.0-rc.6', 'dsh-home-paths 锁定 0.1.0-rc.6')
+  assert.ok(/^4\.\d+\.\d+$/.test(pkg.dependencies.zod ?? ''), 'zod 锁定 4.x 精确版本')
+  assert.ok(/^0\.1\.0-rc\.\d+$/.test(pkg.dependencies['@deepseek-ai/dsh-credentials'] ?? ''), 'dsh-credentials 锁定 0.1.0-rc.x 精确版本')
+  assert.ok(/^0\.1\.0-rc\.\d+$/.test(pkg.dependencies['@deepseek-ai/dsh-home-paths'] ?? ''), 'dsh-home-paths 锁定 0.1.0-rc.x 精确版本')
+  // workspace 排除表与 package.json 锁版一致(升级漏改排除表会让 CI 本仓安装踩年龄策略)。
   const wsYaml = readFileSync(join(import.meta.dirname, '..', 'pnpm-workspace.yaml'), 'utf8')
-  assert.ok(wsYaml.includes("esbuild@0.28.1"), 'workspace 排除表包含 esbuild(本仓开发安装受年龄策略时放行)')
+  for (const name of ['@deepseek-ai/dsh-credentials', '@deepseek-ai/dsh-home-paths']) {
+    const pinned = pkg.dependencies[name]
+    assert.ok(wsYaml.includes(`'${name}@${pinned}'`), `workspace 排除表与锁版一致(${name}@${pinned})`)
+  }
+  assert.ok(wsYaml.includes(`esbuild@${String(pkg.devDependencies.esbuild ?? '').replace(/^\^/, '')}`), 'workspace 排除表包含 esbuild 当前开发版')
   console.log('[ok] 生产依赖精确锁版门禁(#72 防回归)通过')
 }
 
