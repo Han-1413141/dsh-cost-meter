@@ -94,6 +94,20 @@ For NewApi `GET /api/usage/token` (response `{ "code": 200, "data": { "total_gra
 - **Automatic plaintext migration**: older versions let a literal `Bearer sk-…` in the headers leak into `ledger.json` in plaintext. Since v1.7.7 the plugin imports such keys into the DSH credential store at startup and replaces the header value with a `{{CUSTOM_BALANCE_KEY_…}}` placeholder (derived from the entry's host + header name, stable across restarts) — nothing breaks. From now on `ledger.json` and the config shipped to the browser **never contain plaintext keys**: suspected secret headers (Authorization / X-Api-Key / Bearer / sk- prefixes / long opaque strings) are blanked, while placeholders and ordinary headers pass through.
 - **Credential allowlist `allowedHosts`**: when headers carry credentials (placeholders or plaintext), the outbound host must be on this list or the request is refused — protection against leaked keys when importing someone else's config. Without a list, requests proceed with a one-time logged warning. The entry panel provides an “Allowed hosts” input (comma-separated).
 
+## CLIProxyAPI Gateway Quotas and WorkBuddy Credits (Issue #87)
+
+Connects to a local or LAN-deployed [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) proxy gateway to observe quotas across upstream providers and WorkBuddy plugin credits in one place:
+
+- **Native Multi-Provider Discovery & Quotas**: Auto-discovers active credentials via the CPA Management API and queries official native endpoints for Antigravity, Claude, Codex, Kimi, and xAI (Grok). Normalized into standard 5h / 7d / weekly / monthly usage percentage windows with ISO reset timestamps.
+- **WorkBuddy Plugin Credits**: Queries WorkBuddy's read-only management route (`/v0/management/plugins/workbuddy/credits`) to display total, used, and remaining credit balances alongside package lifecycle end-dates, preserving separate account cards.
+- **Zero Metering Side-Effects Guarantee**: Completely read-only — strictly avoids mutating actions such as Codex reset-credit consume, xAI token-consuming chat completion probes, and any WorkBuddy POST routes.
+- **Strict Credential Isolation & Transport Security**:
+  - Management Keys are stored strictly write-only in the DSH credential store (`CLIPROXYAPI_MANAGEMENT_KEY_<SOURCE_ID>_<HASH>`), never exposed in config, state, or browser views.
+  - Management calls are strictly restricted to 3 fixed paths (`/v0/management/auth-files`, `/v0/management/api-call`, `/v0/management/plugins/workbuddy/credits`). Arbitrary upstream URLs are forbidden.
+  - Outbound host whitelist (`allowedHosts`): Non-loopback origins require exact host matches, and plain HTTP requires an explicit `allowInsecureHttp` opt-in.
+  - HTTP redirects are strictly forbidden (`redirect: 'manual'`; any 3xx response is rejected) to guard against credential leakage or request hijacking.
+  - Privacy and metadata sanitization: Strips raw tokens, cookies, and identity claims from auth-files discovery; emails are masked in public state (`s***@domain`).
+
 ## Bilingual UI
 
 The plugin UI (session badge, sidebar balance row & budget box, and the entire Settings page) supports **Simplified Chinese** and **English**:
