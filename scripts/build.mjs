@@ -9,7 +9,7 @@ import { transform } from 'esbuild'
 const src = readFileSync('src/client.js', 'utf8')
 const result = await transform(src, {
   minify: true,
-  keepNames: true,
+  keepNames: false,
   legalComments: 'none',
   target: 'es2022',
   format: 'esm',

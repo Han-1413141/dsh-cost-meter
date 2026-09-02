@@ -95,6 +95,20 @@
 - **明文密钥自动迁移**:旧版本把 `Bearer sk-…` 明文写在请求头里时会明文落盘;v1.7.7 起插件在启动时自动把这类明文导入 DSH 凭据库,并把头值替换为 `{{CUSTOM_BALANCE_KEY_…}}` 占位符(名称由条目 host + 头名派生,跨重启稳定),功能不受影响。此后 `ledger.json` 与下发给浏览器的配置**永不包含明文密钥**——疑似密钥头(Authorization / X-Api-Key / Bearer / sk- 前缀 / 长不透明串)一律置空,占位符与普通头照常保留。
 - **凭据白名单 `allowedHosts`**:请求头携带密钥(占位符或明文)时,出站主机必须命中该白名单,否则直接拒绝——用于防止「导入他人配置」导致密钥外带。未配置白名单时放行并在日志警告一次。设置页条目面板内有「凭据白名单主机」输入框(逗号分隔)。
 
+## CLIProxyAPI 网关额度与 WorkBuddy 积分 (Issue #87)
+
+支持对接本地或局域网部署的 [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 代理网关,集中观测代理的多个 Provider 账号额度与 WorkBuddy 插件积分:
+
+- **多 Provider 账号原生适配**:自动通过 CPA Management API 发现账号,接入 Antigravity、Claude、Codex、Kimi、xAI (Grok) 官方原生配额/用量接口。统一归一化为 5h / 7d / weekly / monthly 等用量百分比窗口与 ISO 重置时刻。
+- **WorkBuddy 插件积分**:只读接入 WorkBuddy 插件 `/v0/management/plugins/workbuddy/credits` 路由,展示账户总积分、已用/剩余与套餐周期,保留独立账号卡片。
+- **零计费副作用保证**:严禁并杜绝任何产生计费消耗的操作——不调用 Codex 的 reset-credit consume 端点,不向 xAI 发送消耗 token 的 chat probe,不调用 WorkBuddy 的任何变更性 POST 路由。
+- **严格凭据隔离与安全门禁**:
+  - Management Key 通过只写 (write-only) 形式托管于 DSH 凭据库 (`CLIPROXYAPI_MANAGEMENT_KEY_<SOURCE_ID>_<HASH>`),永不存入配置文件、账本或浏览器 state。
+  - 请求路径严格限制为三条固定管理路径 (`/v0/management/auth-files`、`/v0/management/api-call`、`/v0/management/plugins/workbuddy/credits`),禁止任意 URL 拼接。
+  - 严格出站白名单 (`allowedHosts`):非 loopback 来源必须精确命中白名单,非 loopback HTTP 必须显式开启 `allowInsecureHttp`。
+  - 强制禁止 HTTP 重定向 (`redirect: 'manual'`, 3xx 状态码坚决拒绝),防止网关重定向劫持或凭据外带。
+  - 账号隐私与元数据过滤:auth-files 响应仅提取必需字段,剔除 raw tokens / cookies / ID claims,展示层邮箱自动脱敏掩码 (`s***@domain`)。
+
 ## 双语界面
 
 插件界面(会话徽章、侧边栏余额与预算图框、设置页全部文案)支持**简体中文**与**English**:
