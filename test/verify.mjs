@@ -55,7 +55,7 @@ import {
   HOUR_BUCKET_RETENTION_MS,
   DEFAULT_PLAN_PROVIDER_CLASS,
 } from '../lib/plan-billing.js'
-import { backfillLegacyLedger, importLegacyHistory, listSessionLogs, readSessionRecords, replaySessionRecords, repairForkSeed, repairProviderDupes, recomputeLedgerPricingBasis, scanZstdFrames } from '../lib/backfill.js'
+import { backfillLegacyLedger, importLegacyHistory, listSessionLogs, readSessionRecordsAsync, replaySessionRecords, repairForkSeed, repairProviderDupes, recomputeLedgerPricingBasis, scanZstdFrames, parseRecordLine, iterateSessionRecords } from '../lib/backfill.js'
 import { createLlmStreamBilling } from '../lib/billing-stream.js'
 import { TYPERT, stateSchema } from '../lib/typert.host.js'
 import { isTransientFetchError, fetchWithRetry } from '../lib/net.js'
@@ -1886,12 +1886,12 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const rootM = join(tmpdir(), `cm-backfill-multiframe-${Date.now()}`)
   mkdirSync(join(rootM, '--proj--', 'session-multi'), { recursive: true })
   writeFileSync(join(rootM, '--proj--', 'session-multi', 'session.jsonl.zstd'), Buffer.concat(chunks))
-  const multiRecords = readSessionRecords(join(rootM, '--proj--', 'session-multi', 'session.jsonl.zstd'))
+  const multiRecords = await readSessionRecordsAsync(join(rootM, '--proj--', 'session-multi', 'session.jsonl.zstd'))
   assert.equal(multiRecords.length, multiLines.length, '多帧 zstd 流式解析行数完整')
   assert.equal(multiRecords[0].id, 'session-multi', '流式解析保留会话头')
   assert.equal(multiRecords[multiRecords.length - 1].data.step, multiLines.length - 1, '跨帧行缓冲拼接末尾事件')
   writeFileSync(join(rootM, '--proj--', 'session-multi', 'session.jsonl'), wholeText)
-  assert.deepEqual(multiRecords, readSessionRecords(join(rootM, '--proj--', 'session-multi', 'session.jsonl')), '多帧流式解析与整段明文解析结果逐位一致')
+  assert.deepEqual(multiRecords, await readSessionRecordsAsync(join(rootM, '--proj--', 'session-multi', 'session.jsonl')), '多帧流式解析与整段明文解析结果逐位一致')
   rmSync(rootM, { recursive: true, force: true })
   // 定向枚举:listSessionLogs 按会话 id 过滤目录,缺省参数行为不变。
   const rootL = join(tmpdir(), `cm-backfill-onlyids-${Date.now()}`)
@@ -2854,6 +2854,24 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const legacyBase = { date: day, total: 10, granted: 1, topped: 9, at: t0 }
   r = reconcileBalanceDelta(legacyBase, { ...bal(9), currency: 'CNY' }, 0.95, day, t1)
   assert.equal(r.event.kind, 'structure-reset', '旧参考点无币种标记时重置基准')
+  // 赠送余额当日过期(issue #89):granted 从有到零(分项过期清零),total 减量
+  // 混入整块赠送失效——不是消费,重置基准不告警;此后从零余额起继续对账。
+  {
+    const gBase = reconcileBalanceDelta(null, { ...bal(100, 80, 20), currency: 'CNY' }, 0, day, t0).ref
+    r = reconcileBalanceDelta(gBase, { ...bal(19, 0, 19), currency: 'CNY' }, 1.2, day, t1)
+    assert.equal(r.event.kind, 'structure-reset', '赠送余额归零当日重置基准(过期不是消费)')
+    assert.equal(r.ref.granted, 0, '重置后基准为归零快照')
+    // 归零后的下一次拉取:纯充值余额消费,total 差值恢复对账。
+    const zBase = r.ref
+    r = reconcileBalanceDelta(zBase, { ...bal(17.8, 0, 17.8), currency: 'CNY' }, 1.2 / 7.2, day, t1, { exchangeRate: 7.2 })
+    assert.equal(r.event.kind, 'ok', '赠送清零后继续按充值余额对账')
+  }
+  // granted 维持剩余(消费走赠送但未清零):不影响 total 口径对账(旧行为保留)。
+  {
+    const keepBase = reconcileBalanceDelta(null, { ...bal(100, 80, 20), currency: 'CNY' }, 0, day, t0).ref
+    r = reconcileBalanceDelta(keepBase, { ...bal(98.6, 78.6, 20), currency: 'CNY' }, 1.4 / 7.2, day, t1, { exchangeRate: 7.2 })
+    assert.equal(r.event.kind, 'ok', 'granted 剩余时 total 差值口径不变(¥1.4≈$0.194)')
+  }
   // 配置链路:非布尔拒绝、默认开启、可关闭。
   assert.ok(applyConfigPatch(sanitizeConfig({}), { balance: { reconcile: 'yes' } }).errors.length > 0, 'reconcile 非布尔被拒绝')
   assert.equal(sanitizeConfig({}).balance.reconcile, true, 'reconcile 默认开启')
@@ -5818,6 +5836,107 @@ function m_costOf85(entry, tokens) {
   // typert 状态 schema 同步(旧快照兼容:optional)。
   assert.ok(JSON.stringify(stateSchema.shape.customVarStatus).includes('configured') || stateSchema.shape.customVarStatus !== undefined, '状态 schema 含 customVarStatus')
   console.log('[ok] 客户端/schema 接线(allowedHosts + 凭据输入 + 说明,issue #86)通过')
+}
+
+// ── v1.7.7:回填流式读取与 OOM 防御(issue #88) ──────────────────────────
+// 19-1) parseRecordLine:打包行探针(巨长行免 JSON.parse)、坏行/空行过滤、
+//       短打包行仍按类型过滤。
+{
+  const packed = JSON.stringify({ type: 'text-chunks', seq: 5, data: { chunks: 'x'.repeat(6000) } })
+  assert.equal(parseRecordLine(packed), null, '巨长打包行被探针跳过(不解析)')
+  assert.equal(parseRecordLine(JSON.stringify({ type: 'text-chunks', data: { chunks: 'ab' } })), null, '短打包行解析后按类型过滤')
+  const good = { type: 'assistant/message', seq: 1, time: 5, data: { turn: 1, step: 1, usage: { inputTokens: 1 } } }
+  assert.deepEqual(parseRecordLine(JSON.stringify(good)), good, '正常事件行解析')
+  assert.equal(parseRecordLine(''), null, '空行过滤')
+  assert.equal(parseRecordLine('{broken'), null, '坏行过滤')
+  // 探针只看头部 512 字符:巨长普通行(type 在头部)不受影响。
+  const longGood = { type: 'assistant/message', seq: 9, data: { turn: 1, step: 2, usage: { inputTokens: 2 } }, pad: 'y'.repeat(9000) }
+  assert.ok(parseRecordLine(JSON.stringify(longGood)) !== null, '巨长普通事件行仍解析')
+  console.log('[ok] 打包行探针与行解析(issue #88)通过')
+}
+
+// 19-2) iterateSessionRecords 流式语义:多帧 + 块边界切割逐行产出;解压预算
+//       超限抛错(调用方按单文件损坏跳过);结构损坏停止(与旧版全量扫描同语义)。
+{
+  const zlib19 = zlib
+  const mkRoot19 = () => {
+    const root = join(tmpdir(), `cm-stream-88-${Date.now()}`)
+    mkdirSync(root, { recursive: true })
+    return root
+  }
+  // a) 多帧 + 跨块行:事件数与同步整读完全一致。
+  {
+    const root = mkRoot19()
+    const lines = [JSON.stringify({ type: 'session', version: 0, id: 's19', createdAt: 12345, delegationDepth: 0 })]
+    for (let i = 0; i < 120; i++) lines.push(JSON.stringify({ type: 'assistant/message', seq: i + 1, time: 12345 + i, data: { turn: 1, step: i + 1, usage: { inputTokens: i, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 } } }))
+    const text = lines.join('\n') + '\n'
+    const frames = []
+    for (let rest = text; rest.length > 0;) { const n = Math.min(101, rest.length); frames.push(zlib19.zstdCompressSync(Buffer.from(rest.slice(0, n), 'utf8'))); rest = rest.slice(n) }
+    const p = join(root, 'multi.zstd')
+    writeFileSync(p, Buffer.concat(frames))
+    const got = await readSessionRecordsAsync(p)
+    assert.equal(got.length, lines.length, '流式多帧行数完整')
+    assert.deepEqual(got[0], JSON.parse(lines[0]), '会话头完整')
+    rmSync(root, { recursive: true, force: true })
+  }
+  // b) 解压预算:超小 maxDecompressed 立即抛 RangeError。
+  {
+    const root = mkRoot19()
+    const text = JSON.stringify({ type: 'session', id: 's', createdAt: 1 }) + '\n'
+    writeFileSync(join(root, 'z.zstd'), zlib19.zstdCompressSync(Buffer.from(text, 'utf8')))
+    await assert.rejects(
+      () => readSessionRecordsAsync(join(root, 'z.zstd'), { maxDecompressed: 1 }),
+      /decompress budget exceeded/, '解压预算超限抛错(防解压炸弹)')
+    rmSync(root, { recursive: true, force: true })
+  }
+  // c) 结构损坏:合法帧 + 垃圾字节 + 后续合法帧——垃圾之后的内容按旧版语义忽略,
+  //    垃圾之前的记录完整保留。
+  {
+    const root = mkRoot19()
+    const goodFrame = zlib19.zstdCompressSync(Buffer.from(JSON.stringify({ type: 'session', id: 'good', createdAt: 2 }) + '\n', 'utf8'))
+    const tailFrame = zlib19.zstdCompressSync(Buffer.from(JSON.stringify({ type: 'session', id: 'after-garbage', createdAt: 3 }) + '\n', 'utf8'))
+    writeFileSync(join(root, 'corrupt.zstd'), Buffer.concat([goodFrame, Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05]), tailFrame]))
+    const got = await readSessionRecordsAsync(join(root, 'corrupt.zstd'))
+    assert.equal(got.length, 1, '损坏点后内容被忽略(与旧版全量扫描同语义)')
+    assert.equal(got[0].id, 'good', '损坏点前的记录完整保留')
+    rmSync(root, { recursive: true, force: true })
+  }
+  // d) 巨长打包行不进产物(探针加速,行为与同步版一致)。
+  {
+    const root = mkRoot19()
+    const lines = [
+      JSON.stringify({ type: 'session', id: 'p', createdAt: 4 }),
+      JSON.stringify({ type: 'text-chunks', data: { chunks: 'z'.repeat(5000) } }),
+      JSON.stringify({ type: 'assistant/message', seq: 1, time: 4, data: { turn: 1, step: 1, usage: { inputTokens: 3 } } }),
+    ]
+    writeFileSync(join(root, 'plain.jsonl'), lines.join('\n') + '\n')
+    const got = await readSessionRecordsAsync(join(root, 'plain.jsonl'))
+    assert.equal(got.length, 2, '巨长打包行被过滤,普通事件保留')
+    rmSync(root, { recursive: true, force: true })
+  }
+  console.log('[ok] 流式迭代器语义(多帧/预算/损坏停止/打包行,issue #88)通过')
+}
+
+// 19-3) 大日志回归:构造解压后 ~3MB 的多帧日志(打包行为主体),流式读取在
+//       有限堆内完成且结果只含事件行——issue #88 的最小可复现形态。
+{
+  const zlib193 = zlib
+  const root = join(tmpdir(), `cm-biglog-88-${Date.now()}`)
+  mkdirSync(join(root, 'proj', 'big'), { recursive: true })
+  const lines = [JSON.stringify({ type: 'session', version: 0, id: 'big-88', createdAt: 12345, delegationDepth: 0 })]
+  for (let i = 0; i < 500; i++) {
+    lines.push(JSON.stringify({ type: 'assistant/message', seq: i + 1, time: 12345 + i, data: { turn: 1, step: i + 1, usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 } } }))
+    lines.push(JSON.stringify({ type: 'text-chunks', seq: i + 1, data: { chunks: 'x'.repeat(3000) } }))
+  }
+  const text = lines.join('\n') + '\n'
+  const frames = []
+  for (let rest = text; rest.length > 0;) { const n = Math.min(4096, rest.length); frames.push(zlib193.zstdCompressSync(Buffer.from(rest.slice(0, n), 'utf8'))); rest = rest.slice(n) }
+  writeFileSync(join(root, 'proj', 'big', 'session.jsonl.zstd'), Buffer.concat(frames))
+  const got = await readSessionRecordsAsync(join(root, 'proj', 'big', 'session.jsonl.zstd'))
+  assert.equal(got.length, 501, '大日志流式读取只保留事件行(打包行全部过滤)')
+  assert.equal(got[500].data.step, 500, '末尾事件完整(跨帧行缓冲)')
+  rmSync(root, { recursive: true, force: true })
+  console.log('[ok] 大日志流式回归(issue #88 最小复现)通过')
 }
 
 console.log('[ok] 全部验证通过')
