@@ -11,3 +11,5 @@ HANDOFF.md
 .zcode/
 /opencode.json
 
+.pnpm-store/
+.hoplite/attachments/

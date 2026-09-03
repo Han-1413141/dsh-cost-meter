@@ -1,0 +1,26 @@
+{
+	"version": 1,
+	"ports": {
+		"preview": 3000,
+		"additional": {}
+	},
+	"scripts": {
+		"setup": {
+			"enabled": true,
+			"command": "pnpm install --frozen-lockfile"
+		},
+		"run": {
+			"enabled": true,
+			"command": "pnpm install --frozen-lockfile"
+		},
+		"archive": {
+			"enabled": true,
+			"command": "pnpm install --frozen-lockfile"
+		},
+		"check": {
+			"enabled": true,
+			"command": "pnpm install --frozen-lockfile"
+		}
+	},
+	"mcpServers": []
+}
