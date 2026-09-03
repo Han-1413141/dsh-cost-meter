@@ -11,3 +11,4 @@ HANDOFF.md
 .zcode/
 /opencode.json
 
+.pnpm-store/

@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.7.12] - 2026-09-03
+
+### DSH STORE 重新上架修复（issue #239：更新暂缓 + 兼容性暂时下架）
+
+DSH STORE 固定 Commit 自动复检对本仓库给出两条确定性整改原因，本版逐一清除：
+
+- **runtime source 超单文件审核上限**：人类可读源码 `src/client.js` 437,004 字节，超过 DSH STORE 自动审核的 256 KiB（262,144 字节）单文件上限——此前只有压缩产物 `lib/client.js`（261,598 字节）受控贴线，源码侧从未设防。浏览器端是单个 `__ModuleLoader__` factory 闭包，无法按 ES 模块拆分，现按区段切为 `src/client/` 三个**顺序片段**（01 样式+i18n / 02 校验器+助手+侧边栏 / 03 设置页+主体，101,630 / 165,068 / 171,182 字节），`scripts/build.mjs` 按文件名排序拼接后仍经 esbuild 压缩生成 `lib/client.js`。**压缩产物与 v1.7.11 逐字节一致**（261,614 字节，仅生成头注释指向从 `src/client.js` 更新为 `src/client/*.js fragments`），vm 编译与执行门禁照跑。
+- **DSH_LATEST_THREE_COMPATIBILITY_HOLD**：`package.json` 新增 `dsh.compatibility` 块，对官方最新三个 DSH 发行版（0.1.2-alpha.3 / 0.1.2-alpha.4 / 0.1.2-alpha.5）逐项声明 `dshReleases: compatible`（与既有 `dshhub` 范围声明 `>=0.1.0-rc.5` 同口径）。DSH STORE 规则：仅范围匹配不足以保留上架资格，必须有逐版本精确记录；同时补齐 `dsh.compatibility.dsh` 范围与 `os` 声明（darwin/linux/win32，对齐商城既有的三系统条目），manifest 端兼容声明完整。
+- **SemVer 1.7.11 → 1.7.12**：DSH STORE 仅接受「插件 SemVer 高于商城版本（1.5.7）」的新固定 Commit；版本链五处对齐（package.json / install.ps1 ×3 / 双语 README 徽章与安装行）。
+
+### 验证
+
+- `node scripts/build.mjs`：三片段拼接 → 261,614 字节（上限 262,144），压缩码与 v1.7.11 逐字节一致；
+- `test/verify.mjs` 新增 **src/client/ 逐片段字节门禁**（每片 ≤ 262,144，与 DSH STORE 审核同口径），31 处源码文本断言改读 `readClientSource()` 拼接视图（与 build 同口径），防下一版再卡同一道门禁；
+- 全量测试通过；`scripts/release.mjs --dry` 五处版本引用对齐检查通过。
+
 ## [1.7.11] - 2026-09-03
 
 ### 网关额度(CLIProxyAPI)设置 UI 修复
