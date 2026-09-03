@@ -3,7 +3,8 @@
  * 计费数学部分基于内置价格表,离线可跑;官方页面解析失败时仅告警不中断。
  */
 import assert from 'node:assert/strict'
-import { readFileSync, rmSync, mkdirSync, writeFileSync } from 'node:fs'
+import { readFileSync, rmSync, mkdirSync, writeFileSync, readdirSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import * as zlib from 'node:zlib'
@@ -6335,6 +6336,50 @@ function m_costOf85(entry, tokens) {
   }
 
   console.log('[ok] gateway host/security aliases, CPA mock transport, auth failure, redirect refusal, malformed auth, and WorkBuddy row handling 通过')
+}
+
+// ── v1.7.9:模块导入图无环回归(v1.7.8 Desktop 启动崩溃) ─────────────────
+// 根因:v1.7.6 把 looksLikeSecretHeaderValue 放 store.js 并让 custom-balance 导入,
+// 叠加既有 store → plan-billing → coding-plans → custom-balance 边构成 ESM 环;
+// DSH Desktop 的模块加载顺序下环内顶层 const(CODING_PLAN_PROVIDER_IDS 的
+// minified 名 Ge)触发 TDZ: Cannot access 'Ge' before initialization。
+// 本块双保险:①静态扫描导入图断言无环;②每个环敏感模块在独立子进程首导入
+// (任何顺序的加载器都不再可能触发 TDZ)。
+{
+  const libDir = join(import.meta.dirname, '..', 'lib')
+  const moduleFiles = readdirSync(libDir).filter(f => f.endsWith('.js') && f !== 'client.js')
+  const graph = {}
+  for (const file of moduleFiles) {
+    const src = readFileSync(join(libDir, file), 'utf8')
+    graph[file.slice(0, -3)] = [...src.matchAll(/from '\.\/([a-z-]+)\.js'/g)].map(m => m[1])
+  }
+  // ① 无环(DFS 三色标记)。
+  const color = {}
+  const cycles = []
+  const dfs = (node, path) => {
+    color[node] = 'gray'
+    for (const next of graph[node] ?? []) {
+      if (!(next in graph)) continue
+      if (color[next] === 'gray') cycles.push([...path.slice(path.indexOf(next)), next])
+      else if (color[next] === undefined) dfs(next, [...path, next])
+    }
+    color[node] = 'black'
+  }
+  for (const node of Object.keys(graph)) {
+    if (color[node] === undefined) dfs(node, [node])
+  }
+  assert.equal(cycles.length, 0, '导入图无环(检测到环:' + cycles.map(c => c.join('→')).join('; ') + ');v1.7.8 崩溃根因是 custom-balance→store 环边,共享判定函数必须放零依赖层 net.js')
+  // ② 环敏感模块独立子进程首导入(逐个,不共享模块缓存)。
+  for (const m of ['coding-plans', 'plan-billing', 'custom-balance', 'store', 'backfill', 'index']) {
+    const proc = spawnSync(process.execPath, ['--input-type=module', '-e', `await import(${JSON.stringify('./lib/' + m + '.js')}).catch(e => { console.error(e.message); process.exit(1) })`], { cwd: join(import.meta.dirname, '..'), encoding: 'utf8' })
+    assert.equal(proc.status, 0, `模块 ${m} 独立首导入无 TDZ:${(proc.stderr || proc.stdout || '').slice(0, 120)}`)
+  }
+  // ③ 兼容性:store.js 仍导出 looksLikeSecretHeaderValue(既有消费方不受迁移影响)。
+  const { looksLikeSecretHeaderValue: fromStore } = await import('../lib/store.js')
+  const { looksLikeSecretHeaderValue: fromNet } = await import('../lib/net.js')
+  assert.equal(fromStore, fromNet, 'store.js re-export 与 net.js 原始导出同一绑定')
+  assert.equal(fromStore('Authorization', 'Bearer sk-x'), true, '迁移后判定语义不变')
+  console.log('[ok] 模块导入图无环 + 独立首导入(v1.7.8 Desktop TDZ 崩溃回归)通过')
 }
 
 console.log('[ok] 全部验证通过')

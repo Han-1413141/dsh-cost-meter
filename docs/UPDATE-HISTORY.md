@@ -4,6 +4,10 @@
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
 
+## v1.7.9(2026-09-03)—— 🚨 紧急修复:v1.7.8 在 DSH Desktop 无法启动
+- **崩溃**:v1.7.8 加载即报 `Cannot access 'Ge' before initialization`。根因是 v1.7.6 埋下的模块循环导入(custom-balance → store 叠加既有环边),Desktop 的模块加载序下顶层常量触发 TDZ——不是 v1.7.8 新功能的错,是它改变了加载图把旧雷引爆。
+- **修复**:共享判定函数迁到零依赖底层 net.js,导入图自此无环;附「无环 + 逐模块独立首导入」回归测试,任何加载器顺序都不再可能复现。CLIProxyAPI 网关额度功能在修复之上重新合入,功能不变。
+
 ## v1.7.8(2026-09-03)—— 🌐 CLIProxyAPI 网关额度适配层(issue #87 / PR #90)
 - **新功能**:经 CLIProxyAPI Management API 查询多账号多 Provider 额度——Antigravity(5h/weekly)、Claude(5h/7d/模型周窗)、Codex、Kimi、xAI、WorkBuddy 六家适配器;额度页新增「网关额度」面板,Management key 走凭据库 write-only 输入,loopback 默认放行/远程须白名单;last-known-good 缓存与逐账号容错。
 - **安全边界**:token 永不进插件($TOKEN$ 在 CPA 侧替换)、副作用端点(消费/补全)硬闸拒发、响应 256KB 上限、错误消息脱敏;合并前审查实装了副作用闸门并补行为测试。

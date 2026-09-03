@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.7.9] - 2026-09-03
+
+### 紧急修复:v1.7.8 在 DSH Desktop 无法启动(ESM 循环导入 TDZ)
+
+**现象**:v1.7.8 在 DSH Desktop 上加载即报 `failed to import loader entry …(dsh-cost-meter): Cannot access 'Ge' before initialization`(Ge 是 CODING_PLAN_PROVIDER_IDS 的 minified 名)。
+
+**根因**(非 PR #90 引入,是 v1.7.6 埋的雷被引爆):v1.7.6 把 `looksLikeSecretHeaderValue` 放在 store.js 并让 custom-balance.js 导入它,叠加既有的 store → plan-billing → coding-plans → custom-balance 边,构成 ESM 环 `coding-plans → custom-balance → store → plan-billing → coding-plans`。环上 `plan-billing` 顶层有 `PLAN_PROVIDER_IDS = [...CODING_PLAN_PROVIDER_IDS, 'go']`(模块初始化即读邻居导出)——原生 ESM 的固定执行序掩盖了环,但 Desktop 的模块加载顺序不同,环重排后顶层 const 处于 TDZ。v1.7.8 新增的 gateway 模块改变了加载图,恰好把环翻转到了崩溃序。CLI(dsh web)两种加载序都能跑,所以此前冒烟未暴露;独立首导入 `coding-plans`/`plan-billing` 在 1.7.7 与 1.7.8 同样必崩(已复现)。
+
+**修复**:把 `looksLikeSecretHeaderValue`(及其私有正则助手)迁到 **net.js**——插件里唯一零本地依赖的底层模块(store / custom-balance / coding-plans / gateway 全都依赖它);custom-balance.js 改从 net.js 直接导入;store.js 保留 re-export 兼容既有消费方。导入图自此**无环**,任何加载顺序都不再可能触发 TDZ。
+
+**验证**:新增回归块——导入图静态无环断言(DFS)+ 六个环敏感模块各自独立子进程首导入(1.7.8 形态必崩的用例)+ re-export 绑定一致性;双时区全量绿;dsh web 实机冒烟绿。
+
+### gateway 功能重新合入
+
+v1.7.8 的 CLIProxyAPI 网关额度层(六家 Provider + WorkBuddy,详见 1.7.8 条目)在破环修复之上重新 cherry-pick 合入,功能与 1.7.8 完全一致。发布顺序:master 先 revert 到 v1.7.7(0ddcbe6,恢复用户可用)→ 破环修复(b095a36)→ gateway 两个提交重新合入。
+
+# Changelog
+
 ## [1.7.8] - 2026-09-03
 
 ### 新功能(issue #87 / PR #90:CLIProxyAPI 网关额度适配层)
