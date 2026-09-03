@@ -519,8 +519,7 @@ window.__ModuleLoader__.load({
         codingPlanRefreshIntervalLabel: '刷新间隔(分钟)',
         refreshCodingPlan: '刷新',
         codingPlanNotQueried: '未查询额度',
-        gatewayQuotaTitle: 'CLIProxyAPI 网关额度', gatewayQuotaNote: '只读查询网关 Provider 额度；Management Key 仅写入凭据库。', gatewaySourceAdd: '添加来源', gatewaySourceRemove: '删除来源', gatewaySourceEmpty: '尚未配置网关来源', gatewaySourceEnabled: '启用来源', gatewaySourceLabel: '来源名称', gatewaySourceBaseURL: 'Base URL', gatewaySourceDisplay: '显示位置', gatewaySourceAllowlist: '允许的 Host', gatewaySourceCredential: 'Management Key(只写)', gatewaySourceStatus: '状态', gatewaySourceUnsupported: '不支持的 Provider', gatewaySourceUnknown: '未知', gatewaySourceNoAccounts: '未发现账号', gatewaySourceRefreshing: '刷新中…',
-         codingPlanDisabledNote: '未启用。开启后将按刷新间隔查询该厂商的 coding plan 额度并显示在这里。',
+        codingPlanDisabledNote: '未启用。开启后将按刷新间隔查询该厂商的 coding plan 额度并显示在这里。',
         goQuotaDisabledNote: '未启用额度。开启后将读取 OpenCode Go 订阅额度(滚动 5 小时 / 本周 / 本月)并显示在侧边栏图框、设置页与右下角;没有 Go 订阅时会在这里提示原因。',
         cornerLabel: '右下角显示(dock)',
         cornerEnabledLabel: '在右下角显示 OpenCode Go 额度 / 预算',
@@ -962,8 +961,7 @@ window.__ModuleLoader__.load({
         codingPlanRefreshIntervalLabel: 'Refresh interval (minutes)',
         refreshCodingPlan: 'Refresh',
         codingPlanNotQueried: 'Quota not queried',
-        gatewayQuotaTitle: 'CLIProxyAPI gateway quotas', gatewayQuotaNote: 'Read-only gateway provider quotas; management keys are write-only.', gatewaySourceAdd: 'Add source', gatewaySourceRemove: 'Remove source', gatewaySourceEmpty: 'No gateway source configured', gatewaySourceEnabled: 'Enable source', gatewaySourceLabel: 'Source label', gatewaySourceBaseURL: 'Base URL', gatewaySourceDisplay: 'Display', gatewaySourceAllowlist: 'Allowed hosts', gatewaySourceCredential: 'Management key (write-only)', gatewaySourceStatus: 'Status', gatewaySourceUnsupported: 'Unsupported providers', gatewaySourceUnknown: 'Unknown', gatewaySourceNoAccounts: 'No accounts', gatewaySourceRefreshing: 'Refreshing…',
-         codingPlanDisabledNote: 'Disabled. Enable it to query this vendor\'s coding plan quota on the refresh interval and show it here.',
+        codingPlanDisabledNote: 'Disabled. Enable it to query this vendor\'s coding plan quota on the refresh interval and show it here.',
         goQuotaDisabledNote: 'Quota disabled. Enable it to read the OpenCode Go subscription quota (rolling 5h / weekly / monthly) and show it in the sidebar box, Settings page and bottom-right corner; if you have no Go subscription, the reason will be shown here.',
         cornerLabel: 'Bottom-right (dock) display',
         cornerEnabledLabel: 'Show OpenCode Go quota / budget at the bottom-right',
@@ -1288,7 +1286,6 @@ window.__ModuleLoader__.load({
       if (typeof v !== 'string') fail(path, 'string')
       return v
     }
-    const oneOf = (v, list, fallback) => (typeof v === 'string' && list.includes(v) ? v : fallback)
     function needBool(v, path) {
       if (typeof v !== 'boolean') fail(path, 'boolean')
       return v
@@ -1384,17 +1381,6 @@ window.__ModuleLoader__.load({
       return out
     }
     function parseConfig(v, path) {
-    const parseCustomEntry = e => (e == null ? undefined : {
-      enabled: e.enabled === true,
-      label: typeof e.label === 'string' ? e.label : '',
-      labelEn: typeof e.labelEn === 'string' ? e.labelEn : '',
-      display: oneOf(e.display, ['sidebar', 'settings', 'off'], 'both'),
-      unit: e.unit === 'CNY' || e.unit === 'EUR' ? e.unit : 'USD',
-      refreshMinutes: typeof e.refreshMinutes === 'number' && Number.isFinite(e.refreshMinutes) ? e.refreshMinutes : 15,
-      request: e.request && typeof e.request === 'object' ? e.request : { url: '' },
-      extract: e.extract && typeof e.extract === 'object' ? e.extract : {},
-      allowedHosts: Array.isArray(e?.allowedHosts) ? e.allowedHosts.filter(h => typeof h === 'string') : [],
-    })
       if (v === null || typeof v !== 'object' || Array.isArray(v)) fail(path, 'object')
       const models = {}
       if (v.prices !== null && typeof v.prices === 'object' && v.prices.models !== null && typeof v.prices.models === 'object') {
@@ -1488,7 +1474,7 @@ window.__ModuleLoader__.load({
           detail: v.budget?.detail !== false,
         },
         balance: {
-          display: oneOf(v.balance?.display, ['sidebar', 'settings', 'off'], 'both'),
+          display: v.balance?.display === 'sidebar' || v.balance?.display === 'settings' || v.balance?.display === 'off' ? v.balance.display : 'both',
           refreshMinutes: typeof v.balance?.refreshMinutes === 'number' && Number.isFinite(v.balance.refreshMinutes) ? v.balance.refreshMinutes : 5,
           showProgressBar: v.balance?.showProgressBar === true,
           budgetCap: typeof v.balance?.budgetCap === 'number' && Number.isFinite(v.balance.budgetCap) && v.balance.budgetCap > 0 ? v.balance.budgetCap : null,
@@ -1496,36 +1482,40 @@ window.__ModuleLoader__.load({
         },
         goQuota: {
           enabled: v.goQuota?.enabled !== false,
-          display: oneOf(v.goQuota?.display, ['sidebar', 'settings', 'off'], 'both'),
+          display: v.goQuota?.display === 'sidebar' || v.goQuota?.display === 'settings' || v.goQuota?.display === 'off' ? v.goQuota.display : 'both',
           refreshMinutes: typeof v.goQuota?.refreshMinutes === 'number' && Number.isFinite(v.goQuota.refreshMinutes) ? v.goQuota.refreshMinutes : 15,
           apiKey: typeof v.goQuota?.apiKey === 'string' ? v.goQuota.apiKey : '',
           main: v.goQuota?.main === 'weekly' || v.goQuota?.main === 'monthly' ? v.goQuota.main : 'rolling',
           detail: v.goQuota?.detail !== false,
         },
-        customBalance: parseCustomEntry(v.customBalance),
+        customBalance: v.customBalance === undefined || v.customBalance === null ? undefined : {
+          enabled: v.customBalance.enabled === true,
+          label: typeof v.customBalance.label === 'string' ? v.customBalance.label : '',
+          labelEn: typeof v.customBalance.labelEn === 'string' ? v.customBalance.labelEn : '',
+          display: v.customBalance.display === 'sidebar' || v.customBalance.display === 'settings' || v.customBalance.display === 'off' ? v.customBalance.display : 'both',
+          unit: v.customBalance.unit === 'CNY' || v.customBalance.unit === 'EUR' ? v.customBalance.unit : 'USD',
+          refreshMinutes: typeof v.customBalance.refreshMinutes === 'number' && Number.isFinite(v.customBalance.refreshMinutes) ? v.customBalance.refreshMinutes : 15,
+          request: v.customBalance.request && typeof v.customBalance.request === 'object' ? v.customBalance.request : { url: '' },
+          extract: v.customBalance.extract && typeof v.customBalance.extract === 'object' ? v.customBalance.extract : {},
+          allowedHosts: Array.isArray(v.customBalance.allowedHosts) ? v.customBalance.allowedHosts.filter(h => typeof h === 'string') : [],
+        },
         // 多配置形态(v1.7.0,issue #79):运行期真源;旧 customBalance 键仅为
         // 兼容镜像。快照缺数组时回落单条包装(旧宿主快照)。
-        gatewayQuotas: (() => {
-          const raw = Array.isArray(v.gatewayQuotas) ? v.gatewayQuotas : v.gatewayQuotas?.sources
-          const sources = Array.isArray(raw) ? raw.slice(0, 4).filter(x => x !== null && typeof x === 'object' && !Array.isArray(x)).map(x => ({
-            id: typeof x.id === 'string' ? x.id.slice(0, 48) : '',
-            type: 'cliproxyapi',
-            label: typeof x.label === 'string' ? x.label.slice(0, 80) : '',
-            baseURL: typeof x.baseURL === 'string' ? x.baseURL : '',
-            enabled: x.enabled !== false,
-            display: oneOf(x.display, ['sidebar', 'settings', 'off'], 'both'),
-            refreshMinutes: typeof x.refreshMinutes === 'number' && Number.isFinite(x.refreshMinutes) ? Math.min(1440, Math.max(1, Math.floor(x.refreshMinutes))) : 15,
-            includeProviders: Array.isArray(x.includeProviders) ? [...new Set(x.includeProviders.filter(p => typeof p === 'string').map(p => p.toLowerCase()).filter(p => GATEWAY_PROVIDERS.includes(p)))] : GATEWAY_PROVIDERS,
-            allowedHosts: Array.isArray(x.allowedHosts) ? x.allowedHosts.filter(h => typeof h === 'string').slice(0, 16) : [],
-            allowInsecureHttp: x.allowInsecureHttp === true,
-            keyVar: typeof x.keyVar === 'string' ? x.keyVar : '',
-          })) : []
-          return { sources }
-        })(),
         customBalances: (() => {
-          if (Array.isArray(v.customBalances)) return v.customBalances.filter(x => x !== null && typeof x === 'object').slice(0, 8).map(parseCustomEntry).filter(Boolean)
-          const single = parseCustomEntry(v.customBalance)
-          return single ? [single] : []
+          const parseEntry = e => ({
+            enabled: e?.enabled === true,
+            label: typeof e?.label === 'string' ? e.label : '',
+            labelEn: typeof e?.labelEn === 'string' ? e.labelEn : '',
+            display: e?.display === 'sidebar' || e?.display === 'settings' || e?.display === 'off' ? e.display : 'both',
+            unit: e?.unit === 'CNY' || e?.unit === 'EUR' ? e.unit : 'USD',
+            refreshMinutes: typeof e?.refreshMinutes === 'number' && Number.isFinite(e.refreshMinutes) ? e.refreshMinutes : 15,
+            request: e?.request && typeof e.request === 'object' ? e.request : { url: '' },
+            extract: e?.extract && typeof e.extract === 'object' ? e.extract : {},
+            allowedHosts: Array.isArray(e?.allowedHosts) ? e.allowedHosts.filter(h => typeof h === 'string') : [],
+          })
+          if (Array.isArray(v.customBalances)) return v.customBalances.filter(x => x !== null && typeof x === 'object').slice(0, 8).map(parseEntry)
+          if (v.customBalance !== undefined && v.customBalance !== null) return [parseEntry(v.customBalance)]
+          return []
         })(),
         corner: {
           enabled: v.corner?.enabled === true,
@@ -1578,11 +1568,6 @@ window.__ModuleLoader__.load({
         },
       }
     }
-        const numOrNull = x => (typeof x === 'number' && Number.isFinite(x) ? x : null)
-    const num0 = x => numOrNull(x) ?? 0
-    const EMPTY_BAL = { status: 'off', message: '', fetchedAt: 0, currency: '', totalBalance: 0, grantedBalance: 0, toppedUpBalance: 0 }
-    const EMPTY_GO = { status: 'off', message: '', fetchedAt: 0, rolling: null, weekly: null, monthly: null }
-    const emptyCustomSnapshot = (index = null) => ({ status: 'off', message: '', fetchedAt: 0, label: '', unit: 'USD', remaining: 0, maxBudget: null, spend: null, index })
     function parseBalance(v, path) {
       if (v === null || typeof v !== 'object' || Array.isArray(v)) fail(path, 'object')
       return {
@@ -1590,16 +1575,16 @@ window.__ModuleLoader__.load({
         message: typeof v.message === 'string' ? v.message : '',
         fetchedAt: typeof v.fetchedAt === 'number' ? v.fetchedAt : 0,
         currency: typeof v.currency === 'string' ? v.currency : '',
-        totalBalance: num0(v.totalBalance),
-        grantedBalance: num0(v.grantedBalance),
-        toppedUpBalance: num0(v.toppedUpBalance),
+        totalBalance: typeof v.totalBalance === 'number' && Number.isFinite(v.totalBalance) ? v.totalBalance : 0,
+        grantedBalance: typeof v.grantedBalance === 'number' && Number.isFinite(v.grantedBalance) ? v.grantedBalance : 0,
+        toppedUpBalance: typeof v.toppedUpBalance === 'number' && Number.isFinite(v.toppedUpBalance) ? v.toppedUpBalance : 0,
       }
     }
     function parseGoWindow(v, path) {
       if (v === null || v === undefined) return null
       if (typeof v !== 'object' || Array.isArray(v)) fail(path, 'object')
       return {
-        percent: num0(v.percent),
+        percent: typeof v.percent === 'number' && Number.isFinite(v.percent) ? v.percent : 0,
         resetsAt: typeof v.resetsAt === 'string' ? v.resetsAt : '',
       }
     }
@@ -1622,24 +1607,14 @@ window.__ModuleLoader__.load({
         fetchedAt: typeof v.fetchedAt === 'number' ? v.fetchedAt : 0,
         label: typeof v.label === 'string' ? v.label : '',
         unit: typeof v.unit === 'string' ? v.unit : 'USD',
-        remaining: num0(v.remaining),
-        maxBudget: numOrNull(v.maxBudget),
-        spend: numOrNull(v.spend),
+        remaining: typeof v.remaining === 'number' && Number.isFinite(v.remaining) ? v.remaining : 0,
+        maxBudget: typeof v.maxBudget === 'number' && Number.isFinite(v.maxBudget) ? v.maxBudget : null,
+        spend: typeof v.spend === 'number' && Number.isFinite(v.spend) ? v.spend : null,
         // 条目索引(v1.7.0,issue #79):多配置形态下逐条刷新按钮的定位依据。
         index: typeof v.index === 'number' && Number.isFinite(v.index) && v.index >= 0 ? Math.floor(v.index) : null,
       }
     }
-
-    const gatewayAccountStatuses = new Set(['ok', 'partial', 'unknown', 'error', 'stale', 'unsupported', 'capability_missing'])
-    const gatewaySourceStatuses = new Set(['off', 'loading', 'ok', 'partial', 'stale', 'error'])
-    function parseGatewayQuota(v, path) {
-      if (v === null || typeof v !== 'object' || Array.isArray(v)) fail(path, 'object')
-      const s0 = (s, d = '') => (typeof s === 'string' ? s : d)
-      const n = x => numOrNull(x)
-      const windowOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { id: s0(x.id), label: s0(x.label), ...(n(x.percent) === null ? {} : { percent: n(x.percent) }), resetsAt: s0(x.resetsAt), periodHours: n(x.periodHours), scope: s0(x.scope) } : null
-      const creditsOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { unit: s0(x.unit, 'credits'), used: n(x.used), remaining: n(x.remaining), limit: n(x.limit), fetchedAt: s0(x.fetchedAt), packages: Array.isArray(x.packages) ? x.packages.filter(p => p !== null && typeof p === 'object' && !Array.isArray(p)).map(p => ({ id: s0(p.id), label: s0(p.label), used: n(p.used), remaining: n(p.remaining), limit: n(p.limit), startsAt: s0(p.startsAt), resetsAt: s0(p.resetsAt) })) : [] } : undefined
-      return { id: s0(v.id), type: 'cliproxyapi', label: s0(v.label), status: gatewaySourceStatuses.has(v.status) ? v.status : 'error', message: s0(v.message), fetchedAt: n(v.fetchedAt) ?? 0, attemptedAt: n(v.attemptedAt) ?? 0, serverVersion: s0(v.serverVersion), keyConfigured: v.keyConfigured === true, keySource: s0(v.keySource, 'none'), accounts: Array.isArray(v.accounts) ? v.accounts.filter(a => a !== null && typeof a === 'object' && !Array.isArray(a)).slice(0, 16).map(a => ({ id: s0(a.id), provider: s0(a.provider, 'unknown'), label: s0(a.label, 'unknown'), status: gatewayAccountStatuses.has(a.status) ? a.status : 'unknown', message: s0(a.message), plan: s0(a.plan), windows: Array.isArray(a.windows) ? a.windows.map(windowOf).filter(Boolean) : [], credits: creditsOf(a.credits) })) : [], unsupportedProviders: Array.isArray(v.unsupportedProviders) ? v.unsupportedProviders.filter(x => typeof x === 'string').slice(0, 32) : [] }
-    }
+    const numOrNull = x => (typeof x === 'number' && Number.isFinite(x) ? x : null)
     function parsePlanStats(v) {
       if (v === null || typeof v !== 'object' || Array.isArray(v)) return null
       const providers = {}
@@ -1652,10 +1627,10 @@ window.__ModuleLoader__.load({
             for (const [wk, w] of Object.entries(raw.windows)) {
               if (w === null || typeof w !== 'object' || Array.isArray(w)) continue
               windows[wk] = {
-                percent: num0(w.percent),
+                percent: numOrNull(w.percent) ?? 0,
                 resetsAt: typeof w.resetsAt === 'string' ? w.resetsAt : '',
-                localTokens: num0(w.localTokens),
-                localCost: num0(w.localCost),
+                localTokens: numOrNull(w.localTokens) ?? 0,
+                localCost: numOrNull(w.localCost) ?? 0,
                 method: w.method === 'sample' || w.method === 'live' ? w.method : 'none',
                 sampleAt: numOrNull(w.sampleAt),
                 confidence: w.confidence === 'high' || w.confidence === 'low' ? w.confidence : null,
@@ -1663,7 +1638,7 @@ window.__ModuleLoader__.load({
                 per1Cost: numOrNull(w.per1Cost),
                 fullTokens: numOrNull(w.fullTokens),
                 fullCost: numOrNull(w.fullCost),
-                sampleCount: num0(w.sampleCount),
+                sampleCount: numOrNull(w.sampleCount) ?? 0,
               }
             }
           }
@@ -1671,16 +1646,16 @@ window.__ModuleLoader__.load({
             for (const [wk, list] of Object.entries(raw.intervals)) {
               if (!Array.isArray(list)) continue
               intervals[wk] = list.filter(x => x !== null && typeof x === 'object' && !Array.isArray(x)).map(x => ({
-                t0: num0(x.t0), t1: num0(x.t1),
-                tokens: num0(x.tokens), cost: num0(x.cost), pct: num0(x.pct),
-                per1Tokens: num0(x.per1Tokens), per1Cost: num0(x.per1Cost),
+                t0: numOrNull(x.t0) ?? 0, t1: numOrNull(x.t1) ?? 0,
+                tokens: numOrNull(x.tokens) ?? 0, cost: numOrNull(x.cost) ?? 0, pct: numOrNull(x.pct) ?? 0,
+                per1Tokens: numOrNull(x.per1Tokens) ?? 0, per1Cost: numOrNull(x.per1Cost) ?? 0,
               }))
             }
           }
           providers[id] = { windows, intervals }
         }
       }
-      return { generatedAt: num0(v.generatedAt), providers }
+      return { generatedAt: numOrNull(v.generatedAt) ?? 0, providers }
     }
     function parseState(v, path) {
       if (v === null || typeof v !== 'object' || Array.isArray(v)) fail(path, 'object')
@@ -1689,16 +1664,13 @@ window.__ModuleLoader__.load({
         month: parseDay(v.month, path + '.month'),
         total: parseDay(v.total, path + '.total'),
         budgetUsed: typeof v.budgetUsed === 'number' && Number.isFinite(v.budgetUsed) ? v.budgetUsed : undefined,
-        balance: v.balance == null ? EMPTY_BAL : parseBalance(v.balance, path + '.balance'),
-        goQuota: v.goQuota == null ? EMPTY_GO : parseGoQuota(v.goQuota, path + '.goQuota'),
-        customBalance: v.customBalance == null ? emptyCustomSnapshot() : parseCustomBalance(v.customBalance, path + '.customBalance'),
+        balance: v.balance === undefined || v.balance === null ? { status: 'off', message: '', fetchedAt: 0, currency: '', totalBalance: 0, grantedBalance: 0, toppedUpBalance: 0 } : parseBalance(v.balance, path + '.balance'),
+        goQuota: v.goQuota === undefined || v.goQuota === null ? { status: 'off', message: '', fetchedAt: 0, rolling: null, weekly: null, monthly: null } : parseGoQuota(v.goQuota, path + '.goQuota'),
+        customBalance: v.customBalance === undefined || v.customBalance === null ? { status: 'off', message: '', fetchedAt: 0, label: '', unit: 'USD', remaining: 0, maxBudget: null, spend: null, index: null } : parseCustomBalance(v.customBalance, path + '.customBalance'),
         // 多配置形态(v1.7.0,issue #79):全部条目快照;缺失/畸形回落空数组
         // (旧宿主快照),渲染退化为旧单条 customBalance 镜像。
         customBalances: Array.isArray(v.customBalances)
           ? v.customBalances.filter(x => x !== null && typeof x === 'object').map((x, i) => parseCustomBalance(x, path + '.customBalances[' + i + ']'))
-          : [],
-        gatewayQuotas: Array.isArray(v.gatewayQuotas)
-          ? v.gatewayQuotas.filter(x => x !== null && typeof x === 'object' && !Array.isArray(x)).map((x, i) => parseGatewayQuota(x, path + '.gatewayQuotas[' + i + ']'))
           : [],
         // {{VAR}} 占位符凭据状态(v1.7.6,issue #86):缺失/畸形回落空对象(凭据输入区全部按未配置渲染)。
         customVarStatus: v.customVarStatus !== null && typeof v.customVarStatus === 'object' && !Array.isArray(v.customVarStatus)
@@ -1824,16 +1796,6 @@ window.__ModuleLoader__.load({
           id: 'dsh-cost-meter#costMeter/refreshCodingPlan', service: 'costMeter', namespace: 'costMeter', method: 'refreshCodingPlan',
           invocation: { kind: 'direct' },
           parameters: [{ name: 'provider', wire: 'provider', source: 'json', codec: { mode: 'strict', typeSymbol: 'dsh-cost-meter#CodingPlanProvider', schema: providerCodec } }],
-          result: { mode: 'strict', typeSymbol: 'dsh-cost-meter#FetchPricesResult', schema: fetchCodec },
-        },
-        {
-          id: 'dsh-cost-meter#costMeter/refreshGatewayQuota', service: 'costMeter', namespace: 'costMeter', method: 'refreshGatewayQuota',
-          invocation: { kind: 'direct' },
-          parameters: [{ name: 'sourceId', wire: 'sourceId', source: 'json', acceptsUndefined: true, codec: { mode: 'strict', typeSymbol: 'dsh-cost-meter#GatewayQuotaSourceId', schema: codecOf(v => {
-            if (v === undefined || v === null) return undefined
-            if (typeof v !== 'string' || v.length > 48 || !/^[a-z0-9][a-z0-9_-]*$/.test(v)) fail('sourceId', 'gateway source id')
-            return v
-          }) } }],
           result: { mode: 'strict', typeSymbol: 'dsh-cost-meter#FetchPricesResult', schema: fetchCodec },
         },
         {
@@ -2502,7 +2464,7 @@ window.__ModuleLoader__.load({
             ? t('credentialConfiguredOf', { source: typeof source === 'string' && source.length > 0 ? source : 'unknown' })
             : t('credentialNotConfigured')),
         el('span', { className: 'cm-hint' }, t('credentialInputHint')),
-        cmMsg(msg))
+        msg != null ? el('div', { className: 'cm-msg ' + msg.kind }, msg.text) : null)
     }
 
     /**
@@ -2988,7 +2950,7 @@ window.__ModuleLoader__.load({
     function CustomBalanceEntryRow(props) {
       const { state, wide, api, t, index, entry, snapshot } = props
       const config = state.config
-      const custom = snapshot ?? emptyCustomSnapshot(index)
+      const custom = snapshot ?? { status: 'off', message: '', fetchedAt: 0, label: '', unit: 'USD', remaining: 0, maxBudget: null, spend: null, index }
       if (custom.status === 'off') return null
       const refresh = useClickRefresh(api ? () => api.refreshCustomBalance(index) : null)
       const label = resolveCustomBalanceLabel(entry ?? config.customBalance ?? {}, resolveLocale(config?.locale))
@@ -5181,13 +5143,6 @@ window.__ModuleLoader__.load({
 
     // ── 余额面板(设置页,按 balance.display 配置挂载) ────────────────────────
 
-    const displayOptions = t => [
-      el('option', { value: 'sidebar' }, t('balanceSidebar')),
-      el('option', { value: 'settings' }, t('balanceSettings')),
-      el('option', { value: 'both' }, t('balanceBoth')),
-      el('option', { value: 'off' }, t('off')),
-    ]
-    const cmMsg = m => (m != null ? el('div', { className: 'cm-msg ' + m.kind }, m.text) : null)
     function BalancePanel(props) {
       const { state, api, t, draft, setDraft } = props
       const [busy, setBusy] = useState(false)
@@ -5235,7 +5190,7 @@ window.__ModuleLoader__.load({
         el('label', { className: 'cm-check' },
           el('input', { type: 'checkbox', checked: reconcileOn, onChange: toggleReconcile }),
           t('reconcileLabel')),
-        cmMsg(msg))
+        msg !== null ? el('div', { className: 'cm-msg ' + msg.kind }, msg.text) : null)
     }
 
     function CustomBalancePanel(props) {
@@ -5412,7 +5367,10 @@ window.__ModuleLoader__.load({
                 value: entry.display ?? 'both',
                 onChange: event => setField('display', event.target.value),
               },
-                ...displayOptions(t))),
+                el('option', { value: 'sidebar' }, t('balanceSidebar')),
+                el('option', { value: 'settings' }, t('balanceSettings')),
+                el('option', { value: 'both' }, t('balanceBoth')),
+                el('option', { value: 'off' }, t('off')))),
             el('div', { className: 'cm-field' },
               el('label', null, t('customBalanceRefreshInterval')),
               numInput({ value: entry.refreshMinutes ?? 15 }, v => setField('refreshMinutes', Math.min(1440, Math.max(1, Math.floor(v)))))),
@@ -5492,7 +5450,7 @@ window.__ModuleLoader__.load({
           el('span', null, t('enable'))),
         preview,
         configFields,
-        cmMsg(msg))
+        msg !== null ? el('div', { className: 'cm-msg ' + msg.kind }, msg.text) : null)
     }
 
     function GoQuotaPanel(props) {
@@ -5565,60 +5523,10 @@ window.__ModuleLoader__.load({
             el('span', null, t('enableGoQuota'))),
           el('button', { className: 'cm-btn small', onClick: doRefresh, disabled: busy || enabled === false }, busy ? t('refreshing') : t('refreshGoQuota'))),
         body,
-        cmMsg(msg))
+        msg !== null ? el('div', { className: 'cm-msg ' + msg.kind }, msg.text) : null)
     }
 
     // ── Coding Plan 额度面板(Anthropic / Z.ai·GLM / MiniMax,各家独立开关与凭据) ───
-
-    const GATEWAY_PROVIDERS = GATEWAY_PROVIDERS
-    const GATEWAY_PROVIDER_LABELS = { antigravity: 'Antigravity', claude: 'Claude', codex: 'Codex', kimi: 'Kimi', xai: 'xAI', workbuddy: 'WorkBuddy' }
-    const gatewayVarOf = (source, status) => {
-      if (typeof source?.keyVar === 'string' && source.keyVar.length > 0) return source.keyVar
-      const stem = String(source?.id ?? '').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'GATEWAY'
-      const prefix = 'CLIPROXYAPI_MANAGEMENT_KEY_' + stem
-      return Object.keys(status ?? {}).find(name => name === prefix || name.startsWith(prefix + '_')) ?? prefix
-    }
-    function GatewayQuotaPanel(props) {
-      const { state, api, t, draft, setDraft } = props
-      const [busyId, setBusyId] = useState(null)
-      const [msgs, setMsgs] = useState({})
-      const config = state.config
-      const base = draft ?? config
-      const sources = base.gatewayQuotas?.sources ?? []
-      const snapshots = Array.isArray(state.gatewayQuotas) ? state.gatewayQuotas : []
-      const write = next => { if (draft !== null) setDraft({ ...draft, gatewayQuotas: { ...(draft.gatewayQuotas ?? config.gatewayQuotas ?? {}), sources: next } }) }
-      const patch = (index, value) => write(sources.map((s, i) => i === index ? { ...s, ...value } : s))
-      const refresh = async id => {
-        if (busyId !== null) return
-        const saved = (config.gatewayQuotas?.sources ?? []).find(source => source.id === id)
-        if (!saved || saved.enabled !== true || saved.display === 'off') return
-        setBusyId(id); setMsgs(m => ({ ...m, [id]: null }))
-        try {
-          const result = await api.refreshGatewayQuota(id)
-          setMsgs(m => ({ ...m, [id]: { kind: result.ok ? 'ok' : 'err', text: result.message } }))
-        } catch (error) { setMsgs(m => ({ ...m, [id]: { kind: 'err', text: error?.message ?? String(error) } }))
-        } finally { setBusyId(null) }
-      }
-      const add = () => {
-        if (sources.length >= 4) return
-        const id = 'gateway-' + Date.now().toString(36)
-        write([...sources, { id, type: 'cliproxyapi', label: 'CLIProxyAPI', baseURL: 'http://127.0.0.1:8317', enabled: false, display: 'both', refreshMinutes: 15, includeProviders: GATEWAY_PROVIDERS, allowedHosts: [], allowInsecureHttp: false }])
-      }
-      const field = (label, value, onChange) => el('div', { className: 'cm-field' }, el('label', null, label), el('input', { className: 'cm-input', value: value ?? '', onChange }))
-      const windowRow = (window, index) => {
-        const view = miniMaxRow(window?.label || window?.id || t('gatewaySourceUnknown'), window, barDirectionOf(config, 'plan'))
-        return el(Fragment, { key: window?.id || index }, view.row, window?.resetsAt ? el('div', { className: 'cm-note' }, miniMaxResetText(window, t)) : null)
-      }
-      const pkgRow = pkg => el('div', { className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, pkg.label || 'package'), el('span', { className: 'cm-bbox-pct cm-num' }, (pkg.used ?? '—') + ' / ' + (pkg.limit ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, (pkg.remaining ?? '—') + ' remaining'))
-      const credits = value => value == null ? null : el(Fragment, null, el('div', { className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, value.unit || 'credits'), el('span', { className: 'cm-bbox-pct cm-num' }, (value.used ?? '—') + ' / ' + (value.limit ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, (value.remaining ?? '—') + ' remaining')), (value.packages ?? []).map(pkgRow))
-      const account = (a, index) => el('div', { key: a.id || index, className: 'cm-budget', style: { marginTop: '8px', padding: '10px 12px' } }, el('div', { className: 'cm-budget-head' }, el('strong', null, (GATEWAY_PROVIDER_LABELS[a.provider] ?? a.provider ?? t('gatewaySourceUnknown')) + ' · ' + (a.label || t('gatewaySourceUnknown'))), el('span', { className: 'cm-hint' }, a.status)), a.plan ? el('div', { className: 'cm-note' }, a.plan) : null, a.windows.length > 0 ? el('div', { className: 'cm-go-list' }, a.windows.map(windowRow)) : null, credits(a.credits), a.message ? el('div', { className: 'cm-note' }, a.message) : null)
-      const source = (s, index) => {
-        const live = snapshots.find(q => q.id === s.id) ?? { id: s.id, status: 'error', accounts: [], unsupportedProviders: [] }
-        const varName = gatewayVarOf(s, state.customVarStatus)
-        return el('div', { key: s.id || index, className: 'cm-budget', style: { marginTop: '8px' } }, el('div', { className: 'cm-budget-head' }, el('h3', { className: 'cm-h' }, s.label || s.id || t('gatewayQuotaTitle')), el('button', { className: 'cm-btn small', onClick: () => refresh(s.id), disabled: busyId !== null || s.enabled !== true }, busyId === s.id ? t('gatewaySourceRefreshing') : t('refreshGoQuota')), sources.length > 1 ? el('button', { className: 'cm-btn small', onClick: () => write(sources.filter((_, i) => i !== index)) }, t('gatewaySourceRemove')) : null), el('label', { className: 'cm-check' }, el('input', { type: 'checkbox', checked: s.enabled === true, onChange: e => patch(index, { enabled: e.target.checked }) }), t('gatewaySourceEnabled')), el('div', { className: 'cm-grid' }, field(t('gatewaySourceLabel'), s.label, e => patch(index, { label: e.target.value })), field(t('gatewaySourceBaseURL'), s.baseURL, e => patch(index, { baseURL: e.target.value })), el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceDisplay')), el('select', { className: 'cm-input', value: s.display ?? 'both', onChange: e => patch(index, { display: e.target.value }) }, ...displayOptions(t))), field(t('gatewaySourceAllowlist'), (s.allowedHosts ?? []).join(', '), e => patch(index, { allowedHosts: e.target.value.split(/[\s,;]+/).filter(Boolean) }))), varName ? el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceCredential')), el(CredentialField, { target: 'customVar:' + varName, configured: state.customVarStatus?.[varName]?.configured === true, source: state.customVarStatus?.[varName]?.source ?? '', t, api, placeholder: varName })) : null, el('div', { className: 'cm-note' }, t('gatewaySourceStatus') + ': ' + (live.status ?? t('gatewaySourceUnknown')) + (live.serverVersion ? ' · ' + live.serverVersion : '') + (live.fetchedAt > 0 ? ' · ' + t('gatewaySourceFetchedAt', { time: new Date(live.fetchedAt).toLocaleTimeString() }) : '') + (live.message ? ' · ' + live.message : '')), live.unsupportedProviders.length > 0 ? el('div', { className: 'cm-note' }, t('gatewaySourceUnsupported') + ': ' + live.unsupportedProviders.join(', ')) : null, live.accounts.length > 0 ? live.accounts.map(account) : el('div', { className: 'cm-bal-line' }, t('gatewaySourceNoAccounts')), msgs[s.id] ? el('div', { className: 'cm-msg ' + msgs[s.id].kind }, msgs[s.id].text) : null)
-      }
-      return el('div', { className: 'cm-budget' }, el('div', { className: 'cm-budget-head' }, el('h3', { className: 'cm-h' }, t('gatewayQuotaTitle')), el('button', { className: 'cm-btn small', onClick: add, disabled: sources.length >= 4 }, t('gatewaySourceAdd')), el('button', { className: 'cm-btn small', onClick: () => api.refreshGatewayQuota(), disabled: busyId !== null || sources.length === 0 }, busyId === null ? t('refreshGoQuota') : t('gatewaySourceRefreshing'))), el('p', { className: 'cm-note' }, t('gatewayQuotaNote')), sources.length === 0 ? el('p', { className: 'cm-hint' }, t('gatewaySourceEmpty')) : sources.map(source))
-    }
 
     const CODING_PLAN_ROWS = [
       { id: 'anthropic', labelKey: 'codingPlanAnthropic' },
@@ -6167,7 +6075,7 @@ window.__ModuleLoader__.load({
             }, label))),
           saveBadge),
         // 操作结果提示(价格同步/历史导入/清除):全局展示,不随触发按钮所在标签页。
-        cmMsg(message),
+        message !== null ? el('div', { className: 'cm-msg ' + message.kind }, message.text) : null,
         // ── 概览:汇总卡片、今日会话、预算、官方余额 ──
         tab === 'overview' ? el(Fragment, { key: 'overview' },
         // 汇总卡片(今日卡片受 hideTodayCost 门控,issue #46;金额为真金白银口径,issue #64)
@@ -6233,9 +6141,8 @@ window.__ModuleLoader__.load({
           ? el(BalancePanel, { state, api, t, draft, setDraft })
           : null)
         : null,
-        // ── 额度:Gateway、OpenCode Go、Coding Plan、自定义 Provider 余额 ──
+        // ── 额度:OpenCode Go、Coding Plan、自定义 Provider 余额 ──
         tab === 'quotas' ? el(Fragment, { key: 'quotas' },
-        el(GatewayQuotaPanel, { state, api, t, draft, setDraft }),
         // OpenCode Go 订阅额度(含启用开关,像预算面板一样常驻)
         el(GoQuotaPanel, { state, api, t, draft, setDraft }),
         // Coding Plan 额度(Anthropic / Z.ai·GLM / MiniMax,各家独立开关)
@@ -6395,7 +6302,10 @@ window.__ModuleLoader__.load({
                   setDraft({ ...draft, balance: { ...(draft.balance ?? { display: 'both', refreshMinutes: 5 }), display: event.target.value } })
                 },
               },
-                ...displayOptions(t))),
+                el('option', { value: 'sidebar' }, t('balanceSidebar')),
+                el('option', { value: 'settings' }, t('balanceSettings')),
+                el('option', { value: 'both' }, t('balanceBoth')),
+                el('option', { value: 'off' }, t('off')))),
             el('div', { className: 'cm-field' },
               el('label', null, t('refreshIntervalLabel')),
               numInput({ value: draft?.balance?.refreshMinutes ?? 5 }, v => {
@@ -6447,7 +6357,10 @@ window.__ModuleLoader__.load({
                   setDraft({ ...draft, customBalance: { ...(draft.customBalance ?? config.customBalance ?? {}), display: event.target.value } })
                 },
               },
-                ...displayOptions(t))),
+                el('option', { value: 'sidebar' }, t('balanceSidebar')),
+                el('option', { value: 'settings' }, t('balanceSettings')),
+                el('option', { value: 'both' }, t('balanceBoth')),
+                el('option', { value: 'off' }, t('off')))),
             el('div', { className: 'cm-field' },
               el('label', null, t('customBalanceRefreshInterval')),
               numInput({ value: draft?.customBalance?.refreshMinutes ?? config.customBalance?.refreshMinutes ?? 15 }, v => {
@@ -6464,7 +6377,10 @@ window.__ModuleLoader__.load({
                   setDraft({ ...draft, goQuota: { ...(draft.goQuota ?? { display: 'both', refreshMinutes: 15, apiKey: '' }), display: event.target.value } })
                 },
               },
-                ...displayOptions(t))),
+                el('option', { value: 'sidebar' }, t('balanceSidebar')),
+                el('option', { value: 'settings' }, t('balanceSettings')),
+                el('option', { value: 'both' }, t('balanceBoth')),
+                el('option', { value: 'off' }, t('off')))),
             el('div', { className: 'cm-field' },
               el('label', null, t('goMainLabel')),
               el('select', {
@@ -6846,16 +6762,6 @@ window.__ModuleLoader__.load({
           if (result.value.state !== undefined) store.set({ status: 'ready', error: null, state: result.value.state })
           return result.value
         },
-        refreshGatewayQuota: async (sourceId = null) => {
-          const result = sourceId === null || sourceId === undefined
-            ? await costMeter.refreshGatewayQuota()
-            : await costMeter.refreshGatewayQuota(sourceId)
-          if (result === null || typeof result !== 'object' || result.ok !== true) {
-            throw new Error(result?.error?.message ?? rpcT()('rpcSyncFailed'))
-          }
-          if (result.value.state !== undefined) store.set({ status: 'ready', error: null, state: result.value.state })
-          return result.value
-        },
         refreshCustomBalance: async (index = null) => {
           // index(v1.7.0,issue #79):多配置形态下刷新指定条目;缺省全量(旧单条行为)。
           const result = index === null || index === undefined
@@ -6900,37 +6806,65 @@ window.__ModuleLoader__.load({
       if (slots === undefined) return
 
       const injected = () => ({ hooks: { cost: store }, api })
-      // 通用插槽注册去重:共享「失效旧注册→bump gen→注入→生成期护栏→记录 dispose→卸载清理」逻辑。
-      const slotActive = () => ({ gen: 0, dispose: null })
-      const registerSlot = (active, slotName, options, component, enabled = true) => {
-        if (active.dispose !== null) { active.dispose(); active.dispose = null }
-        active.gen += 1
-        const gen = active.gen
-        if (!enabled) return
+
+      // 会话徽章按配置位置注册;配置变化时先撤销旧注册再重建。
+      const sessionActive = { gen: 0, dispose: null }
+      const registerSession = position => {
+        if (sessionActive.dispose !== null) { sessionActive.dispose(); sessionActive.dispose = null }
+        sessionActive.gen += 1
+        const gen = sessionActive.gen
+        if (position === 'off') return
+        const slotName = position === 'header' ? 'conversation.session.header.actions' : 'conversation.composer.dock'
+        const options = position === 'header'
+          ? { name: slotName, id: 'cost-meter', order: -5, inject: injected }
+          : { name: slotName, id: 'cost-meter', order: 5, inject: injected }
         slots.inject(slotName, () => {
-          if (active.gen !== gen) return
-          const dispose = typeof options === 'function' ? options() : slots.register(options, component)
-          if (active.gen !== gen) { dispose(); return }
-          active.dispose = dispose
-          return () => { if (active.dispose === dispose) active.dispose = null; dispose() }
+          if (sessionActive.gen !== gen) return
+          const dispose = slots.register(options, position === 'header' ? SessionCost : DockLine)
+          if (sessionActive.gen !== gen) { dispose(); return }
+          sessionActive.dispose = dispose
+          return () => {
+            if (sessionActive.dispose === dispose) sessionActive.dispose = null
+            dispose()
+          }
+        })
+      }
+      const footerActive = { gen: 0, dispose: null }
+      const registerFooter = enabled => {
+        if (footerActive.dispose !== null) { footerActive.dispose(); footerActive.dispose = null }
+        footerActive.gen += 1
+        const gen = footerActive.gen
+        if (!enabled) return
+        slots.inject('sidebar.footer.action', () => {
+          if (footerActive.gen !== gen) return
+          const dispose = slots.register({ name: 'sidebar.footer.action', id: 'cost-meter', order: 0, inject: injected }, SidebarFooter)
+          if (footerActive.gen !== gen) { dispose(); return }
+          footerActive.dispose = dispose
+          return () => {
+            if (footerActive.dispose === dispose) footerActive.dispose = null
+            dispose()
+          }
+        })
+      }
+      // 右下角(dock)的 Go 额度 / 预算 chips:独立于会话费用位置,按 corner.enabled 开关。
+      const cornerActive = { gen: 0, dispose: null }
+      const registerCorner = enabled => {
+        if (cornerActive.dispose !== null) { cornerActive.dispose(); cornerActive.dispose = null }
+        cornerActive.gen += 1
+        const gen = cornerActive.gen
+        if (!enabled) return
+        slots.inject('conversation.composer.dock', () => {
+          if (cornerActive.gen !== gen) return
+          const dispose = slots.register({ name: 'conversation.composer.dock', id: 'cost-meter-corner', order: 9, inject: injected }, CornerChips)
+          if (cornerActive.gen !== gen) { dispose(); return }
+          cornerActive.dispose = dispose
+          return () => {
+            if (cornerActive.dispose === dispose) cornerActive.dispose = null
+            dispose()
+          }
         })
       }
 
-      // 会话徽章按配置位置注册;配置变化时先撤销旧注册再重建。
-      const sessionActive = slotActive()
-      const registerSession = position => {
-        const slotName = position === 'header' ? 'conversation.session.header.actions' : 'conversation.composer.dock'
-        const options = position === 'header' ? { name: slotName, id: 'cost-meter', order: -5, inject: injected } : { name: slotName, id: 'cost-meter', order: 5, inject: injected }
-        registerSlot(sessionActive, slotName, options, position === 'header' ? SessionCost : DockLine, position !== 'off')
-      }
-      const footerActive = slotActive()
-      const registerFooter = enabled => {
-        registerSlot(footerActive, 'sidebar.footer.action', { name: 'sidebar.footer.action', id: 'cost-meter', order: 0, inject: injected }, SidebarFooter, enabled)
-      }
-      const cornerActive = slotActive()
-      const registerCorner = enabled => {
-        registerSlot(cornerActive, 'conversation.composer.dock', { name: 'conversation.composer.dock', id: 'cost-meter-corner', order: 9, inject: injected }, CornerChips, enabled)
-      }
       // 输入框上方额度横条(conversation.input.dock 渲染于输入卡片上方):静态注册,
       // 组件内部按 quotaStrip.enabled 门控,无可用数据时整条隐藏。
       slots.inject('conversation.input.dock', () => {
@@ -6961,10 +6895,24 @@ window.__ModuleLoader__.load({
       // sidebar.footer.action 插槽——conversation.composer.dock 仅在有活跃会话的页面渲染,
       // 挂那里会导致 hero/设置页不弹提醒、预览按钮失效(issue:预览点了没反应)。
       // 组件内部再按配置门控(peakAlertEnabled + peakEnabled);开关变化时重挂/卸载。
-      const peakAlertActive = slotActive()
+      const peakAlertActive = { gen: 0, dispose: null }
       const registerPeakAlert = enabled => {
-        registerSlot(peakAlertActive, 'sidebar.footer.action', () => slots.register({ name: 'sidebar.footer.action', id: 'cost-meter-peak-alert', order: 0, inject: injected }, PeakAlert), null, enabled)
+        if (peakAlertActive.dispose !== null) { peakAlertActive.dispose(); peakAlertActive.dispose = null }
+        peakAlertActive.gen += 1
+        const gen = peakAlertActive.gen
+        if (!enabled) return
+        slots.inject('sidebar.footer.action', () => {
+          if (peakAlertActive.gen !== gen) return
+          const dispose = slots.register({ name: 'sidebar.footer.action', id: 'cost-meter-peak-alert', order: 0, inject: injected }, PeakAlert)
+          if (peakAlertActive.gen !== gen) { dispose(); return }
+          peakAlertActive.dispose = dispose
+          return () => {
+            if (peakAlertActive.dispose === dispose) peakAlertActive.dispose = null
+            dispose()
+          }
+        })
       }
+
       // 预览 API 在 activate 顶层注册(不依赖任何插槽挂载):设置页按钮与控制台均经
       // 此入口派发事件;弹窗宿主组件挂载时置 __cmPeakAlertLive,未挂载时给出可诊断提示。
       window.cmPeakAlertPreview = kind => {
@@ -6977,20 +6925,72 @@ window.__ModuleLoader__.load({
       }
 
       // 设置页「费用/Cost」分节:语言变化时撤销旧注册并重建,让侧边栏标签同步。
-      const sectionActive = slotActive()
+      const sectionActive = { gen: 0, dispose: null }
       const registerSection = locale => {
-        registerSlot(sectionActive, 'settings.section', { name: 'settings.section', id: 'cost-meter', order: 30, label: locale === 'en' ? MESSAGES.en.sectionLabel : MESSAGES.zh.sectionLabel, inject: injected }, CostSection, true)
+        if (sectionActive.dispose !== null) { sectionActive.dispose(); sectionActive.dispose = null }
+        sectionActive.gen += 1
+        const gen = sectionActive.gen
+        slots.inject('settings.section', () => {
+          if (sectionActive.gen !== gen) return
+          const dispose = slots.register({
+            name: 'settings.section',
+            id: 'cost-meter',
+            order: 30,
+            label: locale === 'en' ? MESSAGES.en.sectionLabel : MESSAGES.zh.sectionLabel,
+            inject: injected,
+          }, CostSection)
+          if (sectionActive.gen !== gen) { dispose(); return }
+          sectionActive.dispose = dispose
+          return () => {
+            if (sectionActive.dispose === dispose) sectionActive.dispose = null
+            dispose()
+          }
+        })
       }
+
       // Token 用量统计「通用设置」行(position = general 时,注入宿主通用设置页的 settings.general.item 插槽)。
-      const generalUsageActive = slotActive()
+      const generalUsageActive = { gen: 0, dispose: null }
       const registerGeneralUsage = enabled => {
-        registerSlot(generalUsageActive, 'settings.general.item', { name: 'settings.general.item', id: 'cost-meter-usage', order: 30, inject: injected }, UsagePanel, enabled)
+        if (generalUsageActive.dispose !== null) { generalUsageActive.dispose(); generalUsageActive.dispose = null }
+        generalUsageActive.gen += 1
+        const gen = generalUsageActive.gen
+        if (!enabled) return
+        slots.inject('settings.general.item', () => {
+          if (generalUsageActive.gen !== gen) return
+          const dispose = slots.register({ name: 'settings.general.item', id: 'cost-meter-usage', order: 30, inject: injected }, UsagePanel)
+          if (generalUsageActive.gen !== gen) { dispose(); return }
+          generalUsageActive.dispose = dispose
+          return () => {
+            if (generalUsageActive.dispose === dispose) generalUsageActive.dispose = null
+            dispose()
+          }
+        })
       }
       // Token 用量统计「独立分节」(position = section 时,像「费用」一样拥有自己的设置导航项)。
-      const usageSectionActive = slotActive()
+      const usageSectionActive = { gen: 0, dispose: null }
       const registerUsageSection = (enabled, locale) => {
-        registerSlot(usageSectionActive, 'settings.section', { name: 'settings.section', id: 'cost-meter-usage', order: 31, label: locale === 'en' ? MESSAGES.en.usageSectionLabel : MESSAGES.zh.usageSectionLabel, inject: injected }, UsagePanel, enabled)
+        if (usageSectionActive.dispose !== null) { usageSectionActive.dispose(); usageSectionActive.dispose = null }
+        usageSectionActive.gen += 1
+        const gen = usageSectionActive.gen
+        if (!enabled) return
+        slots.inject('settings.section', () => {
+          if (usageSectionActive.gen !== gen) return
+          const dispose = slots.register({
+            name: 'settings.section',
+            id: 'cost-meter-usage',
+            order: 31,
+            label: locale === 'en' ? MESSAGES.en.usageSectionLabel : MESSAGES.zh.usageSectionLabel,
+            inject: injected,
+          }, UsagePanel)
+          if (usageSectionActive.gen !== gen) { dispose(); return }
+          usageSectionActive.dispose = dispose
+          return () => {
+            if (usageSectionActive.dispose === dispose) usageSectionActive.dispose = null
+            dispose()
+          }
+        })
       }
+
       let lastPosition = null
       let lastFooter = null
       let lastCorner = null

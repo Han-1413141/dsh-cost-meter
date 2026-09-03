@@ -4,10 +4,6 @@
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
 
-## v1.7.8(2026-09-03)—— 🌐 CLIProxyAPI 网关额度适配层(issue #87 / PR #90)
-- **新功能**:经 CLIProxyAPI Management API 查询多账号多 Provider 额度——Antigravity(5h/weekly)、Claude(5h/7d/模型周窗)、Codex、Kimi、xAI、WorkBuddy 六家适配器;额度页新增「网关额度」面板,Management key 走凭据库 write-only 输入,loopback 默认放行/远程须白名单;last-known-good 缓存与逐账号容错。
-- **安全边界**:token 永不进插件($TOKEN$ 在 CPA 侧替换)、副作用端点(消费/补全)硬闸拒发、响应 256KB 上限、错误消息脱敏;合并前审查实装了副作用闸门并补行为测试。
-
 ## v1.7.7(2026-09-02)—— 🩹 大日志回填 OOM 修复 + 对账口径修复(issue #88/#89)
 - **P0 修复**:168MB(压缩后)的会话日志在启动回填时把 Electron 主进程堆耗尽(整体卡死后崩溃)。回填链路全部改为流式:分块读入、按帧边界增量解压、逐帧释放,回填期间 UI 不再卡死;巨长打包行经头部探针直接跳过;单文件解压超 4GB 按损坏文件跳过(防解压炸弹)。
 - **对账修复**:赠送余额当日到期归零时,「官方余额当日变动」会把整块赠送失效金额当成消费,金额虚高数倍——现在该日重置基准不对账,次日起从零余额继续对账。
