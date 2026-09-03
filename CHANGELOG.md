@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.11] - 2026-09-03
+
+### 网关额度(CLIProxyAPI)设置 UI 修复
+
+- **仅剩一个来源时删不掉**:「删除来源」按钮此前仅在来源数 > 1 时渲染,最后一个来源永远删不掉、面板删不空。现在按钮始终渲染,可一路删到 0,面板回到「尚未配置网关来源」空态。
+- **来源卡片一直展开占位**:每张来源卡片改为可折叠——标题行三角展开/收起,默认收起只占一行,收起时标题旁显示该来源的实时状态;「添加来源」新增的卡片自动展开便于直接填写。与历史 / 价格表等折叠面板同一交互(`collapseHeader`)。
+- **补漏**:`gatewaySourceFetchedAt` 文案键此前缺失,状态行里的抓取时间会直接显示键名;现补上中英文案。顺带删除客户端字典里从未使用的 `credentialUnknownTarget`(宿主侧另有带 `{target}` 插值的同名文案,客户端这份是死键),并把六处重复的折叠标题行 JSX 合并为 `collapseHeader` 助手——客户端 bundle 有 262,144 字节的 DSH STORE 单文件上限,本次修复后 261,598 字节。
+
+### install-smoke 窗口期误红修复
+
+Windows leg 跑 `install.ps1`,而脚本固定到发布 tag——发版链合入 master 到 tag 推送之间有一个「tag 尚不存在」的窗口(v1.7.10 实测:合并后 18 分钟才补 tag,CI 已红)。现 install-smoke 优先安装固定 tag;tag 未推送时退回本次被测提交 SHA 冒烟并在日志明示。`install.ps1` 新增 `-Rev` 参数供 CI 覆盖安装 rev,默认行为不变(仍固定 tag)。
+
 ## [1.7.10] - 2026-09-03
 
 ### 紧急修复:v1.7.9 浏览器端 bundle 仍然 TDZ 崩溃(第二个 Ge)
@@ -11,8 +23,6 @@
 **修复**:改为与服务端 `lib/store.js` 的 `GATEWAY_PROVIDER_IDS` 完全一致的六家字面量数组(antigravity / claude / codex / kimi / xai / workbuddy);重建 `lib/client.js`(262074 bytes,仍在 262144 DSH STORE 上限内)。
 
 **验证**:新增浏览器端 bundle **执行**门禁——vm 内用良性 DOM 桩真正执行 bundle 顶层并全程求值 factory,任何初始化期引用错误(自引用 const / 顶层 use-before-init)当场失败;v1.7.9 形态在此门禁下必崩(已复现),修复后全量测试绿。
-
-# Changelog
 
 ## [1.7.9] - 2026-09-03
 
@@ -29,8 +39,6 @@
 ### gateway 功能重新合入
 
 v1.7.8 的 CLIProxyAPI 网关额度层(六家 Provider + WorkBuddy,详见 1.7.8 条目)在破环修复之上重新 cherry-pick 合入,功能与 1.7.8 完全一致。发布顺序:master 先 revert 到 v1.7.7(0ddcbe6,恢复用户可用)→ 破环修复(b095a36)→ gateway 两个提交重新合入。
-
-# Changelog
 
 ## [1.7.8] - 2026-09-03
 
@@ -58,8 +66,6 @@ v1.7.8 的 CLIProxyAPI 网关额度层(六家 Provider + WorkBuddy,详见 1.7.8 
 
 - verify.mjs 新增两大块(纯 parser/registry/负边界 + 宿主传输安全/鉴权失败/redirect 拒绝/畸形 auth/WorkBuddy + 副作用闸门);双时区全量通过;dsh web 实机启动冒烟通过。
 
-# Changelog
-
 ## [1.7.7] - 2026-09-02
 
 ### 修复(issue #88:大日志回填 OOM;issue #89:对账余额变动口径)
@@ -76,8 +82,6 @@ v1.7.8 的 CLIProxyAPI 网关额度层(六家 Provider + WorkBuddy,详见 1.7.8 
 - verify.mjs 新增回归块(19-1/19-2/19-3):打包行探针行为、流式迭代器语义(多帧跨块行/解压预算抛错/结构损坏停止/打包行过滤)、大日志流式回归(500 事件+500 打包行,只保留事件行);对账新增赠送归零日重置 + granted 剩余场景两用例。
 - 双时区全量通过;`dsh web` 实机启动冒烟通过;lib/client.js 无变化(262,062 字节)。
 
-# Changelog
-
 ## [1.7.6] - 2026-09-01
 
 ### 安全与体验(issue #86:自定义余额凭据治理)
@@ -93,8 +97,6 @@ v1.7.8 的 CLIProxyAPI 网关额度层(六家 Provider + WorkBuddy,详见 1.7.8 
 - verify.mjs 新增回归块(18-1/18-1b/18-2/18-3/18-4/18-5):启发式判定、脱敏三路径(落盘/下发/补丁,含旧单条键)、迁移三路径(成功/已配置/不可写)+ 幂等、customVar e2e(写入/非法名/保留前缀/内置冲突/移除/状态下发)、外带防护覆盖明文 key、客户端与 schema 接线。
 - 全量通过(TZ=本地 +8 与 TZ=UTC 双跑);`dsh web` 实机启动冒烟通过(端口 3998/3999,插件加载无报错);lib/client.js 重建 262,062 字节(上限 262,144)。
 - 构建脚本字节口径统一:build.mjs 改用 UTF-8 字节(与 verify.mjs 门禁一致,此前为 UTF-16 字符数,中文文案下两者有差)。
-
-# Changelog
 
 ## [1.7.5] - 2026-09-01
 

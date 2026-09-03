@@ -142,6 +142,20 @@ console.log('[ok] 浏览器端 bundle 语法门禁(client.js vm 编译)通过')
   console.log('[ok] 浏览器端 bundle 执行门禁(client.js factory 全程求值,初始化期 TDZ 当场失败)通过')
 }
 
+// 网关额度设置 UI 回归(v1.7.11 修复,用户实测):「删除来源」按钮不得再带
+// sources.length > 1 门控(v1.7.10 及之前仅剩一个来源时按钮不渲染、删不掉);
+// 来源卡片标题行必须走折叠头部(默认收起,收起时标题旁显示状态);
+// gatewaySourceFetchedAt 文案键必须中英都在(此前缺失,状态行直接显示键名)。
+// 断言打在 src 源码上;bundle 与 src 的逐字节同步由 CI 的 rebuild-diff 门禁保证。
+{
+  const clientSrc = readFileSync(new URL('../src/client.js', import.meta.url), 'utf8')
+  assert.ok(!clientSrc.includes("sources.length > 1 ? el('button'"), 'gateway 删除来源按钮不再按数量门控(单来源可删)')
+  assert.ok(/collapseHeader\(open, \(\) => toggleSource\(s\.id\)/.test(clientSrc), 'gateway 来源卡片标题行走折叠头部(collapseHeader)')
+  assert.ok(clientSrc.includes("gatewaySourceFetchedAt: '抓取于 {time}'"), 'gatewaySourceFetchedAt 中文文案存在')
+  assert.ok(clientSrc.includes("gatewaySourceFetchedAt: 'fetched {time}'"), 'gatewaySourceFetchedAt 英文文案存在')
+  console.log('[ok] 网关额度设置 UI 回归(单来源可删 + 折叠标题行 + fetchedAt 文案)通过')
+}
+
 const BOUNDARY_MS = Date.parse(LEGACY_BASE_BOUNDARY)
 const peakCfg = {
   enabled: true,

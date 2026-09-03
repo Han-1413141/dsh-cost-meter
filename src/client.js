@@ -494,7 +494,6 @@ window.__ModuleLoader__.load({
         credentialSaving: '保存中…',
         credentialInputHint: '密钥只写入 DSH 凭据库,不保存在账本里,也不会回显。',
         secretMigrationPending: '以下密钥仍以明文留在本地账本,未能自动迁入凭据库。请导出对应环境变量后重启:',
-        credentialUnknownTarget: '未知的密钥目标',
         budgetDetailLabel: '预算图框详细信息',
         refreshGoQuota: '刷新额度',
         goQuotaNotQueried: '未查询额度',
@@ -519,7 +518,7 @@ window.__ModuleLoader__.load({
         codingPlanRefreshIntervalLabel: '刷新间隔(分钟)',
         refreshCodingPlan: '刷新',
         codingPlanNotQueried: '未查询额度',
-        gatewayQuotaTitle: 'CLIProxyAPI 网关额度', gatewayQuotaNote: '只读查询网关 Provider 额度；Management Key 仅写入凭据库。', gatewaySourceAdd: '添加来源', gatewaySourceRemove: '删除来源', gatewaySourceEmpty: '尚未配置网关来源', gatewaySourceEnabled: '启用来源', gatewaySourceLabel: '来源名称', gatewaySourceBaseURL: 'Base URL', gatewaySourceDisplay: '显示位置', gatewaySourceAllowlist: '允许的 Host', gatewaySourceCredential: 'Management Key(只写)', gatewaySourceStatus: '状态', gatewaySourceUnsupported: '不支持的 Provider', gatewaySourceUnknown: '未知', gatewaySourceNoAccounts: '未发现账号', gatewaySourceRefreshing: '刷新中…',
+        gatewayQuotaTitle: 'CLIProxyAPI 网关额度', gatewayQuotaNote: '只读查询网关 Provider 额度；Management Key 仅写入凭据库。', gatewaySourceAdd: '添加来源', gatewaySourceRemove: '删除来源', gatewaySourceEmpty: '尚未配置网关来源', gatewaySourceEnabled: '启用来源', gatewaySourceLabel: '来源名称', gatewaySourceBaseURL: 'Base URL', gatewaySourceDisplay: '显示位置', gatewaySourceAllowlist: '允许的 Host', gatewaySourceCredential: 'Management Key(只写)', gatewaySourceStatus: '状态', gatewaySourceUnsupported: '不支持的 Provider', gatewaySourceUnknown: '未知', gatewaySourceNoAccounts: '未发现账号', gatewaySourceRefreshing: '刷新中…', gatewaySourceFetchedAt: '抓取于 {time}',
          codingPlanDisabledNote: '未启用。开启后将按刷新间隔查询该厂商的 coding plan 额度并显示在这里。',
         goQuotaDisabledNote: '未启用额度。开启后将读取 OpenCode Go 订阅额度(滚动 5 小时 / 本周 / 本月)并显示在侧边栏图框、设置页与右下角;没有 Go 订阅时会在这里提示原因。',
         cornerLabel: '右下角显示(dock)',
@@ -937,7 +936,6 @@ window.__ModuleLoader__.load({
         credentialSaving: 'Saving…',
         credentialInputHint: 'The key is written to the DSH credential store only — it is never saved in the ledger and never echoed back.',
         secretMigrationPending: 'These credentials are still stored in plaintext in the local ledger and could not be migrated automatically. Export the matching environment variables and restart:',
-        credentialUnknownTarget: 'Unknown credential target',
         budgetDetailLabel: 'Budget box details',
         refreshGoQuota: 'Refresh quota',
         goQuotaNotQueried: 'Quota not queried',
@@ -962,7 +960,7 @@ window.__ModuleLoader__.load({
         codingPlanRefreshIntervalLabel: 'Refresh interval (minutes)',
         refreshCodingPlan: 'Refresh',
         codingPlanNotQueried: 'Quota not queried',
-        gatewayQuotaTitle: 'CLIProxyAPI gateway quotas', gatewayQuotaNote: 'Read-only gateway provider quotas; management keys are write-only.', gatewaySourceAdd: 'Add source', gatewaySourceRemove: 'Remove source', gatewaySourceEmpty: 'No gateway source configured', gatewaySourceEnabled: 'Enable source', gatewaySourceLabel: 'Source label', gatewaySourceBaseURL: 'Base URL', gatewaySourceDisplay: 'Display', gatewaySourceAllowlist: 'Allowed hosts', gatewaySourceCredential: 'Management key (write-only)', gatewaySourceStatus: 'Status', gatewaySourceUnsupported: 'Unsupported providers', gatewaySourceUnknown: 'Unknown', gatewaySourceNoAccounts: 'No accounts', gatewaySourceRefreshing: 'Refreshing…',
+        gatewayQuotaTitle: 'CLIProxyAPI gateway quotas', gatewayQuotaNote: 'Read-only gateway provider quotas; management keys are write-only.', gatewaySourceAdd: 'Add source', gatewaySourceRemove: 'Remove source', gatewaySourceEmpty: 'No gateway source configured', gatewaySourceEnabled: 'Enable source', gatewaySourceLabel: 'Source label', gatewaySourceBaseURL: 'Base URL', gatewaySourceDisplay: 'Display', gatewaySourceAllowlist: 'Allowed hosts', gatewaySourceCredential: 'Management key (write-only)', gatewaySourceStatus: 'Status', gatewaySourceUnsupported: 'Unsupported providers', gatewaySourceUnknown: 'Unknown', gatewaySourceNoAccounts: 'No accounts', gatewaySourceRefreshing: 'Refreshing…', gatewaySourceFetchedAt: 'fetched {time}',
          codingPlanDisabledNote: 'Disabled. Enable it to query this vendor\'s coding plan quota on the refresh interval and show it here.',
         goQuotaDisabledNote: 'Quota disabled. Enable it to read the OpenCode Go subscription quota (rolling 5h / weekly / monthly) and show it in the sidebar box, Settings page and bottom-right corner; if you have no Go subscription, the reason will be shown here.',
         cornerLabel: 'Bottom-right (dock) display',
@@ -4147,6 +4145,9 @@ window.__ModuleLoader__.load({
         el('p', { className: 'cm-card-sub' }, props.sub))
     }
 
+    /** 折叠面板标题行:三角箭头 + 标题,aria-expanded 随 open 翻转(配合 .cm-collapse-h / .cm-caret 样式)。 */
+    const collapseHeader = (open, onClick, title) => el('button', { type: 'button', className: 'cm-collapse-h', 'aria-expanded': String(open), onClick }, el('span', { className: 'cm-caret' + (open ? ' open' : '') }), el('h3', { className: 'cm-h' }, title))
+
     // 历史记录折叠面板(issue #22):三角展开/收起,内部为按天表格(日期行再展开会话明细)。
     function HistoryPanel(props) {
       const { state, api } = props
@@ -4154,9 +4155,7 @@ window.__ModuleLoader__.load({
       const [open, setOpen] = useState(false)
       return el('div', { className: 'cm-budget' },
         el('div', { className: 'cm-budget-head' },
-          el('button', { type: 'button', className: 'cm-collapse-h', 'aria-expanded': String(open), onClick: () => setOpen(!open) },
-            el('span', { className: 'cm-caret' + (open ? ' open' : '') }),
-            el('h3', { className: 'cm-h' }, t('history')))),
+          collapseHeader(open, () => setOpen(!open), t('history'))),
         open ? el('div', { className: 'cm-collapse-body' }, el(HistoryTable, { state, api })) : null)
     }
 
@@ -4279,9 +4278,7 @@ window.__ModuleLoader__.load({
       }
       return el('div', { className: 'cm-budget' },
         el('div', { className: 'cm-budget-head' },
-          el('button', { type: 'button', className: 'cm-collapse-h', 'aria-expanded': String(open), onClick: toggle },
-            el('span', { className: 'cm-caret' + (open ? ' open' : '') }),
-            el('h3', { className: 'cm-h' }, t('sessionRankTitle')))),
+          collapseHeader(open, toggle, t('sessionRankTitle'))),
         open ? el('div', { className: 'cm-collapse-body' },
           el('p', { className: 'cm-hint' }, t('sessionRankHint')),
           el('div', { style: { display: 'flex', gap: '12px', flexWrap: 'wrap', margin: '6px 0' } },
@@ -4925,9 +4922,7 @@ window.__ModuleLoader__.load({
         el('span', { className: 'cm-mstats-val' }, valueText))
       return el('div', { className: 'cm-budget' },
         el('div', { className: 'cm-budget-head' },
-          el('button', { type: 'button', className: 'cm-collapse-h', 'aria-expanded': String(open), onClick: () => setOpen(!open) },
-            el('span', { className: 'cm-caret' + (open ? ' open' : '') }),
-            el('h3', { className: 'cm-h' }, t('modelStatsTitle')))),
+          collapseHeader(open, () => setOpen(!open), t('modelStatsTitle'))),
         open ? el('div', { className: 'cm-collapse-body' },
         el('div', { className: 'cm-mstats-tabs' },
           tabBtn('today', t('modelStatsToday')),
@@ -5076,9 +5071,7 @@ window.__ModuleLoader__.load({
       }, label)
       return el('div', { className: 'cm-budget' },
         el('div', { className: 'cm-budget-head' },
-          el('button', { type: 'button', className: 'cm-collapse-h', 'aria-expanded': String(open), onClick: () => setOpen(!open) },
-            el('span', { className: 'cm-caret' + (open ? ' open' : '') }),
-            el('h3', { className: 'cm-h' }, t('planStatsTitle')))),
+          collapseHeader(open, () => setOpen(!open), t('planStatsTitle'))),
         open ? el('div', { className: 'cm-collapse-body' },
           providerIds.length === 0
             ? el('p', { className: 'cm-empty' }, t('planStatsEmpty'))
@@ -5582,12 +5575,15 @@ window.__ModuleLoader__.load({
       const { state, api, t, draft, setDraft } = props
       const [busyId, setBusyId] = useState(null)
       const [msgs, setMsgs] = useState({})
+      // 来源卡片展开状态:默认折叠(只占标题一行),新增来源时自动展开便于填写。
+      const [openIds, setOpenIds] = useState({})
       const config = state.config
       const base = draft ?? config
       const sources = base.gatewayQuotas?.sources ?? []
       const snapshots = Array.isArray(state.gatewayQuotas) ? state.gatewayQuotas : []
       const write = next => { if (draft !== null) setDraft({ ...draft, gatewayQuotas: { ...(draft.gatewayQuotas ?? config.gatewayQuotas ?? {}), sources: next } }) }
       const patch = (index, value) => write(sources.map((s, i) => i === index ? { ...s, ...value } : s))
+      const toggleSource = id => setOpenIds(m => ({ ...m, [id]: m[id] !== true }))
       const refresh = async id => {
         if (busyId !== null) return
         const saved = (config.gatewayQuotas?.sources ?? []).find(source => source.id === id)
@@ -5602,6 +5598,7 @@ window.__ModuleLoader__.load({
       const add = () => {
         if (sources.length >= 4) return
         const id = 'gateway-' + Date.now().toString(36)
+        setOpenIds(m => ({ ...m, [id]: true }))
         write([...sources, { id, type: 'cliproxyapi', label: 'CLIProxyAPI', baseURL: 'http://127.0.0.1:8317', enabled: false, display: 'both', refreshMinutes: 15, includeProviders: GATEWAY_PROVIDERS, allowedHosts: [], allowInsecureHttp: false }])
       }
       const field = (label, value, onChange) => el('div', { className: 'cm-field' }, el('label', null, label), el('input', { className: 'cm-input', value: value ?? '', onChange }))
@@ -5613,9 +5610,10 @@ window.__ModuleLoader__.load({
       const credits = value => value == null ? null : el(Fragment, null, el('div', { className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, value.unit || 'credits'), el('span', { className: 'cm-bbox-pct cm-num' }, (value.used ?? '—') + ' / ' + (value.limit ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, (value.remaining ?? '—') + ' remaining')), (value.packages ?? []).map(pkgRow))
       const account = (a, index) => el('div', { key: a.id || index, className: 'cm-budget', style: { marginTop: '8px', padding: '10px 12px' } }, el('div', { className: 'cm-budget-head' }, el('strong', null, (GATEWAY_PROVIDER_LABELS[a.provider] ?? a.provider ?? t('gatewaySourceUnknown')) + ' · ' + (a.label || t('gatewaySourceUnknown'))), el('span', { className: 'cm-hint' }, a.status)), a.plan ? el('div', { className: 'cm-note' }, a.plan) : null, a.windows.length > 0 ? el('div', { className: 'cm-go-list' }, a.windows.map(windowRow)) : null, credits(a.credits), a.message ? el('div', { className: 'cm-note' }, a.message) : null)
       const source = (s, index) => {
-        const live = snapshots.find(q => q.id === s.id) ?? { id: s.id, status: 'error', accounts: [], unsupportedProviders: [] }
+        const live = snapshots.find(q => q.id === s.id) ?? { id: s.id, status: 'off', accounts: [], unsupportedProviders: [] }
         const varName = gatewayVarOf(s, state.customVarStatus)
-        return el('div', { key: s.id || index, className: 'cm-budget', style: { marginTop: '8px' } }, el('div', { className: 'cm-budget-head' }, el('h3', { className: 'cm-h' }, s.label || s.id || t('gatewayQuotaTitle')), el('button', { className: 'cm-btn small', onClick: () => refresh(s.id), disabled: busyId !== null || s.enabled !== true }, busyId === s.id ? t('gatewaySourceRefreshing') : t('refreshGoQuota')), sources.length > 1 ? el('button', { className: 'cm-btn small', onClick: () => write(sources.filter((_, i) => i !== index)) }, t('gatewaySourceRemove')) : null), el('label', { className: 'cm-check' }, el('input', { type: 'checkbox', checked: s.enabled === true, onChange: e => patch(index, { enabled: e.target.checked }) }), t('gatewaySourceEnabled')), el('div', { className: 'cm-grid' }, field(t('gatewaySourceLabel'), s.label, e => patch(index, { label: e.target.value })), field(t('gatewaySourceBaseURL'), s.baseURL, e => patch(index, { baseURL: e.target.value })), el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceDisplay')), el('select', { className: 'cm-input', value: s.display ?? 'both', onChange: e => patch(index, { display: e.target.value }) }, ...displayOptions(t))), field(t('gatewaySourceAllowlist'), (s.allowedHosts ?? []).join(', '), e => patch(index, { allowedHosts: e.target.value.split(/[\s,;]+/).filter(Boolean) }))), varName ? el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceCredential')), el(CredentialField, { target: 'customVar:' + varName, configured: state.customVarStatus?.[varName]?.configured === true, source: state.customVarStatus?.[varName]?.source ?? '', t, api, placeholder: varName })) : null, el('div', { className: 'cm-note' }, t('gatewaySourceStatus') + ': ' + (live.status ?? t('gatewaySourceUnknown')) + (live.serverVersion ? ' · ' + live.serverVersion : '') + (live.fetchedAt > 0 ? ' · ' + t('gatewaySourceFetchedAt', { time: new Date(live.fetchedAt).toLocaleTimeString() }) : '') + (live.message ? ' · ' + live.message : '')), live.unsupportedProviders.length > 0 ? el('div', { className: 'cm-note' }, t('gatewaySourceUnsupported') + ': ' + live.unsupportedProviders.join(', ')) : null, live.accounts.length > 0 ? live.accounts.map(account) : el('div', { className: 'cm-bal-line' }, t('gatewaySourceNoAccounts')), msgs[s.id] ? el('div', { className: 'cm-msg ' + msgs[s.id].kind }, msgs[s.id].text) : null)
+        const open = openIds[s.id] === true
+        return el('div', { key: s.id || index, className: 'cm-budget' }, el('div', { className: 'cm-budget-head' }, collapseHeader(open, () => toggleSource(s.id), s.label || s.id || t('gatewayQuotaTitle')), open ? null : el('span', { className: 'cm-hint' }, live.status ?? t('gatewaySourceUnknown')), el('button', { className: 'cm-btn small', onClick: () => refresh(s.id), disabled: busyId !== null || s.enabled !== true }, busyId === s.id ? t('gatewaySourceRefreshing') : t('refreshGoQuota')), el('button', { className: 'cm-btn small', onClick: () => write(sources.filter((_, i) => i !== index)) }, t('gatewaySourceRemove'))), open ? el('div', { className: 'cm-collapse-body' }, el('label', { className: 'cm-check' }, el('input', { type: 'checkbox', checked: s.enabled === true, onChange: e => patch(index, { enabled: e.target.checked }) }), t('gatewaySourceEnabled')), el('div', { className: 'cm-grid' }, field(t('gatewaySourceLabel'), s.label, e => patch(index, { label: e.target.value })), field(t('gatewaySourceBaseURL'), s.baseURL, e => patch(index, { baseURL: e.target.value })), el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceDisplay')), el('select', { className: 'cm-input', value: s.display ?? 'both', onChange: e => patch(index, { display: e.target.value }) }, ...displayOptions(t))), field(t('gatewaySourceAllowlist'), (s.allowedHosts ?? []).join(', '), e => patch(index, { allowedHosts: e.target.value.split(/[\s,;]+/).filter(Boolean) }))), varName ? el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceCredential')), el(CredentialField, { target: 'customVar:' + varName, configured: state.customVarStatus?.[varName]?.configured === true, source: state.customVarStatus?.[varName]?.source ?? '', t, api, placeholder: varName })) : null, el('div', { className: 'cm-note' }, t('gatewaySourceStatus') + ': ' + (live.status ?? t('gatewaySourceUnknown')) + (live.serverVersion ? ' · ' + live.serverVersion : '') + (live.fetchedAt > 0 ? ' · ' + t('gatewaySourceFetchedAt', { time: new Date(live.fetchedAt).toLocaleTimeString() }) : '') + (live.message ? ' · ' + live.message : '')), live.unsupportedProviders.length > 0 ? el('div', { className: 'cm-note' }, t('gatewaySourceUnsupported') + ': ' + live.unsupportedProviders.join(', ')) : null, live.accounts.length > 0 ? live.accounts.map(account) : el('div', { className: 'cm-bal-line' }, t('gatewaySourceNoAccounts')), msgs[s.id] ? el('div', { className: 'cm-msg ' + msgs[s.id].kind }, msgs[s.id].text) : null) : null)
       }
       return el('div', { className: 'cm-budget' }, el('div', { className: 'cm-budget-head' }, el('h3', { className: 'cm-h' }, t('gatewayQuotaTitle')), el('button', { className: 'cm-btn small', onClick: add, disabled: sources.length >= 4 }, t('gatewaySourceAdd')), el('button', { className: 'cm-btn small', onClick: () => api.refreshGatewayQuota(), disabled: busyId !== null || sources.length === 0 }, busyId === null ? t('refreshGoQuota') : t('gatewaySourceRefreshing'))), el('p', { className: 'cm-note' }, t('gatewayQuotaNote')), sources.length === 0 ? el('p', { className: 'cm-hint' }, t('gatewaySourceEmpty')) : sources.map(source))
     }
@@ -6587,9 +6585,7 @@ window.__ModuleLoader__.load({
         el(PeakPanel, { state, draft, setDraft, t }),
         // 价格表(可折叠,默认收起;priceTableDisplay 按模型门控:未勾选直接显示的模型收入拓展价格表,该开关只决定展示位置)
         el('div', null,
-          el('button', { type: 'button', className: 'cm-collapse-h', 'aria-expanded': String(priceOpen), onClick: () => setPriceOpen(!priceOpen) },
-            el('span', { className: 'cm-caret' + (priceOpen ? ' open' : '') }),
-            el('h3', { className: 'cm-h' }, t('priceTableTitle'))),
+          collapseHeader(priceOpen, () => setPriceOpen(!priceOpen), t('priceTableTitle')),
           priceOpen ? el('div', { className: 'cm-collapse-body' },
           el('p', { className: 'cm-note' }, t('priceTableNote')),
           el('p', { className: 'cm-hint' }, t('priceTableDisplayHint')),
