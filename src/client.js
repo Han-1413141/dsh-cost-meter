@@ -1505,7 +1505,8 @@ window.__ModuleLoader__.load({
         // 兼容镜像。快照缺数组时回落单条包装(旧宿主快照)。
         gatewayQuotas: (() => {
           const raw = Array.isArray(v.gatewayQuotas) ? v.gatewayQuotas : v.gatewayQuotas?.sources
-          const sources = Array.isArray(raw) ? raw.slice(0, 4).filter(x => x !== null && typeof x === 'object' && !Array.isArray(x)).map(x => ({
+          const isObj = x => x && typeof x === 'object' && !Array.isArray(x)
+          const sources = Array.isArray(raw) ? raw.slice(0, 4).filter(isObj).map(x => ({
             id: typeof x.id === 'string' ? x.id.slice(0, 48) : '',
             type: 'cliproxyapi',
             label: typeof x.label === 'string' ? x.label.slice(0, 80) : '',
@@ -1521,7 +1522,7 @@ window.__ModuleLoader__.load({
           return { sources }
         })(),
         customBalances: (() => {
-          if (Array.isArray(v.customBalances)) return v.customBalances.filter(x => x !== null && typeof x === 'object').slice(0, 8).map(parseCustomEntry).filter(Boolean)
+          if (Array.isArray(v.customBalances)) return v.customBalances.slice(0, 8).map(parseCustomEntry).filter(Boolean)
           const single = parseCustomEntry(v.customBalance)
           return single ? [single] : []
         })(),
@@ -1634,9 +1635,10 @@ window.__ModuleLoader__.load({
       if (v === null || typeof v !== 'object' || Array.isArray(v)) fail(path, 'object')
       const s0 = (s, d = '') => (typeof s === 'string' ? s : d)
       const n = x => numOrNull(x)
-      const windowOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { id: s0(x.id), label: s0(x.label), ...(n(x.percent) === null ? {} : { percent: n(x.percent) }), resetsAt: s0(x.resetsAt), periodHours: n(x.periodHours), scope: s0(x.scope) } : null
-      const creditsOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { unit: s0(x.unit, 'credits'), used: n(x.used), remaining: n(x.remaining), limit: n(x.limit), fetchedAt: s0(x.fetchedAt), packages: Array.isArray(x.packages) ? x.packages.filter(p => p !== null && typeof p === 'object' && !Array.isArray(p)).map(p => ({ id: s0(p.id), label: s0(p.label), used: n(p.used), remaining: n(p.remaining), limit: n(p.limit), startsAt: s0(p.startsAt), resetsAt: s0(p.resetsAt) })) : [] } : undefined
-      return { id: s0(v.id), type: 'cliproxyapi', label: s0(v.label), status: gatewaySourceStatuses.has(v.status) ? v.status : 'error', message: s0(v.message), fetchedAt: n(v.fetchedAt) ?? 0, attemptedAt: n(v.attemptedAt) ?? 0, serverVersion: s0(v.serverVersion), keyConfigured: v.keyConfigured === true, keySource: s0(v.keySource, 'none'), accounts: Array.isArray(v.accounts) ? v.accounts.filter(a => a !== null && typeof a === 'object' && !Array.isArray(a)).slice(0, 16).map(a => ({ id: s0(a.id), provider: s0(a.provider, 'unknown'), label: s0(a.label, 'unknown'), status: gatewayAccountStatuses.has(a.status) ? a.status : 'unknown', message: s0(a.message), plan: s0(a.plan), windows: Array.isArray(a.windows) ? a.windows.map(windowOf).filter(Boolean) : [], credits: creditsOf(a.credits) })) : [], unsupportedProviders: Array.isArray(v.unsupportedProviders) ? v.unsupportedProviders.filter(x => typeof x === 'string').slice(0, 32) : [] }
+      const isObj = x => x && typeof x === 'object' && !Array.isArray(x)
+      const windowOf = x => isObj(x) ? { id: s0(x.id), label: s0(x.label), ...(n(x.percent) === null ? {} : { percent: n(x.percent) }), resetsAt: s0(x.resetsAt), periodHours: n(x.periodHours), scope: s0(x.scope) } : null
+      const creditsOf = x => isObj(x) ? { unit: s0(x.unit, 'credits'), used: n(x.used), remaining: n(x.remaining), limit: n(x.limit), fetchedAt: s0(x.fetchedAt), packages: Array.isArray(x.packages) ? x.packages.filter(isObj).map(p => ({ id: s0(p.id), label: s0(p.label), used: n(p.used), remaining: n(p.remaining), limit: n(p.limit), startsAt: s0(p.startsAt), resetsAt: s0(p.resetsAt) })) : [] } : undefined
+      return { id: s0(v.id), type: 'cliproxyapi', label: s0(v.label), status: gatewaySourceStatuses.has(v.status) ? v.status : 'error', message: s0(v.message), fetchedAt: n(v.fetchedAt) ?? 0, attemptedAt: n(v.attemptedAt) ?? 0, serverVersion: s0(v.serverVersion), keyConfigured: v.keyConfigured === true, keySource: s0(v.keySource, 'none'), accounts: Array.isArray(v.accounts) ? v.accounts.filter(isObj).slice(0, 16).map(a => ({ id: s0(a.id), provider: s0(a.provider, 'unknown'), label: s0(a.label, 'unknown'), status: gatewayAccountStatuses.has(a.status) ? a.status : 'unknown', message: s0(a.message), plan: s0(a.plan), windows: Array.isArray(a.windows) ? a.windows.map(windowOf).filter(Boolean) : [], credits: creditsOf(a.credits) })) : [], unsupportedProviders: Array.isArray(v.unsupportedProviders) ? v.unsupportedProviders.filter(x => typeof x === 'string').slice(0, 32) : [] }
     }
     function parsePlanStats(v) {
       if (v === null || typeof v !== 'object' || Array.isArray(v)) return null
@@ -2825,6 +2827,7 @@ window.__ModuleLoader__.load({
           wide ? el(Fragment, null, t('balance'), ' ', el('span', { className: 'cm-num' }, formatBalanceMoney(balance.totalBalance, state.config, balance.currency)), ' ', rechargeLinkEl(t), state.reconcile?.ok === false ? ' ⚠' : '') : el(WalletIcon, { size: 16 })))
     }
 
+    const inSidebar = d => d === 'sidebar' || d === 'both'
     function BalanceBox(props) {
       const { state, wide, api } = props
       const config = state.config
@@ -2936,14 +2939,14 @@ window.__ModuleLoader__.load({
       const out = []
       entries.forEach((entry, index) => {
         if (entry?.enabled !== true) return
-        if (entry.display !== 'sidebar' && entry.display !== 'both') return
+        if (!inSidebar(entry.display)) return
         const snapshot = snapshots.find(s => s.index === index)
           ?? (snapshots.length === 1 && entries.length === 1 ? snapshots[0] : null)
         out.push({ index, entry, snapshot })
       })
       // 旧宿主快照(无数组):回落旧单条状态,保持升级前显示。
       if (out.length === 0 && snapshots.length === 0 && config?.customBalance?.enabled === true
-        && (config.customBalance.display === 'sidebar' || config.customBalance.display === 'both')
+        && inSidebar(config.customBalance.display)
         && state?.customBalance?.status && state.customBalance.status !== 'off') {
         out.push({ index: null, entry: config.customBalance, snapshot: state.customBalance })
       }
@@ -3933,7 +3936,7 @@ window.__ModuleLoader__.load({
       const state = costStore?.state
       if (!state) return null
       const config = state.config
-      const sidebarBalanceOn = config.balance?.display === 'sidebar' || config.balance?.display === 'both'
+      const sidebarBalanceOn = inSidebar(config.balance?.display)
       const sidebarCustomOn = (config?.customBalances ?? []).some(e => e?.enabled === true && (e.display === 'sidebar' || e.display === 'both'))
         || (config.customBalance?.enabled === true && (config.customBalance?.display === 'sidebar' || config.customBalance?.display === 'both'))
       const sidebarPlansOn = CODING_PLAN_ROWS.some(r => {
@@ -4020,6 +4023,30 @@ window.__ModuleLoader__.load({
           wide ? peakNoticeEl(state, config, t) : null))
     }
 
+        function GatewayQuotaBox({ source, state, wide, api }) {
+      const live = (state.gatewayQuotas ?? []).find(s => s?.id === source.id)
+      const t = makeT(resolveLocale(state.config?.locale))
+      const refresh = useClickRefresh(api ? () => api.refreshGatewayQuota(source.id) : null)
+      if (live?.status !== 'ok') return null
+      const dir = barDirectionOf(state.config, 'plan')
+      const rows = []
+      const pcts = []
+      for (const a of (live.accounts ?? [])) {
+        if (a.status === 'ok') {
+          for (const w of (a.windows ?? [])) {
+            const v = miniMaxRow(w.label || w.id, w, dir)
+            if (v.pct !== null) pcts.push(v.pct)
+            rows.push(v.row)
+          }
+        }
+      }
+      if (rows.length === 0) return null
+      const level = pcts.some(p => p >= 100) ? 'over' : pcts.some(p => p >= 80) ? 'warn' : 'ok'
+      const title = source.label || t('gatewayQuotaTitle')
+      return el(Tooltip, { label: [title, live.serverVersion, ...clickRefreshTipLines(t, refresh)].filter(Boolean).join(' · '), side: 'right', delayMs: 300 },
+        el('div', { className: 'cm-bbox cm-mm clickable' + (level === 'ok' ? '' : ' ' + level) + (wide ? '' : ' rail') + (refresh.busy ? ' busy' : ''), ...clickableRefreshProps(refresh.busy, refresh.run) },
+          wide ? el(Fragment, null, el('div', { className: 'cm-mm-title' }, title), ...rows) : el('div', { className: 'cm-bbox-rail cm-num' }, pcts.slice(0, 2).map(p => p + '%').join(' '))))
+    }
     function SidebarFooter(props) {
       const costStore = props.useCost ? props.useCost(s => s) : undefined
       // 侧边栏页脚非会话作用域插槽:useProjection 在部分宿主/页面可能不可用或
@@ -4073,7 +4100,7 @@ window.__ModuleLoader__.load({
       if (!state) return null
       const config = state.config
       const t = makeT(resolveLocale(config?.locale))
-      const showBalance = (config.balance?.display === 'sidebar' || config.balance?.display === 'both')
+      const showBalance = inSidebar(config.balance?.display)
         && config.hideOfficialBalance !== true
       // 多配置形态(v1.7.0,issue #79):可见性逐条判定(可见条目集由
       // visibleCustomEntries 统一给出;组件内部逐条按快照状态渲染)。
@@ -4083,7 +4110,7 @@ window.__ModuleLoader__.load({
       const showCustomBalanceBar = showCustomBalance && config.balance?.showProgressBar === true
       const goMainKey = config.goQuota?.main === 'weekly' || config.goQuota?.main === 'monthly' ? config.goQuota.main : 'rolling'
       const goOk = (config.goQuota?.enabled !== false)
-        && (config.goQuota?.display === 'sidebar' || config.goQuota?.display === 'both')
+        && inSidebar(config.goQuota?.display)
         && state.goQuota?.status === 'ok' && state.goQuota?.[goMainKey] !== null
       // Coding Plan 侧边栏卡片(issue #31):每家按 display 门控(侧边栏/两者),启用且查询成功才展示;
       // MiniMax 沿用专用 5h/7d 卡片(issue #57 起与通用卡片同为「已用」方向),其余厂商走通用 CodingPlanBox。
@@ -4099,13 +4126,15 @@ window.__ModuleLoader__.load({
           return Object.keys(wins).length > 0
         })
       const plansOn = sidebarPlanIds.length > 0
+      const visibleGateway = (config.gatewayQuotas?.sources ?? []).filter(s => s?.enabled === true && inSidebar(s.display))
+      const gatewayOn = visibleGateway.length > 0
       // Codex 周额度(issue #59):客户端探测 dsh-codex-connect,ok 时并入侧边栏;
       // 其余显示全关时也要为它保留渲染入口(模块装载即有被动探测,快照同步读)。
       const codexOn = codexQuotaCache.status === 'ok'
         && codexQuotaCache.windows.weekly !== null
       const budgetOn = (config.budget ?? {}).enabled === true
       const showToday = config.sidebar !== false && config.hideTodayCost !== true
-      if (!showBalance && !showCustomBalance && !goOk && !plansOn && !codexOn && !budgetOn && !showToday) return null
+      if (!showBalance && !showCustomBalance && !goOk && !plansOn && !codexOn && !budgetOn && !showToday && !gatewayOn) return null
       const nodes = []
       if (showBalanceBar) nodes.push(el(BalanceBox, { state, wide, api: props.api }))
       else if (showBalance) nodes.push(el(BalanceRowContent, { state, wide, api: props.api }))
@@ -4115,6 +4144,7 @@ window.__ModuleLoader__.load({
         ? el(MiniMaxPlanBox, { state, wide, api: props.api })
         : el(CodingPlanBox, { id, state, wide, api: props.api })))
       if (codexOn) nodes.push(el(CodexPlanBox, { state, wide, api: props.api }))
+      if (gatewayOn) nodes.push(...visibleGateway.map(source => el(GatewayQuotaBox, { key: 'gwb-' + source.id, source, state, wide, api: props.api })))
       if (goOk && budgetOn && wide) {
         // 同时出现:合并为一张卡片(Go 在上、预算在下,细分隔线),各自保留预警色与自己的详细信息开关。
         const goView = goBoxBody(state, config, t)
@@ -5577,13 +5607,14 @@ window.__ModuleLoader__.load({
       const [msgs, setMsgs] = useState({})
       // 来源卡片展开状态:默认折叠(只占标题一行),新增来源时自动展开便于填写。
       const [openIds, setOpenIds] = useState({})
+      const unk = unk
       const config = state.config
       const base = draft ?? config
       const sources = base.gatewayQuotas?.sources ?? []
       const snapshots = Array.isArray(state.gatewayQuotas) ? state.gatewayQuotas : []
       const write = next => { if (draft !== null) setDraft({ ...draft, gatewayQuotas: { ...(draft.gatewayQuotas ?? config.gatewayQuotas ?? {}), sources: next } }) }
       const patch = (index, value) => write(sources.map((s, i) => i === index ? { ...s, ...value } : s))
-      const toggleSource = id => setOpenIds(m => ({ ...m, [id]: m[id] !== true }))
+      const toggleSource = id => setOpenIds(m => ({ ...m, [id]: !m[id] }))
       const refresh = async id => {
         if (busyId !== null) return
         const saved = (config.gatewayQuotas?.sources ?? []).find(source => source.id === id)
@@ -5601,19 +5632,20 @@ window.__ModuleLoader__.load({
         setOpenIds(m => ({ ...m, [id]: true }))
         write([...sources, { id, type: 'cliproxyapi', label: 'CLIProxyAPI', baseURL: 'http://127.0.0.1:8317', enabled: false, display: 'both', refreshMinutes: 15, includeProviders: GATEWAY_PROVIDERS, allowedHosts: [], allowInsecureHttp: false }])
       }
-      const field = (label, value, onChange) => el('div', { className: 'cm-field' }, el('label', null, label), el('input', { className: 'cm-input', value: value ?? '', onChange }))
+      const field = (l, v, c) => el('div', { className: 'cm-field' }, el('label', null, l), el('input', { className: 'cm-input', value: v ?? '', onChange: c }))
       const windowRow = (window, index) => {
-        const view = miniMaxRow(window?.label || window?.id || t('gatewaySourceUnknown'), window, barDirectionOf(config, 'plan'))
+        const view = miniMaxRow(window?.label || window?.id || unk, window, barDirectionOf(config, 'plan'))
         return el(Fragment, { key: window?.id || index }, view.row, window?.resetsAt ? el('div', { className: 'cm-note' }, miniMaxResetText(window, t)) : null)
       }
-      const pkgRow = pkg => el('div', { className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, pkg.label || 'package'), el('span', { className: 'cm-bbox-pct cm-num' }, (pkg.used ?? '—') + ' / ' + (pkg.limit ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, (pkg.remaining ?? '—') + ' remaining'))
-      const credits = value => value == null ? null : el(Fragment, null, el('div', { className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, value.unit || 'credits'), el('span', { className: 'cm-bbox-pct cm-num' }, (value.used ?? '—') + ' / ' + (value.limit ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, (value.remaining ?? '—') + ' remaining')), (value.packages ?? []).map(pkgRow))
-      const account = (a, index) => el('div', { key: a.id || index, className: 'cm-budget', style: { marginTop: '8px', padding: '10px 12px' } }, el('div', { className: 'cm-budget-head' }, el('strong', null, (GATEWAY_PROVIDER_LABELS[a.provider] ?? a.provider ?? t('gatewaySourceUnknown')) + ' · ' + (a.label || t('gatewaySourceUnknown'))), el('span', { className: 'cm-hint' }, a.status)), a.plan ? el('div', { className: 'cm-note' }, a.plan) : null, a.windows.length > 0 ? el('div', { className: 'cm-go-list' }, a.windows.map(windowRow)) : null, credits(a.credits), a.message ? el('div', { className: 'cm-note' }, a.message) : null)
+      const cRow = (lbl, u, l, r) => el('div', { className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, lbl), el('span', { className: 'cm-bbox-pct cm-num' }, (u ?? '—') + ' / ' + (l ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, (r ?? '—') + ' rem'))
+      const credits = v => v == null ? null : el(Fragment, null, cRow(v.unit || 'credits', v.used, v.limit, v.remaining), (v.packages ?? []).map(p => cRow(p.label || 'pkg', p.used, p.limit, p.remaining)))
+      const account = (a, index) => el('div', { key: a.id || index, className: 'cm-budget', style: { marginTop: '8px', padding: '10px 12px' } }, el('div', { className: 'cm-budget-head' }, el('strong', null, (GATEWAY_PROVIDER_LABELS[a.provider] ?? a.provider ?? unk) + ' · ' + (a.label || unk)), el('span', { className: 'cm-hint' }, a.status)), a.plan ? el('div', { className: 'cm-note' }, a.plan) : null, a.windows.length > 0 ? el('div', { className: 'cm-go-list' }, a.windows.map(windowRow)) : null, credits(a.credits), a.message ? el('div', { className: 'cm-note' }, a.message) : null)
       const source = (s, index) => {
-        const live = snapshots.find(q => q.id === s.id) ?? { id: s.id, status: 'off', accounts: [], unsupportedProviders: [] }
+        const live = snapshots.find(q => q.id === s.id) ?? { status: 'off', accounts: [], unsupportedProviders: [] }
         const varName = gatewayVarOf(s, state.customVarStatus)
         const open = openIds[s.id] === true
-        return el('div', { key: s.id || index, className: 'cm-budget' }, el('div', { className: 'cm-budget-head' }, collapseHeader(open, () => toggleSource(s.id), s.label || s.id || t('gatewayQuotaTitle')), open ? null : el('span', { className: 'cm-hint' }, live.status ?? t('gatewaySourceUnknown')), el('button', { className: 'cm-btn small', onClick: () => refresh(s.id), disabled: busyId !== null || s.enabled !== true }, busyId === s.id ? t('gatewaySourceRefreshing') : t('refreshGoQuota')), el('button', { className: 'cm-btn small', onClick: () => write(sources.filter((_, i) => i !== index)) }, t('gatewaySourceRemove'))), open ? el('div', { className: 'cm-collapse-body' }, el('label', { className: 'cm-check' }, el('input', { type: 'checkbox', checked: s.enabled === true, onChange: e => patch(index, { enabled: e.target.checked }) }), t('gatewaySourceEnabled')), el('div', { className: 'cm-grid' }, field(t('gatewaySourceLabel'), s.label, e => patch(index, { label: e.target.value })), field(t('gatewaySourceBaseURL'), s.baseURL, e => patch(index, { baseURL: e.target.value })), el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceDisplay')), el('select', { className: 'cm-input', value: s.display ?? 'both', onChange: e => patch(index, { display: e.target.value }) }, ...displayOptions(t))), field(t('gatewaySourceAllowlist'), (s.allowedHosts ?? []).join(', '), e => patch(index, { allowedHosts: e.target.value.split(/[\s,;]+/).filter(Boolean) }))), varName ? el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceCredential')), el(CredentialField, { target: 'customVar:' + varName, configured: state.customVarStatus?.[varName]?.configured === true, source: state.customVarStatus?.[varName]?.source ?? '', t, api, placeholder: varName })) : null, el('div', { className: 'cm-note' }, t('gatewaySourceStatus') + ': ' + (live.status ?? t('gatewaySourceUnknown')) + (live.serverVersion ? ' · ' + live.serverVersion : '') + (live.fetchedAt > 0 ? ' · ' + t('gatewaySourceFetchedAt', { time: new Date(live.fetchedAt).toLocaleTimeString() }) : '') + (live.message ? ' · ' + live.message : '')), live.unsupportedProviders.length > 0 ? el('div', { className: 'cm-note' }, t('gatewaySourceUnsupported') + ': ' + live.unsupportedProviders.join(', ')) : null, live.accounts.length > 0 ? live.accounts.map(account) : el('div', { className: 'cm-bal-line' }, t('gatewaySourceNoAccounts')), msgs[s.id] ? el('div', { className: 'cm-msg ' + msgs[s.id].kind }, msgs[s.id].text) : null) : null)
+        return el('div', { key: s.id || index, className: 'cm-budget' }, el('div', { className: 'cm-budget-head' }, collapseHeader(open, () => toggleSource(s.id), s.label || s.id || t('gatewayQuotaTitle')), open ? null : el('span', { className: 'cm-hint' }, live.status ?? unk), el('button', { className: 'cm-btn small', onClick: () => refresh(s.id), disabled: busyId !== null || s.enabled !== true }, busyId === s.id ? t('gatewaySourceRefreshing') : t('refreshGoQuota')), el('button', { className: 'cm-btn small', onClick: () => write(sources.filter((_, i) => i !== index)) }, t('gatewaySourceRemove'))), open ? el('div', { className: 'cm-collapse-body' }, el('label', { className: 'cm-check' }, el('input', { type: 'checkbox', checked: s.enabled === true, onChange: e => patch(index, { enabled: e.target.checked }) }), t('gatewaySourceEnabled')),
+          el('label', { className: 'cm-check' }, el('input', { type: 'checkbox', checked: s.allowInsecureHttp === true, onChange: e => patch(index, { allowInsecureHttp: e.target.checked }) }), t('gatewaySourceInsecure')), el('div', { className: 'cm-grid' }, field(t('gatewaySourceLabel'), s.label, e => patch(index, { label: e.target.value })), field(t('gatewaySourceBaseURL'), s.baseURL, e => patch(index, { baseURL: e.target.value })), el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceDisplay')), el('select', { className: 'cm-input', value: s.display ?? 'both', onChange: e => patch(index, { display: e.target.value }) }, ...displayOptions(t))), field(t('gatewaySourceAllowlist'), (s.allowedHosts ?? []).join(', '), e => patch(index, { allowedHosts: e.target.value.split(/[\s,;]+/).filter(Boolean) }))), varName ? el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceCredential')), el(CredentialField, { target: 'customVar:' + varName, configured: state.customVarStatus?.[varName]?.configured === true, source: state.customVarStatus?.[varName]?.source ?? '', t, api, placeholder: varName })) : null, el('div', { className: 'cm-note' }, t('gatewaySourceStatus') + ': ' + (live.status ?? unk) + (live.serverVersion ? ' · ' + live.serverVersion : '') + (live.fetchedAt > 0 ? ' · ' + t('gatewaySourceFetchedAt', { time: new Date(live.fetchedAt).toLocaleTimeString() }) : '') + (live.message ? ' · ' + live.message : '')), live.unsupportedProviders.length > 0 ? el('div', { className: 'cm-note' }, t('gatewaySourceUnsupported') + ': ' + live.unsupportedProviders.join(', ')) : null, live.accounts.length > 0 ? live.accounts.map(account) : el('div', { className: 'cm-bal-line' }, t('gatewaySourceNoAccounts')), cmMsg(msgs[s.id])) : null)
       }
       return el('div', { className: 'cm-budget' }, el('div', { className: 'cm-budget-head' }, el('h3', { className: 'cm-h' }, t('gatewayQuotaTitle')), el('button', { className: 'cm-btn small', onClick: add, disabled: sources.length >= 4 }, t('gatewaySourceAdd')), el('button', { className: 'cm-btn small', onClick: () => api.refreshGatewayQuota(), disabled: busyId !== null || sources.length === 0 }, busyId === null ? t('refreshGoQuota') : t('gatewaySourceRefreshing'))), el('p', { className: 'cm-note' }, t('gatewayQuotaNote')), sources.length === 0 ? el('p', { className: 'cm-hint' }, t('gatewaySourceEmpty')) : sources.map(source))
     }
@@ -5867,7 +5899,7 @@ window.__ModuleLoader__.load({
                   placeholder: 'sk-…',
                 }))) : null,
           body,
-          msgs[id] != null ? el('div', { className: 'cm-msg ' + msgs[id].kind }, msgs[id].text) : null)
+          cmMsg(msgs[id]))
       }
       return el('div', { className: 'cm-budget' },
         el('div', { className: 'cm-budget-head' },
@@ -6998,7 +7030,7 @@ window.__ModuleLoader__.load({
         const position = state?.config?.position ?? 'dock'
         const showToday = state?.config?.sidebar !== false && state?.config?.hideTodayCost !== true
         const balanceDisplay = state?.config?.balance?.display ?? 'both'
-        const showBalance = (balanceDisplay === 'sidebar' || balanceDisplay === 'both') && state?.config?.hideOfficialBalance !== true
+        const showBalance = inSidebar(balanceDisplay) && state?.config?.hideOfficialBalance !== true
         const footer = showToday || showBalance
         const cornerEnabled = state?.config?.corner?.enabled === true
         const sectionLocale = resolveLocale(state?.config?.locale)

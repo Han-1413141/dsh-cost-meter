@@ -1223,7 +1223,7 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   assert.equal((clientSource.match(/useClickRefresh\(api \? \(\) => api\.refreshCustomBalance\(index\) : null\)/g) ?? []).length, 2, '自定义余额框/行均接 refreshCustomBalance(多配置形态按条目 index 刷新,issue #79)')
   assert.ok(clientSource.includes("useClickRefresh(api ? () => api.refreshCodingPlan(id) : null)"), '通用 Coding Plan 图框接 refreshCodingPlan(id)')
   assert.ok(clientSource.includes("useClickRefresh(api ? () => api.refreshCodingPlan('minimax') : null)"), 'MiniMax 图框接 refreshCodingPlan(minimax)')
-  assert.equal((clientSource.match(/api: props\.api/g) ?? []).length, 7, 'SidebarFooter 七处渲染均透传 api(六类图框 + Codex 卡片)')
+  assert.equal((clientSource.match(/api: props\.api/g) ?? []).length, 8, 'SidebarFooter 八处渲染均透传 api(七类图框/卡片 + Codex + Gateway)')
   // 可点击语义与视觉反馈:a11y(role/tabIndex/aria-busy/键盘)、CSS(cursor/hover/busy 呼吸)。
   assert.ok(clientSource.includes('const clickableRefreshProps = (busy, run) => ({'), '可点击属性 helper 存在')
   assert.ok(clientSource.includes("role: 'button'") && clientSource.includes("tabIndex: 0") && clientSource.includes("'aria-busy': busy ? 'true' : 'false'"), 'role=button + tabIndex + aria-busy')
