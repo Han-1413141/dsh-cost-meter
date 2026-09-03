@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.7.10] - 2026-09-03
+
+### 紧急修复:v1.7.9 浏览器端 bundle 仍然 TDZ 崩溃(第二个 Ge)
+
+**现象**:v1.7.9 修复了 Desktop 宿主侧的模块环,但 dsh 仍报 `failed to import loader entry …(dsh-cost-meter): Cannot access 'Ge' before initialization`——这次崩在 web 客户端 bundle:宿主 `__ModuleLoader__` 首次调用 client factory 即抛错。
+
+**根因**(与 v1.7.8 是**两处独立的雷**,错误文案恰好相同):v1.7.8 的 gateway 提交(经 v1.7.9 重新合入保留)在 `src/client.js` 写下了自引用常量 `const GATEWAY_PROVIDERS = GATEWAY_PROVIDERS`——网关 Provider 白名单的真值从未给出,esbuild 压缩后即 `const Ge=Ge`,factory 求值到该语句必然 TDZ。v1.7.9 的无环回归只覆盖宿主侧 `lib/*.js`(且 client.js 被显式排除),浏览器端 bundle 门禁又只编译不执行,双双漏过。
+
+**修复**:改为与服务端 `lib/store.js` 的 `GATEWAY_PROVIDER_IDS` 完全一致的六家字面量数组(antigravity / claude / codex / kimi / xai / workbuddy);重建 `lib/client.js`(262074 bytes,仍在 262144 DSH STORE 上限内)。
+
+**验证**:新增浏览器端 bundle **执行**门禁——vm 内用良性 DOM 桩真正执行 bundle 顶层并全程求值 factory,任何初始化期引用错误(自引用 const / 顶层 use-before-init)当场失败;v1.7.9 形态在此门禁下必崩(已复现),修复后全量测试绿。
+
+# Changelog
+
 ## [1.7.9] - 2026-09-03
 
 ### 紧急修复:v1.7.8 在 DSH Desktop 无法启动(ESM 循环导入 TDZ)

@@ -4,6 +4,10 @@
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
 
+## v1.7.10(2026-09-03)—— 🚨 紧急修复:浏览器端 bundle 第二个 Ge TDZ
+- **崩溃**:v1.7.9 修好了 Desktop 宿主侧,但 dsh 仍报 `Cannot access 'Ge' before initialization`——这次在 web 客户端 bundle:v1.7.8 的 gateway 提合入时把 `GATEWAY_PROVIDERS` 写成了自引用常量(`const Ge=Ge`),宿主首次调用 client factory 必崩。与 v1.7.8 是两处独立的雷,错误文案恰好相同。
+- **修复**:补上与服务端一致的六家 Provider 白名单真值;新增浏览器端 bundle **执行**门禁(vm + 良性 DOM 桩全程求值 factory),此前的门禁只编译不执行、恰好漏过这类初始化期错误。
+
 ## v1.7.9(2026-09-03)—— 🚨 紧急修复:v1.7.8 在 DSH Desktop 无法启动
 - **崩溃**:v1.7.8 加载即报 `Cannot access 'Ge' before initialization`。根因是 v1.7.6 埋下的模块循环导入(custom-balance → store 叠加既有环边),Desktop 的模块加载序下顶层常量触发 TDZ——不是 v1.7.8 新功能的错,是它改变了加载图把旧雷引爆。
 - **修复**:共享判定函数迁到零依赖底层 net.js,导入图自此无环;附「无环 + 逐模块独立首导入」回归测试,任何加载器顺序都不再可能复现。CLIProxyAPI 网关额度功能在修复之上重新合入,功能不变。

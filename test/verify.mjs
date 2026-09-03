@@ -102,6 +102,46 @@ console.log('[ok] 浏览器端 bundle 语法门禁(client.js vm 编译)通过')
   console.log('[ok] lib/client.js runtime byte bound (<262144) 通过 (' + Buffer.byteLength(st, 'utf8') + ' bytes)')
 }
 
+// 浏览器端 bundle 执行门禁(v1.7.10 教训):上面的 vm 编译门禁只查语法不执行,
+// v1.7.9 把 GATEWAY_PROVIDERS 写成自引用 const(minified 名 Ge)照样编译通过,
+// 宿主首次调用 factory 即 TDZ: Cannot access 'Ge' before initialization。
+// 此门禁在良性 DOM 桩里真正执行 bundle 顶层并全程求值 factory,任何初始化期
+// 引用错误(自引用 const / 顶层 use-before-init)当场失败。
+{
+  const src = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+  const benign = () => new Proxy(function () { return benign() }, { get: () => benign(), apply: () => benign() })
+  const ctx = {
+    console, Date, JSON, Math, Object, Array, String, Number, Boolean, Set, Map, Promise,
+    Symbol, Error, TypeError, RegExp, isNaN, parseInt, parseFloat, BigInt, structuredClone,
+    setTimeout, clearTimeout, setInterval, clearInterval, queueMicrotask, URL, URLSearchParams,
+    TextEncoder, TextDecoder, performance: { now: () => 0 },
+  }
+  let factory = null
+  ctx.window = new Proxy({}, {
+    get: (target, key) => {
+      if (key === '__ModuleLoader__') return { load: def => { factory = def.factory } }
+      if (key === 'document' || key === 'navigator' || key === 'localStorage' || key === 'location') return ctx[key]
+      return typeof target[key] !== 'undefined' ? target[key] : benign()
+    },
+    set: () => true,
+  })
+  ctx.document = benign()
+  ctx.navigator = benign()
+  ctx.localStorage = benign()
+  ctx.location = benign()
+  vm.createContext(ctx)
+  new vm.Script(src, { filename: '../lib/client.js' }).runInContext(ctx)
+  assert.ok(typeof factory === 'function', 'client.js 经 __ModuleLoader__ 注册了 factory')
+  factory(name => name === 'react'
+    ? {
+        createElement: () => null, Fragment: 'f',
+        useState: () => [null, () => {}], useEffect: () => {}, useMemo: () => null,
+        useCallback: () => () => {}, useSyncExternalStore: () => null, useRef: () => ({ current: null }),
+      }
+    : { Tooltip: () => null })
+  console.log('[ok] 浏览器端 bundle 执行门禁(client.js factory 全程求值,初始化期 TDZ 当场失败)通过')
+}
+
 const BOUNDARY_MS = Date.parse(LEGACY_BASE_BOUNDARY)
 const peakCfg = {
   enabled: true,
