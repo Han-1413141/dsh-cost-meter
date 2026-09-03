@@ -6304,6 +6304,36 @@ function m_costOf85(entry, tokens) {
   assert.equal(workResult.accounts[0].label, 'account')
   assert.equal(JSON.stringify(workResult).includes('WORKBUDDY_UID_SENTINEL_87'), false)
 
+  // 副作用端点硬闸(v1.7.8 review 修复):FORBIDDEN_REQUEST_MARKERS 在 apiCall 发出前
+  // 强制比对——请求的 method/url/data 序列化命中消费/补全端点标记即拒发,
+  // fetch 恒不被调用,错误码 SOURCE_BLOCKED_BY_POLICY 且消息只含标记不含完整 URL。
+  {
+    const gatewayMod = await import('../lib/gateway-quotas.js')
+    const { apiCall } = gatewayMod.__test
+    let fetchCalls = 0
+    const refuseFetch = async () => { fetchCalls += 1; throw new Error('must not be reached') }
+    const source = { id: 'gate-x', type: 'cliproxyapi', label: 'x', baseURL: 'http://127.0.0.1:8317', enabled: true, display: 'both', refreshMinutes: 15, includeProviders: ['claude'], allowedHosts: [], allowInsecureHttp: false }
+    const account = { provider: 'claude', authIndex: 'idx-87' }
+    const mkReq = url => ({ method: 'POST', url, headers: { Authorization: 'Bearer $TOKEN$' }, data: '{}' })
+    // URL 侧:命中 Codex 消费端点标记 → 拒发。
+    await assert.rejects(
+      () => apiCall(source, 'KEY', account, mkReq('https://chatgpt.com/backend-api/rate-limit-reset-credits/consume'), { fetchImpl: refuseFetch }),
+      e => e.code === 'SOURCE_BLOCKED_BY_POLICY' && /refusing side-effect endpoint/.test(e.message), 'URL 命中消费端点标记被拒发')
+    // data 侧:命中对话补全端点标记(标记藏在 body 数据里)→ 拒发。
+    await assert.rejects(
+      () => apiCall(source, 'KEY', account, { method: 'POST', url: 'https://api.anthropic.com/api/oauth/usage', headers: {}, data: '{"endpoint":"chat/completions","model":"x"}' }, { fetchImpl: refuseFetch }),
+      e => e.code === 'SOURCE_BLOCKED_BY_POLICY', 'data 命中补全端点标记被拒发')
+    // 正向对照:正常固定端点请求照常发出(闸门不误伤)。
+    let posted = null
+    const okFetch = async (url, init) => {
+      posted = { url, body: JSON.parse(init.body) }
+      return { ok: true, status: 200, headers: { get: () => '12' }, text: async () => JSON.stringify({ status_code: 200, body: '{}' }) }
+    }
+    await apiCall(source, 'KEY', account, mkReq('https://api.anthropic.com/api/oauth/usage'), { fetchImpl: okFetch })
+    assert.equal(fetchCalls, 0, '拒绝路径 fetch 恒不被调用')
+    assert.ok(posted.url.includes('/v0/management/api-call'), '正向路径请求发往 CPA 管理端点')
+  }
+
   console.log('[ok] gateway host/security aliases, CPA mock transport, auth failure, redirect refusal, malformed auth, and WorkBuddy row handling 通过')
 }
 
