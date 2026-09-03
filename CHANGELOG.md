@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.7.8] - 2026-09-03
+
+### 新功能(issue #87 / PR #90:CLIProxyAPI 网关额度适配层)
+
+新增独立的「网关额度(Gateway quota)」数据源层,经 CLIProxyAPI(CPA)Management API 查询多账号多 Provider 的额度窗口——与既有直连 Coding Plan 并列,而不是塞进 codingPlans(单厂商/单 key 模型装不下多账号/auth_index 结构)。由 CDeZT 贡献 PR #90,本地审查后合并。
+
+- **配置**:`config.gatewayQuotas.sources`(上限 4 个):id / baseURL(仅 loopback 默认放行,远程主机须显式加 allowedHosts 精确匹配)/ includeProviders / 刷新间隔 / 显示位置;严格校验(origin 形状、精确 host[:port] 白名单、非 loopback HTTP 须显式 allowInsecureHttp);顶层数组旧草案形态加载时自动迁移。
+- **凭据**:Management key 走 v1.7.6 的 customVar 凭据机制(write-only 输入框、只进 DSH 凭据库、不落盘不回显);派生变量名 CLIPROXYAPI_MANAGEMENT_KEY_<id>_<hash> 经 config.keyVar 下发给客户端定位。
+- **Provider 适配器**(纯函数层,注入时钟,不猜语义):Antigravity(三端点回退的配额摘要,5h/weekly)/ Claude(OAuth usage,5h/7d/模型级周窗)/ Codex(usage,主/副窗+code review 限额)/ Kimi(usages,5h/周窗)/ xAI(grok 代理的周 credits + 月 billing 只读双端点)/ WorkBuddy(插件管理面 credits)。percent 语义唯一为**已用** 0–100。
+- **传输安全**:插件自身只请求 CPA 管理端点(auth-files / api-call / workbuddy credits),上游 Provider URL 仅作为 api-call body 由 CPA 转发(token $TOKEN$ 在 CPA 侧替换,永不进插件);auth-files 只取白名单字段(auth_index/provider/email/plan 等),token/cookie/id_token 一律丢弃;响应体上限 256KB;redirect 拒绝;错误消息脱敏(URL → [endpoint])。
+- **副作用端点硬闸**:FORBIDDEN_REQUEST_MARKERS(消费积分/对话补全端点)在 apiCall 发出前强制比对,命中即拒发——额度表绝不允许产生计费副作用(review 修复:PR 只定义未实装,本版接线)。
+- **缓存与容错**:每 source 独立缓存 + inFlight 去重 + last-known-good(失败时 stale 状态保留上次快照);配置指纹变化作废缓存;逐账号错误不拖垮整个 source(partial 状态)。
+- **UI**:额度页新增「网关额度」面板——per-source 刷新/启停/白名单/凭据输入,account 级窗口进度条(复用既有 Go/Plan 条样式);RPC refreshGatewayQuota(sourceId?)。
+- **兼容**:旧客户端/state 快照经 optional 字段自然降级;managementKey 等密钥字段在补丁/落盘/下发三条路径全部剥离。
+
+### 审查修复(合并前)
+
+- FORBIDDEN_REQUEST_MARKERS 从死代码改为 apiCall 内实装闸门(URL+data 序列化比对),附行为级回归测试(拒发路径 fetch 恒不调用);
+- refreshGatewayQuota 的三处英文硬编码消息并入 tmsg 双语体系;
+- 移除 package.json 中多余的直连上游网络权限(chatgpt.com/googleapis/grok.com/x.ai——插件不直连这些域,所有请求经 CPA);
+- 修正指向不存在文档(gateway-design.md / protocol-evidence.md)的注释;构建 keepNames 关闭(客户端不依赖函数名,262,019 字节 < 262,144 上限)。
+
+### 验证
+
+- verify.mjs 新增两大块(纯 parser/registry/负边界 + 宿主传输安全/鉴权失败/redirect 拒绝/畸形 auth/WorkBuddy + 副作用闸门);双时区全量通过;dsh web 实机启动冒烟通过。
+
+# Changelog
+
 ## [1.7.7] - 2026-09-02
 
 ### 修复(issue #88:大日志回填 OOM;issue #89:对账余额变动口径)
