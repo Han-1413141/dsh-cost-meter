@@ -4,6 +4,11 @@
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
 
+## v1.7.11(2026-09-03)—— 🩹 网关额度设置 UI 修复(单来源可删 + 卡片折叠)+ install-smoke 窗口期修复
+- **设置 UI**:「网关额度」仅剩一个来源时「删除来源」按钮不渲染、删不掉也清不掉——现始终可删,可清空到空态;来源卡片此前永远全展开(表单 + 账号列表整块占位),现可折叠:默认收起为一行,收起时标题旁显示来源状态,「添加来源」新增的卡片自动展开。顺带补上缺失的 `gatewaySourceFetchedAt` 中英文案(此前状态行显示键名)。
+- **瘦身**:删除客户端字典死键 `credentialUnknownTarget`;六处重复的折叠标题行 JSX 合并为 `collapseHeader` 助手(客户端 bundle 有 262,144 字节 DSH STORE 上限,本版 261,598 字节)。
+- **CI**:install-smoke Windows leg 固定 tag 在「发版链已合入、tag 未推送」的窗口期必红(v1.7.10 实测翻车)——现优先装固定 tag,未推送时退回被测提交;`install.ps1` 新增 `-Rev` 覆盖参数,默认固定 tag 行为不变。
+
 ## v1.7.10(2026-09-03)—— 🚨 紧急修复:浏览器端 bundle 第二个 Ge TDZ
 - **崩溃**:v1.7.9 修好了 Desktop 宿主侧,但 dsh 仍报 `Cannot access 'Ge' before initialization`——这次在 web 客户端 bundle:v1.7.8 的 gateway 提合入时把 `GATEWAY_PROVIDERS` 写成了自引用常量(`const Ge=Ge`),宿主首次调用 client factory 必崩。与 v1.7.8 是两处独立的雷,错误文案恰好相同。
 - **修复**:补上与服务端一致的六家 Provider 白名单真值;新增浏览器端 bundle **执行**门禁(vm + 良性 DOM 桩全程求值 factory),此前的门禁只编译不执行、恰好漏过这类初始化期错误。

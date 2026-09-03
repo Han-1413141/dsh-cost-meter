@@ -18,11 +18,9 @@ jobs:
           - os: windows-latest
             # Windows leg exercises install.ps1 end-to-end, including its
             # pnpm auto-provisioning (pnpm is deliberately not preinstalled).
-            install-cmd: pwsh -NoProfile -ExecutionPolicy Bypass -File install.ps1
             verify-cmd: pwsh -NoProfile -Command "dsh --profile web --dump-config | Select-String dsh-cost-meter"
           - os: ubuntu-latest
             # Linux leg exercises the exact README one-liner (pnpm + git).
-            install-cmd: dsh plugin --profile web add github:Han-1413141/dsh-cost-meter
             verify-cmd: dsh --profile web --dump-config | grep dsh-cost-meter
     runs-on: ${{ matrix.os }}
     steps:
@@ -37,16 +35,33 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: npm install -g pnpm
-      - name: One-click install
+      - name: One-click install (Linux leg, README one-liner)
+        if: runner.os == 'Linux'
         shell: bash
-        run: ${{ matrix.install-cmd }}
+        run: dsh plugin --profile web add github:Han-1413141/dsh-cost-meter
+      # Windows leg exercises install.ps1 end-to-end. install.ps1 pins a release
+      # tag, but the tag only exists once the release is published — a release
+      # chain that merges before tagging makes the pinned tag unresolvable and
+      # reds this leg on a window that is not the script's fault (v1.7.10 hit
+      # exactly this: tag followed the merge by 18 minutes). Prefer the pinned
+      # tag when it exists; otherwise smoke-test the pushed commit itself.
+      - name: One-click install (Windows leg, install.ps1)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $pinned = if ((Get-Content install.ps1 -Raw) -match '\$PinnedRev\s*=\s*''(v[\d.]+)''') { $Matches[1] } else { $null }
+          if (-not $pinned) { Write-Error 'install.ps1 未找到 $PinnedRev 固定 tag'; exit 1 }
+          $rev = if (git ls-remote --tags origin "refs/tags/$pinned") { $pinned } else { '${{ github.sha }}' }
+          Write-Host "[install-smoke] install.ps1 rev: $rev$(if ($rev -ne $pinned) { " (pinned tag $pinned not pushed yet, falling back to this commit)" })"
+          pwsh -NoProfile -ExecutionPolicy Bypass -File install.ps1 -Rev $rev
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify plugin joined the bundle graph
         shell: bash
         run: ${{ matrix.verify-cmd }}
       # 回归与产物门禁需要工作区依赖(zod / dsh-credentials / dsh-home-paths / esbuild):
       # 本 job 只做安装冒烟、从不装工作区依赖,故回归前按锁文件补装(pnpm v11.21 由
       # install.ps1 在 Windows leg 供给、上一步在 Linux leg 显式安装)。--frozen-lockfile
-      # 保证 esbuild 与构建已提交 bundle 的 0.28.1 严格一致,产物比对逐字节可复现。
+      # 保证 esbuild 与构建已提交 bundle 的 0.28.2 严格一致,产物比对逐字节可复现。
       - name: Install workspace dependencies
         shell: bash
         run: pnpm install --frozen-lockfile
