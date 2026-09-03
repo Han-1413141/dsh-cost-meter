@@ -356,6 +356,10 @@
 
     const gatewayAccountStatuses = new Set(['ok', 'partial', 'unknown', 'error', 'stale', 'unsupported', 'capability_missing'])
     const gatewaySourceStatuses = new Set(['off', 'loading', 'ok', 'partial', 'stale', 'error'])
+    // 六家网关 Provider 白名单与展示名(与服务端 lib/store.js 的 GATEWAY_PROVIDER_IDS 一致);
+    // 侧边栏卡片(02)与设置页面板(03)共用,故定义在首个使用方之前。
+    const GATEWAY_PROVIDERS = ['antigravity', 'claude', 'codex', 'kimi', 'xai', 'workbuddy']
+    const GATEWAY_PROVIDER_LABELS = { antigravity: 'Antigravity', claude: 'Claude', codex: 'Codex', kimi: 'Kimi', xai: 'xAI', workbuddy: 'WorkBuddy' }
     function parseGatewayQuota(v, path) {
       if (v === null || typeof v !== 'object' || Array.isArray(v)) fail(path, 'object')
       const s0 = (s, d = '') => (typeof s === 'string' ? s : d)
@@ -2429,6 +2433,69 @@
               ...rows)))
     }
 
+    // ── 网关(CLIProxyAPI)额度侧边栏卡片(issue #96)─────────────────────────
+    // 此前 display=sidebar/both 是未接线开关:宿主每刷新周期正常下发 state.gatewayQuotas,
+    // 但侧边栏渲染路径没有任何 gateway 分支,配置侧边栏显示后什么也看不到。
+    // 现与余额/计划卡同口径门控:来源启用 + display 侧边栏/两者 + 快照有账号数据
+    // (ok/partial/stale;error/loading/off 留在设置页展示)才出卡;行渲染复用 MiniMax
+    // 卡(已用口径,≥80 warn / ≥100 over);多账号时行标签加 Provider 前缀,行数上限 4
+    // 防撑爆;仅有 credits 无窗口的账号(如 WorkBuddy)退化为文本行。
+    function GatewayQuotaBox(props) {
+      const { source, snapshot, state, wide, api } = props
+      const t = makeT(resolveLocale(state.config?.locale))
+      const refresh = useClickRefresh(api ? () => api.refreshGatewayQuota(source.id) : null)
+      const direction = barDirectionOf(state.config, 'plan')
+      const multi = snapshot.accounts.length > 1
+      const prefix = account => multi ? (GATEWAY_PROVIDER_LABELS[account.provider] ?? account.provider) + ' · ' : ''
+      const rows = []
+      for (const account of snapshot.accounts) {
+        if (rows.length >= 4) break
+        for (const win of account.windows) {
+          if (rows.length >= 4) break
+          const name = win.label || win.id || t('gatewaySourceUnknown')
+          rows.push({ win, name: prefix(account) + name, view: miniMaxRow(name, win, direction) })
+        }
+        if (account.windows.length === 0 && account.credits != null) {
+          rows.push({ win: null, name: prefix(account) + (account.credits.unit || 'credits'), text: (account.credits.used ?? '—') + ' / ' + (account.credits.limit ?? '—') })
+        }
+      }
+      if (rows.length === 0) return null
+      const level = rows.some(r => r.view?.level === 'over') ? 'over' : rows.some(r => r.view?.level === 'warn') ? 'warn' : 'ok'
+      const detailParts = rows.map(r => {
+        if (r.text != null) return r.name + ' ' + r.text
+        const reset = miniMaxResetText(r.win, t)
+        return r.name + ' ' + (r.view.pct === null ? '—' : r.view.pct + '%') + (reset ? ' · ' + reset : '')
+      })
+      if (snapshot.fetchedAt > 0) detailParts.push(t('goQuotaFetchedAt', { time: new Date(snapshot.fetchedAt).toLocaleTimeString() }))
+      detailParts.push(...clickRefreshTipLines(t, refresh))
+      const detail = [source.label || source.id, ...detailParts].join('; ')
+      const bodyRows = rows.map((r, i) => r.text != null
+        ? el('div', { key: i, className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, r.name), el('span', { className: 'cm-mm-text cm-num' }, r.text))
+        : el(Fragment, { key: i }, r.view.row))
+      const body = el(Fragment, null, el('div', { className: 'cm-mm-title' }, source.label || source.id), ...bodyRows)
+      const pcts = rows.filter(r => r.view).map(r => r.view.pct).filter(p => p !== null)
+      const railText = pcts.length > 0 ? pcts.slice(0, 2).map(p => p + '%').join(' ') : (rows[0].text ?? '—')
+      const rail = el('div', { className: 'cm-bbox-rail cm-num' }, railText)
+      return el(Tooltip, { label: detail, side: 'right', delayMs: 300 },
+        el('div', {
+          className: 'cm-bbox cm-mm clickable' + (level === 'ok' ? '' : ' ' + level) + (wide === false ? ' rail' : '') + (refresh.busy ? ' busy' : ''),
+          ...clickableRefreshProps(refresh.busy, refresh.run),
+        }, wide === false ? rail : body))
+    }
+
+    /** 侧边栏网关卡片列表:按来源配置(display/enabled)与快照状态过滤,见 GatewayQuotaBox 注释。 */
+    function gatewaySidebarCards(state, config, wide, api) {
+      const snaps = Array.isArray(state.gatewayQuotas) ? state.gatewayQuotas : []
+      const nodes = []
+      for (const source of config.gatewayQuotas?.sources ?? []) {
+        if (source.enabled === false || (source.display !== 'sidebar' && source.display !== 'both')) continue
+        const live = snaps.find(q => q.id === source.id)
+        if (!live || (live.status !== 'ok' && live.status !== 'partial' && live.status !== 'stale') || live.accounts.length === 0) continue
+        nodes.push(el(GatewayQuotaBox, { source, snapshot: live, state, wide, api }))
+      }
+      return nodes
+    }
+
     // 输入框上方额度横条:横排 chips(短标签 + 迷你进度条 + 百分比);预算/Go/Coding Plan
     // 三类内容各自开关,无可用数据(未启用/未配置/查询失败)时整条自动隐藏。
     const STRIP_VENDOR_SHORT = {
@@ -2825,13 +2892,15 @@
           return Object.keys(wins).length > 0
         })
       const plansOn = sidebarPlanIds.length > 0
+      // 网关额度侧边栏卡片(issue #96):按来源 display 门控,卡片本体见 GatewayQuotaBox。
+      const gatewayNodes = gatewaySidebarCards(state, config, wide, props.api)
       // Codex 周额度(issue #59):客户端探测 dsh-codex-connect,ok 时并入侧边栏;
       // 其余显示全关时也要为它保留渲染入口(模块装载即有被动探测,快照同步读)。
       const codexOn = codexQuotaCache.status === 'ok'
         && codexQuotaCache.windows.weekly !== null
       const budgetOn = (config.budget ?? {}).enabled === true
       const showToday = config.sidebar !== false && config.hideTodayCost !== true
-      if (!showBalance && !showCustomBalance && !goOk && !plansOn && !codexOn && !budgetOn && !showToday) return null
+      if (!showBalance && !showCustomBalance && !goOk && !plansOn && !codexOn && !budgetOn && !showToday && gatewayNodes.length === 0) return null
       const nodes = []
       if (showBalanceBar) nodes.push(el(BalanceBox, { state, wide, api: props.api }))
       else if (showBalance) nodes.push(el(BalanceRowContent, { state, wide, api: props.api }))
@@ -2840,6 +2909,7 @@
       if (plansOn) nodes.push(...sidebarPlanIds.map(id => id === 'minimax'
         ? el(MiniMaxPlanBox, { state, wide, api: props.api })
         : el(CodingPlanBox, { id, state, wide, api: props.api })))
+      nodes.push(...gatewayNodes)
       if (codexOn) nodes.push(el(CodexPlanBox, { state, wide, api: props.api }))
       if (goOk && budgetOn && wide) {
         // 同时出现:合并为一张卡片(Go 在上、预算在下,细分隔线),各自保留预警色与自己的详细信息开关。

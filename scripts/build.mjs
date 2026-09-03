@@ -42,6 +42,9 @@ const result = await transform(src, {
   legalComments: 'none',
   target: 'es2022',
   format: 'esm',
+  // 宿主模块路由按 text/javascript; charset=utf-8 下发、页面亦为 utf-8:中文按原文 3 字节
+  // 输出,比默认 \uXXXX 转义(每字 6 字节)省一半以上,给 256 KiB 单文件上限留出余量。
+  charset: 'utf8',
 })
 const header = '// This file is generated from the src/client/*.js fragments via `node scripts/build.mjs` (esbuild). Do not edit directly.\n'
 writeFileSync('lib/client.js', header + result.code)

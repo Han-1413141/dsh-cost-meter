@@ -6,13 +6,20 @@
 
 DSH STORE 固定 Commit 自动复检对本仓库给出两条确定性整改原因，本版逐一清除：
 
-- **runtime source 超单文件审核上限**：人类可读源码 `src/client.js` 437,004 字节，超过 DSH STORE 自动审核的 256 KiB（262,144 字节）单文件上限——此前只有压缩产物 `lib/client.js`（261,598 字节）受控贴线，源码侧从未设防。浏览器端是单个 `__ModuleLoader__` factory 闭包，无法按 ES 模块拆分，现按区段切为 `src/client/` 三个**顺序片段**（01 样式+i18n / 02 校验器+助手+侧边栏 / 03 设置页+主体，101,630 / 165,068 / 171,182 字节），`scripts/build.mjs` 按文件名排序拼接后仍经 esbuild 压缩生成 `lib/client.js`。**压缩产物与 v1.7.11 逐字节一致**（261,614 字节，仅生成头注释指向从 `src/client.js` 更新为 `src/client/*.js fragments`），vm 编译与执行门禁照跑。
+- **runtime source 超单文件审核上限**：人类可读源码 `src/client.js` 437,004 字节，超过 DSH STORE 自动审核的 256 KiB（262,144 字节）单文件上限——此前只有压缩产物 `lib/client.js`（261,598 字节）受控贴线，源码侧从未设防。浏览器端是单个 `__ModuleLoader__` factory 闭包，无法按 ES 模块拆分，现按区段切为 `src/client/` 三个**顺序片段**（01 样式+i18n / 02 校验器+助手+侧边栏 / 03 设置页+主体，101,630 / 165,068 / 171,182 字节），`scripts/build.mjs` 按文件名排序拼接后仍经 esbuild 压缩生成 `lib/client.js`。切片本身不改变程序文本——切片当步的压缩码与 v1.7.11 逐字节一致（仅生成头注释指向更新），vm 编译与执行门禁照跑。
 - **DSH_LATEST_THREE_COMPATIBILITY_HOLD**：`package.json` 新增 `dsh.compatibility` 块，对官方最新三个 DSH 发行版（0.1.2-alpha.3 / 0.1.2-alpha.4 / 0.1.2-alpha.5）逐项声明 `dshReleases: compatible`（与既有 `dshhub` 范围声明 `>=0.1.0-rc.5` 同口径）。DSH STORE 规则：仅范围匹配不足以保留上架资格，必须有逐版本精确记录；同时补齐 `dsh.compatibility.dsh` 范围与 `os` 声明（darwin/linux/win32，对齐商城既有的三系统条目），manifest 端兼容声明完整。
 - **SemVer 1.7.11 → 1.7.12**：DSH STORE 仅接受「插件 SemVer 高于商城版本（1.5.7）」的新固定 Commit；版本链五处对齐（package.json / install.ps1 ×3 / 双语 README 徽章与安装行）。
 
+### 网关（CLIProxyAPI）额度侧边栏卡片（issue #96）
+
+- **`display: sidebar/both` 此前是未接线开关**：宿主侧每个刷新周期正常下发 `state.gatewayQuotas`，但客户端侧边栏渲染路径（`SidebarFooter`）没有任何 gateway 分支——配置好 CPA 并开启侧边栏显示后什么都看不到（issue #96 的证据链：gateway UI 仅存在于设置页面板）。
+- **现按来源出卡**：来源启用 + `display` 为侧边栏/两者 + 快照有账号数据（`ok`/`partial`/`stale`；`error`/`loading`/`off` 留在设置页展示）才渲染，挂载在计划卡之后、Codex 探测卡之前，`SidebarFooter` 早退条件同步纳入。行渲染复用 MiniMax 卡（已用口径，≥80 warn / ≥100 over，进度条方向跟随 `barDirections.plan`）；多账号时行标签加 Provider 前缀（`GATEWAY_PROVIDER_LABELS`），行数上限 4 防撑爆；仅有 credits 无窗口的账号（如 WorkBuddy）退化为文本行。卡片可点击触发 `refreshGatewayQuota`，窄栏（rail）显示百分比方块，tooltip 含各窗口重置时间与抓取时间。i18n 全部复用既有网关键，无新增文案。
+- **bundle 转 UTF-8 原文输出**：esbuild 增加 `charset: 'utf8'`——宿主模块路由本就按 `text/javascript; charset=utf-8` 下发、页面亦为 UTF-8，此前默认把全部中文转义成 `\uXXXX`（每字 6 字节 vs 原文 3 字节）纯属浪费。仅此一项 `lib/client.js` 从 261,614 降至 246,238 字节；叠加 #96 卡片后 **248,282 字节**（上限 262,144，余量回到 ~13.9 KB）。顺带清理死文案键 `periodCustom`（zh/en 各一处，全源无引用；`barDirection_*` 键经 `t('barDirection_' + kind)` 动态引用，保留）。
+
 ### 验证
 
-- `node scripts/build.mjs`：三片段拼接 → 261,614 字节（上限 262,144），压缩码与 v1.7.11 逐字节一致；
+- `node scripts/build.mjs`：三片段拼接 → **248,282 字节**（上限 262,144）；
+- `test/verify.mjs` 新增 **issue #96 侧边栏接线回归**（display 门控 / 状态白名单 / 挂载顺序 / miniMaxRow 复用 / credits 兜底 / 点击刷新 / `charset: 'utf8'` 契约与产物无 `\uXXXX` 转义）；
 - `test/verify.mjs` 新增 **src/client/ 逐片段字节门禁**（每片 ≤ 262,144，与 DSH STORE 审核同口径），31 处源码文本断言改读 `readClientSource()` 拼接视图（与 build 同口径），防下一版再卡同一道门禁；
 - 全量测试通过；`scripts/release.mjs --dry` 五处版本引用对齐检查通过。
 

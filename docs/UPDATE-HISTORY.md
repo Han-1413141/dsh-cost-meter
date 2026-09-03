@@ -4,9 +4,11 @@
 > [Commits](https://github.com/Han-1413141/dsh-cost-meter/commits/master)。
 
 
-## v1.7.12(2026-09-03)—— 🏪 DSH STORE 重新上架修复(源码切片守 256 KiB 单文件上限 + 逐版本兼容声明)
-- **更新暂缓根因**:`src/client.js` 人类可读源码 437,004 字节,超过 DSH STORE 固定 Commit 自动审核的 256 KiB(262,144 字节)单文件上限(此前只有压缩产物 `lib/client.js` 受控)。浏览器端是单个 factory 闭包、无法按 ES 模块拆分,故按区段切为 `src/client/` 三个顺序片段(101,630 / 165,068 / 171,182 字节),`scripts/build.mjs` 按文件名排序拼接构建;压缩产物与 v1.7.11 逐字节一致(261,614 字节,仅生成头注释更新),verify 新增逐片段字节门禁防复发。
-- **兼容性下架根因**:DSH_STORE 规则改为「官方最新三个 DSH 发行版(0.1.2-alpha.3/4/5)至少一个精确 `dshReleases: compatible` 记录」,仅范围声明不再构成可安装证据。`package.json` 新增 `dsh.compatibility` 块逐项声明 compatible(与 `dshhub` 的 `>=0.1.0-rc.5` 范围同口径),并补 `os` 三系统声明;SemVer 提升至 1.7.12(商城仅接受高于商城版本的新固定 Commit),版本链五处对齐。修复推送 master 后商城每八小时自动复检(issue #239)。
+## v1.7.12(2026-09-03)—— 🏪 DSH STORE 重新上架修复 + 网关额度侧边栏卡片(源码切片 + 逐版本兼容声明,issue #239/#96)
+- **更新暂缓根因**:`src/client.js` 人类可读源码 437,004 字节,超过 DSH STORE 固定 Commit 自动审核的 256 KiB(262,144 字节)单文件上限(此前只有压缩产物 `lib/client.js` 受控)。浏览器端是单个 factory 闭包、无法按 ES 模块拆分,故按区段切为 `src/client/` 三个顺序片段,`scripts/build.mjs` 按文件名排序拼接构建;verify 新增逐片段字节门禁防复发。
+- **兼容性下架根因**:`package.json` 新增 `dsh.compatibility` 块,对官方最新三个 DSH 发行版(0.1.2-alpha.3/4/5)逐项声明 `dshReleases: compatible`(与 `dshhub` 的 `>=0.1.0-rc.5` 范围同口径),并补 `os` 三系统声明;SemVer 提升至 1.7.12(商城仅接受高于商城版本的新固定 Commit),版本链五处对齐。修复推送 master 后商城每八小时自动复检(issue #239)。
+- **网关额度侧边栏卡片(issue #96)**:`display: sidebar/both` 此前是未接线开关(宿主正常下发 `state.gatewayQuotas`,侧边栏渲染路径却无任何 gateway 分支)。现按来源出卡:启用 + display 侧边栏/两者 + 快照有账号数据(ok/partial/stale)才渲染;行渲染复用 MiniMax 卡(已用口径/告警阈值一致),多账号加 Provider 前缀、credits-only 账号退化文本行,可点击刷新、rail 显示百分比、tooltip 带重置与抓取时间;i18n 全复用既有键。
+- **bundle 瘦身**:esbuild `charset: 'utf8'`(宿主模块路由本就按 utf-8 下发),中文从 `\uXXXX` 转义(每字 6 字节)改为原文 3 字节,`lib/client.js` 261,614 → 248,282 字节(含 #96 卡片),256 KiB 上限余量回到 ~13.9 KB;清理死文案键 `periodCustom`。
 
 ## v1.7.11(2026-09-03)—— 🩹 网关额度设置 UI 修复(单来源可删 + 卡片折叠)+ install-smoke 窗口期修复
 - **设置 UI**:「网关额度」仅剩一个来源时「删除来源」按钮不渲染、删不掉也清不掉——现始终可删,可清空到空态;来源卡片此前永远全展开(表单 + 账号列表整块占位),现可折叠:默认收起为一行,收起时标题旁显示来源状态,「添加来源」新增的卡片自动展开。顺带补上缺失的 `gatewaySourceFetchedAt` 中英文案(此前状态行显示键名)。

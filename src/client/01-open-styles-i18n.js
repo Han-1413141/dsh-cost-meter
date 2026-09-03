@@ -397,7 +397,6 @@ window.__ModuleLoader__.load({
         periodDay: '今日',
         periodMonth: '本月',
         periodAll: '累计',
-        periodCustom: '自定义',
         periodCustomRange: '自定义区间',
         // 表格
         noHistory: '暂无历史记录。开始对话后,费用将按天汇总在这里。',
@@ -843,7 +842,6 @@ window.__ModuleLoader__.load({
         periodDay: 'Today',
         periodMonth: 'This month',
         periodAll: 'All time',
-        periodCustom: 'Custom',
         periodCustomRange: 'Custom range',
         noHistory: 'No history yet. Once you start chatting, costs are aggregated here per day.',
         colDate: 'Date',

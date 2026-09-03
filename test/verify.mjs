@@ -183,6 +183,33 @@ console.log('[ok] 浏览器端 bundle 语法门禁(client.js vm 编译)通过')
   console.log('[ok] 网关额度设置 UI 回归(单来源可删 + 折叠标题行 + fetchedAt 文案)通过')
 }
 
+// ── 网关额度侧边栏接线回归(issue #96)──────────────────────────────────────
+// v1.7.11 及之前:display=sidebar/both 是未接线开关——宿主正常下发 state.gatewayQuotas,
+// 但侧边栏渲染路径(SidebarFooter)没有任何 gateway 分支,配置侧边栏显示后看不到用量。
+// 断言打在 src 源码上(与既有 UI 回归同口径):门控条件、卡片挂载、行渲染复用与
+// utf-8 输出契约(ascii 转义会让 bundle 白涨 ~15KB,挤占 256 KiB 单文件上限)。
+{
+  const src96 = readClientSource()
+  // 门控:来源启用 + display 侧边栏/两者 + 快照有数据(ok/partial/stale;error/loading/off 不出卡)。
+  assert.ok(src96.includes('source.enabled === false || (source.display !== \'sidebar\' && source.display !== \'both\')'), 'issue #96:网关侧边栏卡片按 display(侧边栏/两者)门控')
+  assert.ok(src96.includes("live.status !== 'ok' && live.status !== 'partial' && live.status !== 'stale'"), 'issue #96:仅 ok/partial/stale(有数据)状态出卡,error/loading/off 留在设置页')
+  assert.ok(src96.includes('live.accounts.length === 0') && src96.includes('if (rows.length === 0) return null'), 'issue #96:无账号/无行的来源不出卡')
+  // 挂载:SidebarFooter 早退条件与节点插入都包含网关卡片(此前整条路径无 gateway 分支)。
+  assert.ok(src96.includes('!showToday && gatewayNodes.length === 0) return null'), 'issue #96:SidebarFooter 早退条件纳入网关卡片')
+  assert.ok(src96.includes('nodes.push(...gatewayNodes)'), 'issue #96:SidebarFooter 节点序列插入网关卡片(计划卡之后、Codex 之前)')
+  assert.ok(src96.indexOf('nodes.push(...gatewayNodes)') > src96.indexOf('MiniMaxPlanBox, { state, wide, api: props.api }') && src96.indexOf('nodes.push(...gatewayNodes)') < src96.indexOf('el(CodexPlanBox'), 'issue #96:网关卡片排序在计划卡之后、Codex 探测卡之前')
+  // 行渲染:复用 MiniMax 行(已用口径/告警阈值一致),Provider 前缀与 credits 兜底都在。
+  assert.ok(/function GatewayQuotaBox[\s\S]*miniMaxRow\(name, win, direction\)/.test(src96), 'issue #96:网关卡片行渲染复用 miniMaxRow(与计划卡同口径)')
+  assert.ok(/function GatewayQuotaBox[\s\S]*GATEWAY_PROVIDER_LABELS\[account\.provider\]/.test(src96), 'issue #96:多账号时行标签带 Provider 前缀')
+  assert.ok(/function GatewayQuotaBox[\s\S]*account\.windows\.length === 0 && account\.credits != null/.test(src96), 'issue #96:仅 credits 无窗口的账号(如 WorkBuddy)退化为文本行')
+  assert.ok(/function GatewayQuotaBox[\s\S]*api\.refreshGatewayQuota\(source\.id\)/.test(src96), 'issue #96:卡片可点击刷新(refreshGatewayQuota RPC)')
+  // utf-8 输出契约:宿主模块路由按 text/javascript; charset=utf-8 下发,中文按原文输出。
+  const buildSrc = readFileSync(new URL('../scripts/build.mjs', import.meta.url), 'utf8')
+  assert.ok(buildSrc.includes("charset: 'utf8'"), 'build 固定 charset:utf8(ascii 转义会让 bundle 虚涨 ~15KB)')
+  assert.ok(!/\\u[0-9A-Fa-f]{4}/.test(readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8').slice(0, 4000)), 'lib/client.js 产物不再含 \\uXXXX 转义(utf-8 原文输出)')
+  console.log('[ok] 网关额度侧边栏接线(issue #96:display 门控 + 卡片挂载 + 行渲染复用)通过')
+}
+
 const BOUNDARY_MS = Date.parse(LEGACY_BASE_BOUNDARY)
 const peakCfg = {
   enabled: true,

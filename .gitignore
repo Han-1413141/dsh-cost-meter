@@ -12,3 +12,4 @@ HANDOFF.md
 /opencode.json
 
 .pnpm-store/
+.hoplite/attachments/
