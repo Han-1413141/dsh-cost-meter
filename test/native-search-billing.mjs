@@ -5,7 +5,8 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
-import { createNativeSearchBilling, createSearchCoverage, nativeSearchUsage, installNativeSearchBilling, nativeSearchReconcile, NATIVE_SEARCH_USAGE_EVENT, isNativeSearchUsageEvent } from '../lib/native-search-billing.js'
+import { channel } from 'node:diagnostics_channel'
+import { createNativeSearchBilling, createSearchCoverage, nativeSearchUsage, installNativeSearchBilling, nativeSearchReconcile, NATIVE_SEARCH_USAGE_EVENT, isNativeSearchUsageEvent, appendPersistsIgnorable } from '../lib/native-search-billing.js'
 import { Ledger, sanitizeConfig, localDayKey } from '../lib/store.js'
 import { replaySessionRecords } from '../lib/backfill.js'
 import { __testProjection } from '../lib/index.js'
@@ -262,5 +263,72 @@ function harness(overrides = {}) {
     assert.equal(web.search, original, 'web 服务卸载恢复原方法')
     assert.equal(NATIVE_SEARCH_USAGE_EVENT, 'cost-meter/native-search-usage')
   } finally { rmSync(root, { recursive: true, force: true }) }
+}
+// 宿主能力探测：宿主读取端对未知事件类型 fail-closed，只跳过带信封 ignorable 的未知事件。
+// 因此只有宿主确实能把该标记持久化时才写会话事件；探测不到时必须不落盘（否则该会话重启后
+// 整份日志被 validateStoredEvents 拒绝），但计费（account）照常。新宿主支持后自动恢复落盘。
+{
+  const root = mkdtempSync(join(tmpdir(), 'cm-search-ignorable-'))
+  const warnings = []
+  const originalWarn = console.warn
+  try {
+    assert.equal(appendPersistsIgnorable(undefined), false)
+    assert.equal(appendPersistsIgnorable({}), false)
+    assert.equal(appendPersistsIgnorable({ append: 1 }), false)
+    assert.equal(appendPersistsIgnorable({ append: () => {} }), false, '无该标记的旧宿主不得被误判为支持')
+    // 0.1.5-rc.1 的编译形态：Session.append 只从 opts[0] 读 surfaceOp / sourceEventSeqs。
+    const oldHostSession = {
+      id: 'old-host',
+      rows: [],
+      append(type, data, ...opts) {
+        const surfaceOpts = opts[0]
+        const surfaceMetadata = {
+          ...surfaceOpts?.sourceEventSeqs === undefined ? {} : { sourceEventSeqs: surfaceOpts.sourceEventSeqs },
+          ...surfaceOpts?.surfaceOp === undefined ? {} : { surfaceOp: surfaceOpts.surfaceOp },
+        }
+        this.rows.push({ type, data, ...surfaceMetadata })
+        return this.rows.at(-1)
+      },
+    }
+    // 未来宿主形态：opts.ignorable 会被写进信封。
+    const newHostSession = {
+      id: 'new-host',
+      rows: [],
+      append(type, data, ...opts) {
+        const ignorable = opts[0]?.ignorable === true ? { ignorable: true } : {}
+        this.rows.push({ type, data, ...ignorable })
+        return this.rows.at(-1)
+      },
+    }
+    assert.equal(appendPersistsIgnorable(oldHostSession), false, '旧宿主 append 无法写入 ignorable')
+    assert.equal(appendPersistsIgnorable(newHostSession), true, '可写入 ignorable 的宿主被识别')
+
+    const official = 'https://api.deepseek.com'
+    const drive = (request) => {
+      channel('undici:request:create').publish({ request })
+      channel('undici:request:headers').publish({ request, response: { statusCode: 200, headers: [] } })
+      channel('undici:request:bodyChunkReceived').publish({ request, chunk: Buffer.from(JSON.stringify(response())) })
+      channel('undici:request:trailers').publish({ request })
+    }
+    console.warn = (...args) => warnings.push(args.join(' '))
+    for (const [label, session, expectedRows] of [['旧宿主', oldHostSession, 0], ['新宿主', newHostSession, 1]]) {
+      const effects = [], accounts = []
+      const web = { async search(request) { drive({ method: 'POST', origin: official, path: '/anthropic/v1/messages' }); return request } }
+      const ctx = { effect: fn => effects.push(fn()), get: name => name === 'agents' ? { currentInitiator: () => ({ session }) } : undefined, inject: (_, fn) => fn({ web, get: name => ctx.get(name), effect: fn => effects.push(fn()) }) }
+      const ledger = { path: join(root, `${label}.json`), account: (...args) => accounts.push(args) }
+      installNativeSearchBilling(ctx, ledger)
+      await web.search({ query: 'synthetic' })
+      for (const dispose of effects.reverse()) dispose()
+      assert.equal(accounts.length, 1, `${label}: 原生搜索用量照常入账`)
+      assert.equal(accounts[0][2], session.id, `${label}: 入账带上会话 id`)
+      assert.equal(session.rows.length, expectedRows, `${label}: 会话事件落盘数符合宿主能力`)
+      for (const row of session.rows) assert.equal(row.type, NATIVE_SEARCH_USAGE_EVENT)
+      if (expectedRows === 1) assert.equal(session.rows[0].ignorable, true, '可持久化宿主下信封带 ignorable')
+    }
+    assert.equal(warnings.length, 1, '仅对不支持 ignorable 的宿主告警一次')
+  } finally {
+    console.warn = originalWarn
+    rmSync(root, { recursive: true, force: true })
+  }
 }
 console.log('原生搜索计费回归通过')
