@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, appendFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, appendFileSync, symlinkSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -71,6 +71,22 @@ try {
     assert.deepEqual(bytes.subarray(ranges[1].start, ranges[1].end), packedFrame, 'large packed dialogue frame remains byte-identical')
     assert.deepEqual(readFileSync(result.backup), source)
   }
+  const actualDirectory = join(root, 'ordinary-long-directory-name')
+  mkdirSync(actualDirectory)
+  const aliasPath = join(root, 'directory-link')
+  symlinkSync(actualDirectory, aliasPath, process.platform === 'win32' ? 'junction' : 'dir')
+  const linkedFile = join(actualDirectory, 'session.v3.jsonl')
+  writeFileSync(linkedFile, Buffer.concat(records('alias').map(text)))
+  try {
+    await assert.rejects(repairSessionLog(join(aliasPath, 'session.v3.jsonl')), /目录链接|符号链接/)
+    if (process.platform === 'win32') {
+      // Actual filesystem 8.3 spelling, if enabled on the test volume. No path is executed.
+      const short = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', '$fso = New-Object -ComObject Scripting.FileSystemObject; $fso.GetFolder($env:CM_REPAIR_ALIAS_DIRECTORY).ShortPath'], { encoding: 'utf8', env: { ...process.env, CM_REPAIR_ALIAS_DIRECTORY: actualDirectory } })
+      assert.equal(short.status, 0, short.stderr)
+      const preview = await repairSessionLog(join(short.stdout.trim(), 'session.v3.jsonl'))
+      assert.equal(preview.changedEvents, 1, 'Windows short directory names are accepted')
+    }
+  } finally { unlinkSync(aliasPath) }
   // The real host's strict disk admission and kernel lock, on both release candidates.
   if (process.env.DSH_TEST_NODE_MODULES) {
     const modules = resolve(process.env.DSH_TEST_NODE_MODULES)
