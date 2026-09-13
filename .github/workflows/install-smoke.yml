@@ -66,7 +66,9 @@ jobs:
       # verify.mjs 回归套件(定价数学/峰谷边界/账本回归/端点白名单)此前完全靠人工执行。
       - name: Run regression suite
         shell: bash
-        run: node test/verify.mjs
+        run: |
+          export DSH_TEST_NODE_MODULES="$(npm root -g)/@deepseek-ai/dsh/node_modules"
+          node test/verify.mjs
       # 产物漂移门禁(v1.6.8):lib/client.js 是提交进仓库的压缩产物,无 prepare/prepack
       # 钩子,全靠手工构建后提交,此前实测已发生漂移。此处重新构建并比对,任何未提交
       # 的产物差异都会让 CI 变红,杜绝把过期 bundle 发布出去。

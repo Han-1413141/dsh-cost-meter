@@ -5,7 +5,9 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
+import { channel } from 'node:diagnostics_channel'
 import { createNativeSearchBilling, createSearchCoverage, nativeSearchUsage, installNativeSearchBilling, nativeSearchReconcile, NATIVE_SEARCH_USAGE_EVENT, isNativeSearchUsageEvent } from '../lib/native-search-billing.js'
+import { nativeSearchRecordsFor } from '../lib/native-search-history.js'
 import { Ledger, sanitizeConfig, localDayKey } from '../lib/store.js'
 import { replaySessionRecords } from '../lib/backfill.js'
 import { __testProjection } from '../lib/index.js'
@@ -262,5 +264,70 @@ function harness(overrides = {}) {
     assert.equal(web.search, original, 'web 服务卸载恢复原方法')
     assert.equal(NATIVE_SEARCH_USAGE_EVENT, 'cost-meter/native-search-usage')
   } finally { rmSync(root, { recursive: true, force: true }) }
+}
+// PR #135 的旧/新宿主行为用例：最终采用独立明细，两种宿主都不再写入私有事件。
+{
+  const root = mkdtempSync(join(tmpdir(), 'cm-search-ignorable-'))
+  const warnings = []
+  const originalWarn = console.warn
+  try {
+    // 0.1.5-rc.1 的编译形态：Session.append 只从 opts[0] 读 surfaceOp / sourceEventSeqs。
+    const oldHostSession = {
+      id: 'old-host',
+      rows: [],
+      append(type, data, ...opts) {
+        const surfaceOpts = opts[0]
+        const surfaceMetadata = {
+          ...surfaceOpts?.sourceEventSeqs === undefined ? {} : { sourceEventSeqs: surfaceOpts.sourceEventSeqs },
+          ...surfaceOpts?.surfaceOp === undefined ? {} : { surfaceOp: surfaceOpts.surfaceOp },
+        }
+        this.rows.push({ type, data, ...surfaceMetadata })
+        return this.rows.at(-1)
+      },
+    }
+    // 未来宿主形态：opts.ignorable 会被写进信封。
+    const newHostSession = {
+      id: 'new-host',
+      rows: [],
+      append(type, data, ...opts) {
+        const ignorable = opts[0]?.ignorable === true ? { ignorable: true } : {}
+        this.rows.push({ type, data, ...ignorable })
+        return this.rows.at(-1)
+      },
+    }
+    const misleadingSession = { id: 'word-only', rows: [], append(type, data) {
+      // ignorable is mentioned but not persisted; a source-text probe would be unsafe.
+      this.rows.push({ type, data })
+    } }
+    const inaccessibleSession = { id: 'opaque', rows: [], get append() { throw new Error('不得探测或调用 append') } }
+
+    const official = 'https://api.deepseek.com'
+    const drive = (request) => {
+      channel('undici:request:create').publish({ request })
+      channel('undici:request:headers').publish({ request, response: { statusCode: 200, headers: [] } })
+      channel('undici:request:bodyChunkReceived').publish({ request, chunk: Buffer.from(JSON.stringify(response())) })
+      channel('undici:request:trailers').publish({ request })
+    }
+    console.warn = (...args) => warnings.push(args.join(' '))
+    for (const [label, session] of [['旧宿主', oldHostSession], ['新宿主', newHostSession], ['无效探测', misleadingSession], ['不透明宿主', inaccessibleSession]]) {
+      const effects = [], accounts = []
+      const web = { async search(request) { drive({ method: 'POST', origin: official, path: '/anthropic/v1/messages' }); return request } }
+      const ctx = { effect: fn => effects.push(fn()), get: name => name === 'agents' ? { currentInitiator: () => ({ session }) } : undefined, inject: (_, fn) => fn({ web, get: name => ctx.get(name), effect: fn => effects.push(fn()) }) }
+      const ledger = { path: join(root, `${label}.json`), account: (...args) => accounts.push(args) }
+      installNativeSearchBilling(ctx, ledger)
+      await web.search({ query: 'synthetic' })
+      for (const dispose of effects.reverse()) dispose()
+      assert.equal(accounts.length, 1, `${label}: 原生搜索用量照常入账`)
+      assert.equal(accounts[0][2], session.id, `${label}: 入账带上会话 id`)
+      assert.equal(session.rows.length, 0, `${label}: 不写入宿主会话日志`)
+      const history = await nativeSearchRecordsFor(ledger.path, session.id)
+      assert.equal(history.length, 1, `${label}: 独立明细可从磁盘恢复`)
+      assert.deepEqual(history[0].data.usage, nativeSearchUsage(response()).usage)
+    }
+    assert.equal(warnings.length, 0, '正常持久化不再产生能力探测告警')
+  } finally {
+    console.warn = originalWarn
+    rmSync(root, { recursive: true, force: true })
+  }
 }
 console.log('原生搜索计费回归通过')
