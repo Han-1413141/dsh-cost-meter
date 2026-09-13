@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
 import { channel } from 'node:diagnostics_channel'
-import { createNativeSearchBilling, createSearchCoverage, nativeSearchUsage, installNativeSearchBilling, nativeSearchReconcile, NATIVE_SEARCH_USAGE_EVENT, isNativeSearchUsageEvent, appendPersistsIgnorable } from '../lib/native-search-billing.js'
+import { createNativeSearchBilling, createSearchCoverage, nativeSearchUsage, installNativeSearchBilling, nativeSearchReconcile, NATIVE_SEARCH_USAGE_EVENT, isNativeSearchUsageEvent } from '../lib/native-search-billing.js'
+import { nativeSearchRecordsFor } from '../lib/native-search-history.js'
 import { Ledger, sanitizeConfig, localDayKey } from '../lib/store.js'
 import { replaySessionRecords } from '../lib/backfill.js'
 import { __testProjection } from '../lib/index.js'
@@ -264,18 +265,12 @@ function harness(overrides = {}) {
     assert.equal(NATIVE_SEARCH_USAGE_EVENT, 'cost-meter/native-search-usage')
   } finally { rmSync(root, { recursive: true, force: true }) }
 }
-// 宿主能力探测：宿主读取端对未知事件类型 fail-closed，只跳过带信封 ignorable 的未知事件。
-// 因此只有宿主确实能把该标记持久化时才写会话事件；探测不到时必须不落盘（否则该会话重启后
-// 整份日志被 validateStoredEvents 拒绝），但计费（account）照常。新宿主支持后自动恢复落盘。
+// PR #135 的旧/新宿主行为用例：最终采用独立明细，两种宿主都不再写入私有事件。
 {
   const root = mkdtempSync(join(tmpdir(), 'cm-search-ignorable-'))
   const warnings = []
   const originalWarn = console.warn
   try {
-    assert.equal(appendPersistsIgnorable(undefined), false)
-    assert.equal(appendPersistsIgnorable({}), false)
-    assert.equal(appendPersistsIgnorable({ append: 1 }), false)
-    assert.equal(appendPersistsIgnorable({ append: () => {} }), false, '无该标记的旧宿主不得被误判为支持')
     // 0.1.5-rc.1 的编译形态：Session.append 只从 opts[0] 读 surfaceOp / sourceEventSeqs。
     const oldHostSession = {
       id: 'old-host',
@@ -300,8 +295,11 @@ function harness(overrides = {}) {
         return this.rows.at(-1)
       },
     }
-    assert.equal(appendPersistsIgnorable(oldHostSession), false, '旧宿主 append 无法写入 ignorable')
-    assert.equal(appendPersistsIgnorable(newHostSession), true, '可写入 ignorable 的宿主被识别')
+    const misleadingSession = { id: 'word-only', rows: [], append(type, data) {
+      // ignorable is mentioned but not persisted; a source-text probe would be unsafe.
+      this.rows.push({ type, data })
+    } }
+    const inaccessibleSession = { id: 'opaque', rows: [], get append() { throw new Error('不得探测或调用 append') } }
 
     const official = 'https://api.deepseek.com'
     const drive = (request) => {
@@ -311,7 +309,7 @@ function harness(overrides = {}) {
       channel('undici:request:trailers').publish({ request })
     }
     console.warn = (...args) => warnings.push(args.join(' '))
-    for (const [label, session, expectedRows] of [['旧宿主', oldHostSession, 0], ['新宿主', newHostSession, 1]]) {
+    for (const [label, session] of [['旧宿主', oldHostSession], ['新宿主', newHostSession], ['无效探测', misleadingSession], ['不透明宿主', inaccessibleSession]]) {
       const effects = [], accounts = []
       const web = { async search(request) { drive({ method: 'POST', origin: official, path: '/anthropic/v1/messages' }); return request } }
       const ctx = { effect: fn => effects.push(fn()), get: name => name === 'agents' ? { currentInitiator: () => ({ session }) } : undefined, inject: (_, fn) => fn({ web, get: name => ctx.get(name), effect: fn => effects.push(fn()) }) }
@@ -321,11 +319,12 @@ function harness(overrides = {}) {
       for (const dispose of effects.reverse()) dispose()
       assert.equal(accounts.length, 1, `${label}: 原生搜索用量照常入账`)
       assert.equal(accounts[0][2], session.id, `${label}: 入账带上会话 id`)
-      assert.equal(session.rows.length, expectedRows, `${label}: 会话事件落盘数符合宿主能力`)
-      for (const row of session.rows) assert.equal(row.type, NATIVE_SEARCH_USAGE_EVENT)
-      if (expectedRows === 1) assert.equal(session.rows[0].ignorable, true, '可持久化宿主下信封带 ignorable')
+      assert.equal(session.rows.length, 0, `${label}: 不写入宿主会话日志`)
+      const history = await nativeSearchRecordsFor(ledger.path, session.id)
+      assert.equal(history.length, 1, `${label}: 独立明细可从磁盘恢复`)
+      assert.deepEqual(history[0].data.usage, nativeSearchUsage(response()).usage)
     }
-    assert.equal(warnings.length, 1, '仅对不支持 ignorable 的宿主告警一次')
+    assert.equal(warnings.length, 0, '正常持久化不再产生能力探测告警')
   } finally {
     console.warn = originalWarn
     rmSync(root, { recursive: true, force: true })
