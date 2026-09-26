@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "费用计量 (dsh-cost-meter)",
+    "description": "费用计量：按会话统计 token 与成本，含各厂商余额与峰谷计价提醒"
+  }
+}
