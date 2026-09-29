@@ -1866,6 +1866,19 @@ console.log('[ok] 宽泛匹配与跨厂商兑底(路由 provider 费用为零修
   let projState = def.init()
   for (const ev of events) projState = def.apply(projState, ev)
   assert.equal(projState.last.key, '2:1', '投影状态推进到最后样本')
+  assert.ok(projState.byProviderModel['deepseek:deepseek-v4-flash'].cost > 0, '首次调用按原模型计费')
+  assert.ok(projState.byProviderModel['openai:gpt-5.6-luna'].cost > 0, '切换后的调用按新模型计费')
+  assert.ok(Math.abs(projState.totals.cost - Object.values(projState.byProviderModel).reduce((sum, row) => sum + row.cost, 0)) < 1e-12, '混合模型会话费用为逐模型费用之和')
+  const switchedWithoutHeader = {
+    type: 'assistant/message', time: 1720000005000, data: { turn: 1, step: 1,
+      message: { source: { provider: 'deepseek', model: 'deepseek-v4-pro' } },
+      usage: { inputTokens: 1000, outputTokens: 100, cacheReadTokens: 0, cacheWriteTokens: 0 } },
+  }
+  const sourceState = def.apply(def.apply(def.init(), events[1]), switchedWithoutHeader)
+  assert.ok(sourceState.byProviderModel['deepseek:deepseek-v4-pro'].cost > 0, '最终消息的模型来源可修正缺失的切换 header')
+  assert.equal(sourceState.byProviderModel['deepseek:deepseek-v4-flash'], undefined, '不会把切换后用量挂在首个模型')
+  const replayedSource = replaySessionRecords([{ type: 'session', id: 'switched-model', createdAt: 1720000000000 }, events[1], switchedWithoutHeader], sanitizeConfig({}))
+  assert.ok(Object.values(replayedSource.days)[0]['deepseek:deepseek-v4-pro'].cost > 0, '历史回放同样以最终消息的模型归因')
   // ① restore 路径(宿主 restore() 255 行,无 try-catch):真实 state 可 parse。
   usageProjectionStateSchema.parse(projState)
   // ② snapshot/drive 路径:wire.viewSchema.parse(wire.view(state)) 可执行。

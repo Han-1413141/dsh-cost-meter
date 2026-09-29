@@ -38,7 +38,7 @@ window.__ModuleLoader__.load({
 
     const css = [
       '/* dsh-cost-meter: 会话费用徽章与设置页 */',
-      '.cm-root{display:block;text-align:center;max-width:var(--dsh-chat-content-width,720px);width:100%;margin:0 auto;box-sizing:border-box;padding:4px calc(var(--dsh-composer-side-clearance,0px) + 16px) 0;font-size:12px;line-height:20px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.cm-root{flex:0 1 auto;min-width:0;max-width:100%;text-align:center;font-size:12px;line-height:20px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cm-chip{display:inline-flex;align-items:center;gap:4px;max-width:180px;padding:0 8px;height:22px;border-radius:6px;background:var(--dsw-alias-bg-layer-2);font-size:12px;line-height:22px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cm-foot{display:flex;align-items:center;gap:6px;height:32px;padding:0 8px;border-radius:8px;font-size:12px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden}',
       '.cm-foot:hover,.cm-foot-rail:hover,.cm-corner-chip:hover,.cm-qchip:hover,.cm-tab:hover,.cm-btn:hover{background:var(--dsw-alias-interactive-bg-hover)}',

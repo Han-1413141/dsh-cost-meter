@@ -10,6 +10,31 @@ permissions:
   contents: read
 
 jobs:
+  marketplace-git-install:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Install reported DSH host and pnpm
+        shell: pwsh
+        run: |
+          npm install -g pnpm@11.21.0
+          New-Item -ItemType Directory -Path .tmp-next-host -Force | Out-Null
+          Copy-Item test/fixtures/next-host/package.json .tmp-next-host/package.json
+          npm install --prefix .tmp-next-host --no-audit --no-fund
+      - name: Install through the Plugin Hub Git URL
+        shell: pwsh
+        env:
+          TEST_REV: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          $env:DSH_HOME = Join-Path $env:RUNNER_TEMP 'dsh-cost-meter-git-install'
+          node .tmp-next-host/node_modules/@deepseek-ai/dsh/lib/bin.js plugin --profile web add "git+https://github.com/han-1413141/dsh-cost-meter.git#$env:TEST_REV"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $config = node .tmp-next-host/node_modules/@deepseek-ai/dsh/lib/bin.js --profile web --dump-config
+          if ($LASTEXITCODE -ne 0 -or -not ($config | Select-String 'name: dsh-cost-meter')) { exit 1 }
+
   next-host-compatibility:
     runs-on: ubuntu-latest
     steps:

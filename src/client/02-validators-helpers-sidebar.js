@@ -1316,6 +1316,11 @@
       return { cost, planPart }
     }
 
+    function modelCostDetail(usage, config) {
+      return Object.entries(usage?.byProviderModel ?? {}).filter(([, row]) => row.input || row.output || row.cacheRead || row.cacheWrite || row.reasoning)
+        .map(([id, row]) => id + ' ' + formatMoneyUsd(row.cost, config)).join('; ')
+    }
+
     function SessionCost(props) {
       const { usage, config } = useSessionUsage(props)
       if (!usage || !config || (billedInput(usage) + (usage?.output ?? 0)) === 0) return null
@@ -1334,7 +1339,8 @@
         }),
         t('cost', { amount: formatMoneyUsd(cost, config) }),
         ...(planPart > 0 ? [t('sessionDetailPlan', { amount: formatMoneyUsd(planPart, config) })] : []),
-      ].join('; ')
+        modelCostDetail(usage, config),
+      ].filter(Boolean).join('; ')
       return el(Tooltip, { label: detail, side: 'top', delayMs: 500 },
         el('div', { className: 'cm-chip' }, planPart > 0
           ? t('costChipPlan', { amount: formatMoneyUsd(cost, config) })
@@ -1352,7 +1358,7 @@
       const { cost, planPart } = sessionCostParts(usage, config)
       // 缓存写入属于输入分母，但不是缓存命中；无输入时显示未知。
       const hitRate = billedInput(usage) > 0 ? ((usage.cacheRead ?? 0) / billedInput(usage) * 100).toFixed(1) + '%' : '—'
-      return el('div', { className: 'cm-root' },
+      return el('div', { className: 'cm-root', title: modelCostDetail(usage, config) },
         t(planPart > 0 ? 'sessionLineSplit' : 'sessionLine', {
           amount: formatMoneyUsd(cost, config),
           planAmount: formatMoneyUsd(planPart, config),
@@ -2910,7 +2916,7 @@
 
     function sidebarTodayValue(today, config, t) {
       return config.sidebarTodayMetric === 'tokens'
-        ? formatTokens((Number(today?.input) || 0) + (Number(today?.output) || 0)) + ' ' + t('tokensUnit')
+        ? formatTokens(['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning'].reduce((sum, key) => sum + (Number(today?.[key]) || 0), 0)) + ' ' + t('tokensUnit')
         : formatMoneyUsd(displayCostOf(today, config), config)
     }
 
