@@ -17,6 +17,7 @@ import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { transform } from 'esbuild'
 import { runInNewContext } from 'node:vm'
+import assert from 'node:assert/strict'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -42,6 +43,16 @@ for (const name of fragments) {
 }
 
 let src = fragments.map(name => readFileSync(resolve(clientDir, name), 'utf8')).join('')
+// Store bilingual dictionary keys once; rebuild the same public dictionaries.
+// This leaves source translations readable and frees space for turn details.
+const messagesMatch = src.match(/const MESSAGES = (\{[\s\S]*?\n    \})\s*\n/)
+if (!messagesMatch) throw new Error('client messages source not found')
+const messages = runInNewContext(`(${messagesMatch[1]})`, Object.create(null), { timeout: 1000 })
+const messageKeys = [...new Set(Object.values(messages).flatMap(dict => Object.keys(dict)))]
+const packedMessages = Object.entries(messages).map(([locale, dict]) => [locale, messageKeys.map(key => dict[key] ?? null)])
+const unpacked = Object.fromEntries(packedMessages.map(([locale, values]) => [locale, Object.fromEntries(messageKeys.map((key, i) => [key, values[i]]).filter(([, value]) => value !== null))]))
+assert.deepEqual(unpacked, JSON.parse(JSON.stringify(messages)), 'dictionary packing must preserve every translation')
+src = src.replace(messagesMatch[0], () => `const MESSAGES = Object.fromEntries(${JSON.stringify(packedMessages)}.map(([locale,values])=>[locale,Object.fromEntries(${JSON.stringify(messageKeys)}.map((key,i)=>[key,values[i]]).filter(([,value])=>value!==null))]));\n`)
 // CSS 在源码保留逐行审阅形式；发布时先按 CSS 语法压缩，再嵌入同一客户端。
 // 不删除规则、不调整选择器优先级，所有样式仍在受字节门禁检查的 bundle 内。
 const cssMatch = src.match(/const css = (\[[\s\S]*?\]\.join\('\\n'\))/)

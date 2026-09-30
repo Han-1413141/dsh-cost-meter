@@ -2726,6 +2726,7 @@
         getDaySessions: async date => call('getDaySessions', [date]),
         // 跨全部日期的会话排行(issue #22 不分日期视角):支持费用/时间升降序与实时顺序。
         getSessionCost: async id => call('getSessionCost', [id]),
+        getTurnCost: async (id, start, end) => call('getTurnCost', [id, start, end]),
         getTopSessions: async (limit, sort, dir) => call('getTopSessions', [limit, sort, dir]),
         refreshBalance: async () => receive(costMeter.refreshBalance(), 'rpcBalanceFailed'),
         refreshGoQuota: async () => receive(costMeter.refreshGoQuota()),
@@ -2743,6 +2744,7 @@
       if (slots === undefined) return
 
       const injected = () => ({ hooks: { cost: store }, api })
+      slots.inject('conversation.chat.turnTail', () => slots.register({ name: 'conversation.chat.turnTail', id: 'cost-meter-turn', order: 10, inject: injected }, TurnCost))
       // 通用插槽注册去重:共享「失效旧注册→bump gen→注入→生成期护栏→记录 dispose→卸载清理」逻辑。
       const slotActive = () => ({ gen: 0, dispose: null })
       const registerSlot = (active, slotName, options, component, enabled = true) => {

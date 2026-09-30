@@ -46,6 +46,48 @@ function harness(overrides = {}) {
   return { monitor, publish, request, complete, accounts, records, misses, listeners }
 }
 
+// Host event fallback: no web.search wrapper, no global fetch replacement.
+{
+  const h = harness()
+  const session = { id: 'saved-search-method' }
+  const marker = { type: 'web/deepseek-search-llm-request', data: { endpoint: 'https://api.deepseek.com/anthropic/v1/messages' } }
+  h.monitor.signal(session, marker)
+  await Promise.resolve()
+  const request = h.request()
+  h.publish('create', { request }); h.complete(request)
+  assert.equal(h.accounts.length, 1)
+  assert.equal(h.records[0].session.id, session.id)
+  const ordinary = h.request()
+  h.publish('create', { request: ordinary }); h.complete(ordinary)
+  assert.equal(h.accounts.length, 1, 'one search signal cannot bill a subsequent ordinary Messages request')
+  h.monitor.signal(session, marker)
+  h.monitor.signal(session, { type: 'tool/result' })
+  const cancelled = h.request()
+  h.publish('create', { request: cancelled }); h.complete(cancelled)
+  assert.equal(h.accounts.length, 1, 'a completed/cancelled tool cannot leave a billing signal')
+  h.monitor.signal(session, { ...marker, data: { endpoint: 'https://other.test/anthropic/v1/messages' } })
+  h.publish('create', { request: cancelled }); h.complete(cancelled)
+  assert.equal(h.accounts.length, 1, 'third-party endpoints do not enable official search observation')
+  await h.monitor.run(async () => {
+    h.monitor.signal(session, marker)
+    const req = h.request()
+    h.publish('create', { request: req }); h.complete(req)
+  }, session)
+  assert.equal(h.accounts.length, 2, 'wrapper and session signal must not account the same request twice')
+  await Promise.all(['parallel-a', 'parallel-b'].map(async id => {
+    h.monitor.signal({ id }, marker)
+    await Promise.resolve()
+    const req = h.request()
+    h.publish('create', { request: req }); h.complete(req)
+  }))
+  assert.deepEqual(h.accounts.slice(2).map(r => r.session.id).sort(), ['parallel-a', 'parallel-b'])
+  h.monitor.signal(session, marker)
+  const missing = h.request()
+  h.publish('create', { request: missing }); h.complete(missing, '{}')
+  assert.equal(h.misses.length, 1, 'fallback still reports missing usage')
+  h.monitor.dispose()
+}
+
 // 真实账本 → 原生用量日志 → 回放 / checkpoint 投影，同币种同峰谷金额必须一致。
 {
   const root = mkdtempSync(join(tmpdir(), 'cm-search-accounting-'))

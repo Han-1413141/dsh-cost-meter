@@ -8,6 +8,7 @@ const sourceDir = new URL('../src/client/', import.meta.url)
 const source = readdirSync(sourceDir).filter(name => name.endsWith('.js')).sort().map(name => readFileSync(new URL(name, sourceDir), 'utf8')).join('')
 const expose = ['mergeSessionUsage', 'useSessionUsage', 'SessionCost', 'DockLine', 'fetchCodexQuota', 'useCodexQuota', 'codexQuotaCache', 'CodexPlanBox', 'SidebarFooter', 'GatewayQuotaBox', 'parsePrice', 'normalizeClientPrice', 'tierFor', 'costOfBuckets']
 const element = (type, props, ...children) => ({ type, props: props ?? {}, children })
+expose.push('TurnCost')
 const nodes = value => Array.isArray(value) ? value.flatMap(nodes) : value && typeof value === 'object' ? [value, ...nodes(value.children)] : []
 const textOf = value => Array.isArray(value) ? value.map(textOf).join(' ') : value && typeof value === 'object' ? textOf(value.children) : typeof value === 'string' || typeof value === 'number' ? String(value) : ''
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
@@ -90,6 +91,44 @@ const config = sanitizeConfig({ locale: 'en', currency: 'USD', symbol: '$', exch
 const usage = (input, cost, apiCost) => ({ input, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, cost, ...(apiCost === undefined ? {} : { apiCost }) })
 const snapshot = (own, subagents = usage(0, 0, 0), found = true) => ({ own, subagents, found, subagentCount: subagents.input > 0 ? 1 : 0 })
 const e = environment()
+// #205: show exact bucket arithmetic, keep Plan separate and reject stale replies.
+{
+  const requests = []
+  let cfg = { ...config }
+  const p = id => ({ sessionId: id, turn: { start: { seq: 1 }, end: { seq: 4 } },
+    useCost: pick => pick({ state: { config: cfg } }), api: { getTurnCost: (...args) => { const d = deferred(); requests.push({ ...d, args }); return d.promise } } })
+  const card = e.mount(e.ui.TurnCost, p('one'))
+  assert.deepEqual(requests[0].args, ['one', 1, 4])
+  card.render(p('two'))
+  requests[1].resolve({ found: true, cost: 0.0002, apiCost: 0.0001, rows: [
+    { provider: 'test', model: 'm', bucket: 'input', tokens: 100, rate: 1, cost: 0.0001, priced: true, plan: false },
+    { provider: 'test', model: 'plan', bucket: 'output', tokens: 50, rate: 2, cost: 0.0001, priced: true, plan: true },
+  ], calls: [
+    { kind: 'model', provider: 'test', model: 'm', atMs: 1800000000000, cost: 0.0001, plan: false, priced: true, longContext: true, rows: [] },
+    { kind: 'search', provider: 'deepseek-official', model: 'deepseek-v4-flash', atMs: 1800000000001, cost: 0.00000001, plan: false, priced: true, rows: [] },
+    { kind: 'compaction', provider: 'test', model: 'plan', atMs: 1800000000002, cost: 0.0001, plan: true, priced: true, rows: [] },
+  ] }); await e.flush()
+  assert.match(textOf(card.tree), /Turn cost\s+≈ \$0\.0001/)
+  assert.match(textOf(card.tree), /100 × \$1 \/ 1,000,000 ≈ \$0\.0001/)
+  assert.match(textOf(card.tree), /Plan ≈ \$0\.0001/)
+  assert.match(textOf(card.tree), /Individual calls \(3\)/)
+  assert.match(textOf(card.tree), /Native search.*\$0\.00000001/)
+  assert.match(textOf(card.tree), /Context compaction/)
+  assert.match(textOf(card.tree), /long context/)
+  requests[0].resolve({ found: true, cost: 99, apiCost: 99, rows: [], calls: [] }); await e.flush()
+  assert.doesNotMatch(textOf(card.tree), /99/)
+  cfg = structuredClone(cfg)
+  card.render(p('two'))
+  assert.equal(requests.length, 2, 'state polling with unchanged prices must not reread every turn')
+  cfg = { ...cfg, locale: 'zh', showTotalWithPlan: true }
+  card.render(p('two'))
+  assert.match(textOf(card.tree), /本轮费用\s+≈ \$0\.0002/)
+  assert.match(textOf(card.tree), /输入/)
+  assert.equal(requests.length, 2)
+  card.render({ ...p('two'), turn: { start: { seq: 1 } } })
+  assert.equal(card.tree, null, 'unfinished turns do not request partial totals')
+  card.dispose()
+}
 assert.equal(e.requests.length, 0, '加载 factory 不探测 Codex 插件')
 const oldProjection = usage(10, 1), own = usage(100, 5, 3), child = usage(20, 2, 1)
 assert.equal(e.ui.mergeSessionUsage(oldProjection, snapshot(own, child), false, config), own)

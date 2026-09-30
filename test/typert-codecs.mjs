@@ -40,6 +40,16 @@ for (const [face, descriptors] of [['host', TYPERT.invocations], ['client', cont
 }
 const shape = descriptors => Array.from(descriptors, item => [item.id, Array.from(item.parameters, p => [p.wire, p.acceptsUndefined ?? false])]).sort((a, b) => a[0].localeCompare(b[0]))
 assert.deepEqual(shape(contribution.descriptors), shape(TYPERT.invocations))
+for (const descriptors of [contribution.descriptors, TYPERT.invocations]) {
+  const descriptor = descriptors.find(item => item.method === 'getTurnCost')
+  const codec = descriptor.result.create()
+  const row = { provider: 'test', model: 'm', bucket: 'input', tokens: 100, rate: 1, cost: 0.0001, priced: true, plan: false }
+  const call = { kind: 'model', provider: 'test', model: 'm', atMs: 1800000000000, cost: 0.0001, apiCost: 0.0001, plan: false, priced: true, longContext: false, rows: [row] }
+  const value = { found: true, cost: 0.0001, apiCost: 0.0001, rows: [row], calls: [call] }
+  assert.equal(codec.parse(value).calls[0].rows[0].tokens, 100)
+  assert.throws(() => codec.parse({ ...value, calls: [{ ...call, atMs: 'invalid' }] }))
+  assert.throws(() => descriptor.parameters[1].codec.create().parse(-1))
+}
 
 // Explicit host paths (including CI) must resolve and validate, never silently skip.
 const req = createRequire(import.meta.url)
