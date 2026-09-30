@@ -12,6 +12,8 @@ Per-conversation cost · daily totals · OpenCode Go subscription quota display 
 
 **v1.7.46** adds a dedicated Open Platform key for balance queries in DSH account-login mode. See the [release notes](docs/release-notes/v1.7.46.md).
 
+Desktop users: follow the [Desktop installation instructions](docs/install-troubleshooting.md#desktop-安装与更新) for the application's own CLI and `desktop` Profile.
+
 [![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm)](https://www.npmjs.com/package/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)

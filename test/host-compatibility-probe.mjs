@@ -11,7 +11,9 @@ export async function apply(ctx) {
   const repo = fileURLToPath(new URL('../', import.meta.url))
   const home = resolve(process.env.DSH_HOME ?? '.')
   assert.ok(relative(repo, home).startsWith('.tmp-compat-'), '探针只允许在本仓库一次性 .tmp-compat-* 目录运行')
-  const profileRequire = createRequire(join(home, 'profiles', 'web', 'package.json'))
+  const profile = process.env.CM_COMPAT_PROFILE ?? 'web'
+  assert.ok(['web', 'desktop'].includes(profile))
+  const profileRequire = createRequire(join(home, 'profiles', profile, 'package.json'))
   const pluginRequire = createRequire(profileRequire.resolve('dsh-cost-meter'))
   const hostRequire = createRequire(resolve(process.env.CM_HOST_PACKAGE))
   const installMode = process.env.CM_COMPAT_INSTALL_MODE === 'linked' ? 'linked' : 'packed'
@@ -55,7 +57,35 @@ export async function apply(ctx) {
     assert.match(fallback.codingPlans.scnet.windows.credits.text, /^0 \/ 60,000 Credits/)
     assert.deepEqual(fallback.today, after.today, '损坏快照也不改变本地用量')
   } finally { rmSync(snapshotPath, { force: true }) }
+  if (profile === 'desktop') {
+    const credentials = ctx.get('credentials')
+    assert.ok(credentials, 'Desktop mounts its real credential provider')
+    const key = 'TEST_DESKTOP_BALANCE_KEY'
+    const originalFetch = globalThis.fetch
+    let queried = false
+    try {
+      globalThis.fetch = async (url, init) => {
+        assert.equal(url, 'https://api.deepseek.com/user/balance')
+        assert.equal(init.headers.authorization, 'Bearer ' + key)
+        queried = true
+        return Response.json({ is_available: true, balance_infos: [{ currency: 'USD', total_balance: '15.47' }] })
+      }
+      assert.equal((await ctx.costMeter.setCredential('balance', key)).ok, true)
+      assert.equal((await credentials.resolve('DEEPSEEK_BALANCE_API_KEY')).value, key)
+      await ctx.costMeter.updateConfig({ hideOfficialBalance: false })
+      const refreshed = await ctx.costMeter.refreshBalance()
+      assert.equal(refreshed.ok, true)
+      assert.equal(refreshed.state.balance.totalBalance, 15.47)
+      assert.ok(!JSON.stringify(refreshed).includes(key))
+      assert.ok(queried, 'Desktop queried with the dedicated key')
+      await ctx.costMeter.updateConfig({ hideOfficialBalance: true })
+      assert.equal((await ctx.costMeter.clearCredential('balance')).ok, true)
+      assert.equal(await credentials.resolve('DEEPSEEK_BALANCE_API_KEY'), undefined)
+    } finally { globalThis.fetch = originalFetch }
+  }
   const result = {
+    profile,
+    desktopBalanceCredentials: profile === 'desktop',
     hostVersion: hostRequire('./package.json').version,
     pluginVersion: pluginRequire('../package.json').version,
     sharedHostModules: peers,

@@ -4,7 +4,8 @@
   dsh-cost-meter 一键安装 / 更新脚本(DeepSeek Harness 插件)。
 
 .DESCRIPTION
-  无需克隆仓库:自动补齐 pnpm,再经 dsh plugin 把插件装进 web profile。
+  无需克隆仓库:经 dsh plugin 把插件装进指定 Profile，默认 web。
+  Desktop 使用自带的 dsh 命令和 pnpm；先启动一次并完全退出 Desktop，再传入 -Profile desktop。
   安装链默认固定到 $PinnedRev 发布 tag(pnpm 版本同样固定),可审计、可复现;
   需要装其它 rev 时用 -Rev 参数覆盖(如 CI 冒烟装被测提交):
    - git 源固定到 tag:  github:Han-1413141/dsh-cost-meter#v1.7.46
@@ -17,6 +18,7 @@
 
   手动用法(先下载本文件审阅):
     powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+    powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Profile desktop
 #>
 [CmdletBinding()]
 param(
@@ -43,14 +45,22 @@ function Fail([string]$msg) { Write-Host "[$Package] $msg" -ForegroundColor Red;
 function Has([string]$name) { return $null -ne (Get-Command $name -ErrorAction SilentlyContinue) }
 
 Info "开始安装 $Package ..."
+$restartHint = if ($Profile -eq 'desktop') { '完全退出并重新打开 DeepSeek Harness Desktop' } else { "重启 dsh --profile $Profile" }
+$verifyHint = if ($Profile -eq 'desktop') { '打开 Desktop 的设置 → 费用，确认费用面板出现' } else { "dsh --profile $Profile --dump-config | findstr $Package" }
 
 # 0. 前置:DeepSeek Harness
 if (-not (Has 'dsh')) {
+  if ($Profile -eq 'desktop') {
+    Fail '未找到 Desktop 的 dsh 命令。请先在 DeepSeek Harness Desktop 中安装 dsh 命令，再重新打开终端。'
+  }
   Fail "未找到 dsh 命令。请先安装 DeepSeek Harness:`n  npm install -g @deepseek-ai/dsh   (需要 Node.js >= 20)"
+}
+if ($Profile -eq 'desktop') {
+  Info 'Desktop 安装请使用应用自带的 dsh 命令；首次启动过应用后，完全退出 Desktop 再安装。'
 }
 
 # 1. 前置:pnpm(dsh plugin 底层转发给 pnpm;版本固定,保证可复现)
-if (-not (Has 'pnpm')) {
+if ($Profile -ne 'desktop' -and -not (Has 'pnpm')) {
   if (Has 'corepack') {
     Info "pnpm 不在 PATH 上,尝试 corepack 激活固定版本 pnpm@$PnpmVersion ..."
     $env:COREPACK_ENABLE_DOWNLOAD_PROMPT = '0'
@@ -100,7 +110,7 @@ if ($devLink) {
   Ok @"
 检测到开发模式安装:dependencies 里 $Package = $devLink(link: 指向本地目录)。
 本脚本面向最终用户(从 GitHub 固定 tag 安装),已跳过版本对齐以免破坏 link: 结构。
-  - 本地目录就是运行代码:git pull / 切换分支后重启 dsh web 即生效
+  - 本地目录就是运行代码:git pull / 切换分支后，$restartHint 即生效
   - 如需改为正式固定版安装:先执行  dsh plugin --profile $Profile remove $Package,再重跑本脚本
 "@
   exit 0
@@ -120,9 +130,9 @@ if ($installed) {
 Ok @"
 $Package 安装/更新完成!(版本:$InstallRev)
 
-  生效:  重启 dsh web(先停掉当前进程,再运行  dsh web)
-  验证:  dsh --profile web --dump-config | findstr $Package
+  生效:  $restartHint
+  验证:  $verifyHint
   曾在市场关闭插件:请先在市场重新启用；重装会保留 profiles/$Profile/cordis.patch.yml 中的禁用记录
   更新:  发布新版后,用新版的 install.ps1 重跑(脚本内固定版本随之更新)
-  卸载:  dsh plugin --profile web remove $Package
+  卸载:  dsh plugin --profile $Profile remove $Package
 "@

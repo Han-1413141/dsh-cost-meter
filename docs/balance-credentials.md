@@ -4,6 +4,8 @@ DSH 的账号登录模式使用推理令牌。它与开放平台 API Key 是不�
 
 从 1.7.46 起，在「设置 → 费用 → 官方账户余额」的「余额专用 API Key」中填写开放平台 Key，点击「保存」，再点击「刷新余额」。密钥通过现有凭据接口写入 DSH 凭据库中的 `DEEPSEEK_BALANCE_API_KEY`，不写入插件配置、账本或安装目录，不回传到浏览器。输入框保存后清空，只显示是否配置及来源。也可以在启动 DSH 的环境中设置同名变量；该变量遵循宿主的只读环境优先规则。
 
+Desktop 使用相同的费用设置页与宿主凭据接口。更新时使用 Desktop 自带 CLI 的 `--profile desktop`，然后完全退出并重新打开 Desktop；[桌面端安装步骤](install-troubleshooting.md#desktop-安装与更新)包含命令来源与重装禁用状态的处理。
+
 查询规则：
 
 1. 有专用 Key 时，只使用该 Key 请求 `https://api.deepseek.com/user/balance`，与模型的 `baseURL` 和 `apiKeyEnv` 无关。

@@ -12,6 +12,8 @@
 
 **v1.7.46**：新增余额专用开放平台 Key，解决账号登录模式下余额凭据被推理令牌覆盖的问题。详见[更新说明](docs/release-notes/v1.7.46.md)。
 
+桌面端用户请按 [Desktop 安装说明](docs/install-troubleshooting.md#desktop-安装与更新)，使用应用自带的 CLI 和 `desktop` Profile。
+
 [![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm)](https://www.npmjs.com/package/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)

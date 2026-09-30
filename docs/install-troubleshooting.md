@@ -1,5 +1,20 @@
 # 安装失败与禁用状态
 
+## Desktop 安装与更新
+
+1. 首次启动 DeepSeek Harness Desktop，让应用初始化 `desktop` Profile。在应用中安装 `dsh` 命令，重新打开终端；若同时安装过 npm 版 CLI，用 `Get-Command dsh` 确认命令指向 Desktop 安装目录的 `resources/runtime/cli/bin/dsh.cmd`。也可直接使用该完整路径。
+2. 完全退出 Desktop 后执行以下命令。Desktop 自带 pnpm，无需额外安装全局 pnpm。不要用 npm 版 CLI 管理 Desktop 的保留 Profile。
+
+   ```powershell
+   dsh plugin --profile desktop add dsh-cost-meter@1.7.46
+   ```
+
+   使用已下载的本仓库脚本时，执行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Profile desktop`。脚本默认仍安装到 `web`，桌面端需要明确传参。
+
+3. 重新打开 Desktop，在「设置 → 费用」确认插件已加载。使用账号登录模式时，在「官方账户余额」保存独立的开放平台 API Key；登录推理令牌不能查询开放平台余额。详情见[余额专用凭据](balance-credentials.md)。
+
+Windows Desktop 0.2.0-rc.2 的实际应用运行时已完成隔离验证：自带 CLI 安装发布包、`desktop` Profile 启动、宿主依赖复用、合成用量入账以及余额凭据保存、查询、清除均通过。验证使用临时 `DSH_HOME` 和合成凭据，未改动日常 Profile；余额 HTTP 响应为模拟数据，未执行真实账户查询或 Electron 窗口交互测试。
+
 ## 安装失败：先读取实际错误
 
 [#197](https://github.com/Han-1413141/dsh-cost-meter/issues/197) 只提供了 `plugin command failed; diagnostics: ...pnpm.log`，没有附上该文件内容。市场生成的「prepare/build failed」分类不能替代包管理器的原始错误；本插件没有 `prepare` 或 `prepack` 安装脚本，发布包已包含 `lib/` 产物。
@@ -27,6 +42,10 @@
 若市场没有启用入口，可先备份当前 Profile 的 `cordis.patch.yml`，再将 `id: cost-meter` 对应的 `disabled: true` 改为 `disabled: false`。保留同一行的其他配置和其他插件的记录，随后重启宿主。不要删除整个 Profile 或账本。
 
 ## English
+
+For Desktop, launch the application once to initialize its profile, install its `dsh` command, reopen your terminal, then fully quit the application. Use the **Desktop-supplied CLI** to run `dsh plugin --profile desktop add dsh-cost-meter@1.7.46`, or pass `-Profile desktop` to the downloaded `install.ps1`. Desktop includes its own pnpm. If another CLI shadows it, use the full path to Desktop's `resources/runtime/cli/bin/dsh.cmd`. Restart Desktop and open **Settings → Cost**. For account-login mode, save an Open Platform key in the balance panel.
+
+The installed Windows Desktop 0.2.0-rc.2 runtime passed isolated package installation, profile startup, shared dependencies, synthetic billing and balance credential save/query/clear checks. These checks used a temporary home and mocked balance responses, without changing the daily profile or exercising the Electron window.
 
 For installation failures, read the actual `pnpm.log` path printed by DSH and retain the first package-manager or Git error with surrounding lines. The Plugin Hub's generated classification alone does not identify the cause. Issue #197 remains open because its original log is unavailable; both documented installation routes and the Windows Git-route CI have passed. Remove credentials before sharing logs.
 
