@@ -99,7 +99,7 @@
     "docs/external-usage.md"
   ],
   "dependencies": {
-    "zod": "4.5.1"
+    "zod": "4.6.5"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-credentials": "^0.1.0-rc.6 || ^0.1.1-0 || ^0.1.2-0 || ^0.1.3-0 || ^0.1.5-0 || >=0.2.0-rc.1 <0.3.0-0",
