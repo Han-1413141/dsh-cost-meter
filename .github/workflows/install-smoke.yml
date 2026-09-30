@@ -10,6 +10,22 @@ permissions:
   contents: read
 
 jobs:
+  native-search-rc2:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Install the reported DSH search runtime
+        run: |
+          npm install --no-audit --no-fund
+          npm install --prefix .tmp-native-search-host --no-audit --no-fund @deepseek-ai/dsh-web@0.2.0-rc.2 @deepseek-ai/dsh-web-search-deepseek@0.2.0-rc.2 undici@8.11.2
+      - name: Verify real services, provider, transport and ledger
+        run: |
+          export DSH_TEST_NODE_MODULES="$PWD/.tmp-native-search-host/node_modules"
+          node test/native-search-host.mjs
+
   marketplace-git-install:
     runs-on: windows-latest
     steps:
