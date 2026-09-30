@@ -36,7 +36,10 @@ window.__ModuleLoader__.load({
       return q
     }
     const codec = (name, parse) => { const schema = { parse }; return { mode: 'strict', typeSymbol: 'dsh-cost-meter#' + name, schema, create: () => schema } }
-    const CONTRIBUTION = { package: 'dsh-cost-meter', descriptors: [
+    // Remote contributions have separate ownership from Host manifests. The main
+    // client already owns "dsh-cost-meter"; a lazy group needs its own identity.
+    // Endpoints and type symbols still match the original Host costMeter face.
+    const CONTRIBUTION = { package: 'dsh-cost-meter/statistics', descriptors: [
       ['getBillingStatistics', 'BillingStatistics', parseStatistics], ['getSessionBilling', 'SessionBilling', parseDetail],
     ].map(([method, name, parse]) => ({ id: 'dsh-cost-meter#costMeter/' + method, service: 'costMeter', namespace: 'costMeter', method, invocation: { kind: 'direct' },
       parameters: [{ name: 'query', wire: 'query', source: 'json', codec: codec('StatisticsQuery', parseQuery) }], result: codec(name, parse) })) }
@@ -209,9 +212,9 @@ window.__ModuleLoader__.load({
       ctx.effect(() => () => unmount(), 'cost-meter: statistics contribution')
       const remote = ctx.get('remote.costMeter')
       const api = Object.fromEntries(['getBillingStatistics', 'getSessionBilling'].map(method => [method, async query => {
-        const result = await remote[method](query)
+        const result = await remote[method](parseQuery(query))
         if (!result?.ok) throw new Error(result?.error?.message || 'Statistics request failed')
-        return result.value
+        return (method === 'getBillingStatistics' ? parseStatistics : parseDetail)(result.value)
       }]))
       return props => el(Statistics, { ...props, api })
     }

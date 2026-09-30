@@ -21,7 +21,7 @@ Call details are reconstructed on demand from one conversation's available usage
 
 Cache hit rate is `cacheRead / (input + cacheRead + cacheWrite)`. Token composition is a token-count share, not a cost share. Reported reasoning tokens can overlap output and are shown separately; the configured reasoning rate determines any additional charge.
 
-The statistics screen uses DSH's package-local asynchronous module loader, verified on **0.2.0-rc.2**. Older hosts without that loader show an upgrade message; existing metering and settings remain available. Both shipped client files stay below the 256 KiB per-file limit.
+The statistics screen uses DSH's package-local asynchronous module loader. Since **1.8.2**, the main and statistics Remote contributions have distinct registration identities; their combined lifecycle is tested against the real **0.1.7-rc.2** and **0.2.0-rc.2** client registry/gateway. Older hosts without that loader show an upgrade message; existing metering and settings remain available. Both shipped client files stay below the 256 KiB per-file limit.
 
 ## 简体中文
 
@@ -44,7 +44,7 @@ API 费用是按上报用量和配置单价计算的估算，不是厂商账单�
 
 缓存命中率为 `缓存读取 / (未缓存输入 + 缓存读取 + 缓存写入)`。Token 构成展示数量占比，不是费用占比。推理 Token 可能包含在输出中，因此单独列示，不再次加入总 Token；是否另收推理费取决于配置的单价。
 
-统计页使用 DSH 的异步模块加载器，已在 **0.2.0-rc.2** 验证。没有该能力的旧宿主会显示升级提示，原有计费和设置继续可用。两个客户端文件分别遵守 256 KiB 大小限制。
+统计页使用 DSH 的异步模块加载器。从 **1.8.2** 起，主客户端与统计模块使用各自的 Remote 注册标识；两部分组合加载的流程已通过真实 **0.1.7-rc.2** 和 **0.2.0-rc.2** 客户端 registry/gateway 验证。没有该能力的旧宿主会显示升级提示，原有计费和设置继续可用。两个客户端文件分别遵守 256 KiB 大小限制。
 
 ## Design references
 

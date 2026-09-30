@@ -10,6 +10,29 @@ permissions:
   contents: read
 
 jobs:
+  statistics-client:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dsh: ['0.1.7-rc.2', '0.2.0-rc.2']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Install reported and current browser runtimes
+        env:
+          DSH_VERSION: ${{ matrix.dsh }}
+        run: |
+          npm install -g pnpm
+          pnpm install --frozen-lockfile
+          npm install --prefix .tmp-statistics-client --no-audit --no-fund --ignore-scripts "@deepseek-ai/dsh-api-gateway@$DSH_VERSION" "@deepseek-ai/dsh-typert-registry@$DSH_VERSION" @deepseek-ai/cordis@4.0.4
+      - name: Verify main and lazy statistics mount together
+        run: |
+          export DSH_TEST_NODE_MODULES="$PWD/.tmp-statistics-client/node_modules"
+          node test/statistics-remote-registration.mjs
+
   native-search-rc2:
     runs-on: ubuntu-latest
     steps:
