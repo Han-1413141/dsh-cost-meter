@@ -1,0 +1,33 @@
+# 安装失败与禁用状态
+
+## 安装失败：先读取实际错误
+
+[#197](https://github.com/Han-1413141/dsh-cost-meter/issues/197) 只提供了 `plugin command failed; diagnostics: ...pnpm.log`，没有附上该文件内容。市场生成的「prepare/build failed」分类不能替代包管理器的原始错误；本插件没有 `prepare` 或 `prepack` 安装脚本，发布包已包含 `lib/` 产物。
+
+在 Windows / DSH 0.2.0-rc.1 中，Git URL 与 npm 包名安装均已通过隔离验证。Windows CI 的 `marketplace-git-install` 也覆盖市场使用的 `git+https://github.com/han-1413141/dsh-cost-meter.git` 地址。原报告缺少日志，尚不能确定该机器的失败原因，issue 保持未关闭。
+
+发生同类问题时：
+
+1. 打开终端报错中给出的 `.plugin-manager/logs/operation-*/pnpm.log`。不要把命令行中的路径当成错误正文。
+2. 找到第一条 `ERR_PNPM_*`、`npm error`、Git 错误或脚本退出错误，保留前后几行及 DSH、Node、pnpm 版本。
+3. 若问题只发生在插件市场，同时查看当前 Profile 的 `hub.log`，确认实际执行的是 npm 还是 Git 安装。Web 对应 `$DSH_HOME/profiles/web/`，Desktop 对应 `$DSH_HOME/profiles/desktop/`。
+4. 分享日志前删除 API Key、Authorization、Cookie、令牌及带凭据的 URL。不要提供 `.credentials.yaml` 或环境变量的完整内容。
+
+## 重装后仍不加载：检查禁用状态
+
+在插件市场中关闭插件，会在当前 Profile 的 `cordis.patch.yml` 留下禁用记录，例如：
+
+```yaml
+- id: cost-meter
+  disabled: true
+```
+
+卸载和重装包不会自动撤销 Profile 的这项设置。请先在市场中重新启用插件，再重启相应的 Web 或 Desktop 宿主。插件处于禁用状态时不会运行，无法自行清除这条记录。
+
+若市场没有启用入口，可先备份当前 Profile 的 `cordis.patch.yml`，再将 `id: cost-meter` 对应的 `disabled: true` 改为 `disabled: false`。保留同一行的其他配置和其他插件的记录，随后重启宿主。不要删除整个 Profile 或账本。
+
+## English
+
+For installation failures, read the actual `pnpm.log` path printed by DSH and retain the first package-manager or Git error with surrounding lines. The Plugin Hub's generated classification alone does not identify the cause. Issue #197 remains open because its original log is unavailable; both documented installation routes and the Windows Git-route CI have passed. Remove credentials before sharing logs.
+
+Reinstallation preserves a Profile's disabled state. Re-enable the plugin in the marketplace and restart the host. If no enable action is available, back up the current Profile's `cordis.patch.yml` and change only the `cost-meter` row's `disabled` flag to `false`. Web and Desktop use different Profile directories; keep other settings and the ledger.

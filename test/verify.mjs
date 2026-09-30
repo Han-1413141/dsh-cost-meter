@@ -1828,7 +1828,7 @@ console.log('[ok] 宽泛匹配与跨厂商兑底(路由 provider 费用为零修
 {
   const retryIndexSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
   assert.ok(retryIndexSource.includes('err.soft = true'), 'queryBalance 守卫错误(未配置 Key/非官方端点)标记 soft')
-  assert.ok(retryIndexSource.includes("...balanceCache, value: { ...emptyBalance(), status: 'error'"), '余额硬失败写 error 状态并保留旧 fetchedAt')
+  // 官方余额的 401 缓存与 500 自动恢复由 balance-credentials.mjs 实际调用验证。
   assert.ok(retryIndexSource.includes("...goQuotaCache, value: { ...emptyGoQuota(), status: 'error'"), 'Go 额度硬失败写 error 状态并保留旧 fetchedAt')
   // 自定义余额的失败与恢复通过 cache-lifecycle.mjs 实际调用服务验证。
   assert.ok(retryIndexSource.includes("...(codingPlanCaches[id] ?? { fetchedAt: 0, value: emptyCodingPlan() }),\n          value: { ...emptyCodingPlan(), status: 'error'"), 'Coding Plan 硬失败写 error 状态并保留旧 fetchedAt')
@@ -6698,6 +6698,7 @@ await import('./gateway-retry.mjs')
 await import('./cache-lifecycle.mjs')
 await import('./core-boundaries.mjs')
 await import('./go-credentials.mjs')
+await import('./balance-credentials.mjs')
 await import('./qwen-cli.mjs')
 await import('./bailian-cli.mjs')
 await import('./minimax-endpoint.mjs')

@@ -1105,8 +1105,7 @@
     const cmMsg = m => (m != null ? el('div', { className: 'cm-msg ' + m.kind }, m.text) : null)
     function BalancePanel(props) {
       const { state, api, t, draft, setDraft } = props
-      const [busy, setBusy] = useState(false)
-      const [msg, setMsg] = useState(null)
+      const [busy, msg, doRefresh] = useQuotaRefresh(t, () => api.refreshBalance())
       const balance = state.balance
       const config = state.config
       // 余额差对账(issue #18):drift 时在面板内展示警告行,开关随草稿保存。
@@ -1115,19 +1114,6 @@
       const toggleReconcile = event => {
         if (draft === null || typeof setDraft !== 'function') return
         setDraft({ ...draft, balance: { ...(draft.balance ?? config.balance ?? {}), reconcile: event.target.checked } })
-      }
-      const doRefresh = async () => {
-        if (busy) return
-        setBusy(true)
-        setMsg(null)
-        try {
-          const result = await api.refreshBalance()
-          setMsg({ kind: result.ok ? 'ok' : 'err', text: result.message })
-        } catch (error) {
-          setMsg({ kind: 'err', text: t('balanceRefreshFailed', { message: error?.message ?? String(error) }) })
-        } finally {
-          setBusy(false)
-        }
       }
       const money = value => formatBalanceMoney(value, config, balance?.currency)
       const body = balance.status === 'ok'
@@ -1146,6 +1132,9 @@
           el('h3', { className: 'cm-h' }, t('accountBalance')),
           el('button', { className: 'cm-btn small', onClick: doRefresh, disabled: busy }, busy ? t('refreshing') : t('refreshBalance'))),
         body,
+        el('label', null, t('balanceApiKey')),
+        el(CredentialField, { target: 'balance', configured: balance.keyConfigured, source: balance.keySource, t, api, placeholder: 'sk-…' }),
+        el('p', { className: 'cm-hint' }, t('balanceKeyHint')),
         reconcile !== undefined && reconcile.ok === false ? el('div', { className: 'cm-bal-line warn' }, '⚠ ' + reconcile.message) : null,
         el('label', { className: 'cm-check' },
           el('input', { type: 'checkbox', checked: reconcileOn, onChange: toggleReconcile }),

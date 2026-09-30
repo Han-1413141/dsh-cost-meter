@@ -8,9 +8,9 @@
 
 本会话费用 · 当日费用 · OpenCode Go 订阅额度显示 · 预算与已用百分比 · 官方账户余额 · 自定义 Provider 余额查询(可配任意 HTTP 端点) · 余额三段进度条 · 历史记录 · 峰谷计价时段显示(UTC 01:00–04:00、06:00–10:00 为峰时段;周末与中国法定假日全天按谷价,分别标注) · 峰/谷切换前弹窗与系统通知提醒(位置/提前量/提醒类型可配) · 官方价格一键同步 · 类 Codex Token 用量热图 · 多厂商多模型价格计费(内置 90+ 模型价格目录与自动匹配) · 主流 Coding Plan 额度查询与显示(Anthropic / Z.ai / MiniMax / Kimi / OpenRouter / SiliconFlow / CommandCode / SCNet / 火山方舟 / 千问 / 小米 MiMo 十一家,含 Volcano Ark AK/SK 签名与 MiMo 控制台 Cookie 查询) · Plan/API 双轨计费(订阅额度与按量金额分离统计,每 1% 额度与满窗的 token/等值金额估算及日/周/月曲线) · 输入框上方额度横条(预算/Go/Coding Plan 用量一条横排显示,可开关)
 
-[![version](https://img.shields.io/badge/version-1.7.45-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.7.46-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 
-**v1.7.45**：修复输入区统计布局、侧栏 Token 总数，并显示会话按模型计费明细。详见[更新说明](docs/release-notes/v1.7.45.md)。
+**v1.7.46**：新增余额专用开放平台 Key，解决账号登录模式下余额凭据被推理令牌覆盖的问题。详见[更新说明](docs/release-notes/v1.7.46.md)。
 
 [![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm)](https://www.npmjs.com/package/dsh-cost-meter)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -317,22 +317,22 @@ Node.js 20 请改用 `npm install -g pnpm@10`。版本要求见 [pnpm 官方安�
 dsh plugin --profile web add dsh-cost-meter
 ```
 
-**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.7.45`**,建议先下载审阅再运行):
+**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.7.46`**,建议先下载审阅再运行):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.7.45/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.7.46/install.ps1 | iex
 ```
 
 **或直接命令行**(机器上需已有 pnpm 与 git;同样固定到 tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.7.45
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.7.46
 ```
 
 没有 git 时可用 GitHub tag 打包直链:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.7.45.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.7.46.tar.gz
 ```
 
 安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):
@@ -384,12 +384,16 @@ DSH `0.2.0-rc.1` 已通过安装包安装、Web 启动、模块复用、合成�
 
 如果插件市场仅显示 `diagnostics: .../.plugin-manager/logs/operation-.../pnpm.log`，这行信息无法指出失败的包或命令。请打开所指的 `pnpm.log`，反馈其中第一条实际错误；分享前删去凭据及私人路径。DSH `0.2.0-rc.1` 的 Git 地址和 npm 包名安装已在隔离 Windows 环境通过；特定机器上的失败仍需要该机器的诊断日志。
 
+账号模式下余额返回 HTTP 401：请在「设置 → 费用 → 官方账户余额」保存独立的开放平台 API Key。凭据优先级和存储说明见[余额专用凭据](docs/balance-credentials.md)。
+
 ### 更新 / 卸载
 
 ```sh
 # 更新:发布新版后用新版 install.ps1 重跑(脚本内固定版本随之更新)
 dsh plugin --profile web remove dsh-cost-meter  # 卸载
 ```
+
+安装报错或重装后仍被禁用，见[排障说明](docs/install-troubleshooting.md)。
 
 ### 开发者本地调试
 

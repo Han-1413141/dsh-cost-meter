@@ -308,6 +308,8 @@
     function parseBalance(v, path) {
       return {
         ...parseSnapshotStatus(v, path),
+        keyConfigured: v.keyConfigured === true,
+        keySource: typeof v.keySource === 'string' ? v.keySource : '',
         currency: typeof v.currency === 'string' ? v.currency : '',
         totalBalance: num0(v.totalBalance),
         grantedBalance: num0(v.grantedBalance),

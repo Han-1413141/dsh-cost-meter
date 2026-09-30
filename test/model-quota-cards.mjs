@@ -10,6 +10,7 @@ const sourceDir = new URL('../src/client/', import.meta.url)
 const source = readdirSync(sourceDir).filter(name => name.endsWith('.js')).sort().map(name => readFileSync(new URL(name, sourceDir), 'utf8')).join('')
 const expose = ['SidebarModelCosts', 'ModelSidebarSettings', 'sidebarModelRows', 'modelStatsRows', 'MODEL_SIDEBAR_DEFAULTS', 'MODEL_OPEN_KEY', 'QuotaCard', 'useQuotaRefresh', 'QuotasSection', 'PlanQuotaCard', 'GatewayQuotaCard', 'GoQuotaCard', 'GoQuotaSettings', 'CustomBalanceEntryPanel', 'SidebarFooter', 'CornerChips', 'parseConfig', 'makeT', 'CODING_PLAN_ROWS']
 expose.push('CostSection', 'MiniMaxPlanCard')
+expose.push('BalancePanel', 'CredentialField', 'parseBalance')
 const element = (type, props, ...children) => ({ type, props: props ?? {}, children })
 const nodes = value => Array.isArray(value) ? value.flatMap(nodes) : value && typeof value === 'object' ? [value, ...nodes(value.children)] : []
 const textOf = value => Array.isArray(value) ? value.map(textOf).join(' ') : value && typeof value === 'object' ? textOf(value.children) : typeof value === 'string' || typeof value === 'number' ? String(value) : ''
@@ -436,5 +437,38 @@ startup.mount(startup.ui.CostSection, {}) // no store/API: empty state must stil
 startup.dispose()
 console.log('[ok] #154 client: startup backoff, error/retry UI, recovery, concurrent reads and teardown')
 
+// #201: dedicated balance key input, source status and refresh concurrency.
+for (const locale of ['zh', 'en']) {
+  const env = environment(), t = env.ui.makeT(locale)
+  const balance = env.ui.parseBalance({ status: 'error', message: 'HTTP 401', keyConfigured: true, keySource: 'file' }, 'balance')
+  const calls = [], request = deferred()
+  const api = {
+    refreshBalance: async () => { calls.push('refresh'); return request.promise },
+    setCredential: async (target, value) => { calls.push([target, value]); return { ok: true, message: 'saved' } },
+    clearCredential: async target => { calls.push(['clear', target]); return { ok: true, message: 'cleared' } },
+  }
+  const panel = env.mount(env.ui.BalancePanel, { state: { balance, config: sanitizeConfig({}) }, api, t })
+  assert.ok(textOf(panel.tree).includes(t('balanceKeyHint')))
+  const input = nodes(panel.tree).find(node => node.type === env.ui.CredentialField)
+  assert.equal(input.props.target, 'balance')
+  assert.equal(input.props.configured, true)
+  const field = env.mount(env.ui.CredentialField, input.props)
+  const password = () => nodes(field.tree).find(node => node.type === 'input')
+  assert.equal(password().props.type, 'password')
+  assert.equal(password().props.value, '', 'stored key is never filled back into the input')
+  password().props.onChange({ target: { value: 'TEST_BALANCE_UI_KEY' } }); await env.flush()
+  await btn(field.tree, t('credentialSave')).props.onClick(); await env.flush()
+  assert.equal(password().props.value, '')
+  await btn(field.tree, t('credentialClear')).props.onClick()
+  assert.deepEqual(calls, [['balance', 'TEST_BALANCE_UI_KEY'], ['clear', 'balance']])
+  const refresh = btn(panel.tree, t('refreshBalance')).props.onClick
+  const first = refresh(), second = refresh()
+  assert.equal(calls.filter(call => call === 'refresh').length, 1)
+  request.resolve({ ok: true, message: 'refreshed' })
+  await Promise.all([first, second]); await env.flush()
+  assert.ok(textOf(panel.tree).includes('refreshed'))
+  env.dispose()
+}
+console.log('[ok] #201 client: bilingual dedicated credential controls, no key echo and refresh concurrency')
 e.dispose(); activation.dispose()
 console.log('[ok] #142/#143 模型金额/90天/旧账/币种/持久化/展开/Top-N/独立刷新/排序与身份/刷新门控/共享快照通过')
