@@ -147,6 +147,7 @@ window.__ModuleLoader__.load({
       '.cm-btn.primary:hover{opacity:0.88;background:var(--dsw-alias-state-business-primary)}',
       '.cm-btn.danger,.cm-msg.err,.cm-bal-line.err,.cm-bal-err{color:var(--dsw-alias-state-error-primary)}',
       '.cm-btn.small{padding:3px 10px;font-size:12px}',
+      'div:has(>[data-slot="conversation.composer.dock"] .cm-stat-entry){flex-wrap:wrap}',
       '.cm-msg{font-size:12px;line-height:18px;padding:8px 12px;border-radius:8px;border:1px solid var(--dsw-alias-border-l1)}',
       '.cm-msg.ok{color:var(--dsw-alias-state-success-primary)}',
       '.cm-hint{font-size:12px;color:var(--dsw-alias-label-tertiary)}',

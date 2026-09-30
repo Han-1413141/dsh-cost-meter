@@ -2,12 +2,14 @@
 
 ## English
 
-Open **Settings → Cost → Cost statistics**, or choose **Cost details** in a conversation's header. The conversation entry opens its entire retained history. The settings entry starts with the last seven calendar days, including today.
+Open a conversation and click **Conversation cost details** below its input box. The title bar also has this button. It is independent of the cost badge visibility setting. The conversation entry opens its entire retained history, shows API and Plan equivalents separately, and puts component details before overview charts. Switching conversations closes the previous dialog. For all conversations, open **Settings → Cost → Cost statistics**; this entry starts with the last seven calendar days, including today.
 
 - **Periods:** Today, Last 7 days, Last 30 days, All retained, and custom inclusive dates. Dates follow the host timezone shown on the page.
 - **Filters:** Provider and model. Choose API cost, Plan equivalent, or their combined equivalent for chart amounts and rankings.
 - **Overview:** API cost, Plan equivalent, call count, average cost per call, cache hit rate, spending trend, model ranking, token composition, and conversation ranking. Select a chart bar to narrow its date range; select a conversation to inspect it.
 - **Conversation detail:** Input, output, cache read, cache write, and reasoning costs; individual model, compaction and native-search calls; tokens × price per million; long-context rates and unavailable prices. Small amounts use at least eight decimal places. Fifty calls per page remain part of the complete detail total.
+
+- **Turns and call types:** Full-selection totals by logged turn number and by model / compaction / native-search call. Turn pages contain 25 complete groups, independently of the 50-call pages. Calls without a turn number remain in an explicit unassigned group. Expand a call to see its logged turn and step, routing and price formula.
 
 ### What the numbers mean
 
@@ -23,12 +25,14 @@ The statistics screen uses DSH's package-local asynchronous module loader, verif
 
 ## 简体中文
 
-入口为 **设置 → 费用 → 计费统计**，也可以点击对话标题栏中的 **费用明细**。对话入口默认显示该对话保留的全部历史，设置入口默认显示包含今天的近 7 个自然日。
+打开一个会话，点击**输入框下方的「本会话费用明细」**。标题栏也保留同名按钮，入口不受费用徽章显示开关影响。对话入口默认显示该对话保留的全部历史，API 与 Plan 等值分别列出，费用构成放在趋势图之前。切换会话会关闭旧明细。全部会话统计的入口为 **设置 → 费用 → 计费统计**，默认显示包含今天的近 7 个自然日。
 
 - **时间范围：**今天、近 7 天、近 30 天、全部保留记录，以及包含起止日期的自定义区间。日期按页面标明的宿主时区划分。
 - **筛选和金额口径：**提供商、模型；可选择 API 费用、Plan 等值费用或两者合计，趋势和排行同步切换。
 - **汇总：**API 费用、Plan 等值费用、调用次数、平均单次费用、缓存命中率、费用趋势、模型排行、Token 构成和对话排行。点击柱形缩小日期范围，点击对话查看明细。
 - **单对话：**输入、输出、缓存读取、缓存写入、推理费用，以及模型调用、上下文压缩、原生搜索的逐次明细。每次调用列出 Token × 每百万 Token 单价、金额、长上下文档位及缺价提示。小额费用至少保留八位小数。每页显示 50 次调用，分页不影响完整明细合计。
+
+- **轮次和调用类型：**按日志中的轮次编号，以及模型调用、上下文压缩、原生搜索汇总。每页 25 个完整轮次，与每页 50 次调用分别翻页；一轮跨多个调用页时仍显示完整合计。日志没有轮次编号的调用单列为「未标明轮次」。逐次明细标明轮次、步骤、路由和价格公式。
 
 ### 统计口径
 

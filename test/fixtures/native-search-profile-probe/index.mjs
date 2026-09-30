@@ -51,6 +51,10 @@ export async function apply(ctx) {
     const details = await ctx.costMeter.getSessionBilling(query)
     assert.equal(details.totalCalls, 1)
     assert.equal(details.calls[0].kind, 'search')
+    assert.equal(details.kinds[0].kind, 'search')
+    assert.equal(details.kinds[0].calls, 1)
+    assert.equal(details.turns[0].turn, null)
+    assert.equal(details.turns[0].calls, 1)
     assert.ok(Math.abs(details.cost - statistics.totals.cost) < 1e-12)
     writeFileSync(join(process.env.DSH_HOME, 'native-search-proof.json'), JSON.stringify({ calls: after.today.calls - before.today.calls, input: after.today.input - before.today.input, ownSearch: Object.hasOwn(ctx.web, 'search'), turnCost }))
   } finally {

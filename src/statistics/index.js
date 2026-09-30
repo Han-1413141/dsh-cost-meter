@@ -13,6 +13,7 @@ window.__ModuleLoader__.load({
     // These strict wire readers mirror typert.host.js; no additional runtime library.
     const scalar = type => v => { if (typeof v !== type || type === 'number' && !Number.isFinite(v)) throw new Error('Invalid statistics ' + type); return v }
     const number = scalar('number'), string = scalar('string'), boolean = scalar('boolean')
+    const nullableNumber = v => v === null ? null : number(v)
     const array = parse => v => { if (!Array.isArray(v)) throw new Error('Invalid statistics array'); return v.map(parse) }
     const object = spec => v => {
       if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('Invalid statistics object')
@@ -21,15 +22,17 @@ window.__ModuleLoader__.load({
     const bucketSpec = Object.fromEntries(fields.map(key => [key, number]))
     const buckets = object(bucketSpec)
     const costRow = object({ provider: string, model: string, bucket: string, tokens: number, rate: number, cost: number, priced: boolean, plan: boolean })
-    const callRow = object({ kind: string, provider: string, model: string, atMs: number, cost: number, apiCost: number, plan: boolean, priced: boolean, longContext: boolean, rows: array(costRow) })
+    const callRow = object({ kind: string, turn: nullableNumber, step: nullableNumber, provider: string, model: string, atMs: number, cost: number, apiCost: number, plan: boolean, priced: boolean, longContext: boolean, rows: array(costRow) })
     const parseStatistics = object({ from: string, to: string, retainedFrom: string, retainedTo: string, totals: buckets,
       days: array(object({ ...bucketSpec, date: string })), models: array(object({ ...bucketSpec, key: string, provider: string, model: string, priced: boolean })),
       sessions: array(object({ ...bucketSpec, id: string, title: string })), providers: array(string), modelOptions: array(string),
       sessionCount: number, offset: number, unassignedCost: number, unmodeledCost: number })
-    const parseDetail = object({ found: boolean, cost: number, apiCost: number, rows: array(costRow), calls: array(callRow), totalCalls: number, offset: number, recorded: buckets })
+    const parseDetail = object({ found: boolean, cost: number, apiCost: number, rows: array(costRow), calls: array(callRow), totalCalls: number, offset: number, recorded: buckets,
+      kinds: array(object({ ...bucketSpec, kind: string, unpriced: boolean })), turns: array(object({ ...bucketSpec, turn: nullableNumber, unpriced: boolean })), totalTurns: number, turnOffset: number })
     const parseQuery = v => {
       const q = object({ from: string, to: string, provider: string, model: string, sessionId: string, basis: string, offset: number })(v)
-      if (!['api', 'plan', 'total'].includes(q.basis) || !Number.isSafeInteger(q.offset) || q.offset < 0 || q.offset > 1e7) throw new Error('Invalid statistics query')
+      q.turnOffset = number(v.turnOffset ?? 0)
+      if (!['api', 'plan', 'total'].includes(q.basis) || ![q.offset, q.turnOffset].every(n => Number.isSafeInteger(n) && n >= 0 && n <= 1e7)) throw new Error('Invalid statistics query')
       return q
     }
     const codec = (name, parse) => { const schema = { parse }; return { mode: 'strict', typeSymbol: 'dsh-cost-meter#' + name, schema, create: () => schema } }
@@ -96,11 +99,12 @@ window.__ModuleLoader__.load({
     }
 
     function SessionDetail({ api, query, revision, money, formatTokens, text }) {
-      const [offset, setOffset] = useState(0), [selected, setSelected] = useState(-1)
-      const result = useRequest(api, 'getSessionBilling', { ...query, offset }, revision)
+      const [offset, setOffset] = useState(0), [selected, setSelected] = useState(-1), [turnOffset, setTurnOffset] = useState(0)
+      const result = useRequest(api, 'getSessionBilling', { ...query, offset, turnOffset }, revision)
       const detail = result.value, basis = query.basis
       const names = { input: text('输入', 'Input'), output: text('输出', 'Output'), cacheRead: text('缓存读取', 'Cache read'), cacheWrite: text('缓存写入', 'Cache write'), reasoning: text('推理', 'Reasoning') }
       const kinds = { model: text('模型调用', 'Model call'), compaction: text('上下文压缩', 'Compaction'), search: text('原生搜索', 'Native search') }
+      const turnName = turn => turn == null ? text('未标明轮次', 'Turn not recorded') : text('轮次 ', 'Turn ') + turn
       if (result.loading) return el('p', { className: 'cm-stat-empty', role: 'status' }, text('正在读取本对话的用量明细…', 'Loading this conversation’s usage records…'))
       if (result.error) return el('p', { className: 'cm-stat-error', role: 'alert' }, result.error)
       if (!detail.found) return el('p', { className: 'cm-stat-note' }, text('没有可用的调用日志。上方账本统计仍然有效；明细不会按零费用处理。', 'Call logs are unavailable. The ledger totals above remain valid; missing details do not mean zero cost.'))
@@ -112,6 +116,10 @@ window.__ModuleLoader__.load({
       const cost = amount(detail, basis), recorded = amount(detail.recorded, basis)
       const mismatch = Math.abs(cost - recorded) > Math.max(1e-8, Math.abs(recorded) * 1e-8) || detail.totalCalls !== detail.recorded.calls
       const formula = (row, i) => el('p', { key: i, className: 'cm-stat-sub' }, names[row.bucket] + ': ' + row.tokens.toLocaleString() + ' × ' + (row.priced ? money(row.rate) : '?') + ' / 1,000,000 = ' + (row.priced ? money(row.cost) : '?'))
+      const summaryTable = (label, rows, name) => el('div', { className: 'cm-stat-scroll', style: { marginTop: 20 } }, el('h3', null, label), el('table', { className: 'cm-stat-table' },
+        el('thead', null, el('tr', null, ...[label, text('调用次数', 'Calls'), text('输入 / 缓存 / 输出 Tokens', 'Input / cache / output tokens'), 'API', text('Plan 等值', 'Plan equivalent')].map(v => el('th', { key: v }, v)))),
+        el('tbody', null, rows.map((row, i) => el('tr', { key: i }, el('td', null, name(row)), el('td', null, row.calls),
+          el('td', null, [row.input, row.cacheRead + row.cacheWrite, row.output].map(formatTokens).join(' / ')), el('td', null, money(row.apiCost) + (row.unpriced ? ' + ?' : '')), el('td', null, money(Math.max(0, row.cost - row.apiCost)) + (row.unpriced ? ' + ?' : '')))))))
       return el('section', { className: 'cm-stat-panel' },
         el('div', { className: 'cm-stat-panel-head' }, el('h3', null, text('单对话费用明细', 'Conversation cost details')), el('span', { className: 'cm-stat-sub' }, text('只统计本对话自身的调用', 'Own calls only; child conversations are separate'))),
         el('p', { className: 'cm-stat-note' }, text('明细按日志中的调用时间、用量和当前配置的历史价格规则计算。上方汇总采用已入账金额；调整价格后两者可能不同。', 'Details use logged usage and call times with the currently configured historical price rules. The summary above uses recorded ledger amounts; changing prices can produce a difference.')),
@@ -120,10 +128,14 @@ window.__ModuleLoader__.load({
           el('thead', null, el('tr', null, ...[text('费用构成', 'Cost component'), 'Tokens', text('费用', 'Cost'), text('费用占比', 'Cost share')].map(v => el('th', { key: v }, v)))),
           el('tbody', null, parts.map(row => el('tr', { key: row.bucket }, el('td', null, names[row.bucket]), el('td', null, row.tokens.toLocaleString()), el('td', null, money(row.cost) + (row.unpriced ? ' + ?' : '')), el('td', null, pct(row.cost, cost))))))),
         el('p', { className: 'cm-stat-sub', style: { marginTop: 10 } }, text('推理 Token 可能包含在输出中；单价为 0 时不另收推理费。未定价用量显示 ?。', 'Reasoning tokens may overlap output; a zero reasoning rate adds no separate charge. Unpriced usage is marked ?.')),
+        summaryTable(text('按调用类型统计', 'Cost by call type'), detail.kinds, row => kinds[row.kind] ?? row.kind),
+        summaryTable(text('按轮次统计', 'Cost by turn'), detail.turns, row => turnName(row.turn)),
+        el('p', { className: 'cm-stat-sub' }, text('轮次沿用日志编号；未记录轮次的调用单列。每轮包含其全部调用，跨调用分页也不会拆分。', 'Turn numbers come from the log; calls without one are listed separately. Each turn includes all its calls, across call pages.')),
+        el(Pager, { offset: turnOffset, count: detail.totalTurns, size: 25, onChange: setTurnOffset, text }),
         el('div', { style: { marginTop: 24 } }, el(Chart, { rows: detail.calls.map((call, i) => ({ label: '#' + (offset + i + 1), index: i, value: amount(call, basis) })), money, text,
           label: text('逐次调用费用 · 当前页', 'Cost per call · current page'), onSelect: row => { setSelected(row.index); document.getElementById('cm-stat-call-' + row.index)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) } })),
         detail.calls.map((call, i) => el('details', { key: i, id: 'cm-stat-call-' + i, className: 'cm-stat-call', open: selected === i, onToggle: event => { if (!event.currentTarget.open && selected === i) setSelected(-1) } },
-          el('summary', null, '#' + (offset + i + 1) + ' · ' + (kinds[call.kind] ?? call.kind) + ' · ' + call.provider + ' / ' + call.model + ' · ' + (call.plan ? 'Plan ' : 'API ') + (call.priced ? money(call.cost) : '?') + (call.longContext ? text(' · 长上下文价', ' · long-context rate') : '')),
+          el('summary', null, '#' + (offset + i + 1) + ' · ' + turnName(call.turn) + (call.step == null ? '' : text(' / 步骤 ', ' / step ') + call.step) + ' · ' + (kinds[call.kind] ?? call.kind) + ' · ' + call.provider + ' / ' + call.model + ' · ' + (call.plan ? 'Plan ' : 'API ') + (call.priced ? money(call.cost) : '?') + (call.longContext ? text(' · 长上下文价', ' · long-context rate') : '')),
           el('p', { className: 'cm-stat-sub' }, new Date(call.atMs).toLocaleString()), call.rows.map(formula))),
         el(Pager, { offset, count: detail.totalCalls, size: 50, onChange: n => { setOffset(n); setSelected(-1) }, text }))
     }
@@ -133,7 +145,7 @@ window.__ModuleLoader__.load({
       const text = (zh, english) => en ? english : zh
       const [period, setPeriod] = useState(sessionId ? 'all' : 'week'), [custom, setCustom] = useState(null)
       const [scope, setScope] = useState({ id: sessionId, title: sessionId }), [provider, setProvider] = useState(''), [model, setModel] = useState('')
-      const [basis, setBasis] = useState('api'), [offset, setOffset] = useState(0), [revision, setRevision] = useState(0), [showModels, setShowModels] = useState(false)
+      const [basis, setBasis] = useState(sessionId ? 'total' : 'api'), [offset, setOffset] = useState(0), [revision, setRevision] = useState(0), [showModels, setShowModels] = useState(false)
       const today = state.meta.dayKey || new Date().toISOString().slice(0, 10)
       const from = period === 'all' ? '' : period === 'custom' ? custom?.from || today : shiftDate(today, period === 'week' ? -6 : period === 'month' ? -29 : 0)
       const to = period === 'custom' ? custom?.to || today : today
@@ -167,6 +179,7 @@ window.__ModuleLoader__.load({
             metric(text('Plan 等值费用', 'Plan equivalent'), money(Math.max(0, top.cost - top.apiCost)), text('不代表实际扣款', 'Not an actual debit')),
             metric(text('调用次数', 'Calls'), top.calls.toLocaleString(), data.sessionCount + text(' 个对话 · 平均 ', ' conversations · average ') + money(top.calls ? amount(top, basis) / top.calls : 0)),
             metric(text('缓存命中率', 'Cache hit rate'), pct(top.cacheRead, top.input + top.cacheRead + top.cacheWrite), formatTokens(tokens(top)) + ' Tokens')),
+          scope.id ? el(SessionDetail, { key: JSON.stringify([scope.id, from, to, provider, model, basis]), api, query: { ...query, from: data.from, to: data.to, offset: 0 }, revision, money, formatTokens, text }) : null,
           data.models.some(r => !r.priced) ? el('p', { className: 'cm-stat-note' }, text('部分模型当前未配置价格，金额可能不完整；未定价不等于免费。', 'Some models have no configured price. Amounts may be incomplete; unpriced usage is not free.')) : null,
           !top.calls && !top.cost ? el('p', { className: 'cm-stat-empty' }, text('所选范围没有已记录的用量。', 'No recorded usage in this range.')) : null,
           el('section', { className: 'cm-stat-panel' }, el(Chart, { rows: dailyChartRows(data.days, basis), money, text, label: text('费用趋势 · ', 'Cost over time · ') + basisName,
@@ -188,8 +201,7 @@ window.__ModuleLoader__.load({
             el('div', { className: 'cm-stat-scroll' }, el('table', { className: 'cm-stat-table' }, el('thead', null, el('tr', null, ...[text('对话', 'Conversation'), text('调用', 'Calls'), 'API', text('Plan 等值', 'Plan equivalent'), text('缓存命中', 'Cache hits')].map(v => el('th', { key: v }, v)))),
               el('tbody', null, data.sessions.map(row => el('tr', { key: row.id }, el('td', null, el('button', { type: 'button', title: row.id, onClick: () => chooseScope({ id: row.id, title: row.title }) }, row.title)), el('td', null, row.calls.toLocaleString()), el('td', null, money(row.apiCost)), el('td', null, money(Math.max(0, row.cost - row.apiCost))), el('td', null, pct(row.cacheRead, row.input + row.cacheRead + row.cacheWrite))))))),
             data.unassignedCost > 1e-8 ? el('p', { className: 'cm-stat-note' }, text('未关联对话的费用：', 'Cost not linked to a conversation: ') + money(data.unassignedCost)) : null,
-            el(Pager, { offset, count: data.sessionCount, size: 25, onChange: setOffset, text })) :
-            el(SessionDetail, { key: JSON.stringify([scope.id, from, to, provider, model, basis]), api, query: { ...query, from: data.from, to: data.to, offset: 0 }, revision, money, formatTokens, text }))) : null)
+            el(Pager, { offset, count: data.sessionCount, size: 25, onChange: setOffset, text })) : null)) : null)
     }
 
     async function mount(ctx) {

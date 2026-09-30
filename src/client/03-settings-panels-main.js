@@ -21,16 +21,19 @@
     }
 
     function SessionStatisticsButton(props) {
-      const state = props.useCost?.(s => s)?.state
-      const [open, setOpen] = useState(false), dialog = React.useRef(null)
+      const snapshot = props.useCost?.(s => s), state = snapshot?.state
+      const [openedId, setOpenedId] = useState(null), dialog = React.useRef(null)
+      const open = !!props.sessionId && openedId === props.sessionId
       useEffect(() => { if (open) dialog.current?.showModal() }, [open])
-      if (!state || !props.sessionId) return null
-      const label = resolveLocale(state.config.locale) === 'en' ? 'Cost details' : '费用明细'
+      useEffect(() => { setOpenedId(null) }, [props.sessionId])
+      if (!props.sessionId) return null
+      const en = resolveLocale(state?.config.locale) === 'en'
+      const label = en ? 'Conversation cost details' : '本会话费用明细'
       return el(Fragment, null,
-        el('button', { type: 'button', className: 'cm-btn', onClick: () => setOpen(true) }, label),
-        open ? el('dialog', { ref: dialog, 'aria-label': label, onCancel: () => setOpen(false), style: { width: 'min(1160px,94vw)', maxHeight: '90vh', padding: 24, borderRadius: 16, border: '1px solid var(--dsw-alias-border-l1)', color: 'var(--dsw-alias-label-primary)', background: 'var(--dsw-alias-bg-base,#fff)' } },
-          el('button', { type: 'button', className: 'cm-btn', autoFocus: true, 'aria-label': resolveLocale(state.config.locale) === 'en' ? 'Close' : '关闭', onClick: () => setOpen(false), style: { float: 'right' } }, '×'),
-          el(BillingStatistics, { state, api: props.api, sessionId: props.sessionId })) : null)
+        el('button', { type: 'button', className: 'cm-btn cm-stat-entry', 'aria-haspopup': 'dialog', onClick: () => setOpenedId(props.sessionId), style: { flexShrink: 0, whiteSpace: 'nowrap' } }, label),
+        open ? el('dialog', { ref: dialog, 'aria-label': label, onCancel: () => setOpenedId(null), style: { width: 'min(1160px,94vw)', maxHeight: '90vh', padding: 24, borderRadius: 16, border: '1px solid var(--dsw-alias-border-l1)', color: 'var(--dsw-alias-label-primary)', background: 'var(--dsw-alias-bg-base,#fff)' } },
+          el('button', { type: 'button', className: 'cm-btn', autoFocus: true, 'aria-label': en ? 'Close' : '关闭', onClick: () => setOpenedId(null), style: { float: 'right' } }, '×'),
+          state ? el(BillingStatistics, { key: props.sessionId, state, api: props.api, sessionId: props.sessionId }) : el('p', { role: snapshot?.error ? 'alert' : 'status' }, snapshot?.error || (en ? 'Loading…' : '加载中…'), el('button', { type: 'button', className: 'cm-btn', onClick: () => props.api.reload() }, en ? 'Retry' : '重试'))) : null)
     }
 
     function ExternalUsagePanel({ state, t }) {
@@ -2778,7 +2781,7 @@
       if (slots === undefined) return
 
       const injected = () => ({ hooks: { cost: store }, api })
-      slots.inject('conversation.session.header.actions', () => slots.register({ name: 'conversation.session.header.actions', id: 'cost-meter-statistics', order: 15, inject: injected }, SessionStatisticsButton))
+      for (const name of ['conversation.session.header.actions', 'conversation.composer.dock']) slots.inject(name, () => slots.register({ name, id: 'cost-meter-statistics', order: 15, inject: injected }, SessionStatisticsButton))
       slots.inject('conversation.chat.turnTail', () => slots.register({ name: 'conversation.chat.turnTail', id: 'cost-meter-turn', order: 10, inject: injected }, TurnCost))
       // 通用插槽注册去重:共享「失效旧注册→bump gen→注入→生成期护栏→记录 dispose→卸载清理」逻辑。
       const slotActive = () => ({ gen: 0, dispose: null })

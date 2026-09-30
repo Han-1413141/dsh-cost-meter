@@ -7,6 +7,7 @@ import { sanitizeConfig, localDayKey } from '../lib/store.js'
 import { billingStatistics, statisticsQuery } from '../lib/billing-statistics.js'
 import { getSessionBilling } from '../lib/turn-cost.js'
 import { billingStatisticsSchema, sessionBillingSchema, TYPERT } from '../lib/typert.host.js'
+import { NATIVE_SEARCH_USAGE_EVENT } from '../lib/native-search-events.js'
 
 const usage = (cost, apiCost = cost, calls = 1) => ({ input: 100, output: 20, cacheRead: 50, cacheWrite: 10, reasoning: 5, calls, cost, apiCost })
 const price = { cacheMiss: 2, output: 8, cacheHit: .5, cacheWrite: 3, reasoning: 1 }
@@ -37,7 +38,7 @@ assert.equal(billingStatistics(ledger, { ...query, provider: 'test', model: 'm' 
 assert.equal(billingStatistics(ledger, { ...query, basis: 'plan' }).sessions[0].id, 'child')
 assert.equal(billingStatistics(ledger, { ...query, from: '', to: '2026-09-30' }).from, '2026-09-28')
 assert.equal(JSON.stringify(ledger), before, 'statistics must not change stored money or configuration')
-for (const invalid of [{ from: '2026-02-30' }, { from: '2026-10-01', to: '2026-09-30' }, { offset: -1 }, { basis: 'anything' }, { from: '2000-01-01', to: '2026-09-30' }]) assert.throws(() => statisticsQuery({ ...query, ...invalid }))
+for (const invalid of [{ from: '2026-02-30' }, { from: '2026-10-01', to: '2026-09-30' }, { offset: -1 }, { turnOffset: .5 }, { basis: 'anything' }, { from: '2000-01-01', to: '2026-09-30' }]) assert.throws(() => statisticsQuery({ ...query, ...invalid }))
 const many = { config, days: { '2026-09-30': day(50, 50, Array.from({ length: 50 }, (_, i) => session('s' + i, i + 1)), {}) } }
 const a = billingStatistics(many, { ...query, offset: 0 }), b = billingStatistics(many, { ...query, offset: 25 })
 assert.equal(a.sessionCount, 50)
@@ -64,8 +65,28 @@ try {
   const page2 = await getSessionBilling(detailLedger, ctx, { ...q, offset: 50 })
   assert.equal(page2.calls.length, 12)
   assert.equal(page2.cost, detail.cost, 'pagination cannot shrink the full-session amount')
+  assert.equal(detail.totalTurns, 62)
+  assert.equal(detail.turns.length, 25)
+  assert.equal(detail.calls[0].turn, 0)
+  const turns2 = await getSessionBilling(detailLedger, ctx, { ...q, turnOffset: 25 })
+  const turns3 = await getSessionBilling(detailLedger, ctx, { ...q, turnOffset: 50 })
+  assert.equal(new Set([...detail.turns, ...turns2.turns, ...turns3.turns].map(r => r.turn)).size, 62)
+  assert.equal(turns2.calls[0].turn, 0, 'turn pagination does not move the call page')
   assert.equal((await getSessionBilling(detailLedger, ctx, { ...q, model: 'missing' })).found, false)
   assert.equal(detail.recorded.cost, 4, 'detail preserves recorded amount even when log/current prices differ')
+
+  const search = { type: NATIVE_SEARCH_USAGE_EVENT, time: at + 100, data: { requestId: '11111111-2222-4333-8444-555555555555', startedAtMs: at + 100, provider: 'deepseek-official', model: 'deepseek-v4-flash',
+    usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 50, cacheWriteTokens: 10, reasoningTokens: 5 } } }
+  const mixedRecords = [records[0], ...records.slice(2, 57).map((r, i) => ({ ...r, data: { ...r.data, turn: 2, step: i } })),
+    { type: 'compaction/summary', seq: 100, time: at + 90, data: { provider: 'test', model: 'm', usage: { inputTokens: 100 } } }, search, search]
+  const mixedCtx = { get: () => ({ get: () => ({ header: { createdAt: at }, snapshotEvents: () => mixedRecords }) }) }
+  const mixed = sessionBillingSchema.parse(await getSessionBilling({ ...detailLedger, config: { ...config, planBilling: { models: { 'test:m': 'plan' } } } }, mixedCtx, q))
+  assert.equal(mixed.totalCalls, 57, 'duplicate native search is counted once')
+  assert.equal(mixed.turns.find(r => r.turn === 2).calls, 55, 'one turn spans multiple call pages without truncation')
+  assert.equal(mixed.turns.find(r => r.turn === null).calls, 2, 'unrecorded round is not guessed for search or compaction')
+  assert.equal(mixed.kinds.find(r => r.kind === 'model').apiCost, 0, 'Plan equivalent stays separate')
+  assert.equal(mixed.calls[0].step, 0)
+  for (const key of ['cost', 'apiCost']) for (const groups of [mixed.turns, mixed.kinds]) assert.ok(Math.abs(groups.reduce((n, r) => n + r[key], 0) - mixed[key]) < 1e-12)
 
   let factory
   const react = { createElement() {}, useEffect() {}, useState() {} }
