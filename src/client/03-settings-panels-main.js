@@ -2194,7 +2194,7 @@
           el('h3', { className: 'cm-h' }, t('displaySettings')),
           el('div', { className: 'cm-grid' },
             el('div', { className: 'cm-grid-group' }, t('groupGeneral')),
-            ...['includeSubagentCost', 'codexQuotaEnabled'].map(key => el('label', { key, className: 'cm-check' },
+            ...['includeSubagentCost', 'codexQuotaEnabled', 'codexQuotaSidebar'].map(key => el('label', { key, className: 'cm-check' },
               el('input', { type: 'checkbox', checked: draft?.[key] === true, onChange: event => setField(key, event.target.checked) }),
               el('span', null, t(key)))),
             USAGE_POSITION_SWITCHABLE

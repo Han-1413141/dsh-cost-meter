@@ -136,6 +136,7 @@
         sidebarSimplePromptSeen: v.sidebarSimplePromptSeen === true,
         sidebarModels: Object.fromEntries(Object.entries(MODEL_SIDEBAR_DEFAULTS).map(([k, v0]) => [k, v.sidebarModels?.[k] ?? v0])),
         codexQuotaEnabled: v.codexQuotaEnabled === true,
+        codexQuotaSidebar: v.codexQuotaSidebar !== false,
         includeSubagentCost: v.includeSubagentCost === true,
         sidebarStyle: v.sidebarStyle === 'compact' ? 'compact' : 'standard',
         priceMatchDismissed: Array.isArray(v.priceMatchDismissed) ? v.priceMatchDismissed.filter(key => typeof key === 'string') : [],
@@ -2458,9 +2459,10 @@
       const hoverProps = useQuotaHoverRefresh()
       const { state, wide } = props
       const t = makeT(resolveLocale(state.config?.locale))
-      const snap = useCodexQuota(state.config?.codexQuotaEnabled === true)
-      const refresh = useClickRefresh(() => fetchCodexQuota(true, state.config?.codexQuotaEnabled === true))
-      if (state.config?.codexQuotaEnabled !== true || snap.status !== 'ok') return null
+      const enabled = state.config?.codexQuotaEnabled === true && state.config?.codexQuotaSidebar !== false
+      const snap = useCodexQuota(enabled)
+      const refresh = useClickRefresh(() => fetchCodexQuota(true, enabled))
+      if (!enabled || snap.status !== 'ok') return null
       const win = snap.windows.weekly ?? null
       if (win === null) return null
       const direction = barDirectionOf(state.config, 'plan')
@@ -3030,7 +3032,7 @@
 
     function SidebarFooter(props) {
       const costStore = props.useCost ? props.useCost(s => s) : undefined
-      useCodexQuota(costStore?.state?.config?.codexQuotaEnabled === true)
+      useCodexQuota(costStore?.state?.config?.codexQuotaEnabled === true && costStore?.state?.config?.codexQuotaSidebar !== false)
       // 侧边栏页脚非会话作用域插槽:useProjection 在部分宿主/页面可能不可用或
       // 抛错(无活跃会话),try/catch 退化,联动刷新随之失效(60s 轮询兜底)。
       let projectionUsage
@@ -3073,7 +3075,7 @@
       const gatewayNodes = gatewaySidebarCards(state, config, wide, props.api)
       // Codex 周额度(issue #59):客户端探测 dsh-codex-connect,ok 时并入侧边栏;
       // 其余显示全关时也要为它保留渲染入口(模块装载即有被动探测,快照同步读)。
-      const codexOn = config.codexQuotaEnabled === true && codexQuotaCache.status === 'ok'
+      const codexOn = config.codexQuotaEnabled === true && config.codexQuotaSidebar !== false && codexQuotaCache.status === 'ok'
         && codexQuotaCache.windows.weekly !== null
       const budgetOn = (config.budget ?? {}).enabled === true
       const showToday = config.sidebar !== false && config.hideTodayCost !== true

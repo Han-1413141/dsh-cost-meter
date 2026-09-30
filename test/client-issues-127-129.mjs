@@ -9,6 +9,7 @@ const source = readdirSync(sourceDir).filter(name => name.endsWith('.js')).sort(
 const expose = ['mergeSessionUsage', 'useSessionUsage', 'SessionCost', 'DockLine', 'fetchCodexQuota', 'useCodexQuota', 'codexQuotaCache', 'CodexPlanBox', 'SidebarFooter', 'GatewayQuotaBox', 'parsePrice', 'normalizeClientPrice', 'tierFor', 'costOfBuckets']
 const element = (type, props, ...children) => ({ type, props: props ?? {}, children })
 expose.push('TurnCost')
+expose.push('QuotaStrip')
 const nodes = value => Array.isArray(value) ? value.flatMap(nodes) : value && typeof value === 'object' ? [value, ...nodes(value.children)] : []
 const textOf = value => Array.isArray(value) ? value.map(textOf).join(' ') : value && typeof value === 'object' ? textOf(value.children) : typeof value === 'string' || typeof value === 'number' ? String(value) : ''
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
@@ -228,6 +229,24 @@ assert.equal(quota.requests.length, 1, '有效缓存无需重复查询')
 const visible = quota.mount(quota.ui.CodexPlanBox, { state: { config: { ...config, codexQuotaEnabled: true } }, wide: true })
 await quota.flush()
 assert.ok(visible.tree)
+// #207: sidebar display is independent of the conversation's quota strip.
+let quotaConfig = { ...config, codexQuotaEnabled: true, codexQuotaSidebar: false, quotaStrip: { enabled: true, budget: false, go: false, plans: false } }
+const quotaProps = () => ({ wide: true, useCost: pick => pick({ state: { config: quotaConfig } }) })
+visible.render({ state: { config: quotaConfig }, wide: true })
+assert.equal(visible.tree, null)
+const sidebar = quota.mount(quota.ui.SidebarFooter, quotaProps())
+const strip = quota.mount(quota.ui.QuotaStrip, quotaProps())
+await quota.flush()
+assert.equal(sidebar.tree, null, 'hiding the only sidebar card leaves no empty footer')
+assert.match(textOf(strip.tree), /Codex/)
+quotaConfig = { ...quotaConfig, codexQuotaSidebar: true }
+sidebar.render(quotaProps())
+assert.ok(nodes(sidebar.tree).some(n => n.type === quota.ui.CodexPlanBox), 're-enabling restores the sidebar card')
+quotaConfig = { ...quotaConfig, codexQuotaEnabled: false }
+sidebar.render(quotaProps()); strip.render(quotaProps())
+assert.equal(sidebar.tree, null)
+assert.equal(strip.tree, null, 'the global toggle still hides both surfaces')
+sidebar.dispose(); strip.dispose()
 visible.render({ state: { config: { ...config, codexQuotaEnabled: false } }, wide: true })
 assert.equal(visible.tree, null, '禁用后即使缓存是ok也隐藏卡片')
 disabled.render({ enabled: false })

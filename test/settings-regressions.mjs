@@ -4,6 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { sanitizeConfig, applyConfigPatch, zeroDay } from '../lib/store.js'
 import { parseAntigravityQuota } from '../lib/gateway-quota-adapters.js'
 import { qwenTokenPlanWindows } from '../lib/coding-plans.js'
+import { stateSchema } from '../lib/typert.host.js'
 
 // 执行真实组件和事件回调，再经过服务端清洗与客户端读取；不向发布产物暴露接口。
 const dir = new URL('../src/client/', import.meta.url)
@@ -62,6 +63,14 @@ const textOf = tree => typeof tree === 'string' ? tree : (tree?.children ?? []).
 const button = (tree, label) => nodes(tree).find(node => node.type === 'button' && textOf(node) === label)
 const rowFor = (tree, model) => nodes(tree).find(node => node.props.className === 'cm-match-row' && textOf(node).includes(model))
 const roundTrip = config => ui.parseConfig(sanitizeConfig(config), 'config')
+assert.equal(roundTrip({}).codexQuotaSidebar, true, 'old configs retain the sidebar card')
+for (const enabled of [true, false]) {
+  const patch = applyConfigPatch(sanitizeConfig({}), { codexQuotaSidebar: enabled })
+  assert.deepEqual(patch.errors, [])
+  const wire = stateSchema.shape.config.parse(patch.config)
+  assert.equal(ui.parseConfig(wire, 'config').codexQuotaSidebar, enabled, 'strict RPC and client readers preserve the new field')
+}
+assert.ok(applyConfigPatch(sanitizeConfig({}), { codexQuotaSidebar: 'false' }).errors.length > 0)
 
 for (const locale of ['zh', 'en']) {
   const t = ui.makeT(locale)
@@ -152,6 +161,17 @@ for (const locale of ['zh', 'en']) {
   } }
   const props = () => ({ useCost: () => ({ state: current, status: 'ready' }), api })
   let section = renderer(ui.CostSection, props)
+  button(section(), t('tabDisplay')).props.onClick()
+  const codexSidebarInput = () => nodes(section()).find(n => n.type === 'label' && textOf(n).includes(t('codexQuotaSidebar')))?.children.find(n => n?.type === 'input')
+  assert.equal(codexSidebarInput().props.checked, true)
+  codexSidebarInput().props.onChange({ target: { checked: false } })
+  section()
+  for (const fn of [...timers.values()]) fn()
+  timers.clear()
+  await Promise.resolve(); await Promise.resolve()
+  section()
+  assert.equal(current.config.codexQuotaSidebar, false, 'checkbox auto-save persists in both locales')
+  assert.equal(codexSidebarInput().props.checked, false)
   const openPrices = () => { const tree = section(); button(tree, t('tabPricing')).props.onClick(); return section() }
   tree = openPrices()
   row = rowFor(tree, 'unknown-model')
