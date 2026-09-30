@@ -43,6 +43,15 @@ export async function apply(ctx) {
     assert.equal(turnCost.rows.find(row => row.bucket === 'input').tokens, 123)
     assert.ok(turnCost.cost > 0)
     const after = await ctx.costMeter.getState()
+    const query = { from: after.meta.dayKey, to: after.meta.dayKey, provider: '', model: '', sessionId: session.id, basis: 'api', offset: 0 }
+    const statistics = await ctx.costMeter.getBillingStatistics(query)
+    assert.equal(statistics.totals.calls, 1)
+    assert.equal(statistics.sessionCount, 1)
+    assert.equal(statistics.totals.input, 123)
+    const details = await ctx.costMeter.getSessionBilling(query)
+    assert.equal(details.totalCalls, 1)
+    assert.equal(details.calls[0].kind, 'search')
+    assert.ok(Math.abs(details.cost - statistics.totals.cost) < 1e-12)
     writeFileSync(join(process.env.DSH_HOME, 'native-search-proof.json'), JSON.stringify({ calls: after.today.calls - before.today.calls, input: after.today.input - before.today.input, ownSearch: Object.hasOwn(ctx.web, 'search'), turnCost }))
   } finally {
     setGlobalDispatcher(previous)

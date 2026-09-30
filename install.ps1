@@ -8,13 +8,13 @@
   Desktop 使用自带的 dsh 命令和 pnpm；先启动一次并完全退出 Desktop，再传入 -Profile desktop。
   安装链默认固定到 $PinnedRev 发布 tag(pnpm 版本同样固定),可审计、可复现;
   需要装其它 rev 时用 -Rev 参数覆盖(如 CI 冒烟装被测提交):
-   - git 源固定到 tag:  github:Han-1413141/dsh-cost-meter#v1.7.49
+   - git 源固定到 tag:  github:Han-1413141/dsh-cost-meter#v1.8.0
    - 无 git 时用 tag 打包直链(内容与 tag 一一对应)
    - pnpm 固定版本:     11.21.0(corepack prepare / npm i -g pnpm@11.21.0)
   已安装时重跑本脚本即可对齐到当前脚本固定的版本。
 
   一键用法(复制整行到 PowerShell 粘贴回车;先审阅再运行):
-    irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.7.49/install.ps1 | iex
+    irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.8.0/install.ps1 | iex
 
   手动用法(先下载本文件审阅):
     powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
@@ -33,7 +33,7 @@ $ErrorActionPreference = 'Stop'
 $Package      = 'dsh-cost-meter'
 $Owner        = 'Han-1413141'
 $Repo         = 'dsh-cost-meter'
-$PinnedRev    = 'v1.7.49'   # 固定发布 tag:发布新版本时同步更新此值与 README 中的安装行
+$PinnedRev    = 'v1.8.0'   # 固定发布 tag:发布新版本时同步更新此值与 README 中的安装行
 $InstallRev   = if ($Rev) { $Rev } else { $PinnedRev }
 $PnpmVersion  = '11.21.0'   # 固定 pnpm 版本,保证安装链可复现
 $GitSpec = "github:$Owner/$Repo#$InstallRev"

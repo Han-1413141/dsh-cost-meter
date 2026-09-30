@@ -82,3 +82,13 @@ if (bytes > 262144) {
   process.exit(1)
 }
 console.log('✓ lib/client.js within DSH STORE per-file bound (262144)')
+
+// DSH 0.2.0-rc.2 package-local chunks use the host's require.async contract.
+// The statistics screen has its own readable source and bounded runtime asset.
+const statisticsSource = readFileSync(resolve(projectRoot, 'src/statistics/index.js'), 'utf8')
+const statistics = await transform(statisticsSource, { minify: true, target: 'es2022', charset: 'utf8', legalComments: 'none' })
+for (const [name, text] of [['src/statistics/index.js', statisticsSource], ['lib/client.statistics.js', statistics.code]]) {
+  if (Buffer.byteLength(text) > 262144) throw new Error(`${name} exceeds the 262144-byte bound`)
+}
+writeFileSync(resolve(projectRoot, 'lib/client.statistics.js'), statistics.code)
+console.log(`✓ lib/client.statistics.js ${Buffer.byteLength(statistics.code)} bytes (loaded on demand)`)

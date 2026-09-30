@@ -16,6 +16,14 @@ vm.runInNewContext(readFileSync(new URL('../lib/client.js', import.meta.url), 'u
 const client = factory(() => ({}))
 const captured = new Error('contribution captured')
 await assert.rejects(client.apply({ remote: { $mount: async value => { contribution = value; throw captured } } }), error => error === captured)
+let chunkFactory
+vm.runInNewContext(readFileSync(new URL('../lib/client.statistics.js', import.meta.url), 'utf8'), {
+  window: { __ModuleLoader__: { load: module => { chunkFactory = module.factory } } },
+})
+const statistics = chunkFactory(() => ({}))
+let lazyContribution
+await assert.rejects(statistics.mount({ get: () => ({ $mount: async value => { lazyContribution = value; throw captured } }) }), error => error === captured)
+contribution.descriptors.push(...lazyContribution.descriptors)
 export const CLIENT_CONTRIBUTION = contribution
 
 for (const [face, descriptors] of [['host', TYPERT.invocations], ['client', contribution.descriptors]]) {

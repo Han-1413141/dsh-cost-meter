@@ -202,4 +202,4 @@ jobs:
       # 的产物差异都会让 CI 变红,杜绝把过期 bundle 发布出去。
       - name: Check client bundle is in sync with src
         shell: bash
-        run: node scripts/build.mjs && git diff --exit-code lib/client.js
+        run: node scripts/build.mjs && git diff --exit-code lib/client.js lib/client.statistics.js

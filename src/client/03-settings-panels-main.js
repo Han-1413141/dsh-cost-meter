@@ -8,6 +8,31 @@
         el('p', { className: 'cm-card-sub' }, props.sub))
     }
 
+    function BillingStatistics(props) {
+      const [Page, setPage] = useState(null), [error, setError] = useState(''), [retry, setRetry] = useState(0)
+      useEffect(() => {
+        let active = true
+        setError('')
+        props.api.loadStatistics().then(page => { if (active) setPage(() => page) }, e => { if (active) setError(String(e.message ?? e)) })
+        return () => { active = false }
+      }, [props.api, retry])
+      if (Page) return el(Page, { ...props, formatMoneyUsd, formatTokens })
+      return el('p', { role: error ? 'alert' : 'status' }, error || '…', error ? el('button', { className: 'cm-btn', onClick: () => setRetry(n => n + 1) }, '↻') : null)
+    }
+
+    function SessionStatisticsButton(props) {
+      const state = props.useCost?.(s => s)?.state
+      const [open, setOpen] = useState(false), dialog = React.useRef(null)
+      useEffect(() => { if (open) dialog.current?.showModal() }, [open])
+      if (!state || !props.sessionId) return null
+      const label = resolveLocale(state.config.locale) === 'en' ? 'Cost details' : '费用明细'
+      return el(Fragment, null,
+        el('button', { type: 'button', className: 'cm-btn', onClick: () => setOpen(true) }, label),
+        open ? el('dialog', { ref: dialog, 'aria-label': label, onCancel: () => setOpen(false), style: { width: 'min(1160px,94vw)', maxHeight: '90vh', padding: 24, borderRadius: 16, border: '1px solid var(--dsw-alias-border-l1)', color: 'var(--dsw-alias-label-primary)', background: 'var(--dsw-alias-bg-base,#fff)' } },
+          el('button', { type: 'button', className: 'cm-btn', autoFocus: true, 'aria-label': resolveLocale(state.config.locale) === 'en' ? 'Close' : '关闭', onClick: () => setOpen(false), style: { float: 'right' } }, '×'),
+          el(BillingStatistics, { state, api: props.api, sessionId: props.sessionId })) : null)
+    }
+
     function ExternalUsagePanel({ state, t }) {
       const ext = state.externalUsage
       if (!ext) return null
@@ -2046,6 +2071,7 @@
       // 设置页标签(issue #29):按用途分五组,切换只改可见分区,不拆配置模型与保存逻辑。
       const tabItems = [
         ['overview', t('tabOverview')],
+        ['statistics', locale === 'en' ? 'Cost statistics' : '计费统计'],
         ['quotas', t('tabQuotas')],
         ['usage', t('tabUsage')],
         ['pricing', t('tabPricing')],
@@ -2069,6 +2095,7 @@
           saveBadge),
         // 操作结果提示(价格同步/历史导入/清除):全局展示,不随触发按钮所在标签页。
         cmMsg(message),
+        tab === 'statistics' ? el(BillingStatistics, { state, api }) : null,
         // ── 概览:汇总卡片、今日会话、预算、官方余额 ──
         tab === 'overview' ? el(Fragment, { key: 'overview' },
         // 汇总卡片(今日卡片受 hideTodayCost 门控,issue #46;金额为真金白银口径,issue #64)
@@ -2700,7 +2727,14 @@
         if (result.value.state !== undefined) store.set({ status: 'ready', error: null, state: result.value.state })
         return result.value
       }
+      let statisticsPage = null
       const api = {
+        loadStatistics: () => {
+          if (!statisticsPage) statisticsPage = (typeof require.async === 'function'
+            ? require.async('./client.statistics.js').then(module => module.mount(ctx))
+            : Promise.reject(new Error(rpcT()('statisticsUpgrade')))).catch(error => { statisticsPage = null; throw error })
+          return statisticsPage
+        },
         reload,
         updateConfig: async patch => {
           const state = await call('updateConfig', [patch])
@@ -2744,6 +2778,7 @@
       if (slots === undefined) return
 
       const injected = () => ({ hooks: { cost: store }, api })
+      slots.inject('conversation.session.header.actions', () => slots.register({ name: 'conversation.session.header.actions', id: 'cost-meter-statistics', order: 15, inject: injected }, SessionStatisticsButton))
       slots.inject('conversation.chat.turnTail', () => slots.register({ name: 'conversation.chat.turnTail', id: 'cost-meter-turn', order: 10, inject: injected }, TurnCost))
       // 通用插槽注册去重:共享「失效旧注册→bump gen→注入→生成期护栏→记录 dispose→卸载清理」逻辑。
       const slotActive = () => ({ gen: 0, dispose: null })

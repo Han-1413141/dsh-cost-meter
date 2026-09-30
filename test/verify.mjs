@@ -118,7 +118,7 @@ function readClientSource() {
 // classic script 语法错误不触发 error 事件、宿主只报「loaded without registering」,
 // 而本套件此前只做字符串断言、从不解析该文件——语法错误一路溜到线上。
 // 这里用 vm.Script 整份编译(只编译不执行,window 引用无碍),任何语法错误当场失败。
-for (const browserBundle of ['../lib/client.js']) {
+for (const browserBundle of ['../lib/client.js', '../lib/client.statistics.js']) {
   const src = readFileSync(new URL(browserBundle, import.meta.url), 'utf8')
   new vm.Script(src, { filename: browserBundle })
 }
@@ -1392,7 +1392,8 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   assert.equal((clientSource.match(/useClickRefresh\(api \? \(\) => api\.refreshCustomBalance\(index\) : null\)/g) ?? []).length, 2, '自定义余额框/行均接 refreshCustomBalance(多配置形态按条目 index 刷新,issue #79)')
   assert.ok(clientSource.includes("useClickRefresh(api ? () => api.refreshCodingPlan(id) : null)"), '通用 Coding Plan 图框接 refreshCodingPlan(id)')
   assert.ok(clientSource.includes("useClickRefresh(api ? () => api.refreshCodingPlan('minimax') : null)"), 'MiniMax 图框接 refreshCodingPlan(minimax)')
-  assert.equal((clientSource.match(/api: props\.api/g) ?? []).length, 7, 'SidebarFooter 七处渲染均透传 api(六类图框 + Codex 卡片)')
+  const footerSource = clientSource.match(/function SidebarFooter\(props\) \{([\s\S]*?)\n    \}/)?.[0] ?? ''
+  assert.equal((footerSource.match(/api: props\.api/g) ?? []).length, 7, 'SidebarFooter 七处渲染均透传 api(六类图框 + Codex 卡片)')
   // 可点击语义与视觉反馈:a11y(role/tabIndex/aria-busy/键盘)、CSS(cursor/hover/busy 呼吸)。
   assert.ok(clientSource.includes('const clickableRefreshProps = (busy, run) => ({'), '可点击属性 helper 存在')
   assert.ok(clientSource.includes("role: 'button'") && clientSource.includes("tabIndex: 0") && clientSource.includes("'aria-busy': busy ? 'true' : 'false'"), 'role=button + tabIndex + aria-busy')
@@ -1617,6 +1618,11 @@ vm.runInNewContext(clientSrc.replace('exports.apply = apply', 'exports.descripto
   window: { __ModuleLoader__: { load: value => { descriptorFactory = value.factory } } }, navigator: { language: 'en' },
 })
 const descriptors = descriptorFactory(() => ({})).descriptors
+let statisticsFactory
+vm.runInNewContext(readFileSync(new URL('../lib/client.statistics.js', import.meta.url), 'utf8'), {
+  window: { __ModuleLoader__: { load: value => { statisticsFactory = value.factory } } },
+})
+descriptors.push(...statisticsFactory(() => ({})).CONTRIBUTION.descriptors)
 const clientMethods = Array.from(descriptors, d => d.method).sort()
 const serverMethods = TYPERT.invocations.map(i => i.method).sort()
 assert.deepEqual(clientMethods, serverMethods, '客户端 descriptor 与服务端 typert 清单方法一一对齐')
@@ -6721,6 +6727,8 @@ await import('./subagent-billing.mjs')
 await import('./session-restart.mjs')
 await import('./native-search-billing.mjs')
 await import('./turn-cost.mjs')
+await import('./billing-statistics.mjs')
+await import('./billing-statistics-client.mjs')
 await import('./native-search-history.mjs')
 await import('./versioned-session-logs.mjs')
 await import('./session-log-repair.mjs')
