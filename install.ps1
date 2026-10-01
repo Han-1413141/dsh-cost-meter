@@ -6,15 +6,15 @@
 .DESCRIPTION
   无需克隆仓库:经 dsh plugin 把插件装进指定 Profile，默认 web。
   Desktop 使用自带的 dsh 命令和 pnpm；先启动一次并完全退出 Desktop，再传入 -Profile desktop。
-  安装链默认固定到 $PinnedRev 发布 tag(pnpm 版本同样固定),可审计、可复现;
+  Desktop 默认安装与 $PinnedRev 对应的 npm 正式版；其他 Profile 固定到发布 tag。
   需要装其它 rev 时用 -Rev 参数覆盖(如 CI 冒烟装被测提交):
-   - git 源固定到 tag:  github:Han-1413141/dsh-cost-meter#v1.8.3
+   - git 源固定到 tag:  github:Han-1413141/dsh-cost-meter#v1.8.4
    - 无 git 时用 tag 打包直链(内容与 tag 一一对应)
    - pnpm 固定版本:     11.21.0(corepack prepare / npm i -g pnpm@11.21.0)
   已安装时重跑本脚本即可对齐到当前脚本固定的版本。
 
   一键用法(复制整行到 PowerShell 粘贴回车;先审阅再运行):
-    irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.8.3/install.ps1 | iex
+    irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.8.4/install.ps1 | iex
 
   手动用法(先下载本文件审阅):
     powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
@@ -33,7 +33,7 @@ $ErrorActionPreference = 'Stop'
 $Package      = 'dsh-cost-meter'
 $Owner        = 'Han-1413141'
 $Repo         = 'dsh-cost-meter'
-$PinnedRev    = 'v1.8.3'   # 固定发布 tag:发布新版本时同步更新此值与 README 中的安装行
+$PinnedRev    = 'v1.8.4'   # 固定发布 tag:发布新版本时同步更新此值与 README 中的安装行
 $InstallRev   = if ($Rev) { $Rev } else { $PinnedRev }
 $PnpmVersion  = '11.21.0'   # 固定 pnpm 版本,保证安装链可复现
 $GitSpec = "github:$Owner/$Repo#$InstallRev"
@@ -78,12 +78,13 @@ if ($Profile -ne 'desktop' -and -not (Has 'pnpm')) {
   Ok "pnpm 就绪: $((Get-Command pnpm).Source)"
 }
 
-# 2. 安装来源:优先 git;没有 git 用 GitHub 打包直链(两者都固定到 $InstallRev)
+# 2. Desktop 正式版使用明确的 npm 包名，重复安装仍能被宿主管理器识别。
+# 显式 -Rev 和其他 Profile 保留 Git / tarball 来源，供固定提交验证使用。
 $useGit = Has 'git'
-if (-not $useGit) {
+if (-not $useGit -and ($Profile -ne 'desktop' -or $Rev)) {
   Info "未检测到 git,改用 GitHub 发布包($InstallRev 打包直链)安装"
 }
-$spec = if ($useGit) { $GitSpec } else { $TarSpec }
+$spec = if ($Profile -eq 'desktop' -and -not $Rev) { "$Package@$($PinnedRev.TrimStart('v'))" } elseif ($useGit) { $GitSpec } else { $TarSpec }
 
 # 3. 探测是否已装(profile 的 dependencies 里已有本包)
 $dshHome = if ($env:DSH_HOME) { $env:DSH_HOME } else { Join-Path $env:USERPROFILE '.dsh' }
