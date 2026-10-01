@@ -84,7 +84,26 @@ function harness(overrides = {}) {
   h.monitor.signal(session, marker)
   const missing = h.request()
   h.publish('create', { request: missing }); h.complete(missing, '{}')
-  assert.equal(h.misses.length, 1, 'fallback still reports missing usage')
+  assert.deepEqual(h.misses.map(m => m.reason), ['request-unobserved', 'usage-unavailable'], 'unobserved requests and missing usage both leave evidence')
+  h.monitor.dispose()
+}
+
+// Session publication and transport can live in different asynchronous contexts.
+// Do not guess a matching request; report the missing boundary once, even when
+// tool completion is published outside the original signal's ALS context.
+{
+  const h = harness()
+  const session = { id: 'detached-transport' }
+  const marker = { type: 'web/deepseek-search-llm-request', data: { endpoint: 'https://api.deepseek.com/anthropic/v1/messages' } }
+  await Promise.resolve().then(() => h.monitor.signal(session, marker))
+  h.monitor.signal(session, { type: 'tool/result' })
+  h.monitor.signal(session, { type: 'turn/end' })
+  assert.equal(h.misses.length, 1)
+  assert.equal(h.misses[0].reason, 'request-unobserved')
+  await h.monitor.run(async () => { h.monitor.signal(session, marker) }, session)
+  assert.equal(h.misses.length, 2, 'wrapped searches also expose missing request diagnostics')
+  await h.monitor.run(async () => {}, session)
+  assert.equal(h.misses.length, 2, 'other providers do not create official search gaps')
   h.monitor.dispose()
 }
 
@@ -287,10 +306,22 @@ function harness(overrides = {}) {
     const coverage = createSearchCoverage(path, () => now)
     coverage.add({ startedAtMs: now, reason: 'usage-unavailable' })
     coverage.add({ startedAtMs: now, reason: 'response-incomplete' })
+    coverage.observe('searchEvent')
+    coverage.observe('secret-query-must-not-be-written')
     coverage.close()
-    assert.equal(createSearchCoverage(path, () => now).today(), 2, '重启保留今日覆盖缺口')
-    assert.equal(createSearchCoverage(path, () => now + 86400000).today(), 0, '次日不沿用昨天缺口')
-    assert.deepEqual(Object.keys(JSON.parse(readFileSync(path))), ['days'])
+    const saved = JSON.parse(readFileSync(path))
+    assert.deepEqual(saved.runtime.counters, { searchEvent: 1 })
+    assert.deepEqual(saved.runtime.reasons, { 'usage-unavailable': 1, 'response-incomplete': 1 })
+    assert.equal(saved.runtime.node, process.version)
+    assert.equal(saved.runtime.pid, process.pid)
+    assert.doesNotMatch(readFileSync(path, 'utf8'), /secret-query/)
+    const restarted = createSearchCoverage(path, () => now)
+    assert.equal(restarted.today(), 2, '重启保留今日覆盖缺口')
+    restarted.close()
+    assert.deepEqual(JSON.parse(readFileSync(path)).runtime.counters, {}, 'diagnostic counters belong to this run only')
+    const nextDay = createSearchCoverage(path, () => now + 86400000)
+    assert.equal(nextDay.today(), 0, '次日不沿用昨天缺口')
+    nextDay.close()
     const effects = [], records = []
     class Web { async search(request) { return request } }
     const web = new Web()

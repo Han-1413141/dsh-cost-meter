@@ -2,7 +2,7 @@
 
 ## English
 
-Open a conversation and click **Conversation cost details** below its input box. The title bar also has this button. It is independent of the cost badge visibility setting. The conversation entry opens its entire retained history, shows API and Plan equivalents separately, and puts component details before overview charts. Switching conversations closes the previous dialog. For all conversations, open **Settings → Cost → Cost statistics**; this entry starts with the last seven calendar days, including today.
+Open a conversation and click **Conversation cost details** below its input box. **Settings → Cost → Display** has separate switches to hide the header entry, composer entry and turn cost summaries; all remain visible by default. The header entry automatically hides at viewport widths of 640px or less. The composer entry follows its own switch. Both buttons use compact 12px text. Cost badge visibility remains independent. The conversation entry opens its entire retained history, shows API and Plan equivalents separately, and puts component details before overview charts. Switching conversations closes the previous dialog. For all conversations, open **Settings → Cost → Cost statistics**; this entry starts with the last seven calendar days, including today.
 
 - **Periods:** Today, Last 7 days, Last 30 days, All retained, and custom inclusive dates. Dates follow the host timezone shown on the page.
 - **Filters:** Provider and model. Choose API cost, Plan equivalent, or their combined equivalent for chart amounts and rankings.
@@ -25,7 +25,7 @@ The statistics screen uses DSH's package-local asynchronous module loader. Since
 
 ## 简体中文
 
-打开一个会话，点击**输入框下方的「本会话费用明细」**。标题栏也保留同名按钮，入口不受费用徽章显示开关影响。对话入口默认显示该对话保留的全部历史，API 与 Plan 等值分别列出，费用构成放在趋势图之前。切换会话会关闭旧明细。全部会话统计的入口为 **设置 → 费用 → 计费统计**，默认显示包含今天的近 7 个自然日。
+打开一个会话，点击**输入框下方的「本会话费用明细」**。在 **设置 → 费用 → 显示设置** 中，可分别隐藏标题栏入口、输入框下方入口和每轮回复后的费用行；默认均保留。视口不超过 640px 时，标题栏入口自动隐藏，输入框下方入口继续遵守自己的开关。两个明细按钮使用 12px 字号和紧凑间距。关闭费用徽章不影响明细入口。对话入口默认显示该对话保留的全部历史，API 与 Plan 等值分别列出，费用构成放在趋势图之前。切换会话会关闭旧明细。全部会话统计的入口为 **设置 → 费用 → 计费统计**，默认显示包含今天的近 7 个自然日。
 
 - **时间范围：**今天、近 7 天、近 30 天、全部保留记录，以及包含起止日期的自定义区间。日期按页面标明的宿主时区划分。
 - **筛选和金额口径：**提供商、模型；可选择 API 费用、Plan 等值费用或两者合计，趋势和排行同步切换。

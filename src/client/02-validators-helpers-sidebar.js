@@ -130,6 +130,7 @@
         showSessionId: v.showSessionId === true,
         hideOfficialBalance: v.hideOfficialBalance === true,
         hideTodayCost: v.hideTodayCost === true,
+        ...mapFields(v, ['hideSessionCostHeader', 'hideSessionCostDock', 'hideTurnCost'], value => value === true),
         sidebarTodayMetric: v.sidebarTodayMetric === 'tokens' ? 'tokens' : 'cost',
         showTotalWithPlan: v.showTotalWithPlan === true,
         sidebarSimple: v.sidebarSimple === true,
@@ -1343,11 +1344,11 @@
       useEffect(() => {
         let active = true
         setValue(null); setError('')
-        if (!sessionId || start == null || end == null) return
+        if (config?.hideTurnCost || !sessionId || start == null || end == null) return
         props.api.getTurnCost(sessionId, start, end).then(v => { if (active) setValue(v) }, e => { if (active) setError(String(e.message ?? e)) })
         return () => { active = false }
-      }, [sessionId, start, end, pricingKey])
-      if (!config || start == null || end == null) return null
+      }, [sessionId, start, end, pricingKey, config?.hideTurnCost])
+      if (!config || config.hideTurnCost || start == null || end == null) return null
       const en = resolveLocale(config.locale) === 'en'
       const names = en ? { input: 'Input', output: 'Output', cacheRead: 'Cache read', cacheWrite: 'Cache write', reasoning: 'Reasoning' } : { input: '输入', output: '输出', cacheRead: '缓存读取', cacheWrite: '缓存写入', reasoning: '推理' }
       const money = n => formatMoneyUsd(n, { ...config, decimals: Math.max(8, config.decimals ?? 2) })
