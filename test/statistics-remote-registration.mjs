@@ -12,6 +12,7 @@ import vm from 'node:vm'
 import { sanitizeConfig } from '../lib/store.js'
 import { billingStatistics } from '../lib/billing-statistics.js'
 import { getSessionBilling } from '../lib/turn-cost.js'
+import { getTurnInspection } from '../lib/turn-inspection.js'
 
 assert.ok(process.env.DSH_TEST_NODE_MODULES, 'set DSH_TEST_NODE_MODULES to an installed DSH runtime')
 const req = createRequire(join(resolve(process.env.DSH_TEST_NODE_MODULES), '__statistics_client.cjs'))
@@ -60,6 +61,7 @@ class Connection extends Service {
         if (endpoint === 'costMeter/getState') return { ok: true, value: state }
         if (endpoint === 'costMeter/getBillingStatistics') return { ok: true, value: billingStatistics(ledger, payload.args.query) }
         if (endpoint === 'costMeter/getSessionBilling') return { ok: true, value: await getSessionBilling(ledger, { get: () => ({ get: () => ({ snapshotEvents: () => [] }) }) }, payload.args.query) }
+        if (endpoint === 'costMeter/getTurnInspection') return { ok: true, value: await getTurnInspection({ get: () => ({ get: () => ({ snapshotEvents: () => [] }) }) }, payload.args.query) }
         throw new Error('unexpected RPC ' + endpoint)
       },
     }
@@ -115,7 +117,8 @@ try {
     const count = calls.length
     await assert.rejects(api.getBillingStatistics({ ...query, turnOffset: -1 }), /Invalid statistics query/)
     assert.equal(calls.length, count, 'strict input validation runs before transport')
-    assert.equal(client.typert.remotes.list().filter(d => d.namespace === 'costMeter').length, 18, 'all main and statistics methods coexist exactly once')
+    assert.equal((await api.getTurnInspection({ sessionId: 'selected', turn: 1 })).found, false)
+    assert.equal(client.typert.remotes.list().filter(d => d.namespace === 'costMeter').length, 19, 'all main and statistics methods coexist exactly once')
     await first.fiber.dispose()
     assert.equal(client.typert.remotes.list().filter(d => d.namespace === 'costMeter').length, 0, 'unload withdraws both contributions')
     assert.equal(timers.size, 0)

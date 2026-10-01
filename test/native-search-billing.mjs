@@ -286,7 +286,7 @@ function harness(overrides = {}) {
   try {
     const value = await monitor.run(async () => (await fetch(`${url}/anthropic/v1/messages`, { method: 'POST' })).json(), { id: 'native-fetch' })
     assert.deepEqual(value, response())
-    assert.equal(globalThis.fetch, before)
+    assert.notEqual(globalThis.fetch, before, 'scoped compatibility observer is installed')
     assert.equal(accounts.length, 1, 'Node 20/22 的请求级兼容层及新 Node 诊断通道均精确捕获原生 fetch')
     assert.equal(misses.length, 0)
     assert.deepEqual(accounts[0].event.usage, nativeSearchUsage(response()).usage)

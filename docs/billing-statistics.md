@@ -10,6 +10,9 @@ Open a conversation and click **Cost details** in the same row as turns, speed, 
 - **Conversation detail:** Input, output, cache read, cache write, and reasoning costs; individual model, compaction and native-search calls; tokens × price per million; long-context rates and unavailable prices. Small amounts use at least eight decimal places. Fifty calls per page remain part of the complete detail total.
 
 - **Turns and call types:** Full-selection totals by logged turn number and by model / compaction / native-search call. Turn pages contain 25 complete groups, independently of the 50-call pages. Calls without a turn number remain in an explicit unassigned group. Expand a call to see its logged turn and step, routing and price formula.
+- **Step shares:** Horizontal bars show cost components, call-type counts and each logged step's share. Switch between costs and call counts. The denominator covers all filtered calls, across pages; the top 12 steps plus a combined remainder preserve the full amount. Tools are not counted as additional model calls. No recorded step stays explicitly unassigned.
+- **Turn inspection:** Expand a turn to load its original user inputs, then expand each tool to see arguments, result and completion/error status. Tool records paginate 20 at a time; each long text field shows up to 16,000 characters with an explicit notice. Attachments show their type; system prompts, request headers and binary data are excluded. This is the whole turn, independent of the billing filters. Opening the overview does not load these contents.
+- **Appearance:** Native DSH theme tokens, neutral surfaces, light borders, compact segmented controls and collapsible explanations replace the earlier colored dashboard cards. Light/dark themes and narrow windows share the same layout rules.
 
 ### What the numbers mean
 
@@ -33,6 +36,9 @@ The statistics screen uses DSH's package-local asynchronous module loader. Since
 - **单对话：**输入、输出、缓存读取、缓存写入、推理费用，以及模型调用、上下文压缩、原生搜索的逐次明细。每次调用列出 Token × 每百万 Token 单价、金额、长上下文档位及缺价提示。小额费用至少保留八位小数。每页显示 50 次调用，分页不影响完整明细合计。
 
 - **轮次和调用类型：**按日志中的轮次编号，以及模型调用、上下文压缩、原生搜索汇总。每页 25 个完整轮次，与每页 50 次调用分别翻页；一轮跨多个调用页时仍显示完整合计。日志没有轮次编号的调用单列为「未标明轮次」。逐次明细标明轮次、步骤、路由和价格公式。
+- **步骤占比：**横向条形图展示费用构成、调用类型次数和各步骤占比，可切换费用或调用次数。分母覆盖筛选后的全部调用，跨页合计；显示前 12 个步骤，其余合并，保留完整金额与次数。没有步骤编号的调用单列；工具执行不额外算作模型调用。
+- **展开轮次：**点击一轮才读取其用户输入和工具调用，继续展开工具可查看参数、结果、完成或失败状态。工具每页 20 条，单段文本最多显示 16,000 个字符并标明截断；附件只显示类型，不读取系统提示、请求头或二进制内容。这里显示整轮原始记录，不受计费筛选影响。打开统计首页不会加载这些正文。
+- **界面：**使用 DSH 的主题颜色、轻边框、紧凑分段按钮和可折叠说明，替换原来的彩色顶部卡片；支持浅色、深色和窄窗口。
 
 ### 统计口径
 

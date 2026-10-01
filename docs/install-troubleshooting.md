@@ -6,7 +6,7 @@
 2. 完全退出 Desktop 后执行以下命令。Desktop 自带 pnpm，无需额外安装全局 pnpm。不要用 npm 版 CLI 管理 Desktop 的保留 Profile。
 
    ```powershell
-   dsh plugin --profile desktop add dsh-cost-meter@1.8.4
+   dsh plugin --profile desktop add dsh-cost-meter@1.8.5
    ```
 
    使用已下载的本仓库脚本时，执行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Profile desktop`。脚本默认仍安装到 `web`，桌面端需要明确传参。
@@ -19,7 +19,7 @@ Windows Desktop 0.2.0-rc.2 的实际应用运行时已完成隔离验证：自�
 
 DSH Desktop 0.2.0-rc.2 在 `pnpm add` 成功后，通过 `package.json` 的依赖声明变化判断安装目标。重复添加相同 Git 地址时，依赖字符串不变，宿主的回退判断只支持 npm 包名，因而报 `ambiguous-install`。它会恢复旧清单和锁文件，但已写入的插件文件可能是新版，所以仅查看插件文件版本不足以确认安装完成。`${NPM_TOKEN}` 警告不是这项错误的原因，公开包安装不需要 npm 发布令牌。
 
-在插件安装页面选择 **npm 包**，填写 `dsh-cost-meter@1.8.4`。已有 Git 安装也可按上方 Desktop CLI 命令改为正式 npm 包，成功后完全退出并重新打开 Desktop。`install.ps1 -Profile desktop` 默认使用相同的固定 npm 版本；显式 `-Rev` 仍用于指定 Git 提交或 tag。这是绕过宿主重复 Git 安装识别缺陷的安装路径，不会修改 Desktop 自身代码；继续在旧版宿主中重复提交相同 Git 地址仍会触发原问题。
+在插件安装页面选择 **npm 包**，填写 `dsh-cost-meter@1.8.5`。已有 Git 安装也可按上方 Desktop CLI 命令改为正式 npm 包，成功后完全退出并重新打开 Desktop。`install.ps1 -Profile desktop` 默认使用相同的固定 npm 版本；显式 `-Rev` 仍用于指定 Git 提交或 tag。这是绕过宿主重复 Git 安装识别缺陷的安装路径，不会修改 Desktop 自身代码；继续在旧版宿主中重复提交相同 Git 地址仍会触发原问题。
 
 ## 安装失败：先读取实际错误
 
@@ -49,7 +49,7 @@ DSH Desktop 0.2.0-rc.2 在 `pnpm add` 成功后，通过 `package.json` 的依�
 
 ## English
 
-For Desktop, launch the application once to initialize its profile, install its `dsh` command, reopen your terminal, then fully quit the application. Use the **Desktop-supplied CLI** to run `dsh plugin --profile desktop add dsh-cost-meter@1.8.4`, or pass `-Profile desktop` to the downloaded `install.ps1`. Desktop includes its own pnpm. If another CLI shadows it, use the full path to Desktop's `resources/runtime/cli/bin/dsh.cmd`. Restart Desktop and open **Settings → Cost**. For account-login mode, save an Open Platform key in the balance panel.
+For Desktop, launch the application once to initialize its profile, install its `dsh` command, reopen your terminal, then fully quit the application. Use the **Desktop-supplied CLI** to run `dsh plugin --profile desktop add dsh-cost-meter@1.8.5`, or pass `-Profile desktop` to the downloaded `install.ps1`. Desktop includes its own pnpm. If another CLI shadows it, use the full path to Desktop's `resources/runtime/cli/bin/dsh.cmd`. Restart Desktop and open **Settings → Cost**. For account-login mode, save an Open Platform key in the balance panel.
 
 The installed Windows Desktop 0.2.0-rc.2 runtime passed isolated package installation, profile startup, shared dependencies, synthetic billing and balance credential save/query/clear checks. These checks used a temporary home and mocked balance responses, without changing the daily profile or exercising the Electron window.
 
@@ -57,4 +57,4 @@ For installation failures, read the actual `pnpm.log` path printed by DSH and re
 
 Reinstallation preserves a Profile's disabled state. Re-enable the plugin in the marketplace and restart the host. If no enable action is available, back up the current Profile's `cordis.patch.yml` and change only the `cost-meter` row's `disabled` flag to `false`. Web and Desktop use different Profile directories; keep other settings and the ledger.
 
-On Desktop 0.2.0-rc.2, re-adding the same Git URL can report `ambiguous-install` after pnpm succeeds: the dependency string stays unchanged, and the host fallback recognizes only npm package names. The host then restores the manifest and lockfile without restoring package files. Select **npm package** and use `dsh-cost-meter@1.8.4`, or use the Desktop CLI command above. The Desktop installer script now defaults to the pinned npm release. This avoids the host bug; it does not patch the Desktop application. The `${NPM_TOKEN}` warning is unrelated and no publishing token is required to install this public package.
+On Desktop 0.2.0-rc.2, re-adding the same Git URL can report `ambiguous-install` after pnpm succeeds: the dependency string stays unchanged, and the host fallback recognizes only npm package names. The host then restores the manifest and lockfile without restoring package files. Select **npm package** and use `dsh-cost-meter@1.8.5`, or use the Desktop CLI command above. The Desktop installer script now defaults to the pinned npm release. This avoids the host bug; it does not patch the Desktop application. The `${NPM_TOKEN}` warning is unrelated and no publishing token is required to install this public package.

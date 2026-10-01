@@ -74,6 +74,12 @@ try {
   assert.equal(turns2.calls[0].turn, 0, 'turn pagination does not move the call page')
   assert.equal((await getSessionBilling(detailLedger, ctx, { ...q, model: 'missing' })).found, false)
   assert.equal(detail.recorded.cost, 4, 'detail preserves recorded amount even when log/current prices differ')
+  for (const rows of Object.values(detail.stepShares)) {
+    assert.equal(rows.length, 13)
+    assert.equal(rows.reduce((n, row) => n + row.calls, 0), 62, 'share denominators include calls on every page')
+    assert.ok(Math.abs(rows.reduce((n, row) => n + row.cost, 0) - detail.cost) < 1e-12)
+    assert.equal(rows.at(-1).other, true)
+  }
 
   const search = { type: NATIVE_SEARCH_USAGE_EVENT, time: at + 100, data: { requestId: '11111111-2222-4333-8444-555555555555', startedAtMs: at + 100, provider: 'deepseek-official', model: 'deepseek-v4-flash',
     usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 50, cacheWriteTokens: 10, reasoningTokens: 5 } } }
@@ -99,7 +105,7 @@ try {
     const host = TYPERT.invocations.find(i => i.id === item.id)
     assert.ok(host, 'the lazy client has a matching host invocation')
     assert.equal(item.result.typeSymbol, host.result.typeSymbol)
-    const sample = item.method === 'getBillingStatistics' ? stats : detail
+    const sample = item.method === 'getBillingStatistics' ? stats : item.method === 'getSessionBilling' ? detail : { found: false, turn: 0, input: '', inputTruncated: false, tools: [], totalTools: 0, offset: 0 }
     assert.deepEqual(JSON.parse(JSON.stringify(item.result.schema.parse(host.result.schema.parse(sample)))), sample)
   }
   const compressed = client.dailyChartRows(Array.from({ length: 1000 }, (_, i) => ({ date: String(i), cost: 2, apiCost: 1 })), 'api')

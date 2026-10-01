@@ -35,20 +35,28 @@ jobs:
 
   native-search-rc2:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - node: '24.15.0'
+            undici: '8.10.2'
+          - node: '24'
+            undici: '8.11.2'
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: ${{ matrix.node }}
       - name: Install the reported DSH search runtime
         run: |
           npm install -g pnpm
           pnpm install --frozen-lockfile
-          npm install --prefix .tmp-native-search-host --no-audit --no-fund @deepseek-ai/dsh@0.2.0-rc.2 undici@8.11.2
+          npm install --prefix .tmp-native-search-host --no-audit --no-fund @deepseek-ai/dsh@0.2.0-rc.2 undici@${{ matrix.undici }}
       - name: Verify real services, provider, transport and ledger
         run: |
           export DSH_TEST_NODE_MODULES="$PWD/.tmp-native-search-host/node_modules"
           node test/native-search-host.mjs
+          node test/native-search-proxy.mjs
           mkdir -p .tmp-native-package
           npm pack --pack-destination .tmp-native-package
           node test/native-search-profile.mjs .tmp-native-package/dsh-cost-meter-*.tgz

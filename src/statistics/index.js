@@ -28,7 +28,15 @@ window.__ModuleLoader__.load({
       sessions: array(object({ ...bucketSpec, id: string, title: string })), providers: array(string), modelOptions: array(string),
       sessionCount: number, offset: number, unassignedCost: number, unmodeledCost: number })
     const parseDetail = object({ found: boolean, cost: number, apiCost: number, rows: array(costRow), calls: array(callRow), totalCalls: number, offset: number, recorded: buckets,
-      kinds: array(object({ ...bucketSpec, kind: string, unpriced: boolean })), turns: array(object({ ...bucketSpec, turn: nullableNumber, unpriced: boolean })), totalTurns: number, turnOffset: number })
+      kinds: array(object({ ...bucketSpec, kind: string, unpriced: boolean })), turns: array(object({ ...bucketSpec, turn: nullableNumber, unpriced: boolean })), totalTurns: number, turnOffset: number,
+      stepShares: object(Object.fromEntries(['cost', 'calls'].map(key => [key, array(object({ ...bucketSpec, turn: nullableNumber, step: nullableNumber, other: boolean, unpriced: boolean }))]))) })
+    const parseInspection = object({ found: boolean, turn: number, input: string, inputTruncated: boolean, totalTools: number, offset: number,
+      tools: array(object({ seq: number, step: nullableNumber, name: string, callId: string, atMs: number, arguments: string, result: string, truncated: boolean, status: string })) })
+    const parseInspectionQuery = value => {
+      const query = object({ sessionId: string, turn: number, offset: number })({ ...value, offset: value.offset ?? 0 })
+      if (!query.sessionId || query.sessionId.length > 512 || ![query.turn, query.offset].every(n => Number.isSafeInteger(n) && n >= 0) || query.offset > 1e7) throw new Error('Invalid turn inspection query')
+      return query
+    }
     const parseQuery = v => {
       const q = object({ from: string, to: string, provider: string, model: string, sessionId: string, basis: string, offset: number })(v)
       q.turnOffset = number(v.turnOffset ?? 0)
@@ -40,27 +48,31 @@ window.__ModuleLoader__.load({
     // client already owns "dsh-cost-meter"; a lazy group needs its own identity.
     // Endpoints and type symbols still match the original Host costMeter face.
     const CONTRIBUTION = { package: 'dsh-cost-meter/statistics', descriptors: [
-      ['getBillingStatistics', 'BillingStatistics', parseStatistics], ['getSessionBilling', 'SessionBilling', parseDetail],
-    ].map(([method, name, parse]) => ({ id: 'dsh-cost-meter#costMeter/' + method, service: 'costMeter', namespace: 'costMeter', method, invocation: { kind: 'direct' },
-      parameters: [{ name: 'query', wire: 'query', source: 'json', codec: codec('StatisticsQuery', parseQuery) }], result: codec(name, parse) })) }
+      ['getBillingStatistics', 'BillingStatistics', parseStatistics], ['getSessionBilling', 'SessionBilling', parseDetail], ['getTurnInspection', 'TurnInspection', parseInspection, parseInspectionQuery],
+    ].map(([method, name, parse, queryParser]) => ({ id: 'dsh-cost-meter#costMeter/' + method, service: 'costMeter', namespace: 'costMeter', method, invocation: { kind: 'direct' },
+      parameters: [{ name: 'query', wire: 'query', source: 'json', codec: codec(queryParser ? 'TurnInspectionQuery' : 'StatisticsQuery', queryParser ?? parseQuery) }], result: codec(name, parse) })) }
 
     const css = `
-      .cm-stat{--cm-accent:#367dce;--cm-plan:#a16aca;--cm-muted:var(--dsw-alias-label-tertiary,#747f8e);color:var(--dsw-alias-label-primary,#1e293b);font-size:13px;line-height:1.5;container-type:inline-size}
-      .cm-stat *{box-sizing:border-box}.cm-stat h2,.cm-stat h3,.cm-stat p{margin:0}.cm-stat h2{font-size:24px;letter-spacing:-.6px}.cm-stat h3{font-size:14px;font-weight:650}
-      .cm-stat-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:10px 0 20px}.cm-stat-sub{font-size:12px;color:var(--cm-muted)}
+      .cm-stat{--cm-accent:var(--dsw-alias-state-business-primary,#4d6bfe);--cm-plan:var(--dsw-alias-label-tertiary,#8b9099);--cm-muted:var(--dsw-alias-label-tertiary,#858a94);--cm-border:var(--dsw-alias-border-l3,#e9eaed);--cm-surface:var(--dsw-alias-bg-layer-1,#f7f8fa);color:var(--dsw-alias-label-primary,#25262b);font-family:var(--ds-font-family-sans,inherit);font-size:13px;line-height:1.55;container-type:inline-size}
+      .cm-stat *{box-sizing:border-box}.cm-stat h2,.cm-stat h3,.cm-stat p{margin:0}.cm-stat h2{font-size:18px;font-weight:600;letter-spacing:0}.cm-stat h3{font-size:14px;font-weight:500}
+      .cm-stat-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 18px}.cm-stat-sub{font-size:12px;color:var(--cm-muted)}
       .cm-stat button,.cm-stat select,.cm-stat input{font:inherit;color:inherit}.cm-stat button{cursor:pointer}.cm-stat button:disabled{cursor:default;opacity:.45}.cm-stat button:focus-visible,.cm-stat select:focus-visible,.cm-stat input:focus-visible{outline:2px solid var(--cm-accent);outline-offset:3px}
       .cm-stat-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin:14px 0}.cm-stat-controls label{display:grid;gap:4px;font-size:11px;color:var(--cm-muted)}
-      .cm-stat input,.cm-stat select{background:var(--dsw-alias-bg-layer-2,#f5f7fa);border:1px solid var(--dsw-alias-border-l1,#e0e5ed);border-radius:7px;padding:7px 9px;max-width:210px;min-width:0}
-      .cm-stat-periods{display:flex;flex-wrap:wrap;gap:4px}.cm-stat-btn{border:1px solid var(--dsw-alias-border-l1,#dce3ec);border-radius:7px;background:transparent;padding:6px 11px}.cm-stat-btn[aria-pressed=true]{background:var(--cm-accent);color:white;border-color:var(--cm-accent)}
-      .cm-stat-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}.cm-stat-metric{border-top:3px solid var(--cm-accent);padding:14px 16px;background:var(--dsw-alias-bg-layer-2,#f5f7fa);border-radius:4px 4px 10px 10px}.cm-stat-metric:nth-child(2){border-color:var(--cm-plan)}
-      .cm-stat-value{font-variant-numeric:tabular-nums;font-size:clamp(17px,2.7cqw,28px);font-weight:650;letter-spacing:-.6px;margin:7px 0;overflow-wrap:anywhere}.cm-stat-metric .cm-stat-sub{font-size:11px}
-      .cm-stat-panel{border:1px solid var(--dsw-alias-border-l1,#dce3ec);border-radius:12px;padding:18px;margin:14px 0;min-width:0}.cm-stat-panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+      .cm-stat input,.cm-stat select{background:var(--dsw-alias-bg-base,#fff);border:.5px solid var(--cm-border);border-radius:var(--dsw-radius-sm,8px);padding:6px 9px;max-width:210px;min-width:0}
+      .cm-stat-periods{display:flex;flex-wrap:wrap;gap:2px;background:var(--cm-surface);border-radius:var(--dsw-radius-lg,12px);padding:3px}.cm-stat-btn{border:.5px solid var(--cm-border);border-radius:var(--dsw-radius-sm,8px);background:transparent;padding:5px 10px}.cm-stat-btn:hover{background:var(--dsw-alias-interactive-bg-hover,#f0f1f4)}.cm-stat-periods .cm-stat-btn{border-color:transparent;color:var(--cm-muted)}.cm-stat-btn[aria-pressed=true]{background:var(--dsw-alias-bg-base,#fff);color:var(--dsw-alias-label-primary,#25262b);border-color:var(--cm-border);box-shadow:0 1px 2px #00000005}
+      .cm-stat-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;margin:20px 0;padding:16px 0;border-block:1px solid var(--cm-border)}.cm-stat-metric{padding:0 18px;border-right:1px solid var(--cm-border)}.cm-stat-metric:first-child{padding-left:0}.cm-stat-metric:last-child{border:0}
+      .cm-stat-value{font-variant-numeric:tabular-nums;font-size:clamp(18px,2.5cqw,26px);font-weight:500;letter-spacing:-.5px;margin:5px 0;overflow-wrap:anywhere}.cm-stat-metric .cm-stat-sub{font-size:11px}
+      .cm-stat-panel{border:1px solid var(--cm-border);border-radius:var(--dsw-radius-lg,12px);padding:16px;margin:16px 0;min-width:0}.cm-stat-panel-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
       .cm-stat-chart{height:170px;display:flex;align-items:end;gap:clamp(2px,.5cqw,7px);border-bottom:1px solid var(--dsw-alias-border-l1,#dce3ec);background:repeating-linear-gradient(to top,transparent 0,transparent 41px,var(--dsw-alias-border-l1,#e9edf3) 42px,transparent 43px);padding:0 2px}
       .cm-stat-bar{height:100%;flex:1;min-width:1px;display:flex;align-items:end;justify-content:center;background:transparent;border:0;padding:0;position:relative}.cm-stat-bar>span{display:block;width:100%;max-width:45px;border-radius:4px 4px 0 0;background:var(--cm-accent);min-height:2px;opacity:.83}.cm-stat-bar:hover>span,.cm-stat-bar[aria-pressed=true]>span{opacity:1;background:var(--cm-plan)}
       .cm-stat-axis{display:flex;justify-content:space-between;font-size:11px;color:var(--cm-muted);margin-top:6px}.cm-stat-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:14px}.cm-stat-grid>.cm-stat-panel{margin:0}
       .cm-stat-rank{list-style:none;padding:0;margin:0}.cm-stat-rank li{margin-top:14px}.cm-stat-rank button{width:100%;border:0;background:transparent;text-align:left;padding:0;color:inherit}.cm-stat-rankline{display:flex;justify-content:space-between;gap:10px}.cm-stat-rankline>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cm-stat-track{height:5px;margin-top:7px;background:var(--dsw-alias-bg-layer-2,#f0f3f7);border-radius:4px;overflow:hidden}.cm-stat-track>span{display:block;height:100%;background:var(--cm-accent);border-radius:4px}.cm-stat-number{font-variant-numeric:tabular-nums;white-space:nowrap}
       .cm-stat-table{width:100%;border-collapse:collapse;font-size:12px}.cm-stat-table th,.cm-stat-table td{padding:11px 9px;border-bottom:1px solid var(--dsw-alias-border-l1,#e0e5ed);text-align:right;font-variant-numeric:tabular-nums}.cm-stat-table th{font-weight:500;color:var(--cm-muted)}.cm-stat-table th:first-child,.cm-stat-table td:first-child{text-align:left}.cm-stat-table button{color:var(--cm-accent);border:0;background:transparent;text-align:left;padding:0;max-width:300px;overflow-wrap:anywhere}.cm-stat-scroll{overflow:auto}
       .cm-stat-page{display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-top:14px}.cm-stat-note{padding:10px 12px;background:var(--dsw-alias-bg-layer-2,#f5f7fa);border-radius:8px;margin:12px 0!important;font-size:12px;color:var(--cm-muted)}.cm-stat-error{color:var(--dsw-alias-state-error-primary,#c75040);white-space:pre-wrap}.cm-stat-empty{padding:30px;text-align:center;color:var(--cm-muted)}.cm-stat-call{padding:11px 0;border-bottom:1px solid var(--dsw-alias-border-l1,#dce3ec)}.cm-stat-call summary{cursor:pointer;overflow-wrap:anywhere}.cm-stat-call p{overflow-wrap:anywhere;margin-top:6px}
+      .cm-stat summary{cursor:pointer}.cm-stat-help{font-size:12px;color:var(--cm-muted);margin:10px 0}.cm-stat-help>p{margin-top:8px}.cm-stat-shares{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin:20px 0}.cm-stat-share-list{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:11px}.cm-stat-share-head{display:flex;justify-content:space-between;gap:12px;font-size:12px}.cm-stat-share-head>span:first-child{min-width:0;overflow-wrap:anywhere}.cm-stat-share-value{white-space:nowrap;font-variant-numeric:tabular-nums}.cm-stat-share-track{height:6px;background:var(--cm-surface);border-radius:99px;overflow:hidden;margin-top:5px}.cm-stat-share-fill{display:block;height:100%;background:var(--cm-accent);border-radius:99px;opacity:.68}.cm-stat-share-list li:nth-child(even) .cm-stat-share-fill{opacity:.42}.cm-stat-share-list li[data-other=true] .cm-stat-share-fill{background:var(--cm-plan)}
+      .cm-stat-breakdown{padding-block:18px;border-block:1px solid var(--cm-border);margin-block:18px}.cm-stat-turns{margin-top:24px}.cm-stat-turn{border-top:1px solid var(--cm-border)}.cm-stat-turn-toggle{display:flex;align-items:center;gap:10px;justify-content:space-between;width:100%;text-align:left;padding:12px 4px;background:transparent;border:0}.cm-stat-turn-toggle:hover{background:var(--dsw-alias-interactive-bg-hover,#f5f6f8)}.cm-stat-turn-toggle>span:first-child{font-weight:500}.cm-stat-turn-toggle>span:last-child{color:var(--cm-muted);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}.cm-stat-inspection{background:var(--cm-surface);padding:16px;border-radius:10px;margin:0 0 12px}.cm-stat-inspection h4{font-size:12px;font-weight:500;margin:0 0 8px}.cm-stat-pre{font:12px/1.6 var(--ds-font-family-code,monospace);white-space:pre-wrap;overflow-wrap:anywhere;max-height:280px;overflow:auto;margin:8px 0 16px;padding:12px;border:1px solid var(--cm-border);background:var(--dsw-alias-bg-base,#fff);border-radius:8px}.cm-stat-tool{border-top:1px solid var(--cm-border);padding:10px 0}.cm-stat-tool summary{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px}.cm-stat-tool summary::before{content:'›';color:var(--cm-muted)}.cm-stat-tool[open] summary::before{content:'⌄'}.cm-stat-tool .cm-stat-sub{margin-left:auto}.cm-stat-truncated{color:var(--cm-muted);font-size:12px}.cm-stat-step-list{columns:2;column-gap:28px}.cm-stat-step-list li{break-inside:avoid;margin-bottom:12px}.cm-stat-step-list.cm-stat-share-list{display:block}
+      dialog:has(.cm-stat){padding:24px!important;border-color:var(--dsw-alias-border-l3,#e9eaed)!important;box-shadow:var(--dsw-elevation-prominent,0 20px 90px #0002)}dialog:has(.cm-stat)::backdrop{background:#0005}dialog:has(.cm-stat)>.cm-btn{border:0;border-radius:8px;background:transparent;font-size:20px;line-height:24px;width:28px;height:28px;padding:0;margin-left:12px}
+      @container(max-width:700px){.cm-stat-shares{grid-template-columns:1fr;gap:20px}.cm-stat-step-list{columns:1}.cm-stat-turn-toggle{align-items:flex-start}.cm-stat-turn-toggle>span:last-child{max-width:60%}.cm-stat-metric{padding:10px!important}.cm-stat-metric:nth-child(2){border:0}.cm-stat-page{gap:8px}}
       @container(max-width:700px){.cm-stat-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.cm-stat-grid{grid-template-columns:1fr}.cm-stat-panel{padding:12px}.cm-stat-head{align-items:start}.cm-stat-controls label{flex:1}.cm-stat input,.cm-stat select{max-width:100%;width:100%}.cm-stat-value{font-size:23px}}
     `
 
@@ -101,8 +113,39 @@ window.__ModuleLoader__.load({
       return rows
     }
 
+    function ShareChart({ title, rows, total, format, text, columns = false }) {
+      return el('section', { 'aria-label': title }, el('h3', null, title), total <= 0 ? el('p', { className: 'cm-stat-sub' }, text('暂无可计算的占比', 'No measurable share yet')) :
+        el('ol', { className: 'cm-stat-share-list' + (columns ? ' cm-stat-step-list' : '') }, rows.map((row, i) => el('li', { key: i, 'data-other': row.other || undefined },
+          el('div', { className: 'cm-stat-share-head' }, el('span', null, row.label), el('span', { className: 'cm-stat-share-value' }, format(row.value) + (row.unpriced ? ' + ?' : '') + ' · ' + pct(row.value, total))),
+          el('div', { className: 'cm-stat-share-track', 'aria-hidden': true }, el('span', { className: 'cm-stat-share-fill', style: { width: Math.min(100, 100 * row.value / total) + '%' } }))))))
+    }
+
+    function TurnInspection({ api, sessionId, turn, revision, text }) {
+      const [offset, setOffset] = useState(0), [retry, setRetry] = useState(0)
+      const result = useRequest(api, 'getTurnInspection', { sessionId, turn, offset }, revision + ':' + retry)
+      if (result.loading) return el('p', { className: 'cm-stat-empty', role: 'status' }, text('读取这一轮的输入和工具调用…', 'Loading this turn’s input and tools…'))
+      if (result.error) return el('div', { className: 'cm-stat-inspection' }, el('p', { className: 'cm-stat-error', role: 'alert' }, result.error), button(text('重试', 'Retry'), () => setRetry(n => n + 1)))
+      const data = result.value
+      if (!data.found) return el('p', { className: 'cm-stat-note' }, text('这一轮的原始日志不可用。', 'Original records for this turn are unavailable.'))
+      return el('div', { className: 'cm-stat-inspection' },
+        el('h4', null, text('本轮用户输入', 'User input for this turn')),
+        data.input ? el('pre', { className: 'cm-stat-pre' }, data.input) : el('p', { className: 'cm-stat-sub' }, text('日志未记录本轮用户输入。', 'No user input is recorded for this turn.')),
+        data.inputTruncated ? el('p', { className: 'cm-stat-truncated' }, text('输入过长，此处显示前 16,000 个字符。', 'Showing the first 16,000 characters of this input.')) : null,
+        el('h4', null, text('工具调用', 'Tool calls') + ' · ' + data.totalTools),
+        !data.totalTools ? el('p', { className: 'cm-stat-sub' }, text('这一轮没有工具调用记录。', 'No tool calls are recorded in this turn.')) : null,
+        data.tools.map(tool => el('details', { key: tool.seq, className: 'cm-stat-tool' },
+          el('summary', null, el('span', null, (tool.step == null ? '' : text('步骤 ', 'Step ') + tool.step + ' · ') + tool.name),
+            el('span', { className: 'cm-stat-sub' }, ({ complete: text('已完成', 'Completed'), error: text('调用失败', 'Failed'), pending: text('未记录结果', 'No recorded result') })[tool.status])),
+          el('h4', { style: { marginTop: 12 } }, text('调用参数', 'Arguments')), el('pre', { className: 'cm-stat-pre' }, tool.arguments),
+          el('h4', null, text('返回结果', 'Result')), el('pre', { className: 'cm-stat-pre' }, tool.result || text('没有可显示的文本结果', 'No text result is available')),
+          tool.truncated ? el('p', { className: 'cm-stat-truncated' }, text('长内容显示前 16,000 个字符；完整内容保留在会话轨迹中。', 'Long content is limited to 16,000 characters here; the full content remains in the conversation trajectory.')) : null)),
+        el(Pager, { offset, count: data.totalTools, size: 20, onChange: setOffset, text }),
+        el('p', { className: 'cm-stat-sub' }, text('这里显示整轮原始记录，不受上方模型或计费筛选影响。附件仅显示类型。', 'Shows the whole turn, independent of model and cost filters above. Attachments are represented by type.')))
+    }
+
     function SessionDetail({ api, query, revision, money, formatTokens, text }) {
       const [offset, setOffset] = useState(0), [selected, setSelected] = useState(-1), [turnOffset, setTurnOffset] = useState(0)
+      const [expandedTurn, setExpandedTurn] = useState(null), [shareMetric, setShareMetric] = useState('cost')
       const result = useRequest(api, 'getSessionBilling', { ...query, offset, turnOffset }, revision)
       const detail = result.value, basis = query.basis
       const names = { input: text('输入', 'Input'), output: text('输出', 'Output'), cacheRead: text('缓存读取', 'Cache read'), cacheWrite: text('缓存写入', 'Cache write'), reasoning: text('推理', 'Reasoning') }
@@ -125,16 +168,34 @@ window.__ModuleLoader__.load({
           el('td', null, [row.input, row.cacheRead + row.cacheWrite, row.output].map(formatTokens).join(' / ')), el('td', null, money(row.apiCost) + (row.unpriced ? ' + ?' : '')), el('td', null, money(Math.max(0, row.cost - row.apiCost)) + (row.unpriced ? ' + ?' : '')))))))
       return el('section', { className: 'cm-stat-panel' },
         el('div', { className: 'cm-stat-panel-head' }, el('h3', null, text('单对话费用明细', 'Conversation cost details')), el('span', { className: 'cm-stat-sub' }, text('只统计本对话自身的调用', 'Own calls only; child conversations are separate'))),
-        el('p', { className: 'cm-stat-note' }, text('明细按日志中的调用时间、用量和当前配置的历史价格规则计算。上方汇总采用已入账金额；调整价格后两者可能不同。', 'Details use logged usage and call times with the currently configured historical price rules. The summary above uses recorded ledger amounts; changing prices can produce a difference.')),
+        el('details', { className: 'cm-stat-help' }, el('summary', null, text('统计口径', 'How these amounts are calculated')), el('p', null, text('明细按日志中的调用时间、用量和当前配置的历史价格规则计算。上方汇总采用已入账金额；调整价格后两者可能不同。', 'Details use logged usage and call times with the currently configured historical price rules. The summary above uses recorded ledger amounts; changing prices can produce a difference.'))),
         mismatch ? el('p', { className: 'cm-stat-note' }, text('账本与可用明细不同：账本 ', 'Ledger and available details differ: ledger ') + money(recorded) + ' / ' + detail.recorded.calls + text(' 次；明细 ', ' calls; details ') + money(cost) + ' / ' + detail.totalCalls + text(' 次。', ' calls.')) : null,
+        el('div', { className: 'cm-stat-shares' },
+          el(ShareChart, { title: text('费用构成', 'Cost composition'), rows: parts.map(row => ({ label: names[row.bucket], value: row.cost, unpriced: row.unpriced })), total: cost, format: money, text }),
+          el(ShareChart, { title: text('调用类型占比 · 次数', 'Call type share · count'), rows: detail.kinds.map(row => ({ label: kinds[row.kind] ?? row.kind, value: row.calls })), total: detail.totalCalls, format: n => n.toLocaleString() + text(' 次', ' calls'), text })),
+        el('section', { className: 'cm-stat-breakdown' },
+          el('div', { className: 'cm-stat-panel-head' }, el('h3', null, text('各步骤占比', 'Share by step')),
+            el('div', { className: 'cm-stat-periods' }, ...[['cost', text('费用', 'Cost')], ['calls', text('调用次数', 'Calls')]].map(([id, title]) => button(title, () => setShareMetric(id), { key: id, 'aria-pressed': shareMetric === id })))),
+          el(ShareChart, { title: shareMetric === 'cost' ? text('费用占比 · 全部调用', 'Cost share · all calls') : text('调用次数占比 · 全部调用', 'Call count share · all calls'),
+            rows: (detail.stepShares?.[shareMetric] ?? []).map(row => ({ label: row.other ? text('其余步骤合计', 'All other steps') : turnName(row.turn) + (row.step == null ? '' : text(' · 步骤 ', ' · step ') + row.step),
+              value: shareMetric === 'cost' ? amount(row, basis) : row.calls, unpriced: shareMetric === 'cost' && row.unpriced, other: row.other })),
+            total: shareMetric === 'cost' ? cost : detail.totalCalls, format: shareMetric === 'cost' ? money : n => n.toLocaleString(), text, columns: true }),
+          el('p', { className: 'cm-stat-sub', style: { marginTop: 12 } }, text('分母包含所选范围的全部调用，跨页合计。显示前 12 项，其余合并；无步骤编号的调用单列。工具本身不额外算作模型调用。', 'Shares use all calls in the selected range, across pages. Top 12 entries are shown; the rest are combined. Missing step IDs remain explicit. Tools are not counted as extra model calls.'))),
+        el('details', { className: 'cm-stat-help' }, el('summary', null, text('单价与 Token 明细', 'Rates and token details')),
         el('div', { className: 'cm-stat-scroll' }, el('table', { className: 'cm-stat-table' },
           el('thead', null, el('tr', null, ...[text('费用构成', 'Cost component'), 'Tokens', text('费用', 'Cost'), text('费用占比', 'Cost share')].map(v => el('th', { key: v }, v)))),
           el('tbody', null, parts.map(row => el('tr', { key: row.bucket }, el('td', null, names[row.bucket]), el('td', null, row.tokens.toLocaleString()), el('td', null, money(row.cost) + (row.unpriced ? ' + ?' : '')), el('td', null, pct(row.cost, cost))))))),
         el('p', { className: 'cm-stat-sub', style: { marginTop: 10 } }, text('推理 Token 可能包含在输出中；单价为 0 时不另收推理费。未定价用量显示 ?。', 'Reasoning tokens may overlap output; a zero reasoning rate adds no separate charge. Unpriced usage is marked ?.')),
-        summaryTable(text('按调用类型统计', 'Cost by call type'), detail.kinds, row => kinds[row.kind] ?? row.kind),
-        summaryTable(text('按轮次统计', 'Cost by turn'), detail.turns, row => turnName(row.turn)),
+        summaryTable(text('按调用类型统计', 'Cost by call type'), detail.kinds, row => kinds[row.kind] ?? row.kind)),
+        el('section', { className: 'cm-stat-turns' }, el('div', { className: 'cm-stat-panel-head' }, el('h3', null, text('按轮次统计', 'Cost by turn')), el('span', { className: 'cm-stat-sub' }, text('展开查看输入和工具调用', 'Expand to inspect input and tool calls'))),
+          detail.turns.map(row => el('div', { key: row.turn ?? 'unknown', className: 'cm-stat-turn' },
+            el('button', { type: 'button', className: 'cm-stat-turn-toggle', disabled: row.turn == null, 'aria-expanded': row.turn != null && expandedTurn === row.turn,
+              onClick: () => setExpandedTurn(n => n === row.turn ? null : row.turn) },
+              el('span', null, (row.turn == null ? '' : expandedTurn === row.turn ? '⌄ ' : '› ') + turnName(row.turn)),
+              el('span', null, row.calls + text(' 次调用', ' calls') + ' · ' + formatTokens(tokens(row)) + ' tok · ' + money(amount(row, basis)) + (row.unpriced ? ' + ?' : ''))),
+            row.turn != null && expandedTurn === row.turn ? el(TurnInspection, { key: row.turn, api, sessionId: query.sessionId, turn: row.turn, revision, text }) : null))),
         el('p', { className: 'cm-stat-sub' }, text('轮次沿用日志编号；未记录轮次的调用单列。每轮包含其全部调用，跨调用分页也不会拆分。', 'Turn numbers come from the log; calls without one are listed separately. Each turn includes all its calls, across call pages.')),
-        el(Pager, { offset: turnOffset, count: detail.totalTurns, size: 25, onChange: setTurnOffset, text }),
+        el(Pager, { offset: turnOffset, count: detail.totalTurns, size: 25, onChange: n => { setTurnOffset(n); setExpandedTurn(null) }, text }),
         el('div', { style: { marginTop: 24 } }, el(Chart, { rows: detail.calls.map((call, i) => ({ label: '#' + (offset + i + 1), index: i, value: amount(call, basis) })), money, text,
           label: text('逐次调用费用 · 当前页', 'Cost per call · current page'), onSelect: row => { setSelected(row.index); document.getElementById('cm-stat-call-' + row.index)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) } })),
         detail.calls.map((call, i) => el('details', { key: i, id: 'cm-stat-call-' + i, className: 'cm-stat-call', open: selected === i, onToggle: event => { if (!event.currentTarget.open && selected === i) setSelected(-1) } },
@@ -174,7 +235,7 @@ window.__ModuleLoader__.load({
           pick(text('计费口径', 'Cost basis'), basis, setBasis, [['api', text('API 费用', 'API cost')], ['plan', text('Plan 等值', 'Plan equivalent')], ['total', text('API + Plan 等值', 'API + Plan equivalent')]]),
           pick(text('提供商', 'Provider'), provider, value => { setProvider(value); setModel('') }, [['', text('全部提供商', 'All providers')], ...[...new Set([provider, ...(data?.providers ?? [])])].filter(Boolean).map(s => [s, s])]),
           pick(text('模型', 'Model'), model, setModel, [['', text('全部模型', 'All models')], ...[...new Set([model, ...(data?.modelOptions ?? [])])].filter(Boolean).map(s => [s, s])])),
-        el('p', { className: 'cm-stat-sub' }, text('按宿主时区归日：', 'Days use the host timezone: ') + (state.meta.timezone || 'UTC') + ' · ' + text('API 金额是按已记录用量和配置单价计算的估算；Plan 为订阅用量的 API 等值，不是订阅账单。外部导入用量在原概览中单列。', 'API amounts estimate recorded usage at configured rates; Plan is API-equivalent usage, not the subscription invoice. External usage remains separate in Overview.')),
+        el('details', { className: 'cm-stat-help' }, el('summary', null, text('计费说明', 'About billing')), el('p', null, text('按宿主时区归日：', 'Days use the host timezone: ') + (state.meta.timezone || 'UTC') + ' · ' + text('API 金额是按已记录用量和配置单价计算的估算；Plan 为订阅用量的 API 等值，不是订阅账单。外部导入用量在原概览中单列。', 'API amounts estimate recorded usage at configured rates; Plan is API-equivalent usage, not the subscription invoice. External usage remains separate in Overview.'))),
         result.loading ? el('p', { className: 'cm-stat-empty', role: 'status' }, text('加载统计…', 'Loading statistics…')) : result.error ? el('p', { className: 'cm-stat-error', role: 'alert' }, result.error) : data ? el(Fragment, null,
           el('p', { className: 'cm-stat-sub', style: { marginTop: 8 } }, data.from + ' – ' + data.to + (data.retainedFrom ? ' · ' + text('账本保留范围 ', 'Retained ledger ') + data.retainedFrom + ' – ' + data.retainedTo : '')),
           el('div', { className: 'cm-stat-metrics' },
@@ -211,13 +272,13 @@ window.__ModuleLoader__.load({
       const unmount = await ctx.get('remote').$mount(CONTRIBUTION)
       ctx.effect(() => () => unmount(), 'cost-meter: statistics contribution')
       const remote = ctx.get('remote.costMeter')
-      const api = Object.fromEntries(['getBillingStatistics', 'getSessionBilling'].map(method => [method, async query => {
-        const result = await remote[method](parseQuery(query))
+      const api = Object.fromEntries(['getBillingStatistics', 'getSessionBilling', 'getTurnInspection'].map(method => [method, async query => {
+        const result = await remote[method]((method === 'getTurnInspection' ? parseInspectionQuery : parseQuery)(query))
         if (!result?.ok) throw new Error(result?.error?.message || 'Statistics request failed')
-        return (method === 'getBillingStatistics' ? parseStatistics : parseDetail)(result.value)
+        return ({ getBillingStatistics: parseStatistics, getSessionBilling: parseDetail, getTurnInspection: parseInspection }[method])(result.value)
       }]))
       return props => el(Statistics, { ...props, api })
     }
-    return { mount, Statistics, SessionDetail, CONTRIBUTION, parseStatistics, parseDetail, dailyChartRows }
+    return { mount, Statistics, SessionDetail, TurnInspection, ShareChart, CONTRIBUTION, parseStatistics, parseDetail, parseInspection, dailyChartRows }
   },
 })

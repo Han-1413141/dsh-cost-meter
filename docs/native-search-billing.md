@@ -4,7 +4,7 @@
 
 插件在 `ctx.web.search` 的异步作用域内观察 `POST https://api.deepseek.com/anthropic/v1/messages`。Node 的 Undici 响应诊断提供完整响应后，插件提取真实输入、输出、缓存读取和缓存写入 token，按请求发起时间及当前价格配置入账，归属 `deepseek-official` 与调用搜索的会话。相同 token 的多次搜索分别计数。即使后续搜索结果解析失败，已经收到的完整有效 usage 仍代表真实模型消耗。
 
-新 Undici 使用 `undici:request:bodyChunkReceived` 通道；Node 20/22 所带旧 Undici 缺少此通道时，只包装匹配请求实例的 `onData` 方法。这一兼容层保留原方法的 `this`、返回值及异常，请求结束、取消或插件卸载时恢复。插件不替换全局 `fetch` 或 dispatcher，不读取请求头、密钥或搜索正文，也不改变搜索结果、provider 选择、取消信号或请求内容。响应缓冲及解压结果上限均为 4 MiB。
+新 Undici 使用 `undici:request:bodyChunkReceived` 通道；Node 20/22 所带旧 Undici 缺少此通道时，包装匹配请求实例的 `onData` 方法。1.8.5 还为宿主全局 `fetch` 添加范围受限的观察包装：只有搜索上下文内的官方 Messages POST 才会观察 provider 自己调用的 `response.json()`，从已解析对象读取 usage，不复制或提前消费响应流。两条路径共享请求状态，只入账一次；不读取请求头、密钥或搜索正文，不更换 dispatcher、请求参数和取消信号，保留 fetch/json 的 Promise、解析值及异常。卸载时恢复仍由插件持有的 fetch。诊断通道的响应缓冲及解压结果上限均为 4 MiB。
 
 每次已计费用量保存到插件账本旁的 `ledger.json.native-search/<会话 ID 的 SHA-256>.jsonl`，字段仅包含会话 ID、模型、provider、五桶 token、请求发起时间及独立 UUID。每次追加同步落盘；会话费用显示从账本读取，历史导入和币种重算联合读取这些明细及宿主日志，以请求 UUID 去重。即使原宿主日志已不存在，保留下来的搜索明细仍可导入。迁移或备份插件计费数据时，应同时保留账本及这个目录。
 
@@ -22,13 +22,18 @@
 | --- | --- |
 | `webObserved` / `searchScope` | 已观察的 web 服务数量 / 经过包装器的搜索次数 |
 | `searchEvent` / `otherEndpoint` | 收到的宿主搜索事件 / 其中非官方端点事件 |
+| `requestCreateAny` | 匹配前的全部 Undici create 事件，区分通道无事件与过滤未命中 |
+| `requestMethodMismatch` / `requestOriginMismatch` / `requestPathMismatch` | 依次检查 POST、官方 origin、Messages path 时的未命中计数；不保存字段原文 |
+| `fetchRequest` / `fetchResponse` | 进入兼容观察的官方搜索 fetch / 需要兼容路径处理的已解析响应 |
 | `officialRequest` / `unscopedRequest` | 当前进程的官方 Messages 请求 / 无搜索上下文的请求；普通模型请求也会进入这两个计数，不据此收费 |
 | `matchedRequest` | 已关联到搜索上下文的请求 |
 | `responseHeaders` / `responseComplete` | 收到响应头 / 完整响应的已关联请求 |
 | `accounted` | 已按真实 usage 入账的请求 |
 | `reasons` | 本次运行中缺少请求、完整响应、有效 usage、入账或持久化的原因计数 |
 
-fnOS 的 #203 在 1.8.0 上仍有真机漏记反馈，当前集成测试未复现其实际触发路径。该 issue 保留开放。升级并重启后，完成一次搜索，等待约 1 秒，提供 coverage 文件即可区分服务包装、Session 事件、请求诊断和响应处理的断点；不用发送账本、搜索正文或 API Key。若文件不存在，需先核对实际插件版本、宿主 PID 和账本目录写入权限。
+fnOS 的 #203 在 1.8.3 上确认搜索作用域和事件正常、官方请求计数为零。维护侧使用反馈中的 Node 24.15.0 / 内置 Undici 7.24.4 / userland Undici 8.10.2，执行 DSH rc.2 的 `installProxyFromEnvironment()` 生产安装链：代理和 NO_PROXY 直连均能捕获，未复现“该版本组合本身造成漏记”。另用真实 DeepSeek Provider 和无 Undici 诊断的 HTTP transport 验证 1.8.5 的 JSON 兼容路径，可以精确入账。现场具体网络实现仍待升级复测，issue 保留开放。
+
+升级并重启后完成一次搜索，约 1 秒后提供 coverage 文件即可继续区分通道、匹配和 JSON 观察的断点；不用发送账本、搜索正文或 API Key。若文件不存在，需先核对实际插件版本、宿主 PID 和账本目录写入权限。
 
 已经发生、且旧宿主只留下请求日志的搜索无法恢复真实 token。新版本不会把这部分历史估算为精确费用。第三方搜索 endpoint、其他搜索 provider，以及既未通过 `ctx.web.search` 也没有对应搜索事件的直接请求不在此观察范围；改写网络实现且不再提供上述响应能力的宿主需要额外适配。`server_tool_use` 计数不作为额外 token 或单次价格收费项。
 

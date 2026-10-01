@@ -1,7 +1,7 @@
 // #203: real Cordis scopes, DSH search provider and HTTP transport; no paid API.
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
-import { createServer } from 'node:http'
+import { createServer, request as httpRequest } from 'node:http'
 import { connect } from 'node:net'
 import { once } from 'node:events'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
@@ -90,6 +90,32 @@ try {
   withUsage = true
   await late.web.search({ query: 'after observer unload' })
   assert.equal(ledger.days[localDayKey(Date.now())].calls, 4, 'unload removes all observers')
+  // #203: a host-compatible fetch transport with no Undici request diagnostics.
+  const nativeFetch = globalThis.fetch
+  globalThis.fetch = (url, options) => new Promise((resolve, reject) => {
+    assert.equal(url, 'https://api.deepseek.com/anthropic/v1/messages')
+    const request = httpRequest({ hostname: '127.0.0.1', port: server.address().port, path: '/anthropic/v1/messages', method: options.method }, response => {
+      const chunks = []
+      response.on('data', chunk => chunks.push(chunk))
+      response.on('end', () => resolve(new Response(Buffer.concat(chunks), { status: response.statusCode })))
+    })
+    request.on('error', reject); request.end(options.body)
+  })
+  const customFetch = globalThis.fetch
+  const fallback = ctx.plugin(c => installNativeSearchBilling(c, ledger))
+  await fallback.await()
+  try {
+    session = { id: 'without-undici' }
+    assert.deepEqual(await ctx.web.search({ query: 'transport without diagnostics' }), { sources: [], truncated: false })
+    assert.equal((await nativeSearchRecordsFor(ledger.path, session.id)).length, 1)
+    assert.equal(ledger.days[localDayKey(Date.now())].calls, 5)
+    await fallback.dispose()
+    assert.equal(globalThis.fetch, customFetch, 'unload restores the host transport')
+    const counters = JSON.parse(readFileSync(`${ledger.path}.native-search-coverage.json`, 'utf8')).runtime.counters
+    assert.equal(counters.officialRequest, undefined)
+    assert.equal(counters.fetchResponse, 1)
+    assert.equal(counters.accounted, 1)
+  } finally { await fallback.dispose(); globalThis.fetch = nativeFetch }
   console.log('[ok] real DSH native search: root/early/late scopes, sessions, reload, coverage and unload')
 } finally {
   await ctx.fiber.dispose()
