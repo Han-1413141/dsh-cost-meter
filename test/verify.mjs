@@ -3204,8 +3204,6 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
     3,
     '官方渠道含 deepseek-official 键(go 网关不计入)',
   )
-  const storeSrcRecon = readFileSync(join(import.meta.dirname, '..', 'lib', 'store.js'), 'utf8')
-  assert.ok(storeSrcRecon.includes("provider !== 'deepseek' && provider !== 'deepseek-official'"), 'officialCostOfDay 双官方键判定在源码中')
   // Ledger.todayOfficialCost():今日键聚合;纯 Plan/自定义渠道用户为 0;无今日记录为 0。
   const cfg36 = sanitizeConfig({})
   const todayKey36 = localDayKey(Date.now())
@@ -3224,7 +3222,6 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const cliSrc36 = readClientSource()
   assert.ok(cliSrc36.includes('function todayOfficialUsd(state)'), 'client.js 定义 todayOfficialUsd')
   assert.ok(cliSrc36.includes("mode === 'official' ? todayOfficialUsd(state) : Number(state.today?.cost) || 0"), '官方余额分支使用官方渠道费用,自定义分支维持全量')
-  assert.ok(cliSrc36.includes("if (provider !== 'deepseek' && provider !== 'deepseek-official') continue"), 'client 端按官方渠道前缀过滤(含 deepseek-official,v1.6.9 审计修复)')
   assert.ok(cliSrc36.includes("if (provider.startsWith('llm-')) provider = provider.slice(4)"), 'client 端剥离 llm- 包装路由前缀(与 officialCostOfDay 同口径)')
   console.log('[ok] 官方渠道费用拆分(纯函数/Ledger 聚合/对账与进度条接线/旧数据退回)通过')
 }

@@ -1504,9 +1504,8 @@
 
     // issue #36:官方余额进度条的「当日已用」只统计会扣 DeepSeek 开放平台余额的调用
     // (byProviderModel 中 provider 前缀为官方渠道的条目:账本记账时未标注 provider 的
-    // 'deepseek' 与 profile 内置官方路由实际落账的 'deepseek-official';宿主包装路由
-    // llm- 前缀与裸名同义,一并剥离——与 lib/store.js officialCostOfDay 同口径,v1.6.9
-    // 审计修复此前漏计 deepseek-official 键的问题);
+    // 'deepseek'、API Key 路由 'deepseek-official' 与 Desktop 登录账号路由
+    // 'deepseek-account';宿主 llm- 前缀与裸名同义，一并剥离，与服务端同口径)。
     // Coding Plan / 自定义 Provider 等渠道的费用只体现在各自的额度条/余额条上。
     // 账本无按渠道拆分的旧数据(byProviderModel 缺失/为空)退回全量,保持升级前行为。
     function todayOfficialUsd(state) {
@@ -1518,7 +1517,7 @@
         const idx = key.indexOf(':')
         let provider = idx >= 0 ? key.slice(0, idx) : key
         if (provider.startsWith('llm-')) provider = provider.slice(4)
-        if (provider !== 'deepseek' && provider !== 'deepseek-official') continue
+        if (!/^deepseek(?:-official|-account)?$/.test(provider)) continue
         sum += Number(value?.cost) || 0
       }
       return sum

@@ -8,7 +8,7 @@ import { apply } from '../lib/index.js'
 import { stateSchema } from '../lib/typert.host.js'
 import { setImmediate as tick } from 'node:timers/promises'
 import vm from 'node:vm'
-import { Ledger, localDayKey } from '../lib/store.js'
+import { Ledger, localDayKey, officialCostOfDay } from '../lib/store.js'
 import { mergeLedger } from '../lib/ledger-persistence.js'
 
 const root = mkdtempSync(join(tmpdir(), 'cm-account-balance-'))
@@ -64,12 +64,12 @@ function mount({ account = null, accountState, describe, proxyAccount = false, s
 }
 
 /** 每个场景一份账本:locale 决定消息语言,config.balance.display 决定余额卡片是否启用。 */
-function useHome(tag, env = {}, balanceRef = null) {
+function useHome(tag, env = {}, balanceRef = null, days = {}) {
   const dir = join(root, tag)
   mkdirSync(join(dir, 'storages', 'cost-meter'), { recursive: true })
   writeFileSync(join(dir, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({
     version: 1,
-    days: {}, balanceRef,
+    days, balanceRef,
     config: { locale: 'en', goQuota: { enabled: false }, balance: { display: 'both' } },
   }))
   process.env.DSH_HOME = dir
@@ -350,14 +350,38 @@ try {
   assert.equal(JSON.parse(readFileSync(resetPath, 'utf8')).balanceRef, null)
   resetLedger.close()
 
+  // Desktop 的登录账号调用已经入账，但官方渠道筛选曾漏掉 deepseek-account。
+  // 同日混用官方 API 与第三方 DeepSeek 模型时，只累计官方账户的支出。
+  const accountDay = localDayKey(Date.now())
+  const bucket = cost => ({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost, apiCost: cost })
+  const accountToday = { date: accountDay, ...bucket(4.4), sessions: [], byProviderModel: {
+    'deepseek-account:deepseek-flash': bucket(1.2),
+    'llm-deepseek-account:deepseek-pro': bucket(0.19),
+    'deepseek-official:deepseek-v4-flash': bucket(0.01),
+    'custom:deepseek-flash': bucket(1),
+    'opencode-go:deepseek-v4-flash': bucket(1),
+    'deepseek-account-custom:deepseek-flash': bucket(1),
+  } }
+  assert.ok(Math.abs(officialCostOfDay(accountToday) - 1.4) < 1e-12, '官方日费用包含账号渠道及 llm- 别名，排除第三方与相似名称')
+  useHome('account-reconciliation', {}, { date: accountDay, total: 100, granted: 0, topped: 100, currency: 'CNY', at: Date.now() - 60_000 }, { [accountDay]: accountToday })
+  const reconciled = mount({ account: () => ({ status: 'ready', value: [{ currency: 'CNY', balance: '90' }], bonusWallets: [] }) })
+  const accountResult = await reconciled.service.refreshBalance()
+  assert.equal(accountResult.state.reconcile.ok, true, '账号用量与官方余额变动接近时不再误报：¥10.08 对 ¥10，而非 ¥0.072 对 ¥10')
+  assert.ok(Math.abs(accountResult.state.today.cost - 4.4) < 1e-12, '对账筛选不修改完整账本及第三方费用')
+  stateSchema.parse(accountResult.state)
+  reconciled.dispose()
+
   // Execute the actual client components against a failed RPC snapshot in both languages.
   const dir = new URL('../src/client/', import.meta.url)
   const source = readdirSync(dir).filter(n => n.endsWith('.js')).sort().map(n => readFileSync(new URL(n, dir), 'utf8')).join('')
   let factory
-  vm.runInNewContext(source.replace('exports.apply = apply', 'exports.test = { BalanceRowContent, BalancePanel, makeT }; exports.apply = apply'), { window: { __ModuleLoader__: { load: v => { factory = v.factory } }, localStorage: { getItem: () => null } }, navigator: { language: 'en' } })
+  vm.runInNewContext(source.replace('exports.apply = apply', 'exports.test = { BalanceRowContent, BalancePanel, makeT, todayOfficialUsd, segmentsForOfficialBalance }; exports.apply = apply'), { window: { __ModuleLoader__: { load: v => { factory = v.factory } }, localStorage: { getItem: () => null } }, navigator: { language: 'en' } })
   const el = (type, props, ...children) => ({ type, props: props ?? {}, children })
   const React = { createElement: el, Fragment: 'fragment', useState: init => [typeof init === 'function' ? init() : init, () => {}], useEffect() {}, useRef: value => ({ current: value }), useCallback: fn => fn }
   const ui = factory(name => name === 'react' ? React : { Tooltip: 'tooltip' }).test
+  assert.ok(Math.abs(ui.todayOfficialUsd({ today: accountToday }) - 1.4) < 1e-12, '余额条与服务端对账累计同一组账号调用')
+  const accountSegments = ui.segmentsForOfficialBalance({ ...accountResult.state, balance: { totalBalance: 80 } }, { exchangeRate: 7.2, balance: { budgetCap: 100 } })
+  assert.ok(Math.abs(accountSegments.today - 10.08) < 1e-12, '余额条当日段显示账号与官方 API 合计 ¥10.08')
   const textOf = node => node == null ? '' : typeof node === 'object' ? (node.children ?? []).map(textOf).join(' ') : String(node)
   for (const locale of ['en', 'zh']) {
     const errorState = { ...result.state, config: { ...result.state.config, locale }, balance: { ...result.state.balance, status: 'error', message: 'sanitized account failure' } }
