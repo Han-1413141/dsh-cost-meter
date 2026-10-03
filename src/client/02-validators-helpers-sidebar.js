@@ -1333,19 +1333,18 @@
     }
 
     function mergeSessionUsage(projection, snapshot, include, config) {
-      const tokens = v => ['input', 'output', 'cacheRead', 'cacheWrite'].reduce((n, k) => n + (v?.[k] ?? 0), 0)
-      const base = snapshot?.found && tokens(snapshot.own) >= tokens(projection) ? snapshot.own : projection
+      // The ledger owns retained spending; old/inherited projection tokens do not.
+      const base = snapshot ? snapshot.own : projection
       if (!include || !snapshot?.subagentCount) return base
       const extra = snapshot.subagents, out = { ...base }
-      for (const key of ['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning', 'cost']) out[key] = (base?.[key] ?? 0) + (extra?.[key] ?? 0)
+      for (const key of ['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning', 'calls', 'cost']) out[key] = (base?.[key] ?? 0) + (extra?.[key] ?? 0)
       out.apiCost = recordedApiCost(base, config) + moneyCostOf(extra)
       for (const key of ['byModel', 'byProviderModel']) {
         out[key] = { ...base?.[key] }
         for (const [id, row] of Object.entries(extra?.[key] ?? {})) {
           const combined = { ...out[key][id] }
-          for (const field of ['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning', 'cost']) combined[field] = (combined[field] ?? 0) + (row[field] ?? 0)
-          // 桶内分类可能来自投影，未带 apiCost；不保留只覆盖主会话的旧派生值。
-          delete combined.apiCost
+          combined.apiCost = moneyCostOf(combined) + moneyCostOf(row)
+          for (const field of ['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning', 'calls', 'cost']) combined[field] = (combined[field] ?? 0) + (row[field] ?? 0)
           out[key][id] = combined
         }
       }

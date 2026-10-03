@@ -2,7 +2,7 @@
 
 ## English
 
-Open a conversation and click **Cost details** in the same row as turns, speed, tokens and cache-hit statistics below its input box. **Settings → Cost → Display** has separate switches to hide the header entry, composer entry and turn cost summaries; all remain visible by default. The header entry automatically hides at viewport widths of 640px or less. The composer entry follows its own switch. Both buttons use compact 12px text. Budget chips take only their content width and no longer create an extra row. Cost badge visibility remains independent. The conversation entry opens its entire retained history, shows API and Plan equivalents separately, and puts component details before overview charts. Switching conversations closes the previous dialog. For all conversations, open **Settings → Cost → Cost statistics**; this entry starts with the last seven calendar days, including today.
+Open a conversation and click **Cost details** in the same row as turns, speed, tokens and cache-hit statistics below its input box. **Settings → Cost → Display** has separate switches to hide the header entry, composer entry and turn cost summaries; all remain visible by default. The header entry automatically hides at viewport widths of 640px or less. The composer entry follows its own switch. Both buttons use compact 12px text. Budget chips take only their content width and no longer create an extra row. Cost badge visibility remains independent. The conversation entry opens its entire retained history, shows API and Plan equivalents separately, uses the sidebar cost basis by default, and puts component details before overview charts. Switching conversations closes the previous dialog. For all conversations, open **Settings → Cost → Cost statistics**; this entry starts with the last seven calendar days, including today.
 
 - **Periods:** Today, Last 7 days, Last 30 days, All retained, and custom inclusive dates. Dates follow the host timezone shown on the page.
 - **Filters:** Provider and model. Choose API cost, Plan equivalent, or their combined equivalent for chart amounts and rankings.
@@ -16,7 +16,9 @@ Open a conversation and click **Cost details** in the same row as turns, speed, 
 
 ### What the numbers mean
 
-Overview amounts come from the retained DSH ledger and refresh records written by other host processes. Opening statistics does not reprice history. In global daily, weekly and all-time statistics, a conversation spanning several days has one ranking row and each subagent is counted once. Historical amounts without a known model or conversation are explicitly listed as unassigned costs.
+Overview amounts come from the retained DSH ledger and refresh records written by other host processes. Opening statistics does not reprice history. Rankings combine days into one row per conversation. With subagent costs enabled, each agent is grouped under its owning conversation so the ranking matches its detail. Otherwise sessions stay separate. Each cost is counted once. Historical amounts without a known model or conversation are explicitly listed as unassigned costs.
+
+From 1.8.10, the ledger retains every conversation instead of pruning details after 200 sessions per day. Legacy daily totals are restored from recorded conversation amounts only when all token buckets and call counts match exactly. Anonymous usage and old pruned residues retain their original totals. This repair does not reprice requests.
 
 API costs are **estimates from reported usage and configured rates**, not provider invoices. Plan costs are the API-equivalent value of subscription usage, not an extra charge. External usage snapshots remain separately visible in Overview; this page analyzes DSH's own ledger.
 
@@ -30,7 +32,7 @@ The statistics screen uses DSH's package-local asynchronous module loader. Since
 
 ## 简体中文
 
-打开一个会话，点击**输入框下方与轮数、速度、Token 和缓存命中率同一行的「费用明细」**。在 **设置 → 费用 → 显示设置** 中，可分别隐藏标题栏入口、输入框下方入口和每轮回复后的费用行；默认均保留。视口不超过 640px 时，标题栏入口自动隐藏，输入框下方入口继续遵守自己的开关。两个明细按钮使用 12px 字号和紧凑间距；预算标签仅占内容所需宽度，不再独占整行。关闭费用徽章不影响明细入口。对话入口默认显示该对话保留的全部历史，API 与 Plan 等值分别列出，费用构成放在趋势图之前。切换会话会关闭旧明细。全部会话统计的入口为 **设置 → 费用 → 计费统计**，默认显示包含今天的近 7 个自然日。
+打开一个会话，点击**输入框下方与轮数、速度、Token 和缓存命中率同一行的「费用明细」**。在 **设置 → 费用 → 显示设置** 中，可分别隐藏标题栏入口、输入框下方入口和每轮回复后的费用行；默认均保留。视口不超过 640px 时，标题栏入口自动隐藏，输入框下方入口继续遵守自己的开关。两个明细按钮使用 12px 字号和紧凑间距；预算标签仅占内容所需宽度，不再独占整行。关闭费用徽章不影响明细入口。对话入口默认显示该对话保留的全部历史，API 与 Plan 等值分别列出，默认金额口径跟随侧栏的“含 Plan 总额”设置，费用构成放在趋势图之前。切换会话会关闭旧明细。全部会话统计的入口为 **设置 → 费用 → 计费统计**，默认显示包含今天的近 7 个自然日。
 
 - **时间范围：**今天、近 7 天、近 30 天、全部保留记录，以及包含起止日期的自定义区间。日期按页面标明的宿主时区划分。
 - **筛选和金额口径：**提供商、模型；可选择 API 费用、Plan 等值费用或两者合计，趋势和排行同步切换。
@@ -44,7 +46,7 @@ The statistics screen uses DSH's package-local asynchronous module loader. Since
 
 ### 统计口径
 
-汇总读取 DSH 账本，打开页面会同步其他进程已写入的记录，不重新定价或修改历史金额。全局日、周及全部统计中，跨天对话合并成一行，子代理分别计入一次，不把父级合计再次累加。历史中未归属模型或对话的金额会单独提示。
+汇总读取 DSH 账本，打开页面会同步其他进程已写入的记录，不重新定价或修改历史金额。全局日、周及全部统计中，跨天对话合并成一行，开启子代理费用合计时，排行把子代理及其后代归入所属主会话，点击后的明细与排行金额一致；关闭时各会话分别列出。每笔费用只计一次。历史中未归属模型或对话的金额会单独提示。从 1.8.10 起，账本保留全部对话记录，不再按每日 200 个裁剪。若已记录的全部 Token 与调用次数完整覆盖一个日期，旧日总额会按这些对话已记录的金额修复；匿名调用和旧版裁剪留下的金额保留。此修复不重新定价。
 
 开启设置中的“本会话费用包含子代理”后，会话费用徽章、单对话汇总和费用明细均包含该会话的子代理及全部子代理后代。明细单列主会话与各子代理的账本费用，逐次调用、轮次和步骤标注所属会话，展开子代理轮次可查看它自己的输入与工具调用。普通分叉会话不归入父会话，子代理继承的历史消息不重复收费。关闭开关时只显示主会话自身费用。
 

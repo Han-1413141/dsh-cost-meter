@@ -101,14 +101,16 @@ if (process.argv[2] === '--worker') {
     save(pa); save(pb)
     assert.equal(read(planPath).planHourBuckets.go[Math.floor(now / 3600000) * 3600000].tokens, 70)
 
-    // Pruned session details cannot be used to reconstruct complete daily totals.
+    // Every session stays attributable beyond the former daily 200-session cap.
     const capPath = freshPath(), cap = create(capPath)
     for (let i = 0; i < 205; i++) call(cap, `old-${i}`)
     save(cap)
     const capOther = reopen(capPath)
     call(cap, 'new-a'); call(capOther, 'new-b'); save(cap); save(capOther)
     assert.equal(read(capPath).days[day].calls, 207)
-    assert.equal(read(capPath).days[day].sessions.length, 200)
+    assert.equal(read(capPath).days[day].sessions.length, 207)
+    assert.ok(read(capPath).days[day].sessions.some(s => s.id === 'old-0'))
+    assert.ok(Math.abs(read(capPath).days[day].sessions.reduce((sum, row) => sum + row.cost, 0) - read(capPath).days[day].cost) < 1e-8)
     assert.ok(read(capPath).days[day].sessions.some(s => s.id === 'new-a'))
     assert.ok(read(capPath).days[day].sessions.some(s => s.id === 'new-b'))
 

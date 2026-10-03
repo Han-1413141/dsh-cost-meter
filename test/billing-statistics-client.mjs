@@ -77,12 +77,15 @@ owner.dispose()
 const english = mount(ui.Statistics, { ...props, sessionId: 's2', state: { ...props.state, config: { ...config, locale: 'en' } } })
 assert.equal(requests.at(-1).query.sessionId, 's2')
 assert.equal(requests.at(-1).query.from, '', 'single-conversation entry defaults to its entire retained history')
-assert.equal(requests.at(-1).query.basis, 'total', 'Plan users see component costs immediately, with the equivalent-value label')
+assert.equal(requests.at(-1).query.basis, 'api', 'single-conversation defaults to the same cost basis as the sidebar')
 assert.match(text(english.tree), /Cost statistics/)
 requests.at(-1).resolve(stat); await flush()
 const singleNodes = nodes(english.tree)
 assert.ok(singleNodes.findIndex(n => n.type === ui.SessionDetail) < singleNodes.findIndex(n => n.props.label?.startsWith('Cost over time')), 'conversation detail appears before general overview charts')
 english.dispose()
+const withPlan = mount(ui.Statistics, { ...props, sessionId: 's2', state: { ...props.state, config: { ...config, showTotalWithPlan: true } } })
+assert.equal(requests.at(-1).query.basis, 'total', 'global Plan display preference also applies to detail entry')
+withPlan.dispose()
 
 const detailRequests = []
 const detailApi = { getSessionBilling: query => new Promise((resolve, reject) => detailRequests.push({ query, resolve, reject })) }
