@@ -52,7 +52,13 @@ function mount({ account = null, accountState, describe, proxyAccount = false, s
           : undefined,
     provide: (name, value) => { if (name === 'costMeter') service = value },
     on: (name, fn) => { if (!events.has(name)) events.set(name, []); events.get(name).push(fn); return () => {} }, inject() {},
-    effect: fn => { const cleanup = fn(); if (typeof cleanup === 'function') cleanups.push(cleanup) }, logger: { info() {}, warn() {}, error() {} },
+    effect: (fn, label) => {
+      const cleanup = fn()
+      // Wallet fixtures use isolated homes and fetch mocks. Background history and
+      // public price refreshes belong to separate tests and must not cross fixtures.
+      if (label === 'cost-meter: backfill timer' || label === 'cost-meter: openrouter refresh timer') cleanup?.()
+      else if (typeof cleanup === 'function') cleanups.push(cleanup)
+    }, logger: { info() {}, warn() {}, error() {} },
   })
   const instance = { service, requests, accountCalls,
     emit: (name, ...args) => { for (const fn of events.get(name) ?? []) fn(...args) },
@@ -380,7 +386,9 @@ try {
   const React = { createElement: el, Fragment: 'fragment', useState: init => [typeof init === 'function' ? init() : init, () => {}], useEffect() {}, useRef: value => ({ current: value }), useCallback: fn => fn }
   const ui = factory(name => name === 'react' ? React : { Tooltip: 'tooltip' }).test
   assert.ok(Math.abs(ui.todayOfficialUsd({ today: accountToday }) - 1.4) < 1e-12, '余额条与服务端对账累计同一组账号调用')
-  const accountSegments = ui.segmentsForOfficialBalance({ ...accountResult.state, balance: { totalBalance: 80 } }, { exchangeRate: 7.2, balance: { budgetCap: 100 } })
+  const accountSegments = ui.segmentsForOfficialBalance({ ...accountResult.state, balance: { totalBalance: 80, currency: 'CNY' } }, { exchangeRate: 7.2, balance: { budgetCap: 100 } })
+  const usdSegments = ui.segmentsForOfficialBalance({ ...accountResult.state, balance: { totalBalance: 80, currency: 'USD' } }, { exchangeRate: 7.2, balance: { budgetCap: 100 } })
+  assert.ok(Math.abs(usdSegments.today - 1.4) < 1e-12, 'USD wallet usage must not be multiplied by the display exchange rate')
   assert.ok(Math.abs(accountSegments.today - 10.08) < 1e-12, '余额条当日段显示账号与官方 API 合计 ¥10.08')
   const textOf = node => node == null ? '' : typeof node === 'object' ? (node.children ?? []).map(textOf).join(' ') : String(node)
   for (const locale of ['en', 'zh']) {

@@ -1526,15 +1526,10 @@
     function todayUsedInBalanceCurrency(state, config, mode, custom, entryCfg = null) {
       // 官方模式只取 deepseek 渠道费用;自定义 Provider 余额无渠道映射,维持全量(与既有行为一致)。
       const usd = mode === 'official' ? todayOfficialUsd(state) : Number(state.today?.cost) || 0
-      if (mode === 'custom') {
-        const unit = customBalanceUnitOf(config, custom, entryCfg)
-        if (unit === 'USD') return usd
-        // 积分是不可由美元花费换算的计数(抵扣率因模型而异),按 0 处理,
-        // 绝不把汇率折算结果冒充积分显示在「当日已用」段。
-        if (unit === 'CREDITS') return 0
-        const rate = Number(config?.exchangeRate)
-        return usd * (Number.isFinite(rate) && rate > 0 ? rate : 1)
-      }
+      const unit = mode === 'custom' ? customBalanceUnitOf(config, custom, entryCfg) : state.balance?.currency
+      if (unit === 'USD') return usd
+      // 积分不能由美元花费换算。
+      if (unit === 'CREDITS') return 0
       const rate = Number(config?.exchangeRate)
       return usd * (Number.isFinite(rate) && rate > 0 ? rate : 1)
     }

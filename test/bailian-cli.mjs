@@ -137,8 +137,10 @@ process.stdout.write(spec.raw ?? JSON.stringify(spec.payload ?? {}));
   // 超时:双命令都超时 → timeout;单边超时 → 另一来源仍作答。
   setResponse({ token: { wait: 1000 }, coding: { wait: 1000 } })
   await assert.rejects(queryBailianCli('en', { ...options, timeoutMs: 100 }), { code: 'timeout' })
-  setResponse({ token: { wait: 1000 }, coding: { payload: codingPayload } })
-  assert.equal((await queryBailianCli('en', { ...options, timeoutMs: 300 })).windows.source.text, 'Coding Plan (pro) (CLI)')
+  // Allow a healthy Node child to start on a busy Windows host, while the other
+  // command still exceeds the deadline. This tests partial timeout, not CPU speed.
+  setResponse({ token: { wait: 5000 }, coding: { payload: codingPayload } })
+  assert.equal((await queryBailianCli('en', { ...options, timeoutMs: 1500 })).windows.source.text, 'Coding Plan (pro) (CLI)')
   // 取消与缺失。
   setResponse({ token: { wait: 1000 }, coding: { wait: 1000 } })
   const controller = new AbortController()

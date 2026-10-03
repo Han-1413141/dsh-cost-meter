@@ -17,7 +17,7 @@ const fold = (events, initial = def.init(header, 0)) => events.reduce((state, ev
 const roundTrip = state => def.stateSchema.parse(JSON.parse(JSON.stringify(state)))
 const initialEvents = [request(0), usage(1, 1, 100), endSeed(2), usage(3, 2, 200)]
 
-assert.equal(def.stateVersion, 10, '旧错误 checkpoint 必须失效后重放')
+assert.equal(def.stateVersion, 11, '旧错误 checkpoint 必须失效后重放')
 let ordinary = fold(initialEvents)
 assert.equal(ordinary.totals.input, 300, '普通会话恢复后继续调用，重启前用量保留')
 assert.equal(ordinary.shadow.totals.input, 0, '已知无继承的普通会话无需累计种子影子')

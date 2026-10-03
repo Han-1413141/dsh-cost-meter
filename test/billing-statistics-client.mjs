@@ -115,6 +115,18 @@ detailRequests.at(-1).resolve(detail); await flush()
 const pager = nodes(detailOwner.tree).find(n => n.props.size === 50)
 pager.props.onChange(50); detailOwner.render()
 assert.equal(detailRequests.at(-1).query.offset, 50)
+detailRequests.at(-1).resolve({ ...detail,
+  agents: [{ id: 's1', title: 'Main', ...stat.totals }, { id: 'child', title: 'Research agent', ...stat.totals }],
+  turns: [detail.turns[0], { ...detail.turns[0], sessionId: 'child' }],
+  calls: [{ ...call, sessionId: 'child' }],
+}); await flush()
+assert.match(text(detailOwner.tree), /Includes subagents and their descendants/)
+assert.match(text(detailOwner.tree), /Subagent Research agent/)
+nodes(detailOwner.tree).filter(n => n.props.className === 'cm-stat-turn-toggle')[1].props.onClick(); detailOwner.render()
+const childInspection = nodes(detailOwner.tree).filter(n => n.type === ui.TurnInspection)
+assert.equal(childInspection.length, 1, 'Identical main/child turn numbers do not expand together')
+assert.equal(childInspection[0].props.sessionId, 'child', 'Expanded child turn reads that child, not the main conversation')
+nodes(detailOwner.tree).find(n => n.props.size === 50).props.onChange(0); detailOwner.render()
 detailRequests.at(-1).resolve({ found: false }); await flush()
 assert.match(text(detailOwner.tree), /missing details do not mean zero cost/)
 detailOwner.dispose()

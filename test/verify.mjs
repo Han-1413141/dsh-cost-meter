@@ -1905,7 +1905,7 @@ console.log('[ok] 宽泛匹配与跨厂商兑底(路由 provider 费用为零修
   // 旧 v3 checkpoint(ver 不匹配)隔离——宿主 ver 检查拒绝旧行并全量 refold,
   // 不会对旧结构 state 调用 parse。
   const projRow = { ver: def.stateVersion, seq: events.length, val: structuredClone(projState) }
-  assert.equal(projRow.ver, 10, 'stateVersion 为 10（重放旧 checkpoint，修复重启误扣历史）')
+  assert.equal(projRow.ver, 11, 'stateVersion 为 11（重放旧 checkpoint，按 Provider 去重）')
   usageProjectionStateSchema.parse(projRow.val)
   // ⑤ issue #43 崩溃点复现对照:缺 stateSchema 的定义(fork 0.2.0 场景)在
   // restore 路径抛出与 issue 报错完全一致的 TypeError。
@@ -2394,7 +2394,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(scheduled >= 1, '清洗后调度落盘')
   // 投影与启动接线:源码结构断言(投影无独立运行时入口,行为经宿主重放自愈)。
   const indexSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
-  assert.ok(indexSource.includes('stateVersion: 10'), '投影 stateVersion 10:触发宿主重放，包含普通重启费用修复')
+  assert.ok(indexSource.includes('stateVersion: 11'), '投影 stateVersion 11:按 Provider 去重并重放旧 checkpoint')
   assert.ok(indexSource.includes("if (event.type === 'session')") && indexSource.includes('createdAt') && indexSource.includes('seedLength'), '投影记录会话创建时刻与 seedLength(旧宿主兼容+多 end-seed 延迟扣除)')
   assert.ok(indexSource.includes("if (event.type === 'session/end-seed')"), '投影识别 session/end-seed fork 种子边界(issue #55)')
   assert.ok(indexSource.includes('isSeedBySeq') && indexSource.includes('isSeedByLength') && indexSource.includes('seedEndSeq'), '投影按 seq/length/time 三重过滤种子段(issue #55/#61)')
@@ -3145,7 +3145,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
     assert.equal(r.ref.granted, 0, '重置后基准为归零快照')
     // 归零后的下一次拉取:纯充值余额消费,total 差值恢复对账。
     const zBase = r.ref
-    r = reconcileBalanceDelta(zBase, { ...bal(17.8, 0, 17.8), currency: 'CNY' }, 1.2 / 7.2, day, t1, { exchangeRate: 7.2 })
+    r = reconcileBalanceDelta(zBase, { ...bal(17.8, 0, 17.8), currency: 'CNY' }, zBase.ledgerCost + 1.2 / 7.2, day, t1, { exchangeRate: 7.2 })
     assert.equal(r.event.kind, 'ok', '赠送清零后继续按充值余额对账')
   }
   // granted 维持剩余(消费走赠送但未清零):不影响 total 口径对账(旧行为保留)。
@@ -5701,7 +5701,7 @@ await import('./typert-codecs.mjs')
   writeFileSync(join(root81, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({
     version: 1,
     config: sanitizeConfig({ balance: { reconcile: true }, exchangeRate: 7.2 }),
-    balanceRef: { date: todayKey81, total: 100, granted: 1, topped: 99, currency: 'CNY', at: Date.now() - 3600_000 },
+    balanceRef: { date: todayKey81, total: 100, granted: 1, topped: 99, currency: 'CNY', at: Date.now() - 3600_000, ledgerCost: 0 },
     days: {
       [todayKey81]: {
         date: todayKey81, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1,
@@ -6753,6 +6753,7 @@ await import('./gpt-astra-pricing.mjs')
 await import('./pricing-model-matching.mjs')
 await import('./provider-pricing-coverage.mjs')
 await import('./subagent-billing.mjs')
+await import('./billing-integrity.mjs')
 await import('./session-restart.mjs')
 await import('./native-search-billing.mjs')
 await import('./native-search-fetch.mjs')

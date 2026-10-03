@@ -6,6 +6,10 @@ import { aggregateSessionCost, getSessionCost, readSessionHeaders, subagentIds }
 import { Ledger, applyConfigPatch, defaultConfig, repairLedgerPricing, sanitizeConfig } from '../lib/store.js'
 import { buildPriceCatalog, DEFAULT_PROVIDER_PRICE_TABLE } from '../lib/pricing.js'
 import { sessionCostSchema, stateSchema, TYPERT } from '../lib/typert.host.js'
+import { sessionCostIds } from '../lib/session-tree.js'
+import { billingStatistics } from '../lib/billing-statistics.js'
+import { getSessionBilling } from '../lib/turn-cost.js'
+import { sessionBillingSchema } from '../lib/typert.host.js'
 
 const header = (id, parentSession, origin = 'subagent') => ({ id, ...(parentSession ? { origin, parentSession } : {}) })
 const headers = [header('root'), header('child', 'root'), header('nested', 'child'),
@@ -90,6 +94,41 @@ for (const field of ['includeSubagentCost', 'codexQuotaEnabled']) {
 
 const temp = mkdtempSync(join(tmpdir(), 'cm-subagent-127-'))
 try {
+  const at = Date.parse('2026-09-10T08:00:00Z')
+  const records = id => [
+    { type: 'request/header', time: at, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } },
+    { type: 'assistant/message', time: at - 10, data: { turn: 0, step: 0, usage: { inputTokens: 999999 } } },
+    ...Array.from({ length: id === 'child' ? 51 : 1 }, (_, step) => ({ type: 'assistant/message', time: at + step + 1, data: { turn: 1, step, usage: { inputTokens: 10, outputTokens: 2 } } })),
+  ]
+  const treeCtx = { get: name => name === 'sessionQuery' ? { listSessions: async () => headers } : name === 'sessions' ? {
+    get: id => ({ header: { createdAt: at }, snapshotEvents: () => records(id) }),
+  } : undefined }
+  const detailLedger = { config: { ...defaultConfig(), includeSubagentCost: true }, days, path: join(temp, 'details.json') }
+  const query = { sessionId: 'root', from: '2026-09-09', to: '2026-09-10', basis: 'total' }
+  const scope = await sessionCostIds(detailLedger, treeCtx, 'root')
+  assert.deepEqual([...scope].sort(), ['child', 'nested', 'root'])
+  const stats = billingStatistics(detailLedger, query, scope)
+  assert.equal(stats.totals.cost, on.own.cost + on.subagents.cost)
+  assert.equal(stats.totals.calls, on.own.calls + on.subagents.calls)
+  const detail = sessionBillingSchema.parse(await getSessionBilling(detailLedger, treeCtx, query))
+  assert.equal(detail.totalCalls, 53, 'All descendants count, fork seeds do not')
+  assert.equal(detail.calls.length, 50)
+  assert.equal(detail.totalTurns, 3, 'Same turn number in three agents is three distinct turns')
+  assert.equal(detail.turns.find(row => row.sessionId === 'child').calls, 51)
+  assert.equal(detail.recorded.cost, stats.totals.cost)
+  assert.equal(detail.recorded.apiCost, stats.totals.apiCost)
+  assert.equal(detail.agents.reduce((n, row) => n + row.cost, 0), detail.recorded.cost)
+  assert.equal(detail.rows.find(row => row.bucket === 'input').tokens, 530)
+  assert.ok(detail.stepShares.cost.filter(row => !row.other).every(row => scope.has(row.sessionId)))
+  const next = await getSessionBilling(detailLedger, treeCtx, { ...query, offset: 50 })
+  assert.equal(next.calls.length, 3)
+  assert.equal(next.cost, detail.cost)
+  assert.ok(next.calls.every(call => scope.has(call.sessionId)))
+  detailLedger.config.includeSubagentCost = false
+  assert.equal((await getSessionBilling(detailLedger, treeCtx, query)).totalCalls, 1)
+  assert.equal(billingStatistics(detailLedger, query, await sessionCostIds(detailLedger, treeCtx, 'root')).totals.cost, on.own.cost)
+  assert.deepEqual(days, before, 'Tree statistics and details do not write child costs into the parent ledger')
+
   const disk = new Ledger(sanitizeConfig({ includeSubagentCost: true, codexQuotaEnabled: true }), structuredClone(days), join(temp, 'ledger.json'))
   disk.scheduleWrite()
   disk.close()
