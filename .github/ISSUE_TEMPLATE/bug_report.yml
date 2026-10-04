@@ -64,3 +64,15 @@ body:
       placeholder: 粘贴日志或拖入截图
     validations:
       required: false
+  - type: textarea
+    id: other-plugins
+    attributes:
+      label: 其他插件与浏览器扩展 · Other plugins & browser extensions
+      description: 请列出其他已安装 DSH 插件的完整包名、版本及相关配置（如主题的 glass/mica/compat 模式）；没有则填“无 / None”。界面问题请补充浏览器版本、密码管理器/自动填充扩展及同一浏览器中的启停对照结果（未测试也请注明）。保留所有数据，不要贴凭据。List full DSH package names, versions and relevant settings (or None). For UI issues include browser version, password-manager/autofill extensions and same-browser A/B results (or not tested). Preserve all data; never post credentials.
+      placeholder: |
+        @nonamelego/dsh-catppuccin: 0.5.8, glass on, mode: …
+        Other DSH plugins: None / package name + version + relevant settings
+        Browser: Chrome …; extensions/password manager: …
+        Same-browser A/B: not tested / …
+    validations:
+      required: true

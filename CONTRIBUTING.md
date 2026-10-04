@@ -20,6 +20,7 @@ English summary follows the Chinese text below.
 2. **复现步骤**:从干净状态到出错的最小步骤;
 3. **现象与期望**:实际看到什么、期望看到什么;
 4. **日志/截图**:浏览器控制台报错、`dsh web` 启动日志、相关截图(可脱敏)。
+5. **其他插件**:列出其他已安装 DSH 插件的完整包名、版本及相关配置；没有则写“无”。界面问题还请附浏览器版本、密码管理器/自动填充扩展及同一浏览器中的启停对照结果（未测试也注明）。不要清空会话、账本或浏览器存储来复现。
 
 > 一个带复现步骤和日志的 issue,通常当天就能定位。
 
@@ -87,7 +88,7 @@ README / README.en 与 `docs/` 下的说明(适配文档、更新历史、releas
 
 Thanks for contributing to **dsh-cost-meter**!
 
-- **Bug reports**: open an issue with environment (plugin/dsh/Node version, OS), minimal repro steps, expected vs actual, and logs/screenshots.
+- **Bug reports**: include environment (plugin/dsh/Node version, OS), minimal repro steps, expected vs actual, logs/screenshots, and all other installed DSH plugin package names, versions and relevant settings (or `None`). For UI issues include browser version, password-manager/autofill extensions and same-browser plugin/extension A/B results, or state that these are untested. Do not clear sessions, the ledger or browser storage to reproduce.
 - **PRs**: discuss big changes in an issue first; branch off latest `master`; after editing `src/client/`, run `npm run build` and include the generated `lib/client.js`. Run `node --check` on touched files and the full regression `node test/verify.mjs` before submitting.
 - **Gotchas**: keep the strict codec consistent (new config keys must pass `applyConfigPatch` + `sanitizeConfig` + `typert.host.js` schema; new state fields go into `stateSchema`); keep server RPC and client `CONTRIBUTION.descriptors` in sync; verify `npm pack` output if you change `files`; add both zh/en strings; keep third-party endpoints within the whitelist assertions.
 - By submitting, you agree your contribution is licensed under the project's [MIT License](LICENSE).

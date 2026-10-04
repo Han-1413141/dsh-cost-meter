@@ -1220,57 +1220,75 @@
      */
     function CredentialField({ target, configured, source, t, api, placeholder, disabled }) {
       const [text, setText] = useState('')
+      const [editing, setEditing] = useState(false)
       const [busy, setBusy] = useState(false)
       const [msg, setMsg] = useState(null)
+      const pending = useRef(false)
       const blocked = disabled === true || busy
       const save = async () => {
         const value = text.trim()
-        if (value.length === 0 || blocked) return
+        if (value.length === 0 || blocked || pending.current) return
+        pending.current = true
         setBusy(true)
         setMsg(null)
         try {
           const result = await api.setCredential(target, value)
           setText('')
+          setEditing(false)
           setMsg({ kind: 'ok', text: result?.message ?? t('credentialSave') })
         } catch (error) {
           setMsg({ kind: 'err', text: String(error?.message ?? error) })
         } finally {
+          pending.current = false
           setBusy(false)
         }
       }
       const clear = async () => {
-        if (blocked) return
+        if (blocked || pending.current) return
+        pending.current = true
         setBusy(true)
         setMsg(null)
         try {
           const result = await api.clearCredential(target)
           setText('')
+          setEditing(false)
           setMsg({ kind: 'ok', text: result?.message ?? t('credentialClear') })
         } catch (error) {
           setMsg({ kind: 'err', text: String(error?.message ?? error) })
         } finally {
+          pending.current = false
           setBusy(false)
         }
       }
+      const cancel = () => { setText(''); setEditing(false) }
+      // 浏览器可能忽略 password 的 autocomplete=off，并把前一个文本框当用户名。
+      // 概览打开时不挂载密码框；明确编辑后使用独立 form，避免串到宿主会话搜索。
       return el('div', { className: 'cm-field' },
+        editing ? el('form', { className: 'cm-field', autoComplete: 'off', onSubmit: event => { event.preventDefault(); void save() } },
         el('input', {
           className: 'cm-input',
           type: 'password',
+          name: 'cm-credential-' + target,
+          autoFocus: true,
           value: text,
           placeholder: typeof placeholder === 'string' ? placeholder : '',
           disabled: blocked,
-          autoComplete: 'off',
+          autoComplete: 'new-password',
+          'data-lpignore': 'true', 'data-1p-ignore': 'true', 'data-bwignore': 'true',
+          'aria-label': t('credentialInputHint'),
           onChange: event => setText(event.target.value),
         }),
         el('div', { className: 'cm-buttons' },
           el('button', {
             className: 'cm-btn small',
-            onClick: save,
+            type: 'submit',
             disabled: blocked || text.trim().length === 0,
           }, busy ? t('credentialSaving') : t('credentialSave')),
+          el('button', { className: 'cm-btn small', type: 'button', onClick: cancel, disabled: busy }, t('cancel'))))
+          : el('button', { className: 'cm-btn small', type: 'button', onClick: () => setEditing(true), disabled: blocked }, t('credentialEdit')),
           configured === true
-            ? el('button', { className: 'cm-btn small', onClick: clear, disabled: blocked }, t('credentialClear'))
-            : null),
+            ? el('button', { className: 'cm-btn small', type: 'button', onClick: clear, disabled: blocked }, t('credentialClear'))
+            : null,
         el('span', { className: 'cm-hint' },
           configured === true
             ? t('credentialConfiguredOf', { source: typeof source === 'string' && source.length > 0 ? source : 'unknown' })

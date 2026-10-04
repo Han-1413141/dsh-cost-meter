@@ -10,6 +10,32 @@ permissions:
   contents: read
 
 jobs:
+  sidebar-search-recovery:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dsh: ['0.1.7-rc.2', '0.2.0-rc.2']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Install reported and current workspace UI runtimes
+        env:
+          DSH_VERSION: ${{ matrix.dsh }}
+        run: |
+          npm install -g pnpm
+          pnpm install --frozen-lockfile
+          npm install --prefix .tmp-sidebar-host --no-audit --no-fund --ignore-scripts "@deepseek-ai/dsh-client-ui-workspace@$DSH_VERSION" react@18.2.0 react-dom@18.2.0 jsdom@28.1.0
+      - name: Verify query recovery and scoped credential editor
+        run: |
+          export DSH_TEST_NODE_MODULES="$PWD/.tmp-sidebar-host/node_modules"
+          node test/sidebar-search-recovery.mjs
+          node test/credential-editor-dom.mjs --baseline v1.8.6
+
   statistics-client:
     runs-on: ubuntu-latest
     strategy:

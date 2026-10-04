@@ -493,6 +493,10 @@ dsh --profile web --port 3099                           # real startup (watch lo
 
 ## Known limitations
 
+For loading placeholders followed by “No matching sessions” after opening Cost,
+see [non-destructive sidebar search recovery](docs/session-sidebar-recovery.md).
+Check and clear the host search before changing stored data.
+
 - Official-page parsing depends on the current page structure; after a redesign, “Sync prices from official docs” fails — edit the price table manually as a fallback;
 - The session badge's fallback estimate (used when ledger data is unavailable) prices all of a session's calls at the tier of the *current* moment, including plan-type sessions: a session spanning peak and off-peak hours gets its off-peak portion overestimated during peak hours; exact figures come from the ledger (which bills each call at its own initiation moment);
 - Price sync overwrites the same-named models listed on the official page; custom model entries are unaffected;

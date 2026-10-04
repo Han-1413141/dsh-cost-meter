@@ -56,12 +56,47 @@ const dictionaryStrings = [...messageKeys, ...Object.values(messages).flatMap(Ob
 const separator = ['|', '~', '^', '`'].find(char => dictionaryStrings.every(value => !value.includes(char)))
 assert.ok(separator && dictionaryStrings.every(value => !value.includes('\0')), 'dictionary needs an unused separator')
 const packedMessages = Object.entries(messages).map(([locale, dict]) => [locale, messageKeys.map(key => dict[key] ?? '\0').join(separator)])
+// Repeated phrases consume much of the remaining runtime byte budget.
+// Replace only profitable phrases with unused private-use characters, then
+// restore them before exposing dictionaries. All translations round-trip below.
+const phraseCounts = new Map()
+for (const value of Object.values(messages).flatMap(Object.values)) {
+  const words = [...value.matchAll(/[A-Za-z][A-Za-z0-9'-]*(?: [A-Za-z][A-Za-z0-9'-]*)+/g)]
+  for (const match of words) {
+    const parts = match[0].split(' ')
+    for (let i = 0; i < parts.length; i++) for (let n = 2; n <= 7 && i + n <= parts.length; n++) {
+      const phrase = parts.slice(i, i + n).join(' ')
+      if (phrase.length >= 12) phraseCounts.set(phrase, (phraseCounts.get(phrase) ?? 0) + 1)
+    }
+  }
+  for (const match of value.matchAll(/[\u3400-\u9fff]{6,}/g)) {
+    for (let i = 0; i < match[0].length; i++) for (let n = 6; n <= 16 && i + n <= match[0].length; n++) {
+      const phrase = match[0].slice(i, i + n)
+      phraseCounts.set(phrase, (phraseCounts.get(phrase) ?? 0) + 1)
+    }
+  }
+}
+const phrases = []
+const tokenBase = 0xe000
+assert.ok(dictionaryStrings.every(value => !/[\ue000-\ue0ff]/.test(value)), 'phrase tokens must be unused')
+const phraseBytes = phrase => Buffer.byteLength(phrase)
+const candidates = [...phraseCounts].filter(([, count]) => count >= 2)
+  .sort((a, b) => (phraseBytes(b[0]) - 3) * b[1] - (phraseBytes(a[0]) - 3) * a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+for (const [phrase] of candidates) {
+  const count = packedMessages.reduce((sum, [, packed]) => sum + packed.split(phrase).length - 1, 0)
+  if (count * (phraseBytes(phrase) - 3) <= phraseBytes(phrase) + 8) continue
+  const token = String.fromCharCode(tokenBase + phrases.length)
+  phrases.push(phrase)
+  for (const row of packedMessages) row[1] = row[1].split(phrase).join(token)
+  if (phrases.length === 64) break
+}
+const restorePhrases = packed => packed.replace(/[\ue000-\ue0ff]/g, token => phrases[token.charCodeAt(0) - tokenBase])
 const unpacked = Object.fromEntries(packedMessages.map(([locale, packed]) => {
-  const values = packed.split(separator)
+  const values = restorePhrases(packed).split(separator)
   return [locale, Object.fromEntries(messageKeys.map((key, i) => [key, values[i]]).filter(([, value]) => value !== '\0'))]
 }))
 assert.deepEqual(unpacked, JSON.parse(JSON.stringify(messages)), 'dictionary packing must preserve every translation')
-src = src.replace(messagesMatch[0], () => `const messageKeys=${JSON.stringify(messageKeys.join(separator))}.split(${JSON.stringify(separator)});const MESSAGES=Object.fromEntries(${JSON.stringify(packedMessages)}.map(([locale,packed])=>{const values=packed.split(${JSON.stringify(separator)});return [locale,Object.fromEntries(messageKeys.map((key,i)=>[key,values[i]]).filter(([,value])=>value!=="\\0"))]}));\n`)
+src = src.replace(messagesMatch[0], () => `const messageKeys=${JSON.stringify(messageKeys.join(separator))}.split(${JSON.stringify(separator)});const messagePhrases=${JSON.stringify(phrases.join(separator))}.split(${JSON.stringify(separator)});const MESSAGES=Object.fromEntries(${JSON.stringify(packedMessages)}.map(([locale,packed])=>{const values=packed.replace(/[\ue000-\ue0ff]/g,token=>messagePhrases[token.charCodeAt(0)-${tokenBase}]).split(${JSON.stringify(separator)});return [locale,Object.fromEntries(messageKeys.map((key,i)=>[key,values[i]]).filter(([,value])=>value!=="\\0"))]}));\n`)
 // CSS 在源码保留逐行审阅形式；发布时先按 CSS 语法压缩，再嵌入同一客户端。
 // 不删除规则、不调整选择器优先级，所有样式仍在受字节门禁检查的 bundle 内。
 const cssMatch = src.match(/const css = (\[[\s\S]*?\]\.join\('\\n'\))/)
