@@ -1177,8 +1177,10 @@
 
     /** 统一卡片外壳。入参见下方各 XxxQuotaCard 的调用。 */
     function QuotaCard(props) {
-      const { name, enabled, saved, busy, open, statusNode, configNode, errorMsg, onToggle, onRefresh, onRemove, onToggleOpen, t } = props
+      const { name, enabled, saved, busy, open, statusNode, configNode, errorMsg, onToggle, onRefresh, onLogin, loginRequired, onRemove, onToggleOpen, t } = props
       const expandable = configNode != null
+      const buttonAction = loginRequired ? onLogin : onRefresh
+      const buttonText = busy === true ? t('refreshing') : loginRequired ? t('loginCodingPlan') : t('refresh')
       return el('div', { className: 'cm-budget cm-quota-card' },
         el('div', { className: 'cm-budget-head' },
           el('label', { className: 'cm-check' },
@@ -1187,10 +1189,10 @@
             expandable ? collapseHeader(open === true, onToggleOpen, name) : el('h3', { className: 'cm-h' }, name)),
           onRemove ? el('button', { className: 'cm-btn small', onClick: onRemove }, t('quotaRemove')) : null,
           el('button', {
-            className: 'cm-btn small', onClick: onRefresh,
+            className: 'cm-btn small', onClick: buttonAction,
             disabled: busy === true || enabled !== true || saved?.enabled !== true || saved.display === 'off',
-            title: enabled !== true ? t('quotaEnableFirst') : saved?.enabled !== true || saved.display === 'off' ? t('quotaRefreshReady') : t('refresh'),
-          }, busy === true ? t('refreshing') : t('refresh'))),
+            title: enabled !== true ? t('quotaEnableFirst') : saved?.enabled !== true || saved.display === 'off' ? t('quotaRefreshReady') : loginRequired ? t('loginCodingPlan') : t('refresh'),
+          }, buttonText)),
         statusNode,
         expandable && open === true ? el('div', { className: 'cm-collapse-body' }, configNode) : null,
         errorMsg != null ? el('div', { className: 'cm-msg ' + errorMsg.kind }, errorMsg.text) : null)
@@ -1551,6 +1553,10 @@
       const enabled = cfgEntry.enabled === true
       const [open, setOpen] = useState(false)
       const [busy, msg, doRefresh] = useQuotaRefresh(t, () => api.refreshCodingPlan(planId))
+      const [loginBusy, loginMsg, doLogin] = useQuotaRefresh(t, () => api.loginCodingPlan(planId))
+      const loginRequired = live.loginRequired === true
+      const currentBusy = loginRequired ? loginBusy : busy
+      const currentMsg = loginRequired ? loginMsg : msg
       const setPlan = (field, value) => {
         if (draft === null) return
         const base = draft.codingPlans ?? config.codingPlans ?? {}
@@ -1730,10 +1736,12 @@
                 placeholder: planId === 'mimo' ? 'api-platform_serviceToken=…; userId=…' : 'sk-…',
               })))
       return el(QuotaCard, {
-        name: t(labelKey), enabled, saved: config.codingPlans?.[planId], busy, open, errorMsg: msg,
+        name: t(labelKey), enabled, saved: config.codingPlans?.[planId], busy: currentBusy, open, errorMsg: currentMsg,
         statusNode, configNode,
         onToggle: value => setPlan('enabled', value),
         onRefresh: doRefresh,
+        onLogin: doLogin,
+        loginRequired,
         onToggleOpen: () => setOpen(v => !v),
         t,
       })
@@ -2794,6 +2802,7 @@
         refreshGatewayQuota: async (sourceId = null) => receive(sourceId == null ? costMeter.refreshGatewayQuota() : costMeter.refreshGatewayQuota(sourceId)),
         refreshCustomBalance: async (index = null) => receive(index == null ? costMeter.refreshCustomBalance() : costMeter.refreshCustomBalance(index)),
         refreshCodingPlan: async provider => receive(costMeter.refreshCodingPlan(provider)),
+        loginCodingPlan: async provider => receive(costMeter.loginCodingPlan(provider)),
         // 密钥写入/清除(v1.6.8):值只沿此通道单向送入 DSH 凭据库,服务端永不回传明文。
         setCredential: async (target, value) => receive(costMeter.setCredential(target, value), 'rpcSyncFailed', true),
         clearCredential: async target => receive(costMeter.clearCredential(target), 'rpcSyncFailed', true),

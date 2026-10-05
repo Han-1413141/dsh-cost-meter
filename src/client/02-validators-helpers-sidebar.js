@@ -524,6 +524,10 @@
           parameters: [rpcParam('provider', 'CodingPlanProvider', providerCodec)],
           },
         {
+          method: 'loginCodingPlan',
+          parameters: [rpcParam('provider', 'CodingPlanProvider', providerCodec)],
+          },
+        {
           method: 'refreshGatewayQuota',
           parameters: [rpcParam('sourceId', 'GatewayQuotaSourceId', codecOf(v => {
             if (v === undefined || v === null) return undefined
