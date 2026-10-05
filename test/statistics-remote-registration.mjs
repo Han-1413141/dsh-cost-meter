@@ -10,6 +10,7 @@ import { pathToFileURL } from 'node:url'
 import { execFileSync } from 'node:child_process'
 import vm from 'node:vm'
 import { sanitizeConfig } from '../lib/store.js'
+import { TYPERT } from '../lib/typert.host.js'
 import { billingStatistics } from '../lib/billing-statistics.js'
 import { getSessionBilling } from '../lib/turn-cost.js'
 import { getTurnInspection } from '../lib/turn-inspection.js'
@@ -118,7 +119,10 @@ try {
     await assert.rejects(api.getBillingStatistics({ ...query, turnOffset: -1 }), /Invalid statistics query/)
     assert.equal(calls.length, count, 'strict input validation runs before transport')
     assert.equal((await api.getTurnInspection({ sessionId: 'selected', turn: 1 })).found, false)
-    assert.equal(client.typert.remotes.list().filter(d => d.namespace === 'costMeter').length, 19, 'all main and statistics methods coexist exactly once')
+    const expectedMethods = TYPERT.invocations.filter(d => d.namespace === 'costMeter').map(d => d.method).sort()
+    const actualMethods = Array.from(client.typert.remotes.list().filter(d => d.namespace === 'costMeter'), d => d.method).sort()
+    assert.deepEqual(actualMethods, expectedMethods, 'all main and statistics methods coexist exactly once')
+    assert.equal(new Set(actualMethods).size, actualMethods.length, 'no duplicate methods in the real registry')
     await first.fiber.dispose()
     assert.equal(client.typert.remotes.list().filter(d => d.namespace === 'costMeter').length, 0, 'unload withdraws both contributions')
     assert.equal(timers.size, 0)

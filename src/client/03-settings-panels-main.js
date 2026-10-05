@@ -1180,7 +1180,7 @@
       const { name, enabled, saved, busy, open, statusNode, configNode, errorMsg, onToggle, onRefresh, onLogin, loginRequired, onRemove, onToggleOpen, t } = props
       const expandable = configNode != null
       const buttonAction = loginRequired ? onLogin : onRefresh
-      const buttonText = busy === true ? t('refreshing') : loginRequired ? t('loginCodingPlan') : t('refresh')
+      const buttonText = busy === true ? t(loginRequired ? 'loggingIn' : 'refreshing') : loginRequired ? t('loginCodingPlan') : t('refresh')
       return el('div', { className: 'cm-budget cm-quota-card' },
         el('div', { className: 'cm-budget-head' },
           el('label', { className: 'cm-check' },
@@ -1552,11 +1552,9 @@
       const live = plansState[planId] ?? { status: 'off', message: '', fetchedAt: 0, windows: {} }
       const enabled = cfgEntry.enabled === true
       const [open, setOpen] = useState(false)
-      const [busy, msg, doRefresh] = useQuotaRefresh(t, () => api.refreshCodingPlan(planId))
-      const [loginBusy, loginMsg, doLogin] = useQuotaRefresh(t, () => api.loginCodingPlan(planId))
-      const loginRequired = live.loginRequired === true
-      const currentBusy = loginRequired ? loginBusy : busy
-      const currentMsg = loginRequired ? loginMsg : msg
+      const loginRequired = planId === 'qwen' && config.codingPlans?.qwen?.quotaSource === 'bailian'
+        && cfgEntry.quotaSource === 'bailian' && live.quotaSource === 'bailian' && live.loginRequired === true
+      const [busy, msg, doRefresh] = useQuotaRefresh(t, () => loginRequired ? api.loginCodingPlan(planId) : api.refreshCodingPlan(planId))
       const setPlan = (field, value) => {
         if (draft === null) return
         const base = draft.codingPlans ?? config.codingPlans ?? {}
@@ -1736,11 +1734,11 @@
                 placeholder: planId === 'mimo' ? 'api-platform_serviceToken=…; userId=…' : 'sk-…',
               })))
       return el(QuotaCard, {
-        name: t(labelKey), enabled, saved: config.codingPlans?.[planId], busy: currentBusy, open, errorMsg: currentMsg,
+        name: t(labelKey), enabled, saved: config.codingPlans?.[planId], busy, open, errorMsg: msg,
         statusNode, configNode,
         onToggle: value => setPlan('enabled', value),
         onRefresh: doRefresh,
-        onLogin: doLogin,
+        onLogin: doRefresh,
         loginRequired,
         onToggleOpen: () => setOpen(v => !v),
         t,

@@ -42,6 +42,14 @@ bl usage coding-plan --output json
 
 安装后重启 DSH 使宿主读取新的 `PATH`。这些额度子命令使用 CLI 的控制台登录；插件不复制凭据。
 
+### 从卡片登录（#235）
+
+额度查询失败后，插件会用 `bl auth status --output json --quiet` 检查控制台凭据。明确缺少控制台凭据或 CLI 返回认证失败（退出码 3）时，卡片按钮显示“登录”；仅有模型 API Key 或 AK/SK 不满足这两个额度命令的认证要求。检测本身失败时保留查询错误，不据此要求重新登录。
+
+点击“登录”才会执行固定的 `bl auth login --console`，并在 **DSH 主机**打开授权浏览器。完成后重新检查控制台凭据，再刷新额度。登录成功但未返回有效订阅额度时，界面分别说明这两个结果。远程、容器或无界面主机请在对应环境以同一系统账号手动登录；按钮不能在访问 Web 页面的另一台机器上配置主机凭据。
+
+登录最长等待 5 分钟，之后可重试。凭据仍由官方 CLI 保存；插件丢弃登录输出，错误只显示双语分类提示。并发登录合并为一次；切换来源、关闭显示或卸载插件时取消在途登录，旧结果不覆盖新配置。回归使用合成凭据与真实子进程，未执行真实账号浏览器授权。
+
 - 一次查询并行执行 `usage token-plan` 与 `usage coding-plan` 两个只读子命令并合并：Token Plan 优先提供 5 小时 / 周窗口，Coding Plan 提供 5 小时 / 周 / 账单月三窗（`per5Hour` / `perWeek` / `perBillMonth`），另附「source」行标注实际应答的订阅与实例（如 `Coding Plan (pro) (CLI)`）。
 - Token Plan 读取 `per5HourPercentage` / `per1WeekPercentage` 及对应的 `ResetTime`；Coding Plan 读取各窗口的 `percentage`（缺失时按 `usedQuota/totalQuota` 推算）。官方 CLI 返回比例值，乘以 100 后保留一位小数，例如 `0.5` 显示为 `50%`。重置时间以 epoch 毫秒转为 ISO。缺失的 Token Plan 窗口、无正额度上限的 Coding Plan 窗口不生成进度条。
 - 单个子命令失败时以另一命令的结果作答；两者都失败时给出登录/失败提示，两者皆无有效额度时为软提示（无订阅不冒充错误）。与官方 CLI 档一致：不生成千问「每 1% / 满窗 Token」估算，账号总用量不写入 DSH 账本。
@@ -66,8 +74,18 @@ Execution uses fixed arguments without a shell, an absolute PATH entry, closed s
 
 The **Bailian CLI** source reads Token Plan and Coding Plan subscription quota through the official [modelstudioai/cli](https://github.com/modelstudioai/cli) (npm package `bailian-cli`, commands `bl` / `bailian`). On the DSH host, as the same OS user: `npm install -g bailian-cli`, then `bl auth login --console`. Restart DSH afterwards to refresh PATH; credentials stay in the CLI.
 
+### Sign in from the card (#235)
+
+After a failed quota query, the plugin checks `bl auth status --output json --quiet`. The button becomes **Login** only when the status confirms missing console credentials or the CLI reports an authentication failure (exit code 3). Model API keys or OpenAPI AK/SK alone cannot authenticate these quota commands. A failed status check remains a query error.
+
+Clicking **Login** runs the fixed `bl auth login --console` command and opens the authorization browser on the **DSH host**. After completion, the plugin verifies console credentials and refreshes quota; successful login and unavailable subscription quota are reported separately. For a remote host, container or headless service, sign in manually in that environment as the same OS user. The button cannot configure host credentials on a different browser machine.
+
+Login waits up to five minutes and can be retried. The official CLI owns credentials; the plugin discards login output and returns only classified bilingual errors. Concurrent logins share one process. Source changes, hidden quota display and plugin unload cancel pending login. Regression uses synthetic credentials and real child processes; live account browser authorization was not performed.
+
 One query runs `usage token-plan` and `usage coding-plan` in parallel and merges them: Token Plan wins the shared 5-hour/week windows, Coding Plan contributes the 5-hour/week/billing-month windows, and a `source` row names the subscriptions that answered (e.g. `Coding Plan (pro) (CLI)`). Token Plan uses the flat `per5HourPercentage` / `per1WeekPercentage` fields and their reset times. Coding Plan uses nested `per5Hour` / `perWeek` / `perBillMonth` windows. CLI ratios are multiplied by 100 (0.5 becomes 50%); missing Coding Plan ratios are derived from used/total. Percentages retain one decimal, and reset times are epoch milliseconds. Missing Token Plan windows and Coding Plan windows without positive limits are skipped. When one subcommand fails the other answers; both failing shows the login/failure hint, and no valid quota is a soft no-subscription notice. Like the Official CLI source this mode creates no per-1%/full-window estimates and writes no account totals into the ledger. Execution uses the shared CLI bridge (fixed arguments, no shell, 15s timeout, 1 MiB caps, hidden window, no raw child output; Windows runs the package ESM entry directly via Node). Refresh interval and concurrency coalescing match the Official CLI source. Regression: `test/bailian-cli.mjs` with synthetic output and real child processes; no live Bailian subscription was used (`bl usage token-plan` returns `{}` for accounts without Token Plan).
 
 Tests use synthetic output, real child processes and bilingual component callbacks. No live Qianwen subscription account was used.
 
 Bailian source verification (2026-09-23): [Token Plan output](https://github.com/modelstudioai/cli/blob/72bc8fcce7f5ede6a5df81c1ce72d86de3f3ccd5/packages/commands/src/commands/usage/token-plan.ts), [Coding Plan output](https://github.com/modelstudioai/cli/blob/72bc8fcce7f5ede6a5df81c1ce72d86de3f3ccd5/packages/commands/src/commands/usage/coding-plan.ts), [ratio formatting](https://github.com/modelstudioai/cli/blob/72bc8fcce7f5ede6a5df81c1ce72d86de3f3ccd5/packages/commands/src/commands/usage/quota-box.ts). Tested with source-shaped fixtures and real local child processes; no live paid subscription was queried.
+
+Login source verification (2026-10-05): [auth status](https://github.com/modelstudioai/cli/blob/8bbbbc722d70fb200641ef22b6f6d033aeae9f74/packages/commands/src/commands/auth/status.ts), [console login](https://github.com/modelstudioai/cli/blob/8bbbbc722d70fb200641ef22b6f6d033aeae9f74/packages/commands/src/commands/auth/login-console.ts), [exit codes](https://github.com/modelstudioai/cli/blob/8bbbbc722d70fb200641ef22b6f6d033aeae9f74/packages/core/src/errors/codes.ts).

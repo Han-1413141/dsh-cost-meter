@@ -84,6 +84,39 @@ assert.ok(applyConfigPatch(sanitizeConfig({}), { codexQuotaSidebar: 'false' }).e
 for (const locale of ['zh', 'en']) {
   const t = ui.makeT(locale)
   {
+    let draft = roundTrip({ locale, codingPlans: { qwen: { enabled: true, quotaSource: 'bailian', display: 'both' } } })
+    const state = { config: draft, codingPlans: { qwen: { quotaSource: 'bailian', loginRequired: true, status: 'error', windows: {} } } }
+    let loginCalls = 0, refreshCalls = 0, finishLogin
+    const api = {
+      loginCodingPlan: id => {
+        assert.equal(id, 'qwen'); loginCalls++
+        return new Promise(resolve => { finishLogin = resolve })
+      },
+      refreshCodingPlan: async () => { refreshCalls++; return { ok: true, message: 'synthetic quota refreshed' } },
+    }
+    const render = renderer(ui.PlanQuotaCard, () => ({ state, draft, setDraft: value => { draft = value }, api, t, planId: 'qwen', labelKey: 'codingPlanQwen' }))
+    const loginButton = button(render(), t('loginCodingPlan'))
+    assert.equal(loginButton.props.disabled, false)
+    const first = loginButton.props.onClick(), duplicate = loginButton.props.onClick()
+    assert.equal(loginCalls, 1, 'same-tick login clicks use one action')
+    assert.equal(button(render(), t('loggingIn')).props.disabled, true)
+    state.codingPlans.qwen.loginRequired = false
+    const refreshDuringLogin = button(render(), t('refreshing'))
+    assert.equal(refreshDuringLogin.props.disabled, true, 'login state change cannot enable refresh while the action is pending')
+    await refreshDuringLogin.props.onClick()
+    assert.equal(refreshCalls, 0)
+    finishLogin({ ok: true, message: 'synthetic login completed' })
+    await Promise.all([first, duplicate])
+    assert.ok(textOf(render()).includes('synthetic login completed'), 'success message survives switching to Refresh')
+    await button(render(), t('refresh')).props.onClick()
+    assert.equal(refreshCalls, 1)
+    state.codingPlans.qwen.loginRequired = true
+    draft = roundTrip({ ...draft, codingPlans: { qwen: { ...draft.codingPlans.qwen, quotaSource: 'local' } } })
+    assert.equal(button(render(), t('loginCodingPlan')), undefined, 'an unsaved source switch cannot expose a stale login action')
+    state.config = draft
+    assert.equal(button(render(), t('loginCodingPlan')), undefined, 'local mode never offers Bailian login')
+  }
+  {
     let draft = roundTrip({ locale, codingPlans: { minimax: { enabled: true } } })
     const state = { config: draft, codingPlans: {} }
     const render = renderer(ui.PlanQuotaCard, () => ({ state, draft, setDraft: v => { draft = v }, api: {}, t, planId: 'minimax', labelKey: 'codingPlanMinimax' }))

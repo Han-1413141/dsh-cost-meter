@@ -66,11 +66,11 @@ for (const value of Object.values(messages).flatMap(Object.values)) {
     const parts = match[0].split(' ')
     for (let i = 0; i < parts.length; i++) for (let n = 2; n <= 7 && i + n <= parts.length; n++) {
       const phrase = parts.slice(i, i + n).join(' ')
-      if (phrase.length >= 12) phraseCounts.set(phrase, (phraseCounts.get(phrase) ?? 0) + 1)
+      if (phrase.length >= 8) phraseCounts.set(phrase, (phraseCounts.get(phrase) ?? 0) + 1)
     }
   }
-  for (const match of value.matchAll(/[\u3400-\u9fff]{6,}/g)) {
-    for (let i = 0; i < match[0].length; i++) for (let n = 6; n <= 16 && i + n <= match[0].length; n++) {
+  for (const match of value.matchAll(/[\u3400-\u9fff]{4,}/g)) {
+    for (let i = 0; i < match[0].length; i++) for (let n = 4; n <= 16 && i + n <= match[0].length; n++) {
       const phrase = match[0].slice(i, i + n)
       phraseCounts.set(phrase, (phraseCounts.get(phrase) ?? 0) + 1)
     }
@@ -88,7 +88,7 @@ for (const [phrase] of candidates) {
   const token = String.fromCharCode(tokenBase + phrases.length)
   phrases.push(phrase)
   for (const row of packedMessages) row[1] = row[1].split(phrase).join(token)
-  if (phrases.length === 64) break
+  if (phrases.length === 128) break
 }
 const restorePhrases = packed => packed.replace(/[\ue000-\ue0ff]/g, token => phrases[token.charCodeAt(0) - tokenBase])
 const unpacked = Object.fromEntries(packedMessages.map(([locale, packed]) => {

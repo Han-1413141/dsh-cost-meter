@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 import {
-  parseBailianUsage, queryBailianCli,
-  BAILIAN_TOKEN_PLAN_ARGS, BAILIAN_CODING_PLAN_ARGS,
+  parseBailianUsage, queryBailianCli, checkBailianAuth, loginBailianCli,
+  BAILIAN_TOKEN_PLAN_ARGS, BAILIAN_CODING_PLAN_ARGS, BAILIAN_AUTH_STATUS_ARGS, BAILIAN_LOGIN_ARGS,
 } from '../lib/bailian-cli.js'
 import { resolveNpmCli } from '../lib/cli-bridge.js'
 import { applyConfigPatch, sanitizeConfig } from '../lib/store.js'
@@ -82,7 +82,7 @@ const fixture = join(root, 'response.json'), calls = join(root, 'calls.jsonl')
 const env = { ...process.env, PATH: bin }
 for (const key of Object.keys(env)) if (key !== 'PATH' && key.toLowerCase() === 'path') delete env[key]
 const options = { env }
-const DEFAULT = () => ({ token: { payload: {} }, coding: { payload: codingPayload } })
+const DEFAULT = () => ({ token: { payload: {} }, coding: { payload: codingPayload }, auth: { payload: { authenticated: true, console: { masked: 'synthetic-console', source: 'config' } } }, login: {} })
 const setResponse = value => writeFileSync(fixture, JSON.stringify({ ...DEFAULT(), ...value }))
 const readCalls = () => existsSync(calls) ? readFileSync(calls, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line)) : []
 const count = () => readCalls().length
@@ -92,6 +92,7 @@ const until = async predicate => {
 }
 const savedEnv = { PATH: process.env.PATH, DSH_HOME: process.env.DSH_HOME }
 const cleanups = []
+let cancelQueries
 try {
   mkdirSync(dirname(entry), { recursive: true })
   writeFileSync(join(pkg, 'package.json'), JSON.stringify({ name: 'bailian-cli', type: 'module', bin: { bl: 'dist/bailian.mjs', bailian: 'dist/bailian.mjs' } }))
@@ -99,12 +100,14 @@ try {
   writeFileSync(join(bin, 'bl.cmd'), '@echo SHOULD_NOT_EXECUTE_THIS_SHIM\r\nexit /b 99\r\n')
   const program = `import fs from 'node:fs';
 const config = JSON.parse(fs.readFileSync(${JSON.stringify(fixture)}, 'utf8'));
-const which = process.argv.includes('token-plan') ? 'token' : 'coding';
+const which = process.argv[2] === 'auth' ? (process.argv[3] === 'status' ? 'auth' : 'login') : process.argv.includes('token-plan') ? 'token' : 'coding';
 fs.appendFileSync(${JSON.stringify(calls)}, JSON.stringify(process.argv.slice(2)) + '\\n');
 const spec = config[which] ?? {};
 if (spec.wait) await new Promise(r => setTimeout(r, spec.wait));
+if (spec.stdin) await new Promise(r => { process.stdin.on('end', r); process.stdin.resume(); });
 if (spec.stderr) process.stderr.write(spec.stderr);
 if (spec.exit) process.exit(spec.exit);
+if (which === 'login' && config.afterLogin) { config.auth = { payload: config.afterLogin }; fs.writeFileSync(${JSON.stringify(fixture)}, JSON.stringify(config)); }
 process.stdout.write(spec.raw ?? JSON.stringify(spec.payload ?? {}));
 `
   writeFileSync(entry, program)
@@ -126,9 +129,9 @@ process.stdout.write(spec.raw ?? JSON.stringify(spec.payload ?? {}));
   assert.deepEqual(new Set(argvs.map(a => a.join('|'))), new Set([BAILIAN_TOKEN_PLAN_ARGS.join('|'), BAILIAN_CODING_PLAN_ARGS.join('|')]))
 
   // 单命令失败 → 另一来源作答;双命令失败 → 分类错误且绝不回吐子进程输出。
-  setResponse({ token: { exit: 3, stderr: 'SECRET_TOKEN_OUTPUT' } })
+  setResponse({ token: { exit: 1, stderr: 'SECRET_TOKEN_OUTPUT' } })
   assert.equal((await queryBailianCli('en', options)).windows.source.text, 'Coding Plan (pro) (CLI)')
-  setResponse({ token: { exit: 3, stderr: 'SECRET_A' }, coding: { exit: 3, stderr: 'SECRET_B' } })
+  setResponse({ token: { exit: 1, stderr: 'SECRET_A' }, coding: { exit: 1, stderr: 'SECRET_B' } })
   await assert.rejects(queryBailianCli('en', options), e => e.code === 'failed' && !JSON.stringify(e).includes('SECRET') && !e.message.includes('SECRET'))
   setResponse({ token: { raw: 'SECRET_INVALID' }, coding: { raw: 'SECRET_INVALID' } })
   await assert.rejects(queryBailianCli('en', { ...options, maxBuffer: 2048 }), e => e.code === 'invalid' && !JSON.stringify(e).includes('SECRET'))
@@ -149,12 +152,45 @@ process.stdout.write(spec.raw ?? JSON.stringify(spec.payload ?? {}));
   await assert.rejects(cancellation)
   await assert.rejects(queryBailianCli('en', { env: { PATH: '.;' }, platform: 'win32' }), e => e.code === 'missing' && e.soft === true)
 
+  // Console credentials are required for usage; API-key-only auth cannot pass.
+  setResponse({ auth: { payload: { authenticated: false } } })
+  assert.deepEqual(await checkBailianAuth('en', options), { authenticated: false })
+  setResponse({ auth: { payload: { authenticated: true, api_key: { masked: 'SECRET_API_ONLY' } } } })
+  assert.deepEqual(await checkBailianAuth('en', options), { authenticated: false })
+  setResponse({})
+  assert.deepEqual(await checkBailianAuth('en', options), { authenticated: true })
+  assert.deepEqual(readCalls().at(-1), BAILIAN_AUTH_STATUS_ARGS)
+  for (const auth of [{ payload: {} }, { raw: 'SECRET_NOT_JSON' }, { exit: 1, stderr: 'SECRET_STATUS' }]) {
+    setResponse({ auth })
+    await assert.rejects(checkBailianAuth('en', options), e => ['failed', 'invalid'].includes(e.code) && !JSON.stringify(e).includes('SECRET') && !e.message.includes('SECRET'))
+  }
+  setResponse({ auth: { wait: 5000 } })
+  await assert.rejects(checkBailianAuth('en', { ...options, timeoutMs: 100 }), { code: 'timeout' })
+
+  setResponse({ auth: { payload: { authenticated: false } }, login: { raw: 'SECRET_LOGIN_OUTPUT', stdin: true }, afterLogin: DEFAULT().auth.payload })
+  const loginStart = count()
+  assert.deepEqual(await loginBailianCli('en', options), { ok: true, message: '' })
+  assert.deepEqual(readCalls().slice(loginStart), [BAILIAN_LOGIN_ARGS, BAILIAN_AUTH_STATUS_ARGS])
+  setResponse({ auth: { payload: { authenticated: true, api_key: {} } } })
+  await assert.rejects(loginBailianCli('en', options), { code: 'auth' })
+  for (const locale of ['zh', 'en']) {
+    setResponse({ login: { exit: 1, stderr: 'SECRET_RAW_LOGIN_ERROR' } })
+    await assert.rejects(loginBailianCli(locale, options), e => e.code === 'loginFailed' && !JSON.stringify(e).includes('SECRET') && !e.message.includes('SECRET') && /百炼|Bailian/.test(e.message))
+    setResponse({ login: { wait: 5000 } })
+    await assert.rejects(loginBailianCli(locale, { ...options, timeoutMs: 100 }), { code: 'loginTimeout' })
+  }
+  setResponse({ login: { wait: 5000 } })
+  const loginAbort = new AbortController(), loginPending = loginBailianCli('en', { ...options, signal: loginAbort.signal })
+  loginAbort.abort()
+  await assert.rejects(loginPending, { name: 'AbortError' })
+  await assert.rejects(loginBailianCli('en', { env: { PATH: '.;' }, platform: 'win32' }), { code: 'missing' })
+
   // ── e2e:三态配置、调度、缓存、账本与 codec ──
   process.env.PATH = bin
   process.env.DSH_HOME = join(root, 'dsh')
   const services = {}
   apply({ on: () => () => {}, inject() {}, get: () => undefined, logger: { info() {}, warn() {}, error() {} },
-    effect: fn => { const cleanup = fn(); if (typeof cleanup === 'function') cleanups.push(cleanup) },
+    effect: (fn, label) => { const cleanup = fn(); if (typeof cleanup === 'function') cleanups.push(cleanup); if (label === 'cost-meter: quota query cancellation') cancelQueries = cleanup },
     provide: (name, service) => { services[name] = service },
   })
   const api = services.costMeter
@@ -200,7 +236,7 @@ process.stdout.write(spec.raw ?? JSON.stringify(spec.payload ?? {}));
   assert.match(result.message, /no valid plan quota/)
   assert.deepEqual(result.state.codingPlans.qwen.windows, {})
   // 硬失败:双命令退出 → error + 登录提示,错误遵守查询间隔。
-  setResponse({ token: { exit: 3, stderr: 'SECRET_CHILD_A' }, coding: { exit: 3, stderr: 'SECRET_CHILD_B' } })
+  setResponse({ token: { exit: 1, stderr: 'SECRET_CHILD_A' }, coding: { exit: 1, stderr: 'SECRET_CHILD_B' } })
   result = await api.refreshCodingPlan('qwen')
   assert.equal(result.ok, false)
   assert.equal(result.state.codingPlans.qwen.status, 'error')
@@ -209,6 +245,58 @@ process.stdout.write(spec.raw ?? JSON.stringify(spec.payload ?? {}));
   const errorCount = count()
   await api.getState(); await api.getState()
   assert.equal(count(), errorCount, 'errors are cached instead of spawning every poll')
+
+  assert.equal(result.state.codingPlans.qwen.loginRequired, undefined, 'network/query failure with console credentials is not a login prompt')
+  setResponse({ token: { exit: 3 }, coding: { exit: 3 } })
+  result = await api.refreshCodingPlan('qwen')
+  assert.equal(result.state.codingPlans.qwen.loginRequired, true, 'explicit CLI AUTH exit can require login even when a credential is stored')
+  setResponse({ token: { exit: 1 }, coding: { exit: 1 }, auth: { payload: { authenticated: false } } })
+  result = await api.refreshCodingPlan('qwen')
+  assert.equal(result.state.codingPlans.qwen.loginRequired, true)
+  codec(result.state)
+  setResponse({ token: { exit: 1 }, coding: { exit: 1 }, auth: { raw: 'SECRET_BAD_STATUS' } })
+  result = await api.refreshCodingPlan('qwen')
+  assert.equal(result.state.codingPlans.qwen.loginRequired, undefined, 'unknown status remains a query failure')
+
+  setResponse({ login: { wait: 500 }, afterLogin: DEFAULT().auth.payload })
+  const concurrentLoginStart = count()
+  const logins = [api.loginCodingPlan('qwen'), api.loginCodingPlan('qwen'), api.loginCodingPlan('qwen')]
+  await until(() => readCalls().slice(concurrentLoginStart).some(args => args.join('|') === BAILIAN_LOGIN_ARGS.join('|')))
+  const whileLogin = count()
+  await api.getState(); await api.getState()
+  assert.equal(count(), whileLogin, 'polling does not query quota during login')
+  const loginResults = await Promise.all(logins)
+  for (const completed of loginResults) {
+    assert.equal(completed.ok, true)
+    assert.equal(completed.state.codingPlans.qwen.status, 'ok')
+    assert.equal(completed.state.codingPlans.qwen.loginRequired, undefined)
+    assert.match(completed.message, /login completed/)
+    codec(completed.state)
+  }
+  assert.equal(count(), concurrentLoginStart + 4, 'concurrent login shares one login, status check and quota pair')
+  setResponse({ login: { exit: 1, stderr: 'SECRET_SERVICE_LOGIN' } })
+  result = await api.loginCodingPlan('qwen')
+  assert.equal(result.ok, false)
+  assert.ok(!JSON.stringify(result).includes('SECRET'))
+  assert.match(result.message, /Bailian CLI login failed/)
+  assert.notEqual((await api.loginCodingPlan('minimax')).message, 'codingPlanLoginNotSupported')
+
+  setResponse({ token: { payload: {} }, coding: { payload: {} } })
+  result = await api.loginCodingPlan('qwen')
+  assert.equal(result.ok, true, 'auth success does not promise a subscription')
+  assert.equal(result.state.codingPlans.qwen.status, 'off')
+  assert.match(result.message, /login completed, but quota query failed/)
+
+  setResponse({ login: { wait: 5000 } })
+  const switchedLoginStart = count(), switchedLogin = api.loginCodingPlan('qwen')
+  await until(() => count() > switchedLoginStart)
+  await api.updateConfig({ codingPlans: { qwen: { quotaSource: 'local' } } })
+  result = await switchedLogin
+  assert.equal(result.ok, false)
+  assert.match(result.message, /cancelled/)
+  assert.equal(result.state.codingPlans.qwen.quotaSource, 'local')
+  setResponse({})
+  await api.updateConfig({ codingPlans: { qwen: { quotaSource: 'bailian' } } })
 
   // 竞态:晚到的 Bailian 结果不能覆盖已切回的本地估算。
   setResponse({ token: { wait: 1500 }, coding: { wait: 1500 } })
@@ -227,9 +315,13 @@ process.stdout.write(spec.raw ?? JSON.stringify(spec.payload ?? {}));
   const disabledCount = count()
   await api.getState(); await api.refreshCodingPlan('qwen')
   assert.equal(count(), disabledCount)
+  assert.equal((await api.loginCodingPlan('qwen')).ok, false)
+  assert.equal(count(), disabledCount, 'disabled login never executes a child')
   await api.updateConfig({ codingPlans: { qwen: { enabled: true, display: 'off' } } })
   await api.getState()
   assert.equal(count(), disabledCount, 'hidden source never executes the CLI')
+  assert.equal((await api.loginCodingPlan('qwen')).ok, false)
+  assert.equal(count(), disabledCount, 'hidden login never executes a child')
 
   // 重启读回:磁盘三态配置经 store 加载路径保留(此时 display=off,不触发查询)。
   // 账本 flush 有防抖:先等 off 真正落盘,再起第二个实例,否则旧快照会重新触发查询。
@@ -248,6 +340,16 @@ process.stdout.write(spec.raw ?? JSON.stringify(spec.payload ?? {}));
   const clientSrc = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
   assert.ok(clientSrc.includes('value:"bailian"'), '额度来源下拉含百炼第三项')
   assert.ok(clientSrc.includes('qwenBailianNote') && clientSrc.includes('qwenSourceBailian'), '百炼双语文案存在')
+
+  setResponse({ login: { wait: 5000 } })
+  await api.updateConfig({ codingPlans: { qwen: { display: 'both' } } })
+  const unloadStart = count(), unloadLogin = api.loginCodingPlan('qwen')
+  await until(() => count() > unloadStart)
+  cancelQueries()
+  result = await unloadLogin
+  assert.equal(result.ok, false)
+  assert.match(result.message, /cancelled/)
+  assert.equal(result.state, undefined, 'unloaded service cannot rebuild state')
 } finally {
   for (const cleanup of cleanups.reverse()) cleanup()
   for (const [name, value] of Object.entries(savedEnv)) { if (value === undefined) delete process.env[name]; else process.env[name] = value }
