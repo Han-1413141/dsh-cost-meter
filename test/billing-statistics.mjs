@@ -65,6 +65,16 @@ try {
   const page2 = await getSessionBilling(detailLedger, ctx, { ...q, offset: 50 })
   assert.equal(page2.calls.length, 12)
   assert.equal(page2.cost, detail.cost, 'pagination cannot shrink the full-session amount')
+  assert.deepEqual(page2.callShares, detail.callShares, 'call chart is identical across call pages')
+  assert.equal(detail.callShares.length, 8, 'seven calls and one bounded remainder')
+  assert.equal(detail.callShares.at(-1).calls, 55)
+  assert.equal(detail.callShares.reduce((n, row) => n + row.calls, 0), 62)
+  assert.ok(Math.abs(detail.callShares.reduce((n, row) => n + row.cost, 0) - detail.cost) < 1e-12)
+  assert.equal(detail.callShares.reduce((n, row) => n + row.tokens, 0), 62 * 180, 'overlapping reasoning tokens are not added again')
+  const expensiveRecords = records.map((row, i) => i === records.length - 1 ? { ...row, data: { ...row.data, usage: { inputTokens: 10000 } } } : row)
+  const expensiveCtx = { get: () => ({ get: () => ({ header: { createdAt: at }, snapshotEvents: () => expensiveRecords }) }) }
+  const expensive = await getSessionBilling(detailLedger, expensiveCtx, q)
+  assert.equal(expensive.callShares[0].index, 61, 'a high-cost call on the second page ranks first')
   assert.equal(detail.totalTurns, 62)
   assert.equal(detail.turns.length, 25)
   assert.equal(detail.calls[0].turn, 0)
@@ -93,6 +103,15 @@ try {
   assert.equal(mixed.kinds.find(r => r.kind === 'model').apiCost, 0, 'Plan equivalent stays separate')
   assert.equal(mixed.calls[0].step, 0)
   for (const key of ['cost', 'apiCost']) for (const groups of [mixed.turns, mixed.kinds]) assert.ok(Math.abs(groups.reduce((n, r) => n + r[key], 0) - mixed[key]) < 1e-12)
+  for (const basis of ['api', 'plan', 'total']) {
+    const ranked = await getSessionBilling({ ...detailLedger, config: { ...config, planBilling: { models: { 'test:m': 'plan' } } } }, mixedCtx, { ...q, basis })
+    const value = row => basis === 'api' ? row.apiCost : basis === 'plan' ? row.cost - row.apiCost : row.cost
+    assert.ok(Math.abs(ranked.callShares.reduce((n, row) => n + value(row), 0) - value(ranked)) < 1e-12)
+    assert.ok(ranked.callShares.slice(0, -1).every((row, i, rows) => !i || value(row) <= value(rows[i - 1])), 'ranking follows the selected cost basis')
+  }
+  const unknownLedger = { ...detailLedger, config: { ...config, prices: { providers: {} } } }
+  const unknown = await getSessionBilling(unknownLedger, ctx, q)
+  assert.ok(unknown.callShares.every(row => row.unpriced), 'unknown prices remain unknown, including the remainder')
 
   let factory
   const react = { createElement() {}, useEffect() {}, useState() {} }

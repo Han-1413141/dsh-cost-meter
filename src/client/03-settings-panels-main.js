@@ -55,6 +55,11 @@
       const open = !hidden && !!props.sessionId && openedId === props.sessionId
       useEffect(() => { if (open) dialog.current?.showModal() }, [open])
       useEffect(() => { setOpenedId(null) }, [props.sessionId, hidden])
+      useEffect(() => {
+        if (!props.sessionId || hidden || !state) return
+        const timer = setTimeout(() => { if (!document.hidden) void warmPage(props.api.loadStatistics, { state, sessionId: props.sessionId }) }, 300)
+        return () => clearTimeout(timer)
+      }, [props.sessionId, hidden, !!state, state?.total?.calls])
       if (!props.sessionId || hidden) return null
       const en = resolveLocale(state?.config) === 'en'
       const label = en ? 'Conversation cost details' : '本会话费用明细'

@@ -155,7 +155,7 @@ const registrations = new Map(), cleanups = []
 vm.runInNewContext(readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8'), {
   window: { __ModuleLoader__: { load: m => { mainFactory = m.factory } } }, navigator: { language: 'zh-CN' },
   document: { querySelector: () => ({}), addEventListener() {}, removeEventListener() {}, hidden: false },
-  setInterval: () => 1, clearInterval() {},
+  setInterval: () => 1, clearInterval() {}, setTimeout, clearTimeout,
 })
 let loadCount = 0
 const requireClient = id => id === 'react' ? React : {}

@@ -26,16 +26,19 @@ window.__ModuleLoader__={load:mod=>window.statsUI=mod.factory(()=>React)};
 ${readFileSync('lib/client.statistics.js', 'utf8')}
 const UI=window.statsUI, count={input:1176,cacheRead:117600,cacheWrite:0,output:5894,reasoning:0,calls:7,cost:.027104,apiCost:.027104};
 const rows=[['input',1176,1],['cacheRead',117600,.02],['output',5894,4]].map(([bucket,tokens,rate])=>({bucket,tokens,rate,cost:tokens*rate/1e6,provider:'deepseek-official',model:'deepseek-flash',priced:true,plan:false}));
-const detail={found:true,...count,rows,calls:Array.from({length:7},(_,i)=>({sessionId:'current',kind:'model',turn:1,step:i+1,provider:'deepseek-official',model:'deepseek-flash',atMs:1791508800000,cost:.003872,apiCost:.003872,plan:false,priced:true,longContext:false,rows:rows.map(row=>({...row,tokens:row.tokens/7,cost:row.cost/7}))})),totalCalls:7,offset:0,recorded:{...count,cost:0,apiCost:0,calls:0},kinds:[{...count,kind:'model',unpriced:false}],turns:[{...count,sessionId:'current',turn:1}],totalTurns:1,turnOffset:0,stepShares:{cost:[{...count,sessionId:'current',turn:1,step:1,other:false,unpriced:false}],calls:[]}};
+const detail={found:true,...count,rows,calls:Array.from({length:7},(_,i)=>({sessionId:'current',kind:'model',turn:1,step:i+1,provider:'deepseek-official',model:'deepseek-flash',atMs:1791508800000,cost:.003872*(i+1)/4,apiCost:.003872*(i+1)/4,plan:false,priced:true,longContext:false,rows:rows.map(row=>({...row,tokens:row.tokens*(i+1)/28,cost:row.cost*(i+1)/28}))})),totalCalls:7,offset:0,recorded:{...count,cost:0,apiCost:0,calls:0},kinds:[{...count,kind:'model',unpriced:false}],turns:[{...count,sessionId:'current',turn:1}],totalTurns:1,turnOffset:0,stepShares:{cost:[{...count,sessionId:'current',turn:1,step:1,other:false,unpriced:false}],calls:[]}};
+detail.callShares=detail.calls.map((call,index)=>({index,cost:call.cost,apiCost:call.apiCost,tokens:call.rows.reduce((n,r)=>n+r.tokens,0),calls:1,other:false,unpriced:false})).sort((a,b)=>b.cost-a.cost);
+window.detail=detail;
 const parts={system:2291,tools:9017,user:14,inject:378,skill:2692,assistant:2469,tool:1044,other:1};
 window.contextData={status:'ready',sessionId:'current',generatedAt:1791508800000,revision:2,provider:'deepseek-official',model:'deepseek-flash',basis:'api',priced:true,source:'usage',linked:true,contextTokens:17906,components:Object.entries(parts).map(([key,tokens])=>({key,tokens})),rates:{input:1,cacheRead:.02,cacheWrite:0,output:4,reasoning:0},longContext:null,lastCall:{...detail.calls[0],cost:.00387392,rows:[['input',168,1],['cacheRead',16896,.02],['output',842,4]].map(([bucket,tokens,rate])=>({bucket,tokens,rate,cost:tokens*rate/1e6,priced:true,plan:false}))}};
-window.requests=[];window.refreshFails=false;window.rpcDelay=0;
-const api={getBillingStatistics:async()=>{throw Error('conversation entry must never fetch global statistics')},getSessionBilling:async q=>{window.requests.push(q);if(window.rpcDelay)await new Promise(resolve=>setTimeout(resolve,window.rpcDelay));if(window.refreshFails)throw Error('offline fixture');return detail},getContextCosts:async q=>({...window.contextData,sessionId:q.sessionId}),getTurnInspection:async()=>({found:true,input:'Synthetic local input',tools:[],turn:1,totalTools:0,offset:0})};
+window.requests=[];window.refreshFails=false;window.rpcDelay=250;window.completedReads=0;
+const api={getBillingStatistics:async()=>{throw Error('conversation entry must never fetch global statistics')},getSessionBilling:async q=>{window.requests.push(q);if(window.rpcDelay)await new Promise(resolve=>setTimeout(resolve,window.rpcDelay));if(window.refreshFails)throw Error('offline fixture');window.completedReads++;return {...window.detail,calls:window.detail.calls.slice(q.offset,q.offset+50),offset:q.offset}},getContextCosts:async q=>({...window.contextData,sessionId:q.sessionId}),getTurnInspection:async()=>({found:true,input:'Synthetic local input',tools:[],turn:1,totalTools:0,offset:0})};
 const integrationState={enabled:true,available:true,saving:false,error:'',peer:{version:'0.66.0'}};
 const manager={subscribe:()=>()=>{},getSnapshot:()=>integrationState,preview(){},refresh(){},choose(){}};
 const config={locale:'zh',currency:'USD',exchangeRate:1,decimals:6,showTotalWithPlan:false,contextCostsEnabled:true};
 const state={config,meta:{dayKey:'2026-10-10',timezone:'Asia/Shanghai'},total:count,today:count};
 const StatisticsPage=props=>h(UI.SessionStatistics,{...props,contextIntegration:{manager,getLocale:()=>config.locale}});
+StatisticsPage.prefetch=props=>UI.prefetchStatistics(api,props);
 api.loadStatistics=async()=>StatisticsPage;
 const root=createRoot(document.getElementById('root'));
 window.renderSession=(id='current')=>root.render(h(window.mainUI.preview.SessionStatisticsButton,{sessionId:id,useCost:()=>({state}),api,entryPosition:'dock'}));
@@ -64,7 +67,12 @@ await page.route('**/*', route => {
 })
 try {
   await page.goto(url); await page.waitForFunction(() => window.fixtureReady)
+  await page.waitForFunction(()=>window.completedReads>0)
+  assert.equal(await page.locator('dialog').count(),0,'prefetch prepares data before opening a dialog')
   await page.locator('.cm-stat-entry').click()
+  await page.locator('.cm-stat-metrics').waitFor()
+  assert.equal(await page.getByText('正在读取本对话的用量明细…',{exact:true}).count(),0,'preloaded data is present on opening')
+  await page.evaluate(()=>{window.rpcDelay=0})
   await page.locator('.cm-cost-key').first().waitFor()
   assert.equal(await page.getByText('← 全部对话', { exact: true }).count(), 0)
   assert.equal(await page.getByText('近 7 天', { exact: true }).count(), 0)
@@ -73,8 +81,21 @@ try {
   assert.match(await page.locator('.cm-stat-metrics').innerText(), /7/)
   assert.equal(await page.locator('.cm-session-options').evaluate(n => n.open), false)
   assert.equal(await page.locator('.cm-context-setting').evaluate(n => n.open), false)
-  assert.equal(await page.locator('.cm-cost-table').first().evaluate(n => n.open), false)
-  const firstChart = page.locator('.cm-cost-chart').first()
+  assert.equal(await page.getByText('费用口径与更新时间',{exact:true}).count(),0)
+  assert.equal(await page.getByText('统计口径',{exact:true}).count(),0)
+  assert.equal(await page.getByText(/账本与可用明细不同/).count(),0)
+  const callShare=page.getByRole('region',{name:'每次调用费用占比',exact:true})
+  await callShare.getByRole('button',{name:'调用 #7 25.0%',exact:true}).click()
+  await page.locator('#cm-stat-call-6[open] .cm-cost-chart').waitFor()
+  assert.match(await page.locator('#cm-stat-call-6>summary').innerText(),/25.0%/)
+  assert.match(await page.locator('#cm-stat-call-6 .cm-cost-legend').innerText(),/缓存读取/)
+  await page.locator('#cm-stat-call-6>summary').click()
+  await page.waitForFunction(()=>!document.querySelector('#cm-stat-call-6').open)
+  await page.locator('.cm-stat-dialog-body').evaluate(n=>{n.scrollTop=0})
+  await page.getByRole('button',{name:'上下文',exact:true}).click()
+  await page.locator('.cm-cost-table').first().waitFor()
+  assert.equal(await page.locator('.cm-cost-table').first().evaluate(n=>n.open),false)
+  const firstChart = page.locator('.cm-context-current .cm-cost-chart')
   await firstChart.getByRole('button', { name: '系统提示 12.8%', exact: true }).click()
   await firstChart.getByText('2,291 tokens', { exact: true }).waitFor()
   assert.match(await firstChart.locator('[role=status]').innerText(), /2,291 tokens/)
@@ -95,6 +116,11 @@ try {
   await page.mouse.move(8, 8)
   await page.waitForFunction(()=>!document.querySelector('.cm-cost-chart [data-active=true]'))
   assert.equal(await firstChart.locator('[data-active=true]').count(), 0, 'clicking a legend never latches selection')
+  await page.waitForTimeout(180)
+  await page.screenshot({path:join(output,'06-context-compact.png')})
+  await page.getByRole('button',{name:'费用概览',exact:true}).click()
+  const mainFit=await page.locator('.cm-stat-dialog-body').evaluate(n=>({height:n.clientHeight,content:n.scrollHeight}))
+  assert.ok(mainFit.content<=mainFit.height+1,'overview with seven calls fits without scrolling on desktop')
   for (const [name, width, height, theme] of [['01-session-light',1280,900,'light'],['02-session-dark',1280,900,'dark'],['03-session-narrow',390,780,'light']]) {
     await page.setViewportSize({width,height}); await page.evaluate(theme => document.documentElement.dataset.theme=theme,theme)
     await page.locator('.cm-stat-dialog-body').evaluate(n => {n.scrollTop=0})
@@ -108,14 +134,17 @@ try {
     await page.locator('.cm-stat-entry').click(); await page.locator('.cm-cost-key').first().waitFor()
     await page.screenshot({path:join(output,name+'.png')})
   }
+  await page.setViewportSize({width:1280,height:900})
+  await page.getByRole('region',{name:'每次调用费用占比',exact:true}).scrollIntoViewIfNeeded()
+  await page.mouse.move(8,8)
+  await page.screenshot({path:join(output,'05-call-shares.png')})
   // Reopening uses the cached page and scoped data even when the RPC is slow.
   await page.keyboard.press('Escape')
-  await page.evaluate(()=>{window.rpcDelay=700})
-  const reopenedAt=Date.now()
+  await page.evaluate(()=>{window.rpcDelay=700;window.originalNow=Date.now;Date.now=()=>window.originalNow()+180000})
   await page.locator('.cm-stat-entry').click()
   await page.locator('.cm-stat-metrics').waitFor({timeout:500})
-  assert.ok(Date.now()-reopenedAt<700,'cached conversation paints before a delayed RPC finishes')
-  await page.evaluate(()=>{window.rpcDelay=0})
+  assert.match(await page.locator('.cm-stat-metrics').innerText(),/0\.027104/,'cached conversation paints while its refresh is delayed')
+  await page.evaluate(()=>{window.rpcDelay=0;Date.now=window.originalNow})
   // Dream Skin 10.9.3 applies wallpaper wash to bg-base, and its popup opacity
   // to bg-layer-2 (applyModalOverlay). Test those independent channels directly.
   await page.setViewportSize({width:1280,height:900})
@@ -134,6 +163,20 @@ try {
   await page.locator('.cm-stat-entry').click(); await page.waitForFunction(()=>window.requests.at(-1)?.sessionId==='other')
   assert.equal(await page.locator('.cm-stat-session').getAttribute('data-session-id'),'other')
   assert.ok((await page.evaluate(()=>window.requests)).every(q=>q.sessionId && !q.from && !q.to && !q.provider && !q.model),'every query stays scoped to a single complete conversation')
+  // A top call beyond the first page must jump to the right record, not the
+  // same local index on page one. Its share remains relative to the full scope.
+  await page.keyboard.press('Escape')
+  await page.evaluate(()=>{
+    const sample=window.detail.calls[0];const calls=Array.from({length:51},(_,index)=>({...sample,cost:index===50?.05:.001,apiCost:index===50?.05:.001}));
+    const ranked=calls.map((row,index)=>({index,cost:row.cost,apiCost:row.apiCost,tokens:100,calls:1,other:false,unpriced:false})).sort((a,b)=>b.cost-a.cost);
+    const remainder=ranked.splice(7);ranked.push({index:-1,cost:.044,apiCost:.044,tokens:4400,calls:44,other:true,unpriced:false});
+    window.detail={...window.detail,cost:.1,apiCost:.1,totalCalls:51,calls,callShares:ranked};window.renderSession('paged');
+  })
+  await page.locator('.cm-stat-entry').click()
+  await page.getByRole('region',{name:'每次调用费用占比',exact:true}).getByRole('button',{name:'调用 #51 50.0%',exact:true}).click()
+  await page.locator('#cm-stat-call-0[open]').waitFor()
+  assert.match(await page.locator('#cm-stat-call-0>summary').innerText(),/^#51.*50.0%/)
+  assert.equal((await page.evaluate(()=>window.requests)).at(-1).offset,50)
   assert.deepEqual(errors,[]);assert.deepEqual(external,[])
   console.log('[ok] conversation-only data, nonzero call-log totals, donut percentages, transient pointer and keyboard inspection, collapsed details/settings, fixed close, light/dark/narrow layouts, popup-opacity channel, stale refresh, session switch, zero external requests')
   console.log('Screenshots: '+output)

@@ -78,6 +78,22 @@ await check('首屏本地数据不等待冷额度请求，普通读取随后补�
   })
 })
 
+await check('本地显示设置保存不等待无关的冷额度请求', async () => {
+  const gate = deferred()
+  let saved = false, calls = 0
+  await fixture(gatewayConfig, async url => { calls++; await gate.promise; return gatewayResponse(url, 25) }, async api => {
+    const pending = api.updateConfig({ decimals: 4 }).then(state => { saved = true; return state })
+    try {
+      await until(() => saved)
+      const local = await pending
+      assert.equal(local.config.decimals, 4)
+      assert.equal(local.gatewayQuotas[0].status, 'loading')
+    } finally { gate.resolve() }
+    assert.equal((await api.getState()).gatewayQuotas[0].status, 'ok')
+    assert.equal(calls, 2, '保存与状态更新合并原有额度请求')
+  })
+})
+
 await check('网关缓存复用与失败时保留上次成功额度', () => {
   let calls = 0, fail = false
   return fixture(gatewayConfig, async url => { calls++; return fail ? new Response('', { status: 401 }) : gatewayResponse(url, 42) }, async api => {

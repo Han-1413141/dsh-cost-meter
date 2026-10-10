@@ -2,13 +2,17 @@
 
 ## 使用方式
 
-点击对话输入区的费用明细，只查看当前对话的调用日志汇总、上下文构成和调用明细。设置中的计费统计保留跨对话查询入口。
+点击对话输入区的费用明细，只查看当前对话。费用概览集中显示总费用、调用次数、Token、缓存命中率和费用构成；上下文与调用明细分别切换，减少滚动。设置中的计费统计保留跨对话查询入口。
+
+逐次调用图按整个查询范围计算占比，显示费用最高的 7 次和其余合计。点击单次调用可跨页定位；每次调用的展开区域显示输入、缓存与输出构成。缓存对比展示缓存读取占输入 Token 和输入费用的比例，不把两者的差值当作节省金额。多模型或多环节时显示相应费用分布。
 
 圆环图显示整体构成，右侧图例列出各部分百分比。悬停或用键盘聚焦圆环/图例，即可看到该部分的 Token、金额与占比。鼠标移走或焦点移出后恢复整体视图，不留下选中状态。很小的部分也可通过图例查看。完整明细默认折叠。关闭按钮固定在弹窗顶部，滚动到底部仍然可用，也可按 Esc 关闭。
 
 联动开关在对话弹窗底部的“显示与联动设置 → dsh-context 联动”中；全局统计也保留折叠入口。初次提示可关闭，之后通过“查看启用前后预览”重新打开。
 
-![单会话费用界面，使用本地示例数据](context-costs-preview.png)
+![费用概览，使用本地示例数据](cost-share-overview.png)
+
+![上下文视图，使用本地示例数据](context-costs-preview.png)
 
 图中为本地示例数据。参考输入费用与已发生调用费用分开展示，不相加。
 
@@ -50,7 +54,9 @@ dsh-context 主要展示上下文占用、组成、变化和注入事件。0.66.
 
 ## 加载与实时性
 
-入口悬停或聚焦时预加载本地统计；重复打开复用当前客户端内存中的近期结果，同一请求并发时只读取一次。缓存按会话、筛选与计价配置区分，最多保留 32 项、有效期两分钟，并后台刷新；不保存到浏览器磁盘。首次设置页先展示本地数据，再补齐余额与额度查询，未返回的额度不按零用量显示。
+当前会话稳定显示 300 毫秒后提前准备本地统计，悬停或聚焦入口也可触发准备。同一会话、筛选和计价配置的内存结果先显示，再后台刷新，避免等待时清空界面；缓存最多 32 项，仅存在于当前插件实例，卸载后清理。概览不等待上下文测量，切换上下文视图后才读取。
+
+子代理目录查询共享在途请求，持久化目录复用 5 秒，实时会话目录每次合并。首次设置页先显示本地数据，再补齐余额与额度；修改小数位等显示选项不等待无关的冷额度请求。显式额度刷新和查询配置变更仍等待对应结果。
 
 ## 实时性与费用
 
@@ -75,10 +81,10 @@ dsh-context 主要展示上下文占用、组成、变化和注入事件。0.66.
 
 Open **Cost details** beside the conversation input to see only that conversation: call-log totals, context composition, latest-call charges and turn/call details. Cross-conversation statistics remain available in Settings.
 
-Donut charts show the composition with compact percentage legends. Hover or focus a slice or legend item to inspect its amount and tokens, including tiny categories. Leaving the chart or moving keyboard focus away clears the highlight. Full tables are collapsed by default. The close button stays visible while scrolling; Escape also closes the dialog. Dialogs follow DSH popup background tokens, including dsh-dream-skin opacity.
+Overview, Context and Call details use separate compact views. Overview includes per-call shares across the full selection, cache token/cost comparisons and conditional model/activity charts. The seven highest-cost calls are individual slices; the rest are combined. Select a call to open its details, even on another page. Donut charts use a brighter palette with compact percentage legends. Hover or focus a slice or legend item to inspect its amount and tokens, including tiny categories. Leaving the chart or moving keyboard focus away clears the highlight. Full tables are collapsed by default. The close button stays visible while scrolling; Escape also closes the dialog. Dialogs follow DSH popup background tokens, including dsh-dream-skin opacity.
 
 Expand **Display and integration settings → dsh-context integration** to enable or disable the optional integration or reopen its before/after preview. Supported versions are 0.62.0 and 0.66.0. Integration starts off; dismissing the initial prompt prevents repeated automatic prompts. When enabled, costs appear inside the peer's current-context card in the conversation tab, right sidebar and `/context` overlay.
 
 Context amounts use uncached input rates as a reference; they are not itemized bills. Latest-call amounts use reported usage and configured rates, with Plan amounts shown as API equivalents. These amounts are separate and must not be added together. Unknown prices are not treated as free. Visible views react to local changes and refresh every 10 seconds; hidden views pause. No model requests or additional model API charges are introduced, and no context or ledger data is changed.
 
-Reopening statistics reuses recent in-memory results, isolated by conversation, filters and pricing rules. Concurrent reads are coalesced; cache entries are bounded and refreshed in the background. The first Settings view shows local data before balance/quota queries finish. Price settings reuse their last catalog snapshot during refresh.
+The current conversation is preloaded after a short idle delay. Reopening first displays its in-memory snapshot, isolated by conversation, filters and pricing rules, then refreshes in the background. Context measurement is deferred until its view is opened. Concurrent reads are coalesced; cache entries are bounded and refreshed in the background. Persisted session headers are shared for five seconds and live headers are merged every time. The first Settings view and local display-setting saves do not wait for unrelated balance/quota queries. Price settings reuse their last catalog snapshot during refresh.

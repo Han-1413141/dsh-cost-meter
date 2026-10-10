@@ -78,6 +78,25 @@ const fallback = { get: name => ({
 }[name]) }
 assert.deepEqual([...subagentIds('root', await readSessionHeaders(fallback))].sort(), ['child', 'nested'], '持久化回退与 live 元数据优先级正确')
 assert.deepEqual(await readSessionHeaders({ get() { throw new Error('no service') } }), [])
+// The badge and lazy statistics share one directory read; new live children are
+// visible immediately, without waiting for the short persisted-header cache.
+let directoryReads = 0, releaseDirectory
+const directoryQuery = { listSessions: async () => { directoryReads++; await new Promise(resolve => { releaseDirectory = resolve }); return headers } }
+const liveHeaders = [{ header: header('root') }]
+const cachedContext = { get: name => name === 'sessionQuery' ? directoryQuery : name === 'sessions' ? { list: () => liveHeaders } : undefined }
+const concurrentHeaders = [readSessionHeaders(cachedContext), readSessionHeaders(cachedContext), readSessionHeaders(cachedContext)]
+assert.equal(directoryReads, 1, 'parallel readers coalesce the persistent directory lookup')
+releaseDirectory(); await Promise.all(concurrentHeaders)
+liveHeaders.push({ header: header('new-live-child', 'root') })
+assert.ok(subagentIds('root', await readSessionHeaders(cachedContext)).has('new-live-child'))
+assert.equal(directoryReads, 1, 'recent directory is reused while live headers remain current')
+const realNow = Date.now
+try {
+  Date.now = () => realNow() + 6000
+  const expired = readSessionHeaders(cachedContext)
+  assert.equal(directoryReads, 2, 'expired directories are read again')
+  releaseDirectory(); await expired
+} finally { Date.now = realNow }
 assert.deepEqual((await getSessionCost(ledger, {}, 'root')).own, on.own, '旧宿主无血缘 API 仍可展示主会话费用')
 
 const invocation = TYPERT.invocations.find(item => item.method === 'getSessionCost')
