@@ -10,6 +10,36 @@ permissions:
   contents: read
 
 jobs:
+  context-costs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Install real host, browser and both supported context clients
+        run: |
+          npm install -g pnpm
+          pnpm install --frozen-lockfile
+          npm install --prefix .tmp-context-host --no-audit --no-fund @deepseek-ai/dsh@0.2.0-rc.2 react@18.2.0 react-dom@18.2.0 jsdom@28.1.0 playwright-core@1.56.1
+          mkdir -p .tmp-context-062 .tmp-context-066
+          npm pack dsh-context@0.62.0 --pack-destination .tmp-context-062
+          npm pack dsh-context@0.66.0 --pack-destination .tmp-context-066
+          tar -xzf .tmp-context-062/dsh-context-0.62.0.tgz -C .tmp-context-062
+          tar -xzf .tmp-context-066/dsh-context-0.66.0.tgz -C .tmp-context-066
+      - name: Verify read-only costs, real peer integration and dialog interaction
+        run: |
+          export DSH_TEST_NODE_MODULES="$PWD/.tmp-context-host/node_modules"
+          export DSH_TEST_UI_MODULES="$DSH_TEST_NODE_MODULES"
+          export DSH_CONTEXT_062="$PWD/.tmp-context-062/package/lib/client.js"
+          export DSH_CONTEXT_066="$PWD/.tmp-context-066/package/lib/client.js"
+          export CM_TEST_BROWSER=/usr/bin/google-chrome
+          test -x "$CM_TEST_BROWSER" || (sudo apt-get update && sudo apt-get install -y google-chrome-stable)
+          node test/context-costs.mjs
+          node test/context-costs-client.mjs
+          node test/context-costs-browser.mjs
+          node test/session-costs-browser.mjs
+
   sidebar-search-recovery:
     runs-on: ubuntu-latest
     strategy:

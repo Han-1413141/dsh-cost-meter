@@ -14,6 +14,7 @@ import { TYPERT } from '../lib/typert.host.js'
 import { billingStatistics } from '../lib/billing-statistics.js'
 import { getSessionBilling } from '../lib/turn-cost.js'
 import { getTurnInspection } from '../lib/turn-inspection.js'
+import { getContextCosts, getContextIntegration } from '../lib/context-costs.js'
 
 assert.ok(process.env.DSH_TEST_NODE_MODULES, 'set DSH_TEST_NODE_MODULES to an installed DSH runtime')
 const req = createRequire(join(resolve(process.env.DSH_TEST_NODE_MODULES), '__statistics_client.cjs'))
@@ -65,6 +66,8 @@ class Connection extends Service {
         assert.equal(channel, '/api'); calls.push([endpoint, payload.args])
         if (endpoint === 'costMeter/getState') return { ok: true, value: state }
         if (endpoint === 'costMeter/getOpenRouterCatalog') return { ok: true, value: { fetchedAt: '2026-10-09T05:00:00Z', stale: false, error: '', models: [] } }
+        if (endpoint === 'costMeter/getContextCosts') return { ok: true, value: getContextCosts(ledger, { get: () => undefined }, payload.args.query) }
+        if (endpoint === 'costMeter/getContextIntegration') return { ok: true, value: await getContextIntegration({ get: () => undefined }) }
         if (endpoint === 'costMeter/loginCodingPlan') return { ok: true, value: { ok: false, message: 'synthetic login response', state } }
         if (endpoint === 'costMeter/getBillingStatistics') return { ok: true, value: billingStatistics(ledger, payload.args.query) }
         if (endpoint === 'costMeter/getSessionBilling') return { ok: true, value: await getSessionBilling(ledger, { get: () => ({ get: () => ({ snapshotEvents: () => [] }) }) }, payload.args.query) }
@@ -125,6 +128,8 @@ try {
     await assert.rejects(api.getBillingStatistics({ ...query, turnOffset: -1 }), /Invalid statistics query/)
     assert.equal(calls.length, count, 'strict input validation runs before transport')
     assert.equal((await api.getTurnInspection({ sessionId: 'selected', turn: 1 })).found, false)
+    assert.equal((await api.getContextCosts({ sessionId: 'selected' })).status, 'session-unavailable')
+    assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))), ['costMeter/getContextCosts', { query: { sessionId: 'selected' } }])
     assert.equal((await first.api.loginCodingPlan('qwen')).message, 'synthetic login response')
     assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))), ['costMeter/loginCodingPlan', { provider: 'qwen' }], 'login RPC reaches the real gateway with its provider parameter')
     for (const fn of listeners.get('pointerover') ?? []) fn({ target: { closest: () => null } })

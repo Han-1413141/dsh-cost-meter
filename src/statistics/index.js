@@ -1,9 +1,9 @@
-/** Independently loaded billing screen. Uses ledger amounts; never estimates money from text length. */
+/** Billing history and read-only context cost composition, loaded on demand. */
 window.__ModuleLoader__.load({
   id: 'dsh-cost-meter', chunk: 'client.statistics.js',
   factory: require => {
     const React = require('react')
-    const { createElement: el, useState, useEffect, Fragment } = React
+    const { createElement: el, useState, useEffect, useRef, Fragment } = React
     const fields = ['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning', 'calls', 'cost', 'apiCost']
     const amount = (row, basis) => basis === 'total' ? row.cost : basis === 'plan' ? Math.max(0, row.cost - row.apiCost) : row.apiCost
     const tokens = row => row.input + row.cacheRead + row.cacheWrite + row.output
@@ -33,6 +33,20 @@ window.__ModuleLoader__.load({
       stepShares: object(Object.fromEntries(['cost', 'calls'].map(key => [key, array(object({ ...bucketSpec, sessionId, turn: nullableNumber, step: nullableNumber, other: boolean, unpriced: boolean }))]))) })
     const parseInspection = object({ found: boolean, turn: number, input: string, inputTruncated: boolean, totalTools: number, offset: number,
       tools: array(object({ seq: number, step: nullableNumber, name: string, callId: string, atMs: number, arguments: string, result: string, truncated: boolean, status: string })) })
+    const contextKeys = ['system', 'tools', 'user', 'inject', 'skill', 'assistant', 'tool', 'other']
+    const nonnegative = v => { if (number(v) < 0) throw new Error('Invalid context costs amount'); return v }
+    const contextRates = object(Object.fromEntries(['input', 'cacheRead', 'cacheWrite', 'output', 'reasoning'].map(key => [key, nonnegative])))
+    const optionalRates = v => v === null ? null : contextRates(v)
+    const parseContextCosts = object({ status: string, sessionId: string, generatedAt: number, revision: number, provider: string, model: string, basis: string,
+      priced: boolean, source: string, linked: boolean, contextTokens: nonnegative,
+      components: array(object({ key: v => { if (!contextKeys.includes(v)) throw new Error('Invalid context costs category'); return v }, tokens: nonnegative })),
+      rates: optionalRates, longContext: v => v === null ? null : { ...contextRates(v), aboveInputTokens: nonnegative(v.aboveInputTokens) }, lastCall: value => value === null ? null : callRow(value) })
+    const parseContextCostsQuery = value => {
+      const sessionId = string(value?.sessionId)
+      if (!sessionId || sessionId.length > 512) throw new Error('Invalid context costs session')
+      return { sessionId }
+    }
+    const parseIntegration = object({ version: string, compatible: boolean, reason: string })
     const parseInspectionQuery = value => {
       const query = object({ sessionId: string, turn: number, offset: number })({ ...value, offset: value.offset ?? 0 })
       if (!query.sessionId || query.sessionId.length > 512 || ![query.turn, query.offset].every(n => Number.isSafeInteger(n) && n >= 0) || query.offset > 1e7) throw new Error('Invalid turn inspection query')
@@ -49,9 +63,11 @@ window.__ModuleLoader__.load({
     // client already owns "dsh-cost-meter"; a lazy group needs its own identity.
     // Endpoints and type symbols still match the original Host costMeter face.
     const CONTRIBUTION = { package: 'dsh-cost-meter/statistics', descriptors: [
-      ['getBillingStatistics', 'BillingStatistics', parseStatistics], ['getSessionBilling', 'SessionBilling', parseDetail], ['getTurnInspection', 'TurnInspection', parseInspection, parseInspectionQuery],
+      ['getBillingStatistics', 'BillingStatistics', parseStatistics], ['getSessionBilling', 'SessionBilling', parseDetail], ['getTurnInspection', 'TurnInspection', parseInspection, parseInspectionQuery], ['getContextCosts', 'ContextCosts', parseContextCosts, parseContextCostsQuery],
     ].map(([method, name, parse, queryParser]) => ({ id: 'dsh-cost-meter#costMeter/' + method, service: 'costMeter', namespace: 'costMeter', method, invocation: { kind: 'direct' },
-      parameters: [{ name: 'query', wire: 'query', source: 'json', codec: codec(queryParser ? 'TurnInspectionQuery' : 'StatisticsQuery', queryParser ?? parseQuery) }], result: codec(name, parse) })) }
+      parameters: [{ name: 'query', wire: 'query', source: 'json', codec: codec(queryParser ? name + 'Query' : 'StatisticsQuery', queryParser ?? parseQuery) }], result: codec(name, parse) })).concat({
+        id: 'dsh-cost-meter#costMeter/getContextIntegration', service: 'costMeter', namespace: 'costMeter', method: 'getContextIntegration', invocation: { kind: 'direct' }, parameters: [], result: codec('ContextIntegration', parseIntegration),
+      }) }
 
     const css = `
       .cm-stat{--cm-accent:var(--dsw-alias-state-business-primary,#4d6bfe);--cm-plan:var(--dsw-alias-label-tertiary,#8b9099);--cm-muted:var(--dsw-alias-label-tertiary,#858a94);--cm-border:var(--dsw-alias-border-l3,#e9eaed);--cm-surface:var(--dsw-alias-bg-layer-1,#f7f8fa);color:var(--dsw-alias-label-primary,#25262b);font-family:var(--ds-font-family-sans,inherit);font-size:13px;line-height:1.55;container-type:inline-size}
@@ -72,7 +88,7 @@ window.__ModuleLoader__.load({
       .cm-stat-page{display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-top:14px}.cm-stat-note{padding:10px 12px;background:var(--dsw-alias-bg-layer-2,#f5f7fa);border-radius:8px;margin:12px 0!important;font-size:12px;color:var(--cm-muted)}.cm-stat-error{color:var(--dsw-alias-state-error-primary,#c75040);white-space:pre-wrap}.cm-stat-empty{padding:30px;text-align:center;color:var(--cm-muted)}.cm-stat-call{padding:11px 0;border-bottom:1px solid var(--dsw-alias-border-l1,#dce3ec)}.cm-stat-call summary{cursor:pointer;overflow-wrap:anywhere}.cm-stat-call p{overflow-wrap:anywhere;margin-top:6px}
       .cm-stat summary{cursor:pointer}.cm-stat-help{font-size:12px;color:var(--cm-muted);margin:10px 0}.cm-stat-help>p{margin-top:8px}.cm-stat-shares{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin:20px 0}.cm-stat-share-list{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:11px}.cm-stat-share-head{display:flex;justify-content:space-between;gap:12px;font-size:12px}.cm-stat-share-head>span:first-child{min-width:0;overflow-wrap:anywhere}.cm-stat-share-value{white-space:nowrap;font-variant-numeric:tabular-nums}.cm-stat-share-track{height:6px;background:var(--cm-surface);border-radius:99px;overflow:hidden;margin-top:5px}.cm-stat-share-fill{display:block;height:100%;background:var(--cm-accent);border-radius:99px;opacity:.68}.cm-stat-share-list li:nth-child(even) .cm-stat-share-fill{opacity:.42}.cm-stat-share-list li[data-other=true] .cm-stat-share-fill{background:var(--cm-plan)}
       .cm-stat-breakdown{padding-block:18px;border-block:1px solid var(--cm-border);margin-block:18px}.cm-stat-turns{margin-top:24px}.cm-stat-turn{border-top:1px solid var(--cm-border)}.cm-stat-turn-toggle{display:flex;align-items:center;gap:10px;justify-content:space-between;width:100%;text-align:left;padding:12px 4px;background:transparent;border:0}.cm-stat-turn-toggle:hover{background:var(--dsw-alias-interactive-bg-hover,#f5f6f8)}.cm-stat-turn-toggle>span:first-child{font-weight:500}.cm-stat-turn-toggle>span:last-child{color:var(--cm-muted);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}.cm-stat-inspection{background:var(--cm-surface);padding:16px;border-radius:10px;margin:0 0 12px}.cm-stat-inspection h4{font-size:12px;font-weight:500;margin:0 0 8px}.cm-stat-pre{font:12px/1.6 var(--ds-font-family-code,monospace);white-space:pre-wrap;overflow-wrap:anywhere;max-height:280px;overflow:auto;margin:8px 0 16px;padding:12px;border:1px solid var(--cm-border);background:var(--dsw-alias-bg-base,#fff);border-radius:8px}.cm-stat-tool{border-top:1px solid var(--cm-border);padding:10px 0}.cm-stat-tool summary{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px}.cm-stat-tool summary::before{content:'›';color:var(--cm-muted)}.cm-stat-tool[open] summary::before{content:'⌄'}.cm-stat-tool .cm-stat-sub{margin-left:auto}.cm-stat-truncated{color:var(--cm-muted);font-size:12px}.cm-stat-step-list{columns:2;column-gap:28px}.cm-stat-step-list li{break-inside:avoid;margin-bottom:12px}.cm-stat-step-list.cm-stat-share-list{display:block}
-      dialog:has(.cm-stat){padding:24px!important;border-color:var(--dsw-alias-border-l3,#e9eaed)!important;box-shadow:var(--dsw-elevation-prominent,0 20px 90px #0002)}dialog:has(.cm-stat)::backdrop{background:#0005}dialog:has(.cm-stat)>.cm-btn{border:0;border-radius:8px;background:transparent;font-size:20px;line-height:24px;width:28px;height:28px;padding:0;margin-left:12px}
+      .cm-stat-dialog{border-color:var(--dsw-alias-border-l3,#e9eaed);box-shadow:var(--dsw-elevation-prominent,0 20px 90px #0002)}.cm-stat-dialog-head>.cm-btn{border:0;border-radius:8px;background:transparent;font-size:22px;line-height:28px;width:32px;height:32px;padding:0}.cm-stat-dialog-head>.cm-btn:hover{background:var(--dsw-alias-interactive-bg-hover,#f0f1f4)}.cm-stat-dialog-head>.cm-btn:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#4d6bfe);outline-offset:2px}.cm-session-options{margin-top:18px;border-top:1px solid var(--cm-border);padding-top:12px}.cm-session-options>summary{color:var(--cm-muted);font-size:12px}.cm-session-options .cm-context-setting{border:0;padding:0}.cm-stat-session>.cm-stat-panel{border:0;padding:0;margin:0}.cm-stat-session .cm-stat-metrics{margin-top:0}.cm-stat-session .cm-plan{margin:20px 0}
       @container(max-width:700px){.cm-stat-shares{grid-template-columns:1fr;gap:20px}.cm-stat-step-list{columns:1}.cm-stat-turn-toggle{align-items:flex-start}.cm-stat-turn-toggle>span:last-child{max-width:60%}.cm-stat-metric{padding:10px!important}.cm-stat-metric:nth-child(2){border:0}.cm-stat-page{gap:8px}}
       @container(max-width:700px){.cm-stat-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.cm-stat-grid{grid-template-columns:1fr}.cm-stat-panel{padding:12px}.cm-stat-head{align-items:start}.cm-stat-controls label{flex:1}.cm-stat input,.cm-stat select{max-width:100%;width:100%}.cm-stat-value{font-size:23px}}
     `
@@ -163,6 +179,300 @@ window.__ModuleLoader__.load({
     const button = (label, onClick, props = {}) => el('button', { type: 'button', className: 'cm-stat-btn', onClick, ...props }, label)
     /** 失败提示的唯一出处。同一句提示此前在 6 处各写一遍,改文案或无障碍属性要动 6 个点,漏一处就出现「明细报错、概览不报」。 */
     const errorNotice = error => el('p', { className: 'cm-stat-error', role: 'alert' }, error)
+
+    function contextCostBreakdown(data) {
+      const long = !!data.longContext && data.contextTokens > data.longContext.aboveInputTokens
+      const rates = long ? data.longContext : data.rates
+      const parts = data.components.map(row => ({ ...row, cost: rates ? row.tokens * rates.input / 1e6 : 0 }))
+      return { long, rates, parts, cost: parts.reduce((sum, row) => sum + row.cost, 0) }
+    }
+    const contextCostsCss = `
+      .cm-plan{font:13px/1.55 var(--ds-font-family-sans,system-ui);color:var(--dsw-alias-label-primary);min-width:0;container-type:inline-size;--cmp-border:var(--dsw-alias-border-l3,#e5e7eb);--cmp-muted:var(--dsw-alias-label-secondary,#737780);--cmp-bg:var(--dsw-alias-bg-layer-2,#f6f7f9);--cmp-accent:var(--dsw-alias-state-business-primary,#4d6bfe)}
+      .cm-plan *{box-sizing:border-box}.cm-plan h3,.cm-plan p{margin:0}.cm-plan h3{font-size:14px;font-weight:500}.cm-plan-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}.cm-plan-sub{font-size:11px;color:var(--cmp-muted);overflow-wrap:anywhere}.cm-plan button,.cm-plan input{font:inherit;color:inherit}.cm-plan button{border:.5px solid var(--cmp-border);border-radius:var(--dsw-radius-sm,8px);padding:4px 9px;background:transparent;cursor:pointer}.cm-plan button:hover{background:var(--cmp-bg)}.cm-plan button:disabled{opacity:.5;cursor:default}.cm-plan input:focus-visible,.cm-plan button:focus-visible{outline:2px solid var(--cmp-accent);outline-offset:2px}
+      .cm-plan-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:14px 0;padding:14px 0;border-block:1px solid var(--cmp-border)}.cm-plan-amount{font-size:clamp(16px,4cqw,24px);font-variant-numeric:tabular-nums;font-weight:500;overflow-wrap:anywhere}.cm-plan-stack{display:flex;height:10px;overflow:hidden;border-radius:4px;background:var(--cmp-bg);margin-bottom:12px}.cm-plan-stack span{min-width:0}
+      .cm-plan-parts{list-style:none;margin:0;padding:0;display:grid;gap:12px}.cm-plan-part-head{display:flex;gap:8px;justify-content:space-between;align-items:baseline}.cm-plan-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px}.cm-plan-part-meta{display:flex;gap:10px;justify-content:space-between;color:var(--cmp-muted);font-size:11px;font-variant-numeric:tabular-nums}
+      .cm-plan-note{background:var(--cmp-bg);padding:10px 12px;border-radius:8px;margin-top:12px!important;font-size:12px}.cm-plan details{margin-top:12px;font-size:12px}.cm-plan summary{cursor:pointer;color:var(--cmp-muted)}.cm-plan details p{margin-top:8px}.cm-plan-error{color:var(--dsw-alias-state-error-primary,#c75040);margin-top:8px!important}.cm-plan [data-increase=true]{color:var(--dsw-alias-state-error-primary,#c75040)}.cm-plan-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.cm-plan-last{border-top:1px solid var(--cmp-border);padding-top:16px;margin-top:16px}.cm-plan-total{font-weight:500;margin-top:12px!important}.cm-plan-host{border-top:1px solid var(--cmp-border,var(--dsw-alias-border-l3,#e5e7eb));padding-top:16px;margin-top:16px}
+      .cm-cost-segments{margin:12px 0}.cm-cost-track{display:flex;height:30px;gap:2px;border-radius:7px;overflow:hidden;background:var(--cmp-bg)}.cm-plan .cm-cost-segment{min-width:0;padding:0;border:0;border-radius:0;display:flex;align-items:center;justify-content:center;overflow:hidden}.cm-cost-segment span{font-size:10px;font-weight:600;color:#202124;background:#ffffffd9;border-radius:4px;padding:0 3px;line-height:17px}.cm-cost-segment[aria-pressed=true]{box-shadow:inset 0 0 0 2px var(--cmp-accent)}.cm-cost-legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:10px}.cm-plan .cm-cost-key{padding:3px 0;border:0;border-radius:4px;font-size:11px;display:flex;gap:5px;align-items:center;color:var(--cmp-muted)}.cm-cost-key .cm-plan-dot{margin:0;flex:none}.cm-plan .cm-cost-key[aria-pressed=true]{color:var(--dsw-alias-label-primary);font-weight:600}.cm-cost-selection{min-height:42px;margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--cmp-bg);display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;font-variant-numeric:tabular-nums}.cm-cost-selection>span:last-child{text-align:right}.cm-cost-selection small{display:block;color:var(--cmp-muted);font-size:11px}.cm-cost-table .cm-plan-parts{margin-top:12px;gap:8px}.cm-context-setting>summary{font-size:12px;cursor:pointer;list-style-position:inside}.cm-context-setting>summary+div{margin-top:12px}
+      @container(max-width:420px){.cm-plan-summary{gap:8px;grid-template-columns:1fr 1fr}.cm-plan-part-head{align-items:start;flex-wrap:wrap}.cm-cost-legend{gap:4px 10px}}`
+    const contextColors = ['indigo', 'amber', 'green', 'purple', 'orange', 'blue', 'teal', 'gray'].map((name, i) => 'var(--color-' + name + '-500,' + ['#8186c7', '#c69a57', '#68a588', '#ab83b8', '#c58e6c', '#6d95c4', '#64a5a5', '#9b9da3'][i] + ')')
+    function CostSegments({ rows, total, label, text }) {
+      const [selected, setSelected] = useState('')
+      const active = rows.find(row => row.key === selected) ?? rows.reduce((best, row) => !best || row.value > best.value ? row : best, null)
+      const share = row => total > 0 ? pct(row.value, total) : '—'
+      const selectProps = row => ({ type: 'button', 'aria-pressed': active?.key === row.key, onClick: () => setSelected(row.key), onFocus: () => setSelected(row.key), onMouseEnter: () => setSelected(row.key) })
+      return el('div', { className: 'cm-cost-segments', 'aria-label': label },
+        el('div', { className: 'cm-cost-track' }, ...rows.filter(row => row.value > 0 && total > 0).map(row => el('button', { ...selectProps(row), key: row.key, className: 'cm-cost-segment', title: row.label + ' · ' + share(row) + ' · ' + row.amount, 'aria-label': row.label + ' · ' + share(row), style: { width: Math.min(100, row.value / total * 100) + '%', background: row.color } }, row.value / total >= .08 ? el('span', null, share(row)) : null))),
+        el('div', { className: 'cm-cost-legend' }, ...rows.map(row => el('button', { ...selectProps(row), key: row.key, className: 'cm-cost-key' }, el('i', { className: 'cm-plan-dot', style: { background: row.color } }), row.label, el('span', null, share(row))))),
+        active ? el('div', { className: 'cm-cost-selection', role: 'status', 'aria-live': 'polite' }, el('span', null, active.label, el('small', null, active.tokens.toLocaleString() + ' tokens')), el('span', null, active.amount, el('small', null, label + ' ' + share(active)))) : el('p', { className: 'cm-plan-sub' }, text('暂无用量', 'No usage yet')))
+    }
+    function ContextCosts({ api, sessionId, revision = '', text = (zh, en) => en, money = value => '$' + value.toLocaleString('en-US', { maximumFractionDigits: 6 }), integrated = false }) {
+      const root = useRef(null), refresh = useRef(() => {})
+      const [result, setResult] = useState({ value: null, error: '', busy: true })
+      useEffect(() => {
+        let active = true, pending = false, visible = typeof IntersectionObserver !== 'function'
+        const run = async () => {
+          if (!active || pending || !visible || document.hidden) return
+          pending = true; setResult(old => ({ ...old, busy: true }))
+          try {
+            const next = await api.getContextCosts({ sessionId })
+            if (next.sessionId !== sessionId) throw new Error('Context costs session mismatch')
+            if (active) setResult({ value: next, error: '', busy: false })
+          } catch { if (active) setResult(old => ({ ...old, busy: false, error: text('上下文费用刷新失败，保留上次结果。', 'Context cost refresh failed; previous results are retained.') })) }
+          finally { pending = false }
+        }
+        refresh.current = run
+        const observer = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); if (visible) void run() }) : null
+        if (root.current) observer?.observe(root.current)
+        void run()
+        const timer = setInterval(run, 10000)
+        document.addEventListener('visibilitychange', run)
+        return () => { active = false; clearInterval(timer); observer?.disconnect(); document.removeEventListener('visibilitychange', run) }
+      }, [api, sessionId])
+      useEffect(() => { const timer = setTimeout(() => refresh.current(), 250); return () => clearTimeout(timer) }, [revision])
+      const data = result.value?.sessionId === sessionId ? result.value : null
+      const header = el('div', { className: 'cm-plan-head' }, el('h3', null, text('上下文费用构成', 'Context cost breakdown')), el('div', null,
+        integrated && api.disableIntegration ? el('button', { type: 'button', onClick: api.disableIntegration }, text('关闭联动', 'Turn off integration')) : null,
+        el('button', { type: 'button', onClick: () => refresh.current(), disabled: result.busy }, text('刷新', 'Refresh'))))
+      const wrap = content => el('section', { className: 'cm-plan', ref: root, 'aria-label': text('当前上下文费用构成', 'Current context cost breakdown'), 'data-cm-plan-session': sessionId }, el('style', null, contextCostsCss), header,
+        integrated ? el('p', { className: 'cm-plan-sub' }, 'dsh-context × dsh-cost-meter · USD') : null,
+        result.error ? el('p', { role: 'alert', className: 'cm-plan-error' }, result.error) : null, content)
+      if (!data || data.status !== 'ready') return wrap(el('p', { className: 'cm-plan-note' }, !data
+        ? result.error ? text('点击刷新重试。', 'Select Refresh to retry.') : text('正在读取当前上下文…', 'Reading current context…')
+        : data.status === 'route-unavailable' ? text('完成一次请求后，可显示该模型的上下文费用。', 'Complete a request to see context costs at that model’s rates.')
+          : data.status === 'session-unavailable' ? text('打开此会话后可读取当前上下文。', 'Open this conversation to read its current context.')
+            : text('当前宿主未提供上下文测量；已发生费用仍可在费用明细中查看。', 'Context measurement is unavailable on this host. Recorded costs remain available in billing details.')))
+      const breakdown = contextCostBreakdown(data), priced = data.priced && !!breakdown.rates
+      const names = [text('系统提示', 'System prompt'), text('工具定义', 'Tool schemas'), text('用户输入', 'User messages'), text('注入内容', 'Injected context'), text('技能', 'Skills'), text('历史回复', 'Prior replies'), text('工具结果', 'Tool results'), text('其他', 'Other')]
+      const countText = value => Math.round(value).toLocaleString()
+      const costText = value => priced ? '≈ ' + money(value) : text('未定价', 'Unpriced')
+      const call = data.lastCall
+      const buckets = { input: text('非缓存输入', 'Uncached input'), cacheRead: text('缓存读取', 'Cache reads'), cacheWrite: text('缓存写入', 'Cache writes'), output: text('输出（含推理 Token）', 'Output (including reasoning tokens)'), reasoning: text('单独推理费用', 'Separate reasoning fees') }
+      return wrap(el(Fragment, null,
+        el('p', { className: 'cm-plan-sub' }, data.provider + ' / ' + data.model),
+        el('div', { className: 'cm-plan-summary' }, el('div', null, el('div', { className: 'cm-plan-sub' }, text('当前上下文', 'Current context')), el('div', { className: 'cm-plan-amount' }, '≈ ' + countText(data.contextTokens) + ' tokens')),
+          el('div', null, el('div', { className: 'cm-plan-sub' }, text('输入费用参考', 'Input cost reference')), el('div', { className: 'cm-plan-amount' }, costText(breakdown.cost)))),
+        el('p', { className: 'cm-plan-sub', style: { marginBottom: 12 } }, text('按非缓存输入单价估算，未计缓存折扣；不代表已发生费用。', 'Estimated at uncached input rates, before cache discounts; not a charge already incurred.')),
+        el(CostSegments, { rows: breakdown.parts.filter(row => row.tokens > 0).map(row => ({ key: row.key, label: names[contextKeys.indexOf(row.key)], tokens: Math.round(row.tokens), value: priced ? row.cost : row.tokens, amount: costText(row.cost), color: contextColors[contextKeys.indexOf(row.key)] })), total: priced ? breakdown.cost : data.contextTokens, label: priced ? text('参考费用占比', 'Reference cost share') : text('Token 占比', 'Token share'), text }),
+        el('details', { className: 'cm-cost-table' }, el('summary', null, text('展开各部分明细', 'Show component details')), el('ul', { className: 'cm-plan-parts' }, ...breakdown.parts.filter(row => row.tokens > 0).map(row => {
+          const index = contextKeys.indexOf(row.key)
+          return el('li', { key: row.key }, el('div', { className: 'cm-plan-part-head' }, el('span', null, el('i', { className: 'cm-plan-dot', style: { background: contextColors[index] } }), names[index]), el('span', null, costText(row.cost))),
+            el('div', { className: 'cm-plan-part-meta' }, el('span', null, '≈ ' + countText(row.tokens) + ' tokens'), el('span', null, priced ? pct(row.cost, breakdown.cost) : '—')))
+        }))),
+        call ? el('section', { className: 'cm-plan-last' }, el('h3', null, text('最近一次调用 · 用量计费', 'Latest call · usage-based costs')),
+          el('p', { className: 'cm-plan-sub' }, call.provider + ' / ' + call.model + ' · ' + new Date(call.atMs).toLocaleString()),
+          el(CostSegments, { rows: call.rows.filter(row => row.tokens > 0 && (row.bucket !== 'reasoning' || row.rate > 0)).map((row, i) => ({ key: row.bucket, label: buckets[row.bucket] ?? row.bucket, tokens: row.tokens, value: row.cost, amount: call.priced ? money(row.cost) : text('未定价', 'Unpriced'), color: contextColors[i] })), total: call.priced ? call.cost : 0, label: text('费用占比', 'Cost share'), text }),
+          el('details', { className: 'cm-cost-table' }, el('summary', null, text('展开调用明细', 'Show call details')), el('ul', { className: 'cm-plan-parts', style: { marginTop: 12 } }, ...call.rows.filter(row => row.bucket !== 'reasoning' || row.rate > 0).map(row => el('li', { key: row.bucket },
+            el('div', { className: 'cm-plan-part-head' }, el('span', null, buckets[row.bucket] ?? row.bucket), el('span', null, call.priced ? money(row.cost) : text('未定价', 'Unpriced'))),
+            el('div', { className: 'cm-plan-part-meta' }, el('span', null, countText(row.tokens) + ' tokens'), el('span', null, call.priced ? pct(row.cost, call.cost) : '—')))))),
+          el('p', { className: 'cm-plan-total' }, text('合计 ', 'Total ') + (call.priced ? money(call.cost) : text('未定价', 'Unpriced')) + (call.plan ? text(' · Plan 的 API 等值', ' · Plan API equivalent') : '')),
+          el('p', { className: 'cm-plan-sub' }, text('基于提供商返回用量与调用时段的配置费率；与上方上下文参考费用不相加。', 'Uses reported usage and configured rates for the call time; do not add it to the context reference above.')))
+          : el('p', { className: 'cm-plan-note' }, text('尚无已完成调用的用量数据。', 'No reported usage from a completed call yet.')),
+        !priced ? el('p', { className: 'cm-plan-note' }, text('此模型没有可用单价；未知金额不按零计算。请在费用设置中配置价格。', 'This model has no available rates; unknown costs are not zero. Configure prices in Cost settings.')) : null,
+        data.basis === 'plan' ? el('p', { className: 'cm-plan-note' }, text('当前为 Plan：参考金额是 API 等值，不代表额外扣款。', 'This is a Plan route: reference amounts are API equivalents, not extra charges.')) : null,
+        el('details', null, el('summary', null, text('费用口径与更新时间', 'Cost basis and update time')),
+          el('p', null, text('当前上下文分类为近似组成。提供商没有返回逐项缓存命中，不能把真实账单精确分配到每段上下文。历史回复在当前上下文中按输入计算。', 'Context categories are approximate. Providers do not report cache hits per category, so actual charges cannot be precisely assigned to each context part. Prior replies count as input in the current context.')),
+          el('p', null, text('仅显示当前会话，不跟随历史步骤选中状态；模型采用最近请求的配置。', 'Shows the current conversation, independent of selected historical steps; uses the last requested model.')),
+          el('p', null, (data.linked ? text('组成来源：dsh-context + DSH token-meter。', 'Composition: dsh-context + DSH token-meter.') : text('组成来源：DSH token-meter。', 'Composition: DSH token-meter.')) + (data.source === 'usage' ? text(' 总量经提供商用量校准。', ' Total anchored to provider usage.') : text(' 总量为宿主估算。', ' Total estimated by the host.'))),
+          el('p', null, text('仅含 Token 费用；搜索、工具服务等独立费用请查看费用明细。', 'Token costs only; see billing details for search and tool-service charges.')),
+          el('p', null, (breakdown.long ? text('采用长上下文单价。', 'Uses long-context rates. ') : '') + text('最近更新：', 'Updated: ') + new Date(data.generatedAt).toLocaleString()))))
+    }
+
+    /** Public slot shadowing preserves the foreign registration and its props. */
+    const contextTargets = [['conversation.view', 'id', 'context'], ['sidebar.right.pane.tab', 'key', 'dsh-context'], ['conversation.input.overlay', 'id', 'context-modal']]
+    function installContextCosts(ctx, api, getLocale, createPortal, localeStore) {
+      const slots = ctx.get('slots')
+      if (!['entries', 'subscribe', 'register', 'entriesOfSlot'].every(key => typeof slots?.[key] === 'function')) return () => {}
+      const disposers = [], bridges = new Map()
+      let active = true
+      function wrap(Original) {
+        return function ContextCostBridge(props) {
+          if (localeStore) React.useSyncExternalStore(localeStore.subscribe, getLocale)
+          const container = useRef(null), [target, setTarget] = useState(null)
+          const composition = props.useProjection?.('contextBreakdown'), usage = props.useProjection?.('tokenUsage')
+          const revision = JSON.stringify([composition, usage])
+          useEffect(() => {
+            if (!container.current || typeof MutationObserver !== 'function') return
+            const node = document.createElement('div'); node.className = 'cm-plan-host'; node.dataset.cmContextCosts = ''
+            const sync = () => {
+              const card = container.current?.querySelector('[data-lc-current]')
+              if (!card) { node.remove(); setTarget(null); return }
+              if (node.parentElement !== card) { card.appendChild(node); setTarget(node) }
+            }
+            const observer = new MutationObserver(sync)
+            observer.observe(container.current, { childList: true, subtree: true }); sync()
+            return () => { observer.disconnect(); node.remove() }
+          }, [props.sessionId])
+          const text = (zh, english) => getLocale() === 'en' ? english : zh
+          return el('div', { ref: container, style: { display: 'contents' }, 'data-cm-context-bridge': props.sessionId }, el(Original, props),
+            target && props.sessionId ? createPortal(el(ContextCosts, { key: props.sessionId, api, sessionId: props.sessionId, integrated: true, text, revision }), target) : null)
+        }
+      }
+      for (const [name, key, id] of contextTargets) {
+        let syncing = false
+        const sync = () => {
+          if (!active || syncing) return
+          syncing = true
+          try {
+          const matches = slots.entries(name).filter(entry => entry.locale === 'dsh-context' && entry.options[key] === id && entry.registrant !== 'dsh-cost-meter-context-bridge')
+          const original = matches.length === 1 ? matches[0] : null, previous = bridges.get(name)
+          if (previous?.original === original && slots.entries(name).some(entry => entry.component === previous.component)) return
+          previous?.dispose(); bridges.delete(name)
+          // A newer plugin declaring child slots or an exclusive store needs a
+          // new adapter; never borrow those ownership rights or override peers.
+          if (!original || original.children || original.store || typeof original.component !== 'function') return
+          const winner = slots.entriesOfSlot(name).find(entry => entry.options[key] === id)
+          if (winner !== original) return
+          const component = wrap(original.component)
+          const dispose = slots.register({ name, ...original.options, inject: original.inject, locale: original.locale,
+            priority: (original.options.priority ?? 0) - 1, registrant: 'dsh-cost-meter-context-bridge' }, component)
+          bridges.set(name, { original, component, dispose })
+          } finally { syncing = false }
+        }
+        disposers.push(slots.subscribe(name, sync)); sync()
+      }
+      return () => { active = false; for (const dispose of disposers) dispose(); for (const bridge of bridges.values()) bridge.dispose(); bridges.clear() }
+    }
+
+    const introKey = 'dsh-cost-meter:context-intro-seen'
+    const introSeen = () => { try { return localStorage.getItem(introKey) === '1' } catch { return false } }
+    const rememberIntro = () => { try { localStorage.setItem(introKey, '1') } catch { /* host config remains the durable preference */ } }
+
+    /** Shared controller: one prompt per client, opt-in persisted in the host profile. */
+    function createContextIntegration(ctx, api, store, getLocale, createPortal) {
+      const slots = ctx.get('slots'), listeners = new Set(), disposers = []
+      let active = true, bridge = null, originals = [], checked = false, checkId = 0, shown = introSeen(), intent = null, changeId = 0, writes = Promise.resolve()
+      let state = { peer: { version: '', compatible: false, reason: 'unavailable' }, available: false, enabled: false, saving: false, error: '', prompt: false, manual: false }
+      const supported = ['entries', 'entriesOfSlot', 'register', 'subscribe'].every(key => typeof slots?.[key] === 'function')
+      const emit = patch => { state = { ...state, ...patch }; for (const fn of listeners) fn() }
+      const reconcile = () => {
+        if (!active) return
+        const config = store.getSnapshot().state?.config
+        const available = supported && state.peer.compatible && originals.length > 0
+        const enabled = available && !state.saving && (intent ?? config?.contextCostsEnabled) === true
+        if (!enabled && bridge) { const dispose = bridge; bridge = null; dispose() }
+        if (enabled && !bridge) bridge = installContextCosts(ctx, { ...api, disableIntegration: () => void choose(false) }, getLocale, createPortal, store)
+        const prompt = state.prompt && (state.manual || available)
+        emit({ available, enabled, prompt: prompt || !!(config && available && !config.contextCostsPromptSeen && !config.contextCostsEnabled && !shown) })
+      }
+      const check = async (force = false) => {
+        if (!active || !supported) return
+        const next = contextTargets.flatMap(([name, key, id]) => slots.entries(name).filter(entry => entry.locale === 'dsh-context' && entry.options[key] === id && entry.registrant !== 'dsh-cost-meter-context-bridge' && !entry.children && !entry.store))
+        if (!force && checked && next.length === originals.length && next.every((entry, i) => entry === originals[i])) return
+        originals = next; checked = true
+        const id = ++checkId
+        // Stop an existing bridge until a changed peer has been checked again.
+        emit({ peer: { version: '', compatible: false, reason: next.length ? 'unavailable' : 'missing' } }); reconcile()
+        if (!next.length) return
+        try {
+          const peer = await api.getContextIntegration()
+          if (active && id === checkId) { emit({ peer }); reconcile() }
+        } catch { if (active && id === checkId) reconcile() }
+      }
+      function opened() { shown = true; rememberIntro() }
+      async function choose(enabled, dismissOnly = false) {
+        if (!active || enabled && !state.available && !dismissOnly) return
+        const id = ++changeId
+        opened(); intent = enabled
+        // Closing never waits on storage or RPC. Even a failed save cannot trap the user.
+        emit({ prompt: false, manual: false, saving: true, error: '' }); reconcile()
+        const write = writes.catch(() => {}).then(() => api.saveIntegration(enabled))
+        writes = write
+        try {
+          await write
+          if (active && id === changeId) { intent = null; emit({ saving: false }); reconcile() }
+        } catch {
+          if (active && id === changeId) { intent = false; emit({ saving: false, error: 'save' }); reconcile() }
+        }
+      }
+      disposers.push(store.subscribe(reconcile))
+      if (supported) for (const [name] of contextTargets) disposers.push(slots.subscribe(name, () => void check()))
+      const visible = () => { if (!document.hidden) void check(true) }
+      document.addEventListener('visibilitychange', visible)
+      const storage = event => { if (event.key === introKey && event.newValue === '1' && !shown) { shown = true; emit({ prompt: false }); reconcile() } }
+      window.addEventListener('storage', storage)
+      void check(); reconcile()
+      const dismiss = () => choose(state.manual ? store.getSnapshot().state?.config?.contextCostsEnabled === true : false, true)
+      return { getSnapshot: () => state, subscribe: fn => { listeners.add(fn); return () => listeners.delete(fn) }, choose, dismiss, opened,
+        preview: () => emit({ prompt: true, manual: true }), refresh: () => void check(true),
+        dispose: () => { active = false; ++checkId; for (const dispose of disposers) dispose(); bridge?.(); listeners.clear(); document.removeEventListener('visibilitychange', visible); window.removeEventListener('storage', storage) } }
+    }
+
+    const introCss = `
+      .cm-context-intro{--cmp-top:var(--dsh-frame-chrome-top,var(--dsh-frame-top-clearance,var(--dsh-windows-titlebar-height,0px)));inset:var(--cmp-top) 0 0;pointer-events:auto;overflow:hidden;box-sizing:border-box;color:var(--dsw-alias-label-primary,#25262b);background:var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-base,#fff));font:13px/1.6 var(--ds-font-family-sans,system-ui);border:1px solid var(--dsw-alias-border-l3,#e9eaed);border-radius:var(--dsw-radius-xl,16px);padding:0;width:min(760px,calc(100vw - 32px));max-height:calc(100dvh - var(--cmp-top) - 32px);margin:auto;box-shadow:var(--dsw-elevation-prominent,0 24px 80px #0003)}[data-fullscreen] .cm-context-intro{--cmp-top:0px}
+      .cm-context-intro[open]{display:flex;flex-direction:column}.cm-context-intro::backdrop{inset:var(--dsh-frame-chrome-top,var(--dsh-frame-top-clearance,var(--dsh-windows-titlebar-height,0px))) 0 0;background:#0005}[data-fullscreen] .cm-context-intro::backdrop{inset:0}.cm-context-intro *{box-sizing:border-box}.cm-context-intro h2,.cm-context-intro p{margin:0}.cm-context-intro h2{font-size:18px;font-weight:600}.cm-context-intro button{font:inherit;cursor:pointer;border:1px solid var(--dsw-alias-border-l3,#e9eaed);background:transparent;border-radius:8px;padding:7px 14px;color:inherit}.cm-context-intro button:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#4d6bfe);outline-offset:2px}.cm-context-intro button:disabled{opacity:.5;cursor:default}
+      .cm-context-intro-head,.cm-context-intro-foot{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 24px;flex:none;z-index:1}.cm-context-intro-head{top:0;border-bottom:1px solid var(--dsw-alias-border-l3,#e9eaed)}.cm-context-intro-foot{bottom:0;border-top:1px solid var(--dsw-alias-border-l3,#e9eaed);flex-wrap:wrap}.cm-context-intro-body{padding:20px 24px;overflow:auto;min-height:0;overscroll-behavior:contain}.cm-context-intro button.cm-context-close{border:0;padding:0;width:30px;height:30px;flex-shrink:0;font-size:22px;line-height:30px}.cm-context-intro .cm-context-primary{background:var(--dsw-alias-state-business-primary,#4d6bfe);color:#fff;border-color:transparent}.cm-context-muted{font-size:12px;color:var(--dsw-alias-label-secondary,#737780)}.cm-context-intro-actions{display:flex;gap:8px;margin-left:auto}
+      .cm-context-previews{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:18px 0}.cm-context-preview{border:1px solid var(--dsw-alias-border-l3,#e9eaed);border-radius:12px;padding:14px;min-width:0;background:var(--dsw-alias-bg-layer-1,#f7f8fa)}.cm-context-preview h3{font-size:12px;font-weight:500;margin:0 0 12px}.cm-context-preview-card{background:var(--dsw-alias-bg-base,#fff);border:1px solid var(--dsw-alias-border-l3,#e9eaed);border-radius:10px;padding:14px}.cm-context-preview-number{font-size:22px;font-variant-numeric:tabular-nums;margin:6px 0}.cm-context-preview-number span{font-size:11px;font-weight:400}.cm-context-preview-bar{height:8px;display:flex;overflow:hidden;border-radius:4px;margin:10px 0}.cm-context-preview-bar i{display:block}.cm-context-preview-legend{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:10px;color:var(--dsw-alias-label-secondary,#737780)}.cm-context-preview-extra{border-top:1px solid var(--dsw-alias-border-l3,#e9eaed);margin-top:14px;padding-top:12px}.cm-context-preview-metrics{display:flex;gap:12px;margin:8px 0}.cm-context-preview-metrics span{display:block;font-size:10px;color:var(--dsw-alias-label-secondary,#737780)}.cm-context-preview-metrics b{font-size:15px;font-weight:500}.cm-context-preview-row{display:flex;justify-content:space-between;font-size:11px;margin-top:8px}
+      .cm-context-setting{border:1px solid var(--dsw-alias-border-l3,#e9eaed);border-radius:12px;padding:14px 16px;margin-bottom:18px}.cm-context-setting label{display:flex;align-items:center;gap:9px;cursor:pointer}.cm-context-setting input{accent-color:var(--dsw-alias-state-business-primary,#4d6bfe);width:15px;height:15px}.cm-context-setting p{margin-top:7px}.cm-context-setting .cm-plan-actions{margin-top:8px}
+      @media(max-width:580px){.cm-context-previews{grid-template-columns:1fr}.cm-context-intro-body{padding:16px}.cm-context-intro-head,.cm-context-intro-foot{padding:14px 16px}.cm-context-intro-foot>p{width:100%}.cm-context-intro-actions{width:100%}.cm-context-intro-actions button{flex:1}}
+    `
+    function ContextPreview({ after, text }) {
+      const labels = [text('系统', 'System'), text('工具定义', 'Tools'), text('用户', 'User'), text('历史回复', 'Replies'), text('工具结果', 'Results')]
+      const colors = [0, 1, 2, 5, 6].map(index => contextColors[index])
+      return el('section', { className: 'cm-context-preview', 'aria-label': after ? text('启用后预览', 'Enabled preview') : text('启用前预览', 'Before preview') },
+        el('h3', null, after ? text('启用后 · 上下文 + 费用', 'After · context + costs') : text('启用前 · 上下文', 'Before · context')),
+        el('div', { className: 'cm-context-preview-card' }, el('p', null, text('当前上下文', 'Current context')),
+          el('div', { className: 'cm-context-preview-number' }, '12,000', el('span', null, ' / 128,000 tokens')),
+          el('div', { className: 'cm-context-preview-bar', 'aria-hidden': true, style: { background: 'var(--dsw-alias-border-l3,#e5e7eb)' } }, ...[10, 15, 10, 15, 50].map((width, i) => el('i', { key: i, style: { width: width * 12000 / 128000 + '%', background: colors[i] } }))),
+          el('div', { className: 'cm-context-preview-legend' }, ...labels.map((label, i) => el('span', { key: label }, el('i', { className: 'cm-plan-dot', style: { background: colors[i] } }), label))),
+          after ? el('div', { className: 'cm-plan cm-context-preview-extra' }, el('p', null, text('上下文费用构成', 'Context cost breakdown')),
+            el('div', { className: 'cm-context-preview-metrics' }, el('div', null, el('span', null, text('输入费用参考', 'Input cost reference')), el('b', null, '≈ $0.012'))),
+            el('p', { className: 'cm-context-muted' }, text('按非缓存单价估算', 'Estimated at uncached rates')),
+            el(CostSegments, { text, total: 12000, label: text('费用占比', 'Cost share'), rows: [1200, 1800, 1200, 1800, 6000].map((tokens, i) => ({ key: String(i), label: labels[i], value: tokens, tokens, amount: '≈ $' + tokens / 1e6, color: colors[i] })) }),
+            el('div', { className: 'cm-context-preview-extra' }, el('p', null, text('最近一次调用', 'Latest call')), el('div', { className: 'cm-context-preview-row' }, el('span', null, text('输入 $0.012 · 输出 $0.004', 'Input $0.012 · output $0.004'))),
+              el('p', { className: 'cm-context-muted' }, text('用量计费合计 $0.016', 'Usage-based total $0.016')))) : null))
+    }
+    function ContextPrompt({ manager, getLocale }) {
+      const state = React.useSyncExternalStore(manager.subscribe, manager.getSnapshot), ref = useRef(null)
+      const text = (zh, en) => getLocale() === 'en' ? en : zh
+      useEffect(() => {
+        const dialog = ref.current
+        if (!state.prompt || !dialog) return
+        let active = true, opened = false, previousFocus = null
+        const show = () => {
+          if (!active || opened || document.hidden) return
+          if (!state.manual && introSeen()) { void manager.dismiss(); return }
+          if (!state.manual && [...document.querySelectorAll('dialog[open],[role="dialog"],[aria-modal="true"],.lc-modal-backdrop')].some(node => node !== dialog && node.getClientRects().length)) return
+          try { previousFocus = document.activeElement; dialog.showModal(); opened = true; manager.opened() } catch { /* another UI transition: retry while this one prompt is pending */ }
+        }
+        show()
+        const timer = setInterval(show, 1000)
+        return () => { active = false; clearInterval(timer); if (dialog.open) dialog.close(); if (opened && previousFocus?.isConnected) previousFocus.focus?.({ preventScroll: true }) }
+      }, [state.prompt, state.manual, manager])
+      if (!state.prompt) return null
+      return el('dialog', { ref, className: 'cm-context-intro', 'aria-labelledby': 'cm-context-intro-title', 'aria-describedby': 'cm-context-intro-description',
+        onKeyDown: event => {
+          if (event.key !== 'Tab') return
+          const buttons = [...event.currentTarget.querySelectorAll('button:not(:disabled)')].filter(node => node.getClientRects().length)
+          const first = buttons[0], last = buttons.at(-1)
+          if (event.shiftKey && document.activeElement === first || !event.shiftKey && document.activeElement === last) { event.preventDefault(); (event.shiftKey ? last : first)?.focus() }
+        },
+        onCancel: event => { event.preventDefault(); void manager.dismiss() }, onClose: () => { if (manager.getSnapshot().prompt) void manager.dismiss() },
+        onClick: event => { if (event.target === event.currentTarget) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) void manager.dismiss() } } },
+        el('style', null, contextCostsCss + introCss),
+        el('header', { className: 'cm-context-intro-head' }, el('div', null, el('h2', { id: 'cm-context-intro-title' }, text('让上下文占用与费用一起可见', 'See context usage and costs together')), el('p', { className: 'cm-context-muted' }, 'dsh-context × dsh-cost-meter')),
+          el('button', { type: 'button', className: 'cm-context-close', 'aria-label': text('关闭预览', 'Close preview'), autoFocus: true, onClick: () => void manager.dismiss() }, '×')),
+        el('div', { className: 'cm-context-intro-body' }, el('p', { id: 'cm-context-intro-description' }, state.available
+          ? text('已检测到兼容版本 ', 'Compatible version detected: ') + 'dsh-context ' + state.peer.version + text('。启用后，在它的当前上下文面板内增加上下文费用区。', '. Add context costs inside its current-context panel.')
+          : text('界面预览。检测到已验证的兼容版本后，可以开启联动。', 'Interface preview. Enable integration when a verified compatible version is detected.')),
+          el('div', { className: 'cm-context-previews' }, el(ContextPreview, { text, after: false }), el(ContextPreview, { text, after: true })),
+          el('p', { className: 'cm-context-muted' }, text('示例数据：输入 $1 / M tokens，输出 $4 / M tokens。实际界面显示当前上下文的各部分 Token、费用占比，以及最近一次调用的输入、缓存和输出费用。', 'Example data: $1 / M input tokens and $4 / M output tokens. The live panel shows context tokens and cost shares, plus input, cache and output costs for the latest call.')),
+          el('p', { style: { marginTop: 12 } }, text('只读取已有数据，不发送模型请求，不产生额外 API 费用。只显示数据，不修改或压缩上下文。', 'Reads existing data without model requests or extra API charges. The display does not modify or compact your context.'))),
+        el('footer', { className: 'cm-context-intro-foot' }, el('p', { className: 'cm-context-muted' }, text('关闭后不再自动提示；可在费用统计中随时开关。', 'No repeated prompt after closing. Change this anytime in Cost statistics.')),
+          el('div', { className: 'cm-context-intro-actions' }, el('button', { type: 'button', onClick: () => void manager.dismiss() }, state.manual ? text('关闭预览', 'Close preview') : text('暂不启用', 'Not now')),
+            el('button', { type: 'button', className: 'cm-context-primary', disabled: !state.available || state.saving, onClick: () => void manager.choose(true) }, text('启用联动', 'Enable integration')))))
+    }
+    function ContextIntegrationSettings({ manager, getLocale }) {
+      const state = React.useSyncExternalStore(manager.subscribe, manager.getSnapshot), text = (zh, en) => getLocale() === 'en' ? en : zh
+      return el('details', { className: 'cm-plan cm-context-setting', 'aria-label': text('dsh-context 联动设置', 'dsh-context integration settings') }, el('style', null, contextCostsCss + introCss),
+        el('summary', null, 'dsh-context ' + text('联动', 'integration') + ' · ' + (state.enabled ? text('已启用', 'On') : text('未启用', 'Off'))), el('div', null,
+        el('p', { className: 'cm-plan-sub', style: { marginBottom: 8 } }, text('联动为可选项；本插件的上下文费用功能可独立使用。', 'Integration is optional; context costs also work independently in this plugin.')),
+        el('label', null, el('input', { type: 'checkbox', role: 'switch', checked: state.enabled, disabled: state.saving || !state.available, onChange: event => void manager.choose(event.target.checked) }), text('在 dsh-context 面板中显示上下文费用', 'Show context costs in dsh-context')),
+        el('p', { className: 'cm-plan-sub' }, state.available ? 'dsh-context ' + state.peer.version + text(' · 可随时关闭，独立上下文费用仍可使用。', ' · Turn off anytime; standalone context costs remain available.')
+          : text('需要启用已验证的 dsh-context 0.62.0 或 0.66.0，并由宿主提供版本信息。', 'Requires enabled dsh-context 0.62.0 or 0.66.0 and host version information.')),
+        state.error ? el('p', { className: 'cm-plan-error', role: 'alert' }, text('设置保存失败，联动保持关闭。可在此重试。', 'Could not save the setting; integration remains off. Retry here.')) : null,
+        el('div', { className: 'cm-plan-actions' }, el('button', { type: 'button', onClick: manager.preview }, text('查看启用前后预览', 'Preview before and after')), el('button', { type: 'button', onClick: manager.refresh }, text('重新检测', 'Check again')))))
+    }
+
     function Pager({ offset, count, size, onChange, text }) {
       return el('div', { className: 'cm-stat-page' },
         el('span', { className: 'cm-stat-sub' }, count ? `${offset + 1}–${Math.min(offset + size, count)} / ${count}` : '0'),
@@ -227,7 +537,7 @@ window.__ModuleLoader__.load({
         el('p', { className: 'cm-stat-sub' }, text('这里显示整轮原始记录，不受上方模型或计费筛选影响。附件仅显示类型。', 'Shows the whole turn, independent of model and cost filters above. Attachments are represented by type.')))
     }
 
-    function SessionDetail({ api, query, revision, money, formatTokens, text }) {
+    function SessionDetail({ api, query, revision, money, formatTokens, text, overview = false, children }) {
       const [offset, setOffset] = useState(0), [selected, setSelected] = useState(-1), [turnOffset, setTurnOffset] = useState(0)
       const [expandedTurn, setExpandedTurn] = useState(null), [shareMetric, setShareMetric] = useState('cost'), [retry, setRetry] = useState(0)
       const result = useRequest(api, 'getSessionBilling', { ...query, offset, turnOffset }, revision + ':' + retry)
@@ -245,7 +555,7 @@ window.__ModuleLoader__.load({
       const staleError = result.failed
         ? el('div', null, errorNotice(result.error), button(text('重试', 'Retry'), () => setRetry(n => n + 1)))
         : null
-      if (!detail.found) return el(Fragment, null, staleError, el('p', { className: 'cm-stat-note' }, text('没有可用的调用日志。上方账本统计仍然有效；明细不会按零费用处理。', 'Call logs are unavailable. The ledger totals above remain valid; missing details do not mean zero cost.')))
+      if (!detail.found) return el(Fragment, null, staleError, el('p', { className: 'cm-stat-note' }, text('没有可用的调用日志；缺失明细不代表零费用。', 'Call logs are unavailable; missing details do not mean zero cost.')), children)
       const agentName = id => !id || id === query.sessionId ? text('主会话', 'Main conversation') : text('子代理 ', 'Subagent ') + ((detail.agents ?? []).find(row => row.id === id)?.title || id).slice(0, 80)
       const turnKey = row => JSON.stringify([row.sessionId || query.sessionId, row.turn])
       const turnLabel = row => ((detail.agents?.length ?? 0) > 1 ? agentName(row.sessionId) + ' · ' : '') + turnName(row.turn)
@@ -262,9 +572,16 @@ window.__ModuleLoader__.load({
         el('tbody', null, rows.map((row, i) => el('tr', { key: i }, el('td', null, name(row)), el('td', null, row.calls),
           el('td', null, [row.input, row.cacheRead + row.cacheWrite, row.output].map(formatTokens).join(' / ')), el('td', null, money(row.apiCost) + (row.unpriced ? ' + ?' : '')), el('td', null, money(Math.max(0, row.cost - row.apiCost)) + (row.unpriced ? ' + ?' : '')))))))
       return el('section', { className: 'cm-stat-panel' },
-        el('div', { className: 'cm-stat-panel-head' }, el('h3', null, text('单对话费用明细', 'Conversation cost details')), el('span', { className: 'cm-stat-sub' }, (detail.agents?.length ?? 0) > 1 ? text('包含子代理及其后代', 'Includes subagents and their descendants') : text('本会话自身的调用', 'Own conversation calls'))),
+        overview ? el('div', { className: 'cm-stat-metrics' }, ...[
+          [basis === 'total' ? text('API + Plan 等值', 'API + Plan equivalent') : basis === 'plan' ? text('Plan 等值', 'Plan equivalent') : text('API 费用', 'API cost'), money(cost) + (parts.some(row => row.unpriced) ? ' + ?' : ''), text('按本对话调用日志估算', 'Estimated from this conversation’s call logs')],
+          [text('调用次数', 'Calls'), detail.totalCalls.toLocaleString(), (detail.agents?.length ?? 0) > 1 ? text('包含子代理', 'Includes subagents') : text('本会话', 'This conversation')],
+          [text('Token 用量', 'Token usage'), formatTokens(parts.reduce((n, row) => n + (row.bucket === 'reasoning' ? 0 : row.tokens), 0)), text('输入、缓存与输出', 'Input, cache and output')],
+          [text('缓存命中率', 'Cache hit rate'), pct(parts.find(row => row.bucket === 'cacheRead')?.tokens ?? 0, parts.filter(row => ['input', 'cacheRead', 'cacheWrite'].includes(row.bucket)).reduce((n, row) => n + row.tokens, 0)), text('输入 Token 中的缓存读取', 'Cache reads among input tokens')],
+        ].map(([label, value, sub]) => el('div', { className: 'cm-stat-metric', key: label }, el('div', { className: 'cm-stat-sub' }, label), el('div', { className: 'cm-stat-value' }, value), el('div', { className: 'cm-stat-sub' }, sub)))) : null,
+        children,
+        el('div', { className: 'cm-stat-panel-head' }, el('h3', null, overview ? text('已发生费用 · 调用明细', 'Recorded costs · call details') : text('单对话费用明细', 'Conversation cost details')), el('span', { className: 'cm-stat-sub' }, (detail.agents?.length ?? 0) > 1 ? text('包含子代理及其后代', 'Includes subagents and their descendants') : text('本会话自身的调用', 'Own conversation calls'))),
         staleError,
-        el('details', { className: 'cm-stat-help' }, el('summary', null, text('统计口径', 'How these amounts are calculated')), el('p', null, text('明细按日志中的调用时间、用量和当前配置的历史价格规则计算。上方汇总采用已入账金额；调整价格后两者可能不同。', 'Details use logged usage and call times with the currently configured historical price rules. The summary above uses recorded ledger amounts; changing prices can produce a difference.'))),
+        el('details', { className: 'cm-stat-help' }, el('summary', null, text('统计口径', 'How these amounts are calculated')), el('p', null, text('明细按日志中的调用时间、用量和当前配置的历史价格规则计算。Plan 为 API 等值，并非订阅账单。调整价格或账本保留范围后，日志明细与已入账金额可能不同。', 'Details use logged usage and call times with configured historical price rules. Plan values are API equivalents, not subscription charges. Changes to prices or ledger retention can make these details differ from recorded ledger amounts.'))),
         mismatch ? el('p', { className: 'cm-stat-note' }, text('账本与可用明细不同：账本 ', 'Ledger and available details differ: ledger ') + money(recorded) + ' / ' + detail.recorded.calls + text(' 次；明细 ', ' calls; details ') + money(cost) + ' / ' + detail.totalCalls + text(' 次。', ' calls.')) : null,
         (detail.agents?.length ?? 0) > 1 ? summaryTable(text('主会话与子代理 · 账本费用', 'Main conversation and subagents · ledger costs'), detail.agents, row => agentName(row.id)) : null,
         el('div', { className: 'cm-stat-shares' },
@@ -301,7 +618,22 @@ window.__ModuleLoader__.load({
         el(Pager, { offset, count: detail.totalCalls, size: 50, onChange: n => { setOffset(n); setSelected(-1) }, text }))
     }
 
-    function Statistics({ state, api, sessionId = '', formatMoneyUsd, formatTokens, resolveLocale }) {
+    function SessionStatistics({ state, api, sessionId, formatMoneyUsd, formatTokens, resolveLocale, contextIntegration }) {
+      const text = (zh, en) => (resolveLocale ? resolveLocale(state.config) : state.config.locale) === 'en' ? en : zh
+      const [revision, setRevision] = useState(0), [basis, setBasis] = useState(state.config.showTotalWithPlan ? 'total' : 'api')
+      const refreshKey = refreshKeyOf(state, revision)
+      const money = n => formatMoneyUsd(n, { ...state.config, decimals: Math.max(n !== 0 && Math.abs(n) < .01 ? 8 : 4, state.config.decimals ?? 2) })
+      const query = { sessionId, from: '', to: '', provider: '', model: '', basis, offset: 0 }
+      return el('div', { className: 'cm-stat cm-stat-session', 'data-session-id': sessionId }, el('style', null, css),
+        el('div', { className: 'cm-stat-panel-head' }, el('p', { className: 'cm-stat-sub' }, text('当前对话 · 全部调用', 'This conversation · all calls')), button(text('刷新', 'Refresh'), () => setRevision(n => n + 1))),
+        el(SessionDetail, { key: sessionId + ':' + basis, api, query, revision: refreshKey, money, formatTokens, text, overview: true },
+          el(ContextCosts, { key: sessionId, api, sessionId, revision: refreshKey, money, text })),
+        el('details', { className: 'cm-session-options' }, el('summary', null, text('显示与联动设置', 'Display and integration settings')),
+          el('div', { className: 'cm-stat-controls' }, el('label', null, text('计费口径', 'Cost basis'), el('select', { value: basis, onChange: event => setBasis(event.target.value) }, ...[['api', text('API 费用', 'API cost')], ['plan', text('Plan 等值', 'Plan equivalent')], ['total', text('API + Plan 等值', 'API + Plan equivalent')]].map(([value, label]) => el('option', { key: value, value }, label))))),
+          contextIntegration ? el(ContextIntegrationSettings, contextIntegration) : null))
+    }
+
+    function Statistics({ state, api, sessionId = '', formatMoneyUsd, formatTokens, resolveLocale, contextIntegration }) {
       const en = resolveLocale ? resolveLocale(state.config) === 'en' : (state.config.locale === 'en' || state.config.locale !== 'zh' && (state.config.activeLocale || state.meta?.locale || (typeof navigator !== 'undefined' && /^zh/i.test(navigator.language) ? 'zh' : 'en')) === 'en')
       const text = (zh, english) => en ? english : zh
       const [period, setPeriod] = useState(sessionId ? 'all' : 'week'), [custom, setCustom] = useState(null)
@@ -327,6 +659,7 @@ window.__ModuleLoader__.load({
       const top = data?.totals
       const metric = (label, value, sub) => el('div', { className: 'cm-stat-metric', key: label }, el('div', { className: 'cm-stat-sub' }, label), el('div', { className: 'cm-stat-value' }, value), el('div', { className: 'cm-stat-sub' }, sub))
       return el('div', { className: 'cm-stat' }, el('style', null, css),
+        contextIntegration ? el(ContextIntegrationSettings, contextIntegration) : null,
         el('header', { className: 'cm-stat-head' }, el('div', null, el('h2', null, text('计费统计', 'Cost statistics')), el('p', { className: 'cm-stat-sub' }, scope.id ? text('单对话 · ', 'Conversation · ') + (scope.title === scope.id ? data?.sessions[0]?.title || scope.title : scope.title) : text('全部对话 · 从总额查看每一笔调用', 'All conversations · from totals to individual calls'))),
           button(text('刷新', 'Refresh'), () => setRevision(n => n + 1))),
         scope.id ? button(text('← 全部对话', '← All conversations'), () => chooseScope({ id: '', title: '' })) : null,
@@ -345,6 +678,7 @@ window.__ModuleLoader__.load({
             metric(text('Plan 等值费用', 'Plan equivalent'), money(Math.max(0, top.cost - top.apiCost)), text('不代表实际扣款', 'Not an actual debit')),
             metric(text('调用次数', 'Calls'), top.calls.toLocaleString(), data.sessionCount + text(' 个对话 · 平均 ', ' conversations · average ') + money(top.calls ? amount(top, basis) / top.calls : 0)),
             metric(text('缓存命中率', 'Cache hit rate'), pct(top.cacheRead, top.input + top.cacheRead + top.cacheWrite), formatTokens(tokens(top)) + ' Tokens')),
+          scope.id ? el('section', { className: 'cm-stat-panel' }, el(ContextCosts, { key: scope.id, api, sessionId: scope.id, revision: refreshKey, money, text })) : null,
           scope.id ? el(SessionDetail, { key: JSON.stringify([scope.id, from, to, provider, model, basis]), api, query: { ...query, from: data.from, to: data.to, offset: 0 }, revision: refreshKey, money, formatTokens, text }) : null,
           data.models.some(r => !r.priced) ? el('p', { className: 'cm-stat-note' }, text('部分模型当前未配置价格，金额可能不完整；未定价不等于免费。', 'Some models have no configured price. Amounts may be incomplete; unpriced usage is not free.')) : null,
           !top.calls && !top.cost ? el('p', { className: 'cm-stat-empty' }, text('所选范围没有已记录的用量。', 'No recorded usage in this range.')) : null,
@@ -370,17 +704,35 @@ window.__ModuleLoader__.load({
             el(Pager, { offset, count: data.sessionCount, size: 25, onChange: setOffset, text })) : null)) : null)
     }
 
-    async function mount(ctx) {
+    async function mount(ctx, source, resolveLocale) {
+      const getLocale = typeof source === 'function' ? source : () => source && resolveLocale ? resolveLocale(source.getSnapshot().state?.config ?? { activeLocale: source.getSnapshot().locale }) : 'en'
       const unmount = await ctx.get('remote').$mount(CONTRIBUTION)
       ctx.effect(() => () => unmount(), 'cost-meter: statistics contribution')
       const remote = ctx.get('remote.costMeter')
-      const api = Object.fromEntries(['getBillingStatistics', 'getSessionBilling', 'getTurnInspection'].map(method => [method, async query => {
-        const result = await remote[method]((method === 'getTurnInspection' ? parseInspectionQuery : parseQuery)(query))
+      const api = Object.fromEntries(['getBillingStatistics', 'getSessionBilling', 'getTurnInspection', 'getContextCosts'].map(method => [method, async query => {
+        const result = await remote[method]((method === 'getContextCosts' ? parseContextCostsQuery : method === 'getTurnInspection' ? parseInspectionQuery : parseQuery)(query))
         if (!result?.ok) throw new Error(result?.error?.message || 'Statistics request failed')
-        return ({ getBillingStatistics: parseStatistics, getSessionBilling: parseDetail, getTurnInspection: parseInspection }[method])(result.value)
+        return ({ getBillingStatistics: parseStatistics, getSessionBilling: parseDetail, getTurnInspection: parseInspection, getContextCosts: parseContextCosts }[method])(result.value)
       }]))
-      return props => el(Statistics, { ...props, api })
+      let manager
+      if (source?.subscribe && typeof ctx.get('slots')?.entries === 'function') {
+        api.getContextIntegration = async () => {
+          const result = await remote.getContextIntegration()
+          if (!result?.ok) throw new Error('Integration check failed')
+          return parseIntegration(result.value)
+        }
+        api.saveIntegration = async enabled => {
+          const result = await remote.updateConfig({ contextCostsEnabled: enabled, contextCostsPromptSeen: true })
+          if (!result?.ok || !result.value?.config) throw new Error('Integration setting failed')
+          source.set({ status: 'ready', error: null, state: result.value })
+        }
+        manager = createContextIntegration(ctx, api, source, getLocale, require('react-dom').createPortal)
+        ctx.effect(() => manager.dispose, 'cost-meter: optional dsh-context integration')
+        const slots = ctx.get('slots'), register = () => slots.register({ name: 'shell.overlay', id: 'cost-meter-context-intro', order: 50 }, () => el(ContextPrompt, { manager, getLocale }))
+        if (typeof slots.inject === 'function') ctx.effect(() => slots.inject('shell.overlay', register), 'cost-meter: context preview prompt')
+      }
+      return props => el(props.sessionId ? SessionStatistics : Statistics, { ...props, api, contextIntegration: manager ? { manager, getLocale } : null })
     }
-    return { mount, Statistics, SessionDetail, TurnInspection, ShareChart, CONTRIBUTION, parseStatistics, parseDetail, parseInspection, dailyChartRows, requestStart, requestValue, requestFailure, showsPlaceholder, refreshKeyOf }
+    return { mount, Statistics, SessionStatistics, SessionDetail, TurnInspection, ShareChart, ContextCosts, ContextPrompt, ContextPreview, ContextIntegrationSettings, createContextIntegration, contextCostBreakdown, installContextCosts, CONTRIBUTION, parseContextCosts, parseStatistics, parseDetail, parseInspection, dailyChartRows, requestStart, requestValue, requestFailure, showsPlaceholder, refreshKeyOf }
   },
 })

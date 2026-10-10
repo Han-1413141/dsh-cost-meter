@@ -378,7 +378,7 @@ const stopStartup = await startup.apply({ remote: { $mount: async () => () => {}
     inject: (_, fn) => { const cleanup = fn(); if (cleanup) startupCleanups.push(cleanup) },
     register: (options, component) => { startupSlots.set(options.id, { options, component }); return () => {} },
   }, effect: fn => { const cleanup = fn(); if (cleanup) startupCleanups.push(cleanup) },
-  on: (event, fn) => { startupEvents.set(event, fn); return () => startupEvents.delete(event) },
+  on: (event, fn) => { startupEvents.set(event, fn); const dispose = () => startupEvents.delete(event); startupCleanups.push(dispose); return dispose },
 })
 await startup.flush()
 const startupInjected = startupSlots.get('cost-meter').options.inject()

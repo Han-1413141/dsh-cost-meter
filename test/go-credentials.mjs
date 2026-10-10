@@ -9,6 +9,7 @@ const root = mkdtempSync(join(tmpdir(), 'cm-go-refs-'))
 const envNames = ['DSH_HOME', 'USERPROFILE', 'HOME', 'XDG_CONFIG_HOME', 'OPENCODE_GO_API_KEY', 'OPENCODE_API_KEY', 'OPENCODEGO_API_KEY', 'ARBITRARY_ROUTE_KEY']
 const savedEnv = Object.fromEntries(envNames.map(n => [n, process.env[n]]))
 const originalFetch = globalThis.fetch
+const cleanups = []
 try {
   for (const n of envNames) delete process.env[n]
   process.env.DSH_HOME = root
@@ -46,7 +47,7 @@ try {
       return section === 'llm-pi-ai' ? { providers } : {}
     } } : undefined,
     provide: (n, service) => { services[n] = service }, on: () => () => {}, inject() {},
-    effect: () => {}, logger: { info() {}, warn() {}, error() {} },
+    effect: fn => { const dispose = fn(); if (typeof dispose === 'function') cleanups.push(dispose) }, logger: { info() {}, warn() {}, error() {} },
   })
   let calls = []
   globalThis.fetch = async (url, init) => {
@@ -134,6 +135,7 @@ try {
   assert.deepEqual(mutations, [['set', 'OPENCODE_GO_API_KEY'], ['unset', 'OPENCODE_GO_API_KEY']], '设置/清除只操作插件专用引用，不改模型共享 Key')
   console.log('[ok] #139 Go 凭据：真实刷新、路由改名/轮换、来源一致性、优先级、旧来源回退及凭据隔离')
 } finally {
+  for (const dispose of cleanups.reverse()) dispose()
   globalThis.fetch = originalFetch
   for (const n of envNames) savedEnv[n] === undefined ? delete process.env[n] : process.env[n] = savedEnv[n]
   rmSync(root, { recursive: true, force: true })

@@ -177,7 +177,8 @@ window.__ModuleLoader__.load({
         for (const [button, item] of owned) restore(button, item)
       }
     }
-    async function mount(ctx, getLocale = () => ctx.get('locale')?.getSnapshot?.().active ?? 'en') {
+    async function mount(ctx, source, resolveLocale) {
+      const getLocale = typeof source === 'function' ? source : () => source && resolveLocale ? resolveLocale(source.getSnapshot().state?.config ?? { activeLocale: source.getSnapshot().locale }) : ctx.get('locale')?.getSnapshot?.().active ?? 'en'
       const unmount = await ctx.get('remote').$mount(CONTRIBUTION)
       ctx.effect(() => () => unmount(), 'cost-meter: OpenRouter catalog contribution')
       const remote = ctx.get('remote.costMeter')

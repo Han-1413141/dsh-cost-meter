@@ -132,6 +132,8 @@
         hideTodayCost: v.hideTodayCost === true,
         ...mapFields(v, ['hideSessionCostHeader', 'hideSessionCostDock', 'hideTurnCost'], value => value === true),
         sessionCostCompact: v.sessionCostCompact === true,
+        contextCostsEnabled: v.contextCostsEnabled === true,
+        contextCostsPromptSeen: v.contextCostsPromptSeen === true,
         sidebarTodayMetric: v.sidebarTodayMetric === 'tokens' ? 'tokens' : 'cost',
         showTotalWithPlan: v.showTotalWithPlan === true,
         sidebarSimple: v.sidebarSimple === true,

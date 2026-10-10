@@ -59,8 +59,8 @@
       return el(Fragment, null,
         el('button', { type: 'button', className: 'cm-btn cm-stat-entry cm-stat-' + (props.entryPosition || 'dock'), title: label, 'aria-label': label, 'aria-haspopup': 'dialog', onClick: () => setOpenedId(props.sessionId) }, en ? 'Cost details' : '费用明细'),
         open ? el('dialog', { ref: dialog, role: 'dialog', className: STAT_DIALOG_CLASS, 'aria-label': label, onCancel: () => setOpenedId(null) },
-          el('button', { type: 'button', className: 'cm-btn', autoFocus: true, 'aria-label': en ? 'Close' : '关闭', onClick: () => setOpenedId(null), style: { float: 'right' } }, '×'),
-          state ? el(BillingStatistics, { key: props.sessionId, state, api: props.api, sessionId: props.sessionId }) : el('p', { role: snapshot?.error ? 'alert' : 'status' }, snapshot?.error || (en ? 'Loading…' : '加载中…'), el('button', { type: 'button', className: 'cm-btn', onClick: () => props.api.reload() }, en ? 'Retry' : '重试'))) : null)
+          el('header', { className: 'cm-stat-dialog-head' }, el('strong', null, label), el('button', { type: 'button', className: 'cm-btn', autoFocus: true, 'aria-label': en ? 'Close' : '关闭', onClick: () => setOpenedId(null) }, '×')),
+          el('div', { className: 'cm-stat-dialog-body' }, state ? el(BillingStatistics, { key: props.sessionId, state, api: props.api, sessionId: props.sessionId }) : el('p', { role: snapshot?.error ? 'alert' : 'status' }, snapshot?.error || (en ? 'Loading…' : '加载中…'), el('button', { type: 'button', className: 'cm-btn', onClick: () => props.api.reload() }, en ? 'Retry' : '重试')))) : null)
     }
 
     function ExternalUsagePanel({ state, t }) {
@@ -2789,7 +2789,7 @@
       const pages = {}
       const loadPage = name => {
         if (!pages[name]) pages[name] = (typeof require.async === 'function'
-          ? require.async('./client.' + name + '.js').then(module => module.mount(ctx, () => resolveLocale(store.getSnapshot().state?.config ?? { activeLocale: readLocale() })))
+          ? require.async('./client.' + name + '.js').then(module => module.mount(ctx, store, resolveLocale))
           : Promise.reject(new Error(rpcT()('statisticsUpgrade')))).catch(error => { delete pages[name]; throw error })
         return pages[name]
       }
@@ -2846,6 +2846,11 @@
 
       const slots = ctx.get('slots')
       if (slots === undefined) return
+      const contextPrices = name => {
+        if (typeof slots.entries === 'function' && slots.entries(name).some(entry => entry.locale === 'dsh-context')) void api.loadStatistics().catch(() => {})
+      }
+      ctx.on('slots/changed', contextPrices)
+      ;['conversation.view', 'sidebar.right.pane.tab', 'conversation.input.overlay'].forEach(contextPrices)
 
       const injected = () => ({ hooks: { cost: store }, api })
       for (const [entryPosition, name] of [['header', 'conversation.session.header.actions'], ['dock', 'conversation.composer.dock']]) slots.inject(name, () => slots.register({ name, id: 'cost-meter-statistics', order: 1, inject: () => ({ ...injected(), entryPosition }) }, SessionStatisticsButton))

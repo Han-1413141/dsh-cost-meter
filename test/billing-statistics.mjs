@@ -105,7 +105,13 @@ try {
     const host = TYPERT.invocations.find(i => i.id === item.id)
     assert.ok(host, 'the lazy client has a matching host invocation')
     assert.equal(item.result.typeSymbol, host.result.typeSymbol)
-    const sample = item.method === 'getBillingStatistics' ? stats : item.method === 'getSessionBilling' ? detail : { found: false, turn: 0, input: '', inputTruncated: false, tools: [], totalTools: 0, offset: 0 }
+    const sample = {
+      getBillingStatistics: stats,
+      getSessionBilling: detail,
+      getTurnInspection: { found: false, turn: 0, input: '', inputTruncated: false, tools: [], totalTools: 0, offset: 0 },
+      getContextCosts: { status: 'unavailable', sessionId: 's', generatedAt: at, revision: 0, provider: '', model: '', basis: 'api', priced: false, source: 'none', linked: false, contextTokens: 0, components: [], rates: null, longContext: null, lastCall: null },
+      getContextIntegration: { version: '', compatible: false, reason: 'missing' },
+    }[item.method]
     assert.deepEqual(JSON.parse(JSON.stringify(item.result.schema.parse(host.result.schema.parse(sample)))), sample)
   }
   const compressed = client.dailyChartRows(Array.from({ length: 1000 }, (_, i) => ({ date: String(i), cost: 2, apiCost: 1 })), 'api')

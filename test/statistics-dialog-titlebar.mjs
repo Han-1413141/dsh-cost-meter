@@ -181,7 +181,7 @@ const report=tag=>{try{fetch('/report',{method:'POST',headers:{'content-type':'a
       const overlap=Math.max(0,Math.min(r.bottom,titlebar)-Math.max(r.top,0));
       check(titlebar===0||overlap===0,'dialog must not overlap the titlebar (got '+overlap.toFixed(1)+'px)');
       // 关闭按钮必须在标题栏下方且不越界 —— 否则用户点不到它。
-      const close=dialog.querySelector(':scope > .cm-btn');
+      const close=dialog.querySelector('.cm-stat-dialog-head > .cm-btn');
       check(!!close,'close button present');
       const cr=close.getBoundingClientRect();
       check(cr.top>=titlebar-0.5,'close button stays below the titlebar');
@@ -211,11 +211,19 @@ const report=tag=>{try{fetch('/report',{method:'POST',headers:{'content-type':'a
       // 内容超高时必须真的可滚动:断言「确实溢出且滚动范围 > 0」,而不是断言
       // overflow==='auto' —— 裸 <dialog> 的 UA 默认值就是 auto,那条断言恒真(空断言)。
       // 改为断言「高内容确实溢出且可滚动」/「短内容不被裁剪」。
+      const body=dialog.querySelector('.cm-stat-dialog-body');
       if(tall){
-        check(dialog.scrollHeight>dialog.clientHeight,'dialog content really overflows (scrollHeight='+dialog.scrollHeight+' clientHeight='+dialog.clientHeight+')');
+        check(body.scrollHeight>body.clientHeight,'body content really overflows');
+        body.scrollTop=body.scrollHeight;
+        await new Promise(resolve=>win.requestAnimationFrame(resolve));
+        const after=close.getBoundingClientRect();
+        check(body.scrollTop>0,'body scrolls to the bottom');
+        check(Math.abs(after.top-cr.top)<1,'close button remains fixed after scrolling');
+        check(doc.elementFromPoint(after.x+after.width/2,after.y+after.height/2)===close,'close is clickable after scrolling');
       }else{
-        check(dialog.scrollHeight<=dialog.clientHeight+1,'short dialog content is not clipped (scrollHeight='+dialog.scrollHeight+' clientHeight='+dialog.clientHeight+')');
+        check(body.scrollHeight<=body.clientHeight+1,'short dialog content is not clipped');
       }
+      check(parseFloat(win.getComputedStyle(dialog,'::backdrop').top)===titlebar,'backdrop dims content uniformly without dimming only part of the native titlebar');
       // 环境特定断言。宿主变量一律经 cssVar 读,省掉 10 处 getComputedStyle(...).trim() 拼接。
       const cssVar=n=>win.getComputedStyle(root).getPropertyValue(n).trim();
       if(env==='fullscreen') check(cssVar('--dsh-frame-chrome-top')==='0px','chrome-top is 0 in fullscreen');

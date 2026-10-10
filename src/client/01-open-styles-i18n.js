@@ -42,10 +42,10 @@ window.__ModuleLoader__.load({
       // 皮肤能用 [role=dialog] 覆盖(issue #219),且 @property 注册后非法宿主变量整体退回
       // initial-value,不会让 calc()/inset 在计算值阶段整条失效。
       '@property --cm-dialog-top{syntax:"<length>";inherits:true;initial-value:0px}',
-      '.cm-stat-dialog{--cm-dialog-top:var(--dsh-frame-chrome-top,var(--dsh-frame-top-clearance,var(--dsh-windows-titlebar-height,0px)));inset:var(--cm-dialog-top) 0 0 0;margin:auto;width:min(1160px,94vw);max-width:calc(100vw - 32px);max-height:calc(100vh - var(--cm-dialog-top) - 32px);overflow:auto;box-sizing:border-box;padding:24px;border-radius:16px;border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-base,#fff)}',
+      '.cm-stat-dialog{--cm-dialog-top:var(--dsh-frame-chrome-top,var(--dsh-frame-top-clearance,var(--dsh-windows-titlebar-height,0px)));inset:var(--cm-dialog-top) 0 0 0;margin:auto;width:min(1000px,94vw);max-width:calc(100vw - 32px);max-height:calc(100vh - var(--cm-dialog-top) - 32px);overflow:hidden;box-sizing:border-box;padding:0;border-radius:16px;border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-base,#fff))}.cm-stat-dialog[open]{display:flex;flex-direction:column}.cm-stat-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 24px;border-bottom:1px solid var(--dsw-alias-border-l3);flex:none}.cm-stat-dialog-head strong{font-size:15px;font-weight:500}.cm-stat-dialog-body{overflow:auto;min-height:0;padding:20px 24px;overscroll-behavior:contain}.cm-stat-dialog::backdrop{inset:var(--dsh-frame-chrome-top,var(--dsh-frame-top-clearance,var(--dsh-windows-titlebar-height,0px))) 0 0;background:#0005}',
       // 旧宿主(≤0.1.7)没有 --dsh-frame-chrome-top:全屏时回退链只能命中不随全屏变化的
       // --dsh-windows-titlebar-height(40px),会白留一条 40px 空隙。新宿主由 chrome-top 归 0。
-      '[data-fullscreen] .cm-stat-dialog{--cm-dialog-top:0px}',
+      '[data-fullscreen] .cm-stat-dialog{--cm-dialog-top:0px}[data-fullscreen] .cm-stat-dialog::backdrop{inset:0}',
       '.cm-root{flex:0 1 auto;min-width:0;max-width:100%;text-align:center;font-size:12px;line-height:20px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cm-chip{display:inline-flex;align-items:center;gap:4px;max-width:180px;padding:0 8px;height:22px;border-radius:6px;background:var(--dsw-alias-bg-layer-2);font-size:12px;line-height:22px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cm-foot{display:flex;align-items:center;gap:6px;height:32px;padding:0 8px;border-radius:8px;font-size:12px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden}',
@@ -88,7 +88,7 @@ window.__ModuleLoader__.load({
       '.cm-plan-tag{flex:none;margin-left:6px;padding:0 6px;border-radius:999px;border:1px solid var(--dsw-alias-border-l1);font-size:10px;line-height:16px;color:var(--dsw-alias-state-warn-primary)}',
       '.cm-plan-reset,.cm-plan-method{font-size:11px;color:var(--dsw-alias-label-tertiary)}',
       // 首次更新引导:非模态小卡片,固定屏幕顶部居中,选择后消失。
-      '.cm-qguide{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;max-width:440px;width:calc(100% - 32px);border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-1);box-shadow:0 8px 28px rgba(0,0,0,.18);padding:14px 16px;font-size:13px;color:var(--dsw-alias-label-primary);display:flex;flex-direction:column;gap:8px}',
+      '.cm-qguide{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:9999;max-width:440px;width:calc(100% - 32px);border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--dsw-alias-bg-layer-2);box-shadow:0 8px 28px rgba(0,0,0,.18);padding:14px 16px;font-size:13px;color:var(--dsw-alias-label-primary);display:flex;flex-direction:column;gap:8px}',
       '.cm-qguide h4{margin:0;font-size:13px;font-weight:600}',
       '.cm-qguide p{margin:0;font-size:12px;line-height:1.6;color:var(--dsw-alias-label-secondary)}',
       '.cm-qguide .cm-buttons{display:flex;gap:8px;justify-content:flex-end}',

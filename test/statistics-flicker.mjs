@@ -171,6 +171,7 @@ const shares = [{ ...bucketOf(2), sessionId: 's', turn: 1, step: 1, other: false
 let seq = 0, turnsAvailable = 2, callsAvailable = 2, detailFails = false, detailFound = true
 const rpcLog = []
 const liveApi = {
+  getContextCosts: async () => ({ sessionId: 's', status: 'meter-unavailable' }),
   getBillingStatistics: async () => { rpcLog.push('stats'); await sleep(20); return live.parseStatistics({ from: '2026-09-30', to: '2026-09-30', retainedFrom: '2026-09-30', retainedTo: '2026-09-30', totals: bucketOf(callsAvailable), days: [{ ...bucketOf(callsAvailable), date: '2026-09-30' }], models: [{ ...bucketOf(callsAvailable), key: 'k', provider: 'deepseek', model: 'deepseek-v4-flash', priced: true }], sessions: [{ ...bucketOf(callsAvailable), id: 's', title: 'T' }], providers: ['deepseek'], modelOptions: ['m'], sessionCount: 1, offset: 0, unassignedCost: 0, unmodeledCost: 0 }) },
   getSessionBilling: async () => { rpcLog.push('detail'); await sleep(20); if (detailFails) throw new Error('detail rpc down'); return live.parseDetail({ found: detailFound, ...bucketOf(callsAvailable), rows, calls: callsOf(callsAvailable), totalCalls: callsAvailable, offset: 0, recorded: bucketOf(callsAvailable), kinds: [{ ...bucketOf(callsAvailable), kind: 'model', unpriced: false }], turns: turnsOf(turnsAvailable), totalTurns: turnsAvailable, turnOffset: 0, stepShares: { cost: shares, calls: shares }, agents: [] }) },
   getTurnInspection: async q => { rpcLog.push('turn'); await sleep(20); return { found: true, turn: q.turn, input: 'x', inputTruncated: false, totalTools: 0, offset: 0, tools: [] } },
@@ -212,4 +213,6 @@ const retryButton = [...win.document.querySelectorAll('.cm-stat-btn')].find(node
 assert.ok(retryButton, '保留旧值时的错误提示必须带重试入口')
 detailFails = false; detailFound = true
 
+await act(async () => liveRoot.unmount())
+dom.window.close()
 console.log('[ok] #费用明细弹窗闪烁:重取保留旧值、失败保留旧值、换 query 才清空、重取键排除 meta.now、概览与明细两侧都随新用量重取')
