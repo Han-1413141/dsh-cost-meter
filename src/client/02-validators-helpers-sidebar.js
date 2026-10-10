@@ -498,11 +498,7 @@
     const CONTRIBUTION = {
       package: 'dsh-cost-meter',
       descriptors: [
-        {
-          method: 'getState',
-          parameters: [rpcParam('immediate', 'ImmediateState', codecOf(v => { if (v !== undefined && typeof v !== 'boolean') fail('immediate', 'boolean'); return v }), true)],
-          result: strictCodec('CostState', stateCodec),
-        },
+        ...['getState', 'getLocalState'].map(method => ({ method, result: strictCodec('CostState', stateCodec) })),
         {
           method: 'updateConfig',
           parameters: [rpcParam('patch', 'ConfigPatch', patchCodec)],

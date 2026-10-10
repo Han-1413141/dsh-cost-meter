@@ -2744,7 +2744,7 @@
         const prev = store.getSnapshot()
         if (prev.state === null) store.set({ ...prev, status: 'loading' })
         try {
-          const state = await call('getState', prev.state === null ? [true] : [])
+          const state = await call(prev.state === null ? 'getLocalState' : 'getState')
           if (!active) return
           retrySeconds = 1
           store.set({ status: 'ready', error: null, state })

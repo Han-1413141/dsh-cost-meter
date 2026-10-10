@@ -65,7 +65,7 @@ await check('首屏本地数据不等待冷额度请求，普通读取随后补�
   const gate = deferred()
   let calls = 0, painted = false
   await fixture(gatewayConfig, async url => { calls++; await gate.promise; return gatewayResponse(url, 15) }, async api => {
-    const immediate = api.getState(true).then(state => { stateSchema.parse(state); painted = true; return state })
+    const immediate = api.getLocalState().then(state => { stateSchema.parse(state); painted = true; return state })
     let complete
     try {
       await until(() => painted)

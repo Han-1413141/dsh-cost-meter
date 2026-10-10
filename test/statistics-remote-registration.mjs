@@ -64,7 +64,7 @@ class Connection extends Service {
       open: async function* () {},
       call: async (channel, endpoint, payload) => {
         assert.equal(channel, '/api'); calls.push([endpoint, payload.args])
-        if (endpoint === 'costMeter/getState') return { ok: true, value: state }
+        if (['costMeter/getState', 'costMeter/getLocalState'].includes(endpoint)) return { ok: true, value: state }
         if (endpoint === 'costMeter/getOpenRouterCatalog') return { ok: true, value: { fetchedAt: '2026-10-09T05:00:00Z', stale: false, error: '', models: [] } }
         if (endpoint === 'costMeter/getContextCosts') return { ok: true, value: getContextCosts(ledger, { get: () => undefined }, payload.args.query) }
         if (endpoint === 'costMeter/getContextIntegration') return { ok: true, value: await getContextIntegration({ get: () => undefined }) }

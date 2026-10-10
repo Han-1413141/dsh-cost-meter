@@ -46,7 +46,7 @@ async function scenario({ initial = 'zh', explicit = 'auto', late = false, brows
   requireMain.async = async id => { assert.equal(id, './client.statistics.js'); return statistics }
   const main = factory(requireMain)
   class Remote extends Service {
-    constructor(owner) { super(owner, 'remote'); this.costMeter = { getState: async () => ({ ok: true, value: state }), updateConfig: async patch => { writes++; writtenPatch = patch; return { ok: true, value: state } } }; owner.provide('remote.costMeter', this.costMeter) }
+    constructor(owner) { super(owner, 'remote'); this.costMeter = { getState: async () => ({ ok: true, value: state }), updateConfig: async patch => { writes++; writtenPatch = patch; return { ok: true, value: state } } }; this.costMeter.getLocalState = this.costMeter.getState; owner.provide('remote.costMeter', this.costMeter) }
     async $mount() { mounted++; return () => { unmounted++ } }
   }
   class Slots extends Service {
@@ -135,7 +135,7 @@ async function mixedClients(artifact) {
   })
   const main = factory(name => name === 'react' ? React : {})
   class Remote extends Service {
-    constructor(owner) { super(owner, 'remote'); owner.provide('remote.costMeter', { getState: async () => ({ ok: true, value: { config: sanitizeConfig({ locale: 'auto', hideOfficialBalance: true }), meta: {} } }) }) }
+    constructor(owner) { super(owner, 'remote'); const getState = async () => ({ ok: true, value: { config: sanitizeConfig({ locale: 'auto', hideOfficialBalance: true }), meta: {} } }); owner.provide('remote.costMeter', { getState, getLocalState: getState }) }
     async $mount() { return () => {} }
   }
   class Slots extends Service {

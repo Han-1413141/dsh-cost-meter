@@ -163,7 +163,7 @@ const Page = () => null
 requireClient.async = async path => { assert.equal(path, './client.statistics.js'); loadCount++; return { mount: async () => Page } }
 const main = mainFactory(requireClient)
 await main.apply({ remote: { $mount: async () => () => {} },
-  get: key => key === 'remote.costMeter' ? { getState: async () => ({ ok: true, value: props.state }) } : {
+  get: key => key === 'remote.costMeter' ? { getState: async () => ({ ok: true, value: props.state }), getLocalState: async () => ({ ok: true, value: props.state }) } : {
     inject: (_, fn) => { const cleanup = fn(); if (cleanup) cleanups.push(cleanup) },
     register: (options, component) => { registrations.set(options.name + ':' + options.id, { options, component }); return () => {} },
   }, effect: fn => { const cleanup = fn(); if (cleanup) cleanups.push(cleanup) }, on: () => () => {},
