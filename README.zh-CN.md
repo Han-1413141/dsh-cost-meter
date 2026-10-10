@@ -10,7 +10,7 @@
 
 [![version](https://img.shields.io/badge/version-1.8.18-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 
-**v1.8.18** 新增上下文费用构成与可选的 dsh-context 联动。对话入口只显示当前对话；分段条直接显示各部分占比，点击或悬停查看金额和 Token 数。关闭按钮始终可见，明细与联动设置默认收起，并修复 dsh-dream-skin 的弹窗透明度适配。只读取已有数据，不产生额外模型 API 费用。详见[使用说明与界面预览](docs/context-costs-design.md)。
+**v1.8.18** 新增上下文费用构成与可选的 dsh-context 联动。对话入口只显示当前对话；圆环图与紧凑图例显示各部分占比，悬停查看金额和 Token，移开后恢复。关闭按钮始终可见，明细与联动设置默认收起，并修复 dsh-dream-skin 的弹窗透明度适配。再次打开复用近期数据，首次设置页不再等待额度接口。只读取已有数据，不产生额外模型 API 费用。详见[使用说明与界面预览](docs/context-costs-design.md)。
 
 桌面端用户请按 [Desktop 安装说明](docs/install-troubleshooting.md#desktop-安装与更新)，使用应用自带的 CLI 和 `desktop` Profile。
 

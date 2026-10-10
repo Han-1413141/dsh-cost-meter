@@ -163,18 +163,42 @@ window.__ModuleLoader__.load({
      * 取数钩子。重取时保留上一次的值(stale-while-revalidate):轮询与轮次联动刷新
      * 只更新数字,不再把已渲染的指标/图表/表格清空回「加载中」。
      */
+    // Cache only within one mounted API generation, bounded by age and count.
+    // Queries include session, filters, currency rules and pagination separately.
+    const requestCaches = new WeakMap()
+    function requestEntry(api, method, query) {
+      let cache = requestCaches.get(api)
+      if (!cache) requestCaches.set(api, cache = new Map())
+      const key = method + ':' + JSON.stringify(query)
+      let entry = cache.get(key)
+      if (!entry) { entry = {}; cache.set(key, entry); if (cache.size > 32) cache.delete(cache.keys().next().value) }
+      return entry
+    }
+    const cachedValue = (entry, revision) => entry.revision === revision && Date.now() - entry.at < 120000 ? entry.value : null
+    function readRequest(api, method, query, revision, force = false) {
+      const entry = requestEntry(api, method, query)
+      if (entry.pending && entry.pendingRevision === revision) return entry.pending
+      if (!force && cachedValue(entry, revision) && Date.now() - entry.at < 1000) return Promise.resolve(entry.value)
+      const task = (async () => api[method](query))().then(value => {
+        if (entry.pending === task) Object.assign(entry, { value, revision, at: Date.now() })
+        return value
+      }).finally(() => { if (entry.pending === task) entry.pending = null })
+      entry.pending = task; entry.pendingRevision = revision
+      return task
+    }
     function useRequest(api, method, query, revision) {
-      const [result, setResult] = useState({ value: null, error: '', failed: false, loading: true, key: null })
       const key = JSON.stringify(query)
+      const [result, setResult] = useState(() => ({ ...requestValue(key, cachedValue(requestEntry(api, method, query), revision)), loading: true }))
       useEffect(() => {
         let active = true
-        setResult(previous => requestStart(previous, key))
-        api[method](JSON.parse(key)).then(
+        setResult(previous => previous.key === key ? requestStart(previous, key) : { ...requestValue(key, cachedValue(requestEntry(api, method, query), revision)), loading: true })
+        readRequest(api, method, JSON.parse(key), revision).then(
           value => { if (active) setResult(requestValue(key, value)) },
           error => { if (active) setResult(previous => requestFailure(previous, key, error)) })
         return () => { active = false }
       }, [api, method, key, revision])
-      return result
+      // A prop change must not expose the previous conversation for one render.
+      return result.key === key ? result : { ...requestValue(key, cachedValue(requestEntry(api, method, query), revision)), loading: true }
     }
     const button = (label, onClick, props = {}) => el('button', { type: 'button', className: 'cm-stat-btn', onClick, ...props }, label)
     /** 失败提示的唯一出处。同一句提示此前在 6 处各写一遍,改文案或无障碍属性要动 6 个点,漏一处就出现「明细报错、概览不报」。 */
@@ -192,29 +216,41 @@ window.__ModuleLoader__.load({
       .cm-plan-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:14px 0;padding:14px 0;border-block:1px solid var(--cmp-border)}.cm-plan-amount{font-size:clamp(16px,4cqw,24px);font-variant-numeric:tabular-nums;font-weight:500;overflow-wrap:anywhere}.cm-plan-stack{display:flex;height:10px;overflow:hidden;border-radius:4px;background:var(--cmp-bg);margin-bottom:12px}.cm-plan-stack span{min-width:0}
       .cm-plan-parts{list-style:none;margin:0;padding:0;display:grid;gap:12px}.cm-plan-part-head{display:flex;gap:8px;justify-content:space-between;align-items:baseline}.cm-plan-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px}.cm-plan-part-meta{display:flex;gap:10px;justify-content:space-between;color:var(--cmp-muted);font-size:11px;font-variant-numeric:tabular-nums}
       .cm-plan-note{background:var(--cmp-bg);padding:10px 12px;border-radius:8px;margin-top:12px!important;font-size:12px}.cm-plan details{margin-top:12px;font-size:12px}.cm-plan summary{cursor:pointer;color:var(--cmp-muted)}.cm-plan details p{margin-top:8px}.cm-plan-error{color:var(--dsw-alias-state-error-primary,#c75040);margin-top:8px!important}.cm-plan [data-increase=true]{color:var(--dsw-alias-state-error-primary,#c75040)}.cm-plan-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}.cm-plan-last{border-top:1px solid var(--cmp-border);padding-top:16px;margin-top:16px}.cm-plan-total{font-weight:500;margin-top:12px!important}.cm-plan-host{border-top:1px solid var(--cmp-border,var(--dsw-alias-border-l3,#e5e7eb));padding-top:16px;margin-top:16px}
-      .cm-cost-segments{margin:12px 0}.cm-cost-track{display:flex;height:30px;gap:2px;border-radius:7px;overflow:hidden;background:var(--cmp-bg)}.cm-plan .cm-cost-segment{min-width:0;padding:0;border:0;border-radius:0;display:flex;align-items:center;justify-content:center;overflow:hidden}.cm-cost-segment span{font-size:10px;font-weight:600;color:#202124;background:#ffffffd9;border-radius:4px;padding:0 3px;line-height:17px}.cm-cost-segment[aria-pressed=true]{box-shadow:inset 0 0 0 2px var(--cmp-accent)}.cm-cost-legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:10px}.cm-plan .cm-cost-key{padding:3px 0;border:0;border-radius:4px;font-size:11px;display:flex;gap:5px;align-items:center;color:var(--cmp-muted)}.cm-cost-key .cm-plan-dot{margin:0;flex:none}.cm-plan .cm-cost-key[aria-pressed=true]{color:var(--dsw-alias-label-primary);font-weight:600}.cm-cost-selection{min-height:42px;margin-top:8px;padding:8px 10px;border-radius:8px;background:var(--cmp-bg);display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;font-variant-numeric:tabular-nums}.cm-cost-selection>span:last-child{text-align:right}.cm-cost-selection small{display:block;color:var(--cmp-muted);font-size:11px}.cm-cost-table .cm-plan-parts{margin-top:12px;gap:8px}.cm-context-setting>summary{font-size:12px;cursor:pointer;list-style-position:inside}.cm-context-setting>summary+div{margin-top:12px}
-      @container(max-width:420px){.cm-plan-summary{gap:8px;grid-template-columns:1fr 1fr}.cm-plan-part-head{align-items:start;flex-wrap:wrap}.cm-cost-legend{gap:4px 10px}}`
+      .cm-cost-chart{margin:18px 0 10px;display:grid;grid-template-columns:156px minmax(0,1fr);align-items:center;gap:12px 28px}.cm-cost-donut{position:relative;width:156px;height:156px}.cm-cost-donut svg{display:block;width:100%;height:100%;overflow:visible}.cm-cost-arc{cursor:pointer;transition:opacity .15s,stroke-width .15s;outline:none}.cm-cost-chart[data-inspecting=true] .cm-cost-arc:not([data-active=true]){opacity:.4}.cm-cost-arc[data-active=true]{stroke-width:20}.cm-cost-arc:focus-visible{stroke-width:23}.cm-cost-center{position:absolute;inset:40px 25px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center;pointer-events:none}.cm-cost-center b{font-size:24px;line-height:1.25;font-weight:500;letter-spacing:-.5px;font-variant-numeric:tabular-nums}.cm-cost-center small{font-size:10px;line-height:1.4;color:var(--cmp-muted);max-width:106px}.cm-cost-legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 20px}.cm-plan .cm-cost-key{padding:7px 8px;border:0;border-radius:7px;font-size:12px;display:flex;gap:7px;align-items:center;min-width:0;color:var(--cmp-muted);text-align:left}.cm-cost-key .cm-plan-dot{margin:0;flex:none;width:6px;height:6px}.cm-cost-key-label{flex:1;min-width:0;line-height:1.4}.cm-cost-key-share{color:var(--dsw-alias-label-primary);font-variant-numeric:tabular-nums;flex:none}.cm-plan .cm-cost-key[data-active=true]{background:var(--cmp-bg);color:var(--dsw-alias-label-primary)}.cm-cost-inspect{grid-column:1/-1;display:flex;align-items:baseline;flex-wrap:wrap;justify-content:center;gap:4px 12px;min-height:22px;font-size:11px;color:var(--cmp-muted);font-variant-numeric:tabular-nums}.cm-cost-inspect strong{font-weight:500;color:var(--dsw-alias-label-primary)}.cm-cost-table .cm-plan-parts{margin-top:12px;gap:8px}.cm-context-setting>summary{font-size:12px;cursor:pointer;list-style-position:inside}.cm-context-setting>summary+div{margin-top:12px}
+      @container(max-width:540px){.cm-cost-chart{grid-template-columns:128px minmax(0,1fr);gap:10px 12px}.cm-cost-donut{width:128px;height:128px}.cm-cost-center{inset:32px 18px}.cm-cost-center b{font-size:21px}.cm-cost-legend{grid-template-columns:1fr;gap:1px}.cm-plan .cm-cost-key{padding:4px;font-size:11px}}
+      @container(max-width:320px){.cm-cost-chart{grid-template-columns:1fr}.cm-cost-donut{margin:auto}.cm-cost-legend{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px}}
+      @container(max-width:420px){.cm-plan-summary{gap:8px;grid-template-columns:1fr 1fr}.cm-plan-part-head{align-items:start;flex-wrap:wrap}}
+      @media(prefers-reduced-motion:reduce){.cm-cost-arc{transition:none}}`
     const contextColors = ['indigo', 'amber', 'green', 'purple', 'orange', 'blue', 'teal', 'gray'].map((name, i) => 'var(--color-' + name + '-500,' + ['#8186c7', '#c69a57', '#68a588', '#ab83b8', '#c58e6c', '#6d95c4', '#64a5a5', '#9b9da3'][i] + ')')
-    function CostSegments({ rows, total, label, text }) {
-      const [selected, setSelected] = useState('')
-      const active = rows.find(row => row.key === selected) ?? rows.reduce((best, row) => !best || row.value > best.value ? row : best, null)
+    function CostBreakdown({ rows, total, label, text }) {
+      const [hovered, setHovered] = useState(''), [focused, setFocused] = useState('')
+      const active = rows.find(row => row.key === (hovered || focused))
       const share = row => total > 0 ? pct(row.value, total) : '—'
-      const selectProps = row => ({ type: 'button', 'aria-pressed': active?.key === row.key, onClick: () => setSelected(row.key), onFocus: () => setSelected(row.key), onMouseEnter: () => setSelected(row.key) })
-      return el('div', { className: 'cm-cost-segments', 'aria-label': label },
-        el('div', { className: 'cm-cost-track' }, ...rows.filter(row => row.value > 0 && total > 0).map(row => el('button', { ...selectProps(row), key: row.key, className: 'cm-cost-segment', title: row.label + ' · ' + share(row) + ' · ' + row.amount, 'aria-label': row.label + ' · ' + share(row), style: { width: Math.min(100, row.value / total * 100) + '%', background: row.color } }, row.value / total >= .08 ? el('span', null, share(row)) : null))),
-        el('div', { className: 'cm-cost-legend' }, ...rows.map(row => el('button', { ...selectProps(row), key: row.key, className: 'cm-cost-key' }, el('i', { className: 'cm-plan-dot', style: { background: row.color } }), row.label, el('span', null, share(row))))),
-        active ? el('div', { className: 'cm-cost-selection', role: 'status', 'aria-live': 'polite' }, el('span', null, active.label, el('small', null, active.tokens.toLocaleString() + ' tokens')), el('span', null, active.amount, el('small', null, label + ' ' + share(active)))) : el('p', { className: 'cm-plan-sub' }, text('暂无用量', 'No usage yet')))
+      const inspect = row => ({ 'data-active': active?.key === row.key, onMouseEnter: () => setHovered(row.key), onMouseLeave: () => setHovered(''), onFocus: event => { if (event.currentTarget.matches(':focus-visible')) setFocused(row.key) }, onBlur: () => setFocused(''), onPointerDown: () => setFocused('') })
+      let offset = 0
+      const arcs = rows.filter(row => row.value > 0 && total > 0).map(row => {
+        const percent = Math.min(100, row.value / total * 100), start = offset
+        offset += percent
+        const gap = Math.min(.5, percent * .15)
+        return el('circle', { ...inspect(row), key: row.key, className: 'cm-cost-arc', role: 'button', tabIndex: 0, 'aria-label': row.label + ' · ' + share(row) + ' · ' + row.amount + ' · ' + row.tokens.toLocaleString() + ' tokens', cx: 78, cy: 78, r: 61, pathLength: 100, fill: 'none', stroke: row.color, strokeWidth: 16, strokeDasharray: (percent - gap) + ' ' + (100 - percent + gap), strokeDashoffset: -start - gap / 2, transform: 'rotate(-90 78 78)' })
+      })
+      return el('div', { className: 'cm-cost-chart', 'aria-label': label, 'data-inspecting': !!active, onMouseLeave: () => setHovered('') },
+        el('div', { className: 'cm-cost-donut' }, el('svg', { viewBox: '0 0 156 156', 'aria-label': label }, el('circle', { cx: 78, cy: 78, r: 61, fill: 'none', stroke: 'var(--cmp-bg)', strokeWidth: 16 }), ...arcs),
+          el('div', { className: 'cm-cost-center', 'aria-hidden': true }, el('b', null, active ? share(active) : total > 0 ? '100%' : '—'), el('small', null, active?.label ?? label))),
+        el('div', { className: 'cm-cost-legend' }, ...rows.map(row => el('button', { ...inspect(row), type: 'button', key: row.key, className: 'cm-cost-key', 'aria-label': row.label + ' ' + share(row) }, el('i', { className: 'cm-plan-dot', style: { background: row.color } }), el('span', { className: 'cm-cost-key-label' }, row.label), el('span', { className: 'cm-cost-key-share' }, share(row))))),
+        el('div', { className: 'cm-cost-inspect', role: 'status', 'aria-live': 'polite' }, active ? el(Fragment, null, el('strong', null, active.label), el('span', null, active.tokens.toLocaleString() + ' tokens'), el('strong', null, active.amount)) : text('悬停图表或图例，查看费用与 Token', 'Hover or focus the chart or legend for costs and tokens')))
     }
     function ContextCosts({ api, sessionId, revision = '', text = (zh, en) => en, money = value => '$' + value.toLocaleString('en-US', { maximumFractionDigits: 6 }), integrated = false }) {
-      const root = useRef(null), refresh = useRef(() => {})
-      const [result, setResult] = useState({ value: null, error: '', busy: true })
+      const root = useRef(null), refresh = useRef(() => {}), revisionRef = useRef(revision)
+      revisionRef.current = revision
+      const [result, setResult] = useState(() => ({ value: cachedValue(requestEntry(api, 'getContextCosts', { sessionId }), revision), error: '', busy: true }))
       useEffect(() => {
         let active = true, pending = false, visible = typeof IntersectionObserver !== 'function'
-        const run = async () => {
+        const run = async (force = false) => {
           if (!active || pending || !visible || document.hidden) return
           pending = true; setResult(old => ({ ...old, busy: true }))
           try {
-            const next = await api.getContextCosts({ sessionId })
+            const next = await readRequest(api, 'getContextCosts', { sessionId }, revisionRef.current, force === true)
             if (next.sessionId !== sessionId) throw new Error('Context costs session mismatch')
             if (active) setResult({ value: next, error: '', busy: false })
           } catch { if (active) setResult(old => ({ ...old, busy: false, error: text('上下文费用刷新失败，保留上次结果。', 'Context cost refresh failed; previous results are retained.') })) }
@@ -232,7 +268,7 @@ window.__ModuleLoader__.load({
       const data = result.value?.sessionId === sessionId ? result.value : null
       const header = el('div', { className: 'cm-plan-head' }, el('h3', null, text('上下文费用构成', 'Context cost breakdown')), el('div', null,
         integrated && api.disableIntegration ? el('button', { type: 'button', onClick: api.disableIntegration }, text('关闭联动', 'Turn off integration')) : null,
-        el('button', { type: 'button', onClick: () => refresh.current(), disabled: result.busy }, text('刷新', 'Refresh'))))
+        el('button', { type: 'button', onClick: () => refresh.current(true), disabled: result.busy }, text('刷新', 'Refresh'))))
       const wrap = content => el('section', { className: 'cm-plan', ref: root, 'aria-label': text('当前上下文费用构成', 'Current context cost breakdown'), 'data-cm-plan-session': sessionId }, el('style', null, contextCostsCss), header,
         integrated ? el('p', { className: 'cm-plan-sub' }, 'dsh-context × dsh-cost-meter · USD') : null,
         result.error ? el('p', { role: 'alert', className: 'cm-plan-error' }, result.error) : null, content)
@@ -252,7 +288,7 @@ window.__ModuleLoader__.load({
         el('div', { className: 'cm-plan-summary' }, el('div', null, el('div', { className: 'cm-plan-sub' }, text('当前上下文', 'Current context')), el('div', { className: 'cm-plan-amount' }, '≈ ' + countText(data.contextTokens) + ' tokens')),
           el('div', null, el('div', { className: 'cm-plan-sub' }, text('输入费用参考', 'Input cost reference')), el('div', { className: 'cm-plan-amount' }, costText(breakdown.cost)))),
         el('p', { className: 'cm-plan-sub', style: { marginBottom: 12 } }, text('按非缓存输入单价估算，未计缓存折扣；不代表已发生费用。', 'Estimated at uncached input rates, before cache discounts; not a charge already incurred.')),
-        el(CostSegments, { rows: breakdown.parts.filter(row => row.tokens > 0).map(row => ({ key: row.key, label: names[contextKeys.indexOf(row.key)], tokens: Math.round(row.tokens), value: priced ? row.cost : row.tokens, amount: costText(row.cost), color: contextColors[contextKeys.indexOf(row.key)] })), total: priced ? breakdown.cost : data.contextTokens, label: priced ? text('参考费用占比', 'Reference cost share') : text('Token 占比', 'Token share'), text }),
+        el(CostBreakdown, { rows: breakdown.parts.filter(row => row.tokens > 0).map(row => ({ key: row.key, label: names[contextKeys.indexOf(row.key)], tokens: Math.round(row.tokens), value: priced ? row.cost : row.tokens, amount: costText(row.cost), color: contextColors[contextKeys.indexOf(row.key)] })), total: priced ? breakdown.cost : data.contextTokens, label: priced ? text('参考费用占比', 'Reference cost share') : text('Token 占比', 'Token share'), text }),
         el('details', { className: 'cm-cost-table' }, el('summary', null, text('展开各部分明细', 'Show component details')), el('ul', { className: 'cm-plan-parts' }, ...breakdown.parts.filter(row => row.tokens > 0).map(row => {
           const index = contextKeys.indexOf(row.key)
           return el('li', { key: row.key }, el('div', { className: 'cm-plan-part-head' }, el('span', null, el('i', { className: 'cm-plan-dot', style: { background: contextColors[index] } }), names[index]), el('span', null, costText(row.cost))),
@@ -260,7 +296,7 @@ window.__ModuleLoader__.load({
         }))),
         call ? el('section', { className: 'cm-plan-last' }, el('h3', null, text('最近一次调用 · 用量计费', 'Latest call · usage-based costs')),
           el('p', { className: 'cm-plan-sub' }, call.provider + ' / ' + call.model + ' · ' + new Date(call.atMs).toLocaleString()),
-          el(CostSegments, { rows: call.rows.filter(row => row.tokens > 0 && (row.bucket !== 'reasoning' || row.rate > 0)).map((row, i) => ({ key: row.bucket, label: buckets[row.bucket] ?? row.bucket, tokens: row.tokens, value: row.cost, amount: call.priced ? money(row.cost) : text('未定价', 'Unpriced'), color: contextColors[i] })), total: call.priced ? call.cost : 0, label: text('费用占比', 'Cost share'), text }),
+          el(CostBreakdown, { rows: call.rows.filter(row => row.tokens > 0 && (row.bucket !== 'reasoning' || row.rate > 0)).map((row, i) => ({ key: row.bucket, label: buckets[row.bucket] ?? row.bucket, tokens: row.tokens, value: row.cost, amount: call.priced ? money(row.cost) : text('未定价', 'Unpriced'), color: contextColors[({ input: 0, cacheRead: 6, cacheWrite: 1, output: 5, reasoning: 3 })[row.bucket] ?? 7] })), total: call.priced ? call.cost : 0, label: text('费用占比', 'Cost share'), text }),
           el('details', { className: 'cm-cost-table' }, el('summary', null, text('展开调用明细', 'Show call details')), el('ul', { className: 'cm-plan-parts', style: { marginTop: 12 } }, ...call.rows.filter(row => row.bucket !== 'reasoning' || row.rate > 0).map(row => el('li', { key: row.bucket },
             el('div', { className: 'cm-plan-part-head' }, el('span', null, buckets[row.bucket] ?? row.bucket), el('span', null, call.priced ? money(row.cost) : text('未定价', 'Unpriced'))),
             el('div', { className: 'cm-plan-part-meta' }, el('span', null, countText(row.tokens) + ' tokens'), el('span', null, call.priced ? pct(row.cost, call.cost) : '—')))))),
@@ -417,7 +453,7 @@ window.__ModuleLoader__.load({
           after ? el('div', { className: 'cm-plan cm-context-preview-extra' }, el('p', null, text('上下文费用构成', 'Context cost breakdown')),
             el('div', { className: 'cm-context-preview-metrics' }, el('div', null, el('span', null, text('输入费用参考', 'Input cost reference')), el('b', null, '≈ $0.012'))),
             el('p', { className: 'cm-context-muted' }, text('按非缓存单价估算', 'Estimated at uncached rates')),
-            el(CostSegments, { text, total: 12000, label: text('费用占比', 'Cost share'), rows: [1200, 1800, 1200, 1800, 6000].map((tokens, i) => ({ key: String(i), label: labels[i], value: tokens, tokens, amount: '≈ $' + tokens / 1e6, color: colors[i] })) }),
+            el(CostBreakdown, { text, total: 12000, label: text('费用占比', 'Cost share'), rows: [1200, 1800, 1200, 1800, 6000].map((tokens, i) => ({ key: String(i), label: labels[i], value: tokens, tokens, amount: '≈ $' + tokens / 1e6, color: colors[i] })) }),
             el('div', { className: 'cm-context-preview-extra' }, el('p', null, text('最近一次调用', 'Latest call')), el('div', { className: 'cm-context-preview-row' }, el('span', null, text('输入 $0.012 · 输出 $0.004', 'Input $0.012 · output $0.004'))),
               el('p', { className: 'cm-context-muted' }, text('用量计费合计 $0.016', 'Usage-based total $0.016')))) : null))
     }
@@ -731,7 +767,15 @@ window.__ModuleLoader__.load({
         const slots = ctx.get('slots'), register = () => slots.register({ name: 'shell.overlay', id: 'cost-meter-context-intro', order: 50 }, () => el(ContextPrompt, { manager, getLocale }))
         if (typeof slots.inject === 'function') ctx.effect(() => slots.inject('shell.overlay', register), 'cost-meter: context preview prompt')
       }
-      return props => el(props.sessionId ? SessionStatistics : Statistics, { ...props, api, contextIntegration: manager ? { manager, getLocale } : null })
+      const Page = props => el(props.sessionId ? SessionStatistics : Statistics, { ...props, api, contextIntegration: manager ? { manager, getLocale } : null })
+      Page.prefetch = ({ state, sessionId = '' } = {}) => {
+        if (!state || document.hidden) return
+        const revision = refreshKeyOf(state, 0), today = state.meta.dayKey || new Date().toISOString().slice(0, 10)
+        const query = { sessionId, from: sessionId ? '' : shiftDate(today, -6), to: sessionId ? '' : today, provider: '', model: '', basis: state.config.showTotalWithPlan ? 'total' : 'api', offset: 0 }
+        return Promise.all(sessionId ? [readRequest(api, 'getSessionBilling', { ...query, turnOffset: 0 }, revision + ':0'), readRequest(api, 'getContextCosts', { sessionId }, revision)] : [readRequest(api, 'getBillingStatistics', { from: query.from, to: query.to, provider: '', model: '', basis: query.basis, sessionId: '', offset: 0 }, revision)])
+      }
+      ctx.effect(() => () => requestCaches.delete(api), 'cost-meter: statistics cache cleanup')
+      return Page
     }
     return { mount, Statistics, SessionStatistics, SessionDetail, TurnInspection, ShareChart, ContextCosts, ContextPrompt, ContextPreview, ContextIntegrationSettings, createContextIntegration, contextCostBreakdown, installContextCosts, CONTRIBUTION, parseContextCosts, parseStatistics, parseDetail, parseInspection, dailyChartRows, requestStart, requestValue, requestFailure, showsPlaceholder, refreshKeyOf }
   },

@@ -61,6 +61,23 @@ const gatewayPayload = percent => ({ status_code: 200, body: JSON.stringify({ fi
 const gatewayResponse = (url, percent) => Response.json(new URL(url).pathname === GATEWAY_MANAGEMENT_PATHS.authFiles
   ? { auth_files: [{ auth_index: 'test', provider: 'claude' }] } : gatewayPayload(percent))
 
+await check('首屏本地数据不等待冷额度请求，普通读取随后补齐且不重复查询', async () => {
+  const gate = deferred()
+  let calls = 0, painted = false
+  await fixture(gatewayConfig, async url => { calls++; await gate.promise; return gatewayResponse(url, 15) }, async api => {
+    const immediate = api.getState(true).then(state => { stateSchema.parse(state); painted = true; return state })
+    let complete
+    try {
+      await until(() => painted)
+      assert.equal(painted, true, '本地统计先显示，网络仍被 fixture 阻塞')
+      assert.equal((await immediate).gatewayQuotas[0].status, 'loading', '未返回的额度不伪装为实际零用量')
+      complete = api.getState()
+    } finally { gate.resolve() }
+    assert.equal((await complete).gatewayQuotas[0].status, 'ok')
+    assert.equal(calls, 2, '仅一次发现和一次额度读取，两次状态请求共享任务')
+  })
+})
+
 await check('网关缓存复用与失败时保留上次成功额度', () => {
   let calls = 0, fail = false
   return fixture(gatewayConfig, async url => { calls++; return fail ? new Response('', { status: 401 }) : gatewayResponse(url, 42) }, async api => {

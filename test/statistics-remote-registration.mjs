@@ -130,6 +130,12 @@ try {
     assert.equal((await api.getTurnInspection({ sessionId: 'selected', turn: 1 })).found, false)
     assert.equal((await api.getContextCosts({ sessionId: 'selected' })).status, 'session-unavailable')
     assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))), ['costMeter/getContextCosts', { query: { sessionId: 'selected' } }])
+    const prefetchStart = calls.length
+    await Promise.all([Page.prefetch({ state, sessionId: 'selected' }), Page.prefetch({ state, sessionId: 'selected' })])
+    const prefetched = calls.slice(prefetchStart).filter(([name]) => ['costMeter/getSessionBilling', 'costMeter/getContextCosts'].includes(name))
+    assert.equal(prefetched.length, 2, 'concurrent intent preloads share one detail and one context request')
+    await Page.prefetch({ state, sessionId: 'selected' })
+    assert.equal(calls.length, prefetchStart + 2, 'immediate repeated preloads reuse the fresh snapshot')
     assert.equal((await first.api.loginCodingPlan('qwen')).message, 'synthetic login response')
     assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))), ['costMeter/loginCodingPlan', { provider: 'qwen' }], 'login RPC reaches the real gateway with its provider parameter')
     for (const fn of listeners.get('pointerover') ?? []) fn({ target: { closest: () => null } })

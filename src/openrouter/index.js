@@ -28,9 +28,10 @@ window.__ModuleLoader__.load({
       const old = new Map((before?.models ?? []).map(row => [row.id, row]))
       return new Set(after.models.filter(row => old.has(row.id) && ['input', 'output', 'cachedInput', 'cacheWrite'].some(key => old.get(row.id)[key] !== row[key])).map(row => row.id))
     }
+    const priceSnapshots = new WeakMap()
     function PriceBrowser({ api, state, resolveLocale }) {
       const en = resolveLocale(state.config) === 'en', text = (zh, english) => en ? english : zh
-      const [value, setValue] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(false)
+      const [value, setValue] = useState(() => priceSnapshots.get(api) ?? null), [error, setError] = useState(''), [busy, setBusy] = useState(false)
       const [query, setQuery] = useState(''), [sort, setSort] = useState('name'), [page, setPage] = useState(0)
       const [changed, setChanged] = useState(new Set())
       const refreshRef = useRef(() => {}), previous = useRef(null)
@@ -41,6 +42,7 @@ window.__ModuleLoader__.load({
           pending = true; setBusy(true)
           try {
             const next = await api.getOpenRouterCatalog()
+            priceSnapshots.set(api, next)
             if (!active) return
             if (!next.stale && next.fetchedAt !== previous.current?.fetchedAt) {
               setChanged(changedRates(previous.current, next)); previous.current = next

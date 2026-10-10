@@ -109,6 +109,7 @@ try {
   // Independent display also works with integration off and has no scenario inputs.
   await page.setViewportSize({ width: 1280, height: 1000 })
   assert.equal(await page.locator('#planner input').count(), 0)
+  await page.locator('#planner .cm-cost-key').getByText('工具结果', { exact: true }).hover()
   assert.match(await page.locator('#planner').innerText(), /0\.006/)
   assert.match(await page.locator('#planner').innerText(), /50\.0%/)
   assert.match(await page.locator('#planner').innerText(), /0\.00805/)

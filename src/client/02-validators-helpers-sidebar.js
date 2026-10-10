@@ -500,6 +500,7 @@
       descriptors: [
         {
           method: 'getState',
+          parameters: [rpcParam('immediate', 'ImmediateState', codecOf(v => { if (v !== undefined && typeof v !== 'boolean') fail('immediate', 'boolean'); return v }), true)],
           result: strictCodec('CostState', stateCodec),
         },
         {

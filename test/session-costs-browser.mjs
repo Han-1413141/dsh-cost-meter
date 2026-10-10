@@ -29,13 +29,14 @@ const rows=[['input',1176,1],['cacheRead',117600,.02],['output',5894,4]].map(([b
 const detail={found:true,...count,rows,calls:Array.from({length:7},(_,i)=>({sessionId:'current',kind:'model',turn:1,step:i+1,provider:'deepseek-official',model:'deepseek-flash',atMs:1791508800000,cost:.003872,apiCost:.003872,plan:false,priced:true,longContext:false,rows:rows.map(row=>({...row,tokens:row.tokens/7,cost:row.cost/7}))})),totalCalls:7,offset:0,recorded:{...count,cost:0,apiCost:0,calls:0},kinds:[{...count,kind:'model',unpriced:false}],turns:[{...count,sessionId:'current',turn:1}],totalTurns:1,turnOffset:0,stepShares:{cost:[{...count,sessionId:'current',turn:1,step:1,other:false,unpriced:false}],calls:[]}};
 const parts={system:2291,tools:9017,user:14,inject:378,skill:2692,assistant:2469,tool:1044,other:1};
 window.contextData={status:'ready',sessionId:'current',generatedAt:1791508800000,revision:2,provider:'deepseek-official',model:'deepseek-flash',basis:'api',priced:true,source:'usage',linked:true,contextTokens:17906,components:Object.entries(parts).map(([key,tokens])=>({key,tokens})),rates:{input:1,cacheRead:.02,cacheWrite:0,output:4,reasoning:0},longContext:null,lastCall:{...detail.calls[0],cost:.00387392,rows:[['input',168,1],['cacheRead',16896,.02],['output',842,4]].map(([bucket,tokens,rate])=>({bucket,tokens,rate,cost:tokens*rate/1e6,priced:true,plan:false}))}};
-window.requests=[];window.refreshFails=false;
-const api={getBillingStatistics:async()=>{throw Error('conversation entry must never fetch global statistics')},getSessionBilling:async q=>{window.requests.push(q);if(window.refreshFails)throw Error('offline fixture');return detail},getContextCosts:async q=>({...window.contextData,sessionId:q.sessionId}),getTurnInspection:async()=>({found:true,input:'Synthetic local input',tools:[],turn:1,totalTools:0,offset:0})};
+window.requests=[];window.refreshFails=false;window.rpcDelay=0;
+const api={getBillingStatistics:async()=>{throw Error('conversation entry must never fetch global statistics')},getSessionBilling:async q=>{window.requests.push(q);if(window.rpcDelay)await new Promise(resolve=>setTimeout(resolve,window.rpcDelay));if(window.refreshFails)throw Error('offline fixture');return detail},getContextCosts:async q=>({...window.contextData,sessionId:q.sessionId}),getTurnInspection:async()=>({found:true,input:'Synthetic local input',tools:[],turn:1,totalTools:0,offset:0})};
 const integrationState={enabled:true,available:true,saving:false,error:'',peer:{version:'0.66.0'}};
 const manager={subscribe:()=>()=>{},getSnapshot:()=>integrationState,preview(){},refresh(){},choose(){}};
 const config={locale:'zh',currency:'USD',exchangeRate:1,decimals:6,showTotalWithPlan:false,contextCostsEnabled:true};
 const state={config,meta:{dayKey:'2026-10-10',timezone:'Asia/Shanghai'},total:count,today:count};
-api.loadStatistics=async()=>props=>h(UI.SessionStatistics,{...props,contextIntegration:{manager,getLocale:()=>config.locale}});
+const StatisticsPage=props=>h(UI.SessionStatistics,{...props,contextIntegration:{manager,getLocale:()=>config.locale}});
+api.loadStatistics=async()=>StatisticsPage;
 const root=createRoot(document.getElementById('root'));
 window.renderSession=(id='current')=>root.render(h(window.mainUI.preview.SessionStatisticsButton,{sessionId:id,useCost:()=>({state}),api,entryPosition:'dock'}));
 window.renderSession();window.fixtureReady=true;
@@ -73,16 +74,22 @@ try {
   assert.equal(await page.locator('.cm-session-options').evaluate(n => n.open), false)
   assert.equal(await page.locator('.cm-context-setting').evaluate(n => n.open), false)
   assert.equal(await page.locator('.cm-cost-table').first().evaluate(n => n.open), false)
-  const firstChart = page.locator('.cm-cost-segments').first()
+  const firstChart = page.locator('.cm-cost-chart').first()
   await firstChart.getByRole('button', { name: '系统提示 12.8%', exact: true }).click()
   assert.match(await firstChart.locator('[role=status]').innerText(), /2,291 tokens/)
   assert.match(await firstChart.locator('[role=status]').innerText(), /0\.002291/)
   await firstChart.getByRole('button', { name: '工具定义 50.4%', exact: true }).click()
   assert.match(await firstChart.locator('[role=status]').innerText(), /9,017 tokens/)
+  await page.mouse.move(8, 8)
+  assert.equal(await firstChart.locator('[data-active=true]').count(), 0, 'pointer leave clears chart and legend highlighting')
+  assert.match(await firstChart.locator('[role=status]').innerText(), /悬停/)
   // Keyboard and tiny categories remain available through the legend.
+  await page.keyboard.press('Tab')
   await firstChart.getByRole('button', { name: '用户输入 0.1%', exact: true }).focus()
   assert.match(await firstChart.locator('[role=status]').innerText(), /14 tokens/)
   await firstChart.getByRole('button', { name: '工具定义 50.4%', exact: true }).click()
+  await page.mouse.move(8, 8)
+  assert.equal(await firstChart.locator('[data-active=true]').count(), 0, 'clicking a legend never latches selection')
   for (const [name, width, height, theme] of [['01-session-light',1280,900,'light'],['02-session-dark',1280,900,'dark'],['03-session-narrow',390,780,'light']]) {
     await page.setViewportSize({width,height}); await page.evaluate(theme => document.documentElement.dataset.theme=theme,theme)
     await page.locator('.cm-stat-dialog-body').evaluate(n => {n.scrollTop=0})
@@ -96,6 +103,14 @@ try {
     await page.locator('.cm-stat-entry').click(); await page.locator('.cm-cost-key').first().waitFor()
     await page.screenshot({path:join(output,name+'.png')})
   }
+  // Reopening uses the cached page and scoped data even when the RPC is slow.
+  await page.keyboard.press('Escape')
+  await page.evaluate(()=>{window.rpcDelay=700})
+  const reopenedAt=Date.now()
+  await page.locator('.cm-stat-entry').click()
+  await page.locator('.cm-stat-metrics').waitFor({timeout:500})
+  assert.ok(Date.now()-reopenedAt<700,'cached conversation paints before a delayed RPC finishes')
+  await page.evaluate(()=>{window.rpcDelay=0})
   // Dream Skin 10.9.3 applies wallpaper wash to bg-base, and its popup opacity
   // to bg-layer-2 (applyModalOverlay). Test those independent channels directly.
   await page.setViewportSize({width:1280,height:900})
@@ -115,7 +130,7 @@ try {
   assert.equal(await page.locator('.cm-stat-session').getAttribute('data-session-id'),'other')
   assert.ok((await page.evaluate(()=>window.requests)).every(q=>q.sessionId && !q.from && !q.to && !q.provider && !q.model),'every query stays scoped to a single complete conversation')
   assert.deepEqual(errors,[]);assert.deepEqual(external,[])
-  console.log('[ok] conversation-only data, nonzero call-log totals, interactive percentage bars, collapsed details/settings, fixed close, light/dark/narrow layouts, popup-opacity channel, stale refresh, session switch, zero external requests')
+  console.log('[ok] conversation-only data, nonzero call-log totals, donut percentages, transient pointer and keyboard inspection, collapsed details/settings, fixed close, light/dark/narrow layouts, popup-opacity channel, stale refresh, session switch, zero external requests')
   console.log('Screenshots: '+output)
 } finally { await browser.close(); if(!process.argv.includes('--serve')) await new Promise(resolve=>server.close(resolve)) }
 if(process.argv.includes('--serve')) console.log('Review: '+url)

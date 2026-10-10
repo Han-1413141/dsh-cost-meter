@@ -8,17 +8,19 @@
         el('p', { className: 'cm-card-sub' }, props.sub))
     }
 
+    const loadedPages = new WeakMap()
+    const warmPage = (load, props) => load?.().then(page => { loadedPages.set(load, page); return page.prefetch?.(props) }).catch(() => {})
     function BillingStatistics(props) {
-      const [Page, setPage] = useState(null), [error, setError] = useState(''), [retry, setRetry] = useState(0)
+      const load = props.load ?? props.api.loadStatistics
+      const [Page, setPage] = useState(() => loadedPages.get(load) ?? null), [error, setError] = useState(''), [retry, setRetry] = useState(0)
       useEffect(() => {
         let active = true
         setError('')
-        const load = props.load ?? props.api.loadStatistics
-        load().then(page => { if (active) setPage(() => page) }, e => { if (active) setError(String(e.message ?? e)) })
+        load().then(page => { loadedPages.set(load, page); if (active) setPage(() => page) }, e => { if (active) setError(String(e.message ?? e)) })
         return () => { active = false }
       }, [props.api, props.load, retry])
       if (Page) return el(Page, { ...props, formatMoneyUsd, formatTokens, resolveLocale })
-      return el('p', { role: error ? 'alert' : 'status' }, error || '…', error ? el('button', { className: 'cm-btn', onClick: () => setRetry(n => n + 1) }, '↻') : null)
+      return el('div', { className: error ? '' : 'cm-loading', role: error ? 'alert' : 'status', 'aria-label': resolveLocale(props.state?.config) === 'en' ? 'Loading' : '正在读取' }, error || el(Fragment, null, el('i'), el('i'), el('i')), error ? el('button', { className: 'cm-btn', onClick: () => setRetry(n => n + 1) }, '↻') : null)
     }
 
     /**
@@ -57,7 +59,7 @@
       const en = resolveLocale(state?.config) === 'en'
       const label = en ? 'Conversation cost details' : '本会话费用明细'
       return el(Fragment, null,
-        el('button', { type: 'button', className: 'cm-btn cm-stat-entry cm-stat-' + (props.entryPosition || 'dock'), title: label, 'aria-label': label, 'aria-haspopup': 'dialog', onClick: () => setOpenedId(props.sessionId) }, en ? 'Cost details' : '费用明细'),
+        el('button', { type: 'button', className: 'cm-btn cm-stat-entry cm-stat-' + (props.entryPosition || 'dock'), title: label, 'aria-label': label, 'aria-haspopup': 'dialog', onMouseEnter: () => warmPage(props.api.loadStatistics, { state, sessionId: props.sessionId }), onFocus: () => warmPage(props.api.loadStatistics, { state, sessionId: props.sessionId }), onClick: () => setOpenedId(props.sessionId) }, en ? 'Cost details' : '费用明细'),
         open ? el('dialog', { ref: dialog, role: 'dialog', className: STAT_DIALOG_CLASS, 'aria-label': label, onCancel: () => setOpenedId(null) },
           el('header', { className: 'cm-stat-dialog-head' }, el('strong', null, label), el('button', { type: 'button', className: 'cm-btn', autoFocus: true, 'aria-label': en ? 'Close' : '关闭', onClick: () => setOpenedId(null) }, '×')),
           el('div', { className: 'cm-stat-dialog-body' }, state ? el(BillingStatistics, { key: props.sessionId, state, api: props.api, sessionId: props.sessionId }) : el('p', { role: snapshot?.error ? 'alert' : 'status' }, snapshot?.error || (en ? 'Loading…' : '加载中…'), el('button', { type: 'button', className: 'cm-btn', onClick: () => props.api.reload() }, en ? 'Retry' : '重试')))) : null)
@@ -2091,7 +2093,7 @@
         setDraft({ ...draft, prices: { ...draft.prices, models } })
         setNewModelId('')
       }
-      const priceCards = draft === null ? [] : Object.keys(draft.prices.models)
+      const priceCards = tab !== 'pricing' || draft === null ? [] : Object.keys(draft.prices.models)
         .filter(modelId => {
           // priceTableDisplay 按模型门控:缺省 DeepSeek 模型直接显示;显式 false 的收入拓展价格表。
           const displayMap = draft?.priceTableDisplay ?? config.priceTableDisplay ?? {}
@@ -2127,6 +2129,8 @@
             tabItems.map(([id, label]) => el('button', {
               key: id, type: 'button', role: 'tab', 'aria-selected': String(tab === id),
               className: 'cm-tab' + (tab === id ? ' active' : ''),
+              onMouseEnter: () => { if (id === 'statistics' || id === 'pricing') warmPage(id === 'statistics' ? api.loadStatistics : api.loadOpenRouter, { state }) },
+              onFocus: () => { if (id === 'statistics' || id === 'pricing') warmPage(id === 'statistics' ? api.loadStatistics : api.loadOpenRouter, { state }) },
               onClick: () => setTab(id),
             }, label))),
           saveBadge),
@@ -2740,16 +2744,20 @@
         const prev = store.getSnapshot()
         if (prev.state === null) store.set({ ...prev, status: 'loading' })
         try {
-          const state = await call('getState')
+          const state = await call('getState', prev.state === null ? [true] : [])
           if (!active) return
           retrySeconds = 1
           store.set({ status: 'ready', error: null, state })
+          if (prev.state === null) {
+            const fresh = await call('getState')
+            if (active) store.set({ status: 'ready', error: null, state: fresh })
+          }
           // activeLocale 只属于本客户端快照,持久化配置始终保留 auto。
         } catch (error) {
           if (!active) return
           if (prev.state === null) lastPoll = Date.now()
           retrySeconds = Math.min(retrySeconds * 2, 60)
-          store.set({ status: 'error', error: error?.message ?? String(error), state: prev.state })
+          store.set({ status: 'error', error: error?.message ?? String(error), state: store.getSnapshot().state ?? prev.state })
         } finally {
           reloading = false
         }

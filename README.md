@@ -10,7 +10,7 @@ Per-conversation cost · daily totals · OpenCode Go subscription quota display 
 
 [![version](https://img.shields.io/badge/version-1.8.18-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 
-**v1.8.18** adds context cost breakdowns and optional dsh-context integration. The conversation entry shows only that conversation, with percentages on segmented bars and selectable cost/token details. Close controls remain visible; detailed tables and integration settings start collapsed. Dialogs now follow dsh-dream-skin popup opacity. Reads existing data without additional model API charges. See the [guide and preview](docs/context-costs-design.md#english).
+**v1.8.18** adds context cost breakdowns and optional dsh-context integration. The conversation entry shows only that conversation, with donut charts, compact percentage legends and transient hover/focus details. Close controls remain visible; detailed tables and integration settings start collapsed. Dialogs now follow dsh-dream-skin popup opacity. Reopening reuses recent data, and the first settings view no longer waits for quota network requests. Reads existing data without additional model API charges. See the [guide and preview](docs/context-costs-design.md#english).
 
 Desktop users: follow the [Desktop installation instructions](docs/install-troubleshooting.md#desktop-安装与更新) for the application's own CLI and `desktop` Profile.
 
