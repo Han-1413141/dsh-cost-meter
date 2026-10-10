@@ -128,6 +128,8 @@ try {
       getBillingStatistics: stats,
       getSessionBilling: detail,
       getTurnInspection: { found: false, turn: 0, input: '', inputTruncated: false, tools: [], totalTools: 0, offset: 0 },
+      getSessionTrajectory: { cost: 0, apiCost: 0, totalSteps: 0, offset: 0, shares: [], groups: [], steps: [] },
+      getCallInspection: { found: false, kind: 'model', input: '', injected: '', skills: '', precedingTools: '', output: '', reasoning: '', truncated: false, tools: [], totalTools: 0, offset: 0 },
       getContextCosts: { status: 'unavailable', sessionId: 's', generatedAt: at, revision: 0, provider: '', model: '', basis: 'api', priced: false, source: 'none', linked: false, contextTokens: 0, components: [], rates: null, longContext: null, lastCall: null },
       getContextIntegration: { version: '', compatible: false, reason: 'missing' },
     }[item.method]

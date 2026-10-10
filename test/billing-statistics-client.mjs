@@ -101,7 +101,7 @@ const detail = { found: true, cost: .0002, apiCost: .0002, rows: [row], calls: [
   turns: [{ ...stat.totals, turn: 3, cost: .0002, apiCost: .0002, calls: 51, unpriced: false }], totalTurns: 26, turnOffset: 0 }
 detailRequests[0].resolve(detail); await flush()
 assert.match(text(detailOwner.tree), /Ledger and available details differ/)
-assert.match(text(detailOwner.tree), /100 × \$2.000000 \/ 1,000,000 = \$0.000200/)
+assert.match(text(detailOwner.tree), /Uncached input 100 \$0.000200 100.0%/)
 assert.match(text(detailOwner.tree), /Cost by call type/)
 assert.match(text(detailOwner.tree), /Cost by turn/)
 assert.match(text(detailOwner.tree), /Turn 3 \/ step 2/)

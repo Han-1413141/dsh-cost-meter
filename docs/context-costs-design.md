@@ -2,9 +2,21 @@
 
 ## 使用方式
 
-点击对话输入区的费用明细，只查看当前对话。费用概览集中显示总费用、调用次数、Token、缓存命中率和费用构成；上下文与调用明细分别切换，减少滚动。设置中的计费统计保留跨对话查询入口。
+点击对话输入区的费用明细，只查看当前对话。费用概览集中显示总费用、调用次数、Token、缓存命中率和费用构成；计费轨迹直接显示在概览，逐次调用明细原位展开；“费用明细”默认用一张圆环图汇总全部轨迹步骤费用，每块代表一步。逐步独立圆环和上下文参考默认折叠。设置中的计费统计保留跨对话查询入口。
 
-逐次调用图按整个查询范围计算占比，显示费用最高的 7 次和其余合计。点击单次调用可跨页定位；每次调用的展开区域显示输入、缓存与输出构成。缓存对比展示缓存读取占输入 Token 和输入费用的比例，不把两者的差值当作节省金额。多模型或多环节时显示相应费用分布。
+“步骤费用构成”按已有轨迹步骤汇总费用，显示每步金额与全会话占比。超过 20 步时，费用最高的 20 步单列，其余合并为一块，所有步骤均计入分母。“计费轨迹”逐步列出输入、输出、缓存金额及占比，点击步骤可展开 Token、单价和金额。多个工具属于同一步时，整步模型费用只计一次；工具名称用于识别步骤，不把整笔费用重复分摊给各工具。缺少步骤编号的调用单列。
+
+![轨迹步骤费用汇总，使用本地示例数据](step-billing-preview.png)
+
+步骤统计只提取日志中的轮次、步骤、工具名称和用量，不读取文本做内容分类。默认连续显示 100 步，更多步骤在原位置展开；统计分母始终覆盖完整会话。已完成日志的工具名称索引缓存按文件大小和修改时间失效，实时会话按事件变化刷新。
+
+逐次调用图按整个查询范围计算占比，显示费用最高的 7 次和其余合计。点击单次调用可跨页定位；展开后左侧为费用圆环与计费明细，右侧切换“输入记录、模型回复、工具调用”。各计费项目显示 Token、每百万 Token 单价、金额与占比；点击圆环项目可切换到相关内容。缓存对比展示缓存读取占输入 Token 和输入费用的比例，多模型或多环节时显示相应费用分布。
+
+输入记录区分本轮用户输入、技能、注入内容与上一步工具返回；回复区展示正文及已记录的思考；工具区显示参数、返回结果、状态与耗时。读取内容时核对会话、计费事件序号与时间。输入记录不是完整 HTTP 请求体，不含请求头；提供商没有逐段缓存归属数据，费用不按这些文本片段硬分摊。工具的输出文本也不作为独立模型调用重复计费。
+
+原始内容只在展开单次调用时读取。每段文本上限 16,000 字符，超出标记截取；工具每页 20 项。附件仅显示类型；未保存的内容显示缺失状态。所有内容使用纯文本显示。
+
+![调用费用与内容视图，使用本地示例数据](call-detail-preview.png)
 
 圆环图显示整体构成，右侧图例列出各部分百分比。悬停或用键盘聚焦圆环/图例，即可看到该部分的 Token、金额与占比。鼠标移走或焦点移出后恢复整体视图，不留下选中状态。很小的部分也可通过图例查看。完整明细默认折叠。关闭按钮固定在弹窗顶部，滚动到底部仍然可用，也可按 Esc 关闭。
 
@@ -79,9 +91,11 @@ dsh-context 主要展示上下文占用、组成、变化和注入事件。0.66.
 
 ## English
 
+Each expanded call pairs a cost donut and a token/rate/cost/share table with Inputs, Response and Tools views. Inputs separate user text, skills, injected context and preceding tool results. Response includes recorded reasoning; tools show arguments, results, status and duration. Content is fetched only when expanded and matched by session, billed event sequence and timestamp. Excerpts are bounded to 16,000 characters per text field, tools are paged by 20, and attachments are represented by type. Missing content remains explicit. Input excerpts are not a complete HTTP request; per-message cache attribution is unavailable, so costs are not apportioned by text length.
+
 Open **Cost details** beside the conversation input to see only that conversation: call-log totals, context composition, latest-call charges and turn/call details. Cross-conversation statistics remain available in Settings.
 
-Overview, Context and Call details use separate compact views. Overview includes per-call shares across the full selection, cache token/cost comparisons and conditional model/activity charts. The seven highest-cost calls are individual slices; the rest are combined. Select a call to open its details, even on another page. Donut charts use a brighter palette with compact percentage legends. Hover or focus a slice or legend item to inspect its amount and tokens, including tiny categories. Leaving the chart or moving keyboard focus away clears the highlight. Full tables are collapsed by default. The close button stays visible while scrolling; Escape also closes the dialog. Dialogs follow DSH popup background tokens, including dsh-dream-skin opacity.
+Overview and Cost details are the two main views. Overview keeps the input/output/cache composition beside step cost composition and a compact billing trajectory. Cost details opens one aggregate donut: each slice represents a trajectory step’s share of the full session cost. The top 20 steps are separate slices; any remaining steps are combined without dropping their costs. Individual step donuts and token/rate/cost tables are in a collapsed section; context references are also collapsed. Individual call records expand within Overview. Overview includes per-call shares across the full selection, cache token/cost comparisons and conditional model/activity charts. The seven highest-cost calls are individual slices; the rest are combined. Select a call to open its details, even on another page. Donut charts use a brighter palette with compact percentage legends. Hover or focus a slice or legend item to inspect its amount and tokens, including tiny categories. Leaving the chart or moving keyboard focus away clears the highlight. Expanding the individual-step section reveals its billing tables, which can also be collapsed. The close button stays visible while scrolling; Escape also closes the dialog. Dialogs follow DSH popup background tokens, including dsh-dream-skin opacity.
 
 Expand **Display and integration settings → dsh-context integration** to enable or disable the optional integration or reopen its before/after preview. Supported versions are 0.62.0 and 0.66.0. Integration starts off; dismissing the initial prompt prevents repeated automatic prompts. When enabled, costs appear inside the peer's current-context card in the conversation tab, right sidebar and `/context` overlay.
 

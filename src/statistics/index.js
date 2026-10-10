@@ -23,7 +23,7 @@ window.__ModuleLoader__.load({
     const buckets = object(bucketSpec)
     const costRow = object({ provider: string, model: string, bucket: string, tokens: number, rate: number, cost: number, priced: boolean, plan: boolean })
     const sessionId = v => string(v ?? '')
-    const callRow = object({ sessionId, kind: string, turn: nullableNumber, step: nullableNumber, provider: string, model: string, atMs: number, cost: number, apiCost: number, plan: boolean, priced: boolean, longContext: boolean, rows: array(costRow) })
+    const callRow = object({ sessionId, logSeq: v => nullableNumber(v ?? null), kind: string, turn: nullableNumber, step: nullableNumber, provider: string, model: string, atMs: number, cost: number, apiCost: number, plan: boolean, priced: boolean, longContext: boolean, rows: array(costRow) })
     const parseStatistics = object({ from: string, to: string, retainedFrom: string, retainedTo: string, totals: buckets,
       days: array(object({ ...bucketSpec, date: string })), models: array(object({ ...bucketSpec, key: string, provider: string, model: string, priced: boolean })),
       sessions: array(object({ ...bucketSpec, id: string, title: string })), providers: array(string), modelOptions: array(string),
@@ -34,6 +34,7 @@ window.__ModuleLoader__.load({
       stepShares: object(Object.fromEntries(['cost', 'calls'].map(key => [key, array(object({ ...bucketSpec, sessionId, turn: nullableNumber, step: nullableNumber, other: boolean, unpriced: boolean }))]))) })
     const parseInspection = object({ found: boolean, turn: number, input: string, inputTruncated: boolean, totalTools: number, offset: number,
       tools: array(object({ seq: number, step: nullableNumber, name: string, callId: string, atMs: number, arguments: string, result: string, truncated: boolean, status: string })) })
+    const parseCallInspection = v => ({ ...object({ found: boolean, kind: string, input: string, injected: string, skills: string, precedingTools: string, output: string, reasoning: string, truncated: boolean, totalTools: number, offset: number })(v), tools: parseInspection({ ...v, turn: 0, inputTruncated: false }).tools.map((tool, i) => ({ ...tool, durationMs: nullableNumber(v.tools[i].durationMs ?? null) })) })
     const contextKeys = ['system', 'tools', 'user', 'inject', 'skill', 'assistant', 'tool', 'other']
     const nonnegative = v => { if (number(v) < 0) throw new Error('Invalid context costs amount'); return v }
     const contextRates = object(Object.fromEntries(['input', 'cacheRead', 'cacheWrite', 'output', 'reasoning'].map(key => [key, nonnegative])))
@@ -48,6 +49,15 @@ window.__ModuleLoader__.load({
       return { sessionId }
     }
     const parseIntegration = object({ version: string, compatible: boolean, reason: string })
+    const parseTrajectory = object({ cost: number, apiCost: number, totalSteps: number, offset: number,
+      shares: array(object({ key: string, sessionId: string, turn: nullableNumber, step: nullableNumber, kind: string, tools: array(string), cost: number, apiCost: number, unpriced: boolean, other: boolean, count: number })),
+      groups: array(object({ key: string, kind: string, tools: array(string), steps: number, cost: number, apiCost: number, unpriced: boolean })),
+      steps: array(object({ key: string, sessionId: string, turn: nullableNumber, step: nullableNumber, kind: string, tools: array(string), atMs: number, calls: number, cost: number, apiCost: number, unpriced: boolean, rows: array(costRow) })) })
+    const parseTrajectoryQuery = v => {
+      const q = { ...parseContextCostsQuery(v), basis: string(v.basis ?? 'total'), offset: number(v.offset ?? 0) }
+      if (!['api', 'plan', 'total'].includes(q.basis) || !Number.isSafeInteger(q.offset) || q.offset < 0 || q.offset > 1e7) throw new Error('Invalid step billing query')
+      return q
+    }
     const parseInspectionQuery = value => {
       const query = object({ sessionId: string, turn: number, offset: number })({ ...value, offset: value.offset ?? 0 })
       if (!query.sessionId || query.sessionId.length > 512 || ![query.turn, query.offset].every(n => Number.isSafeInteger(n) && n >= 0) || query.offset > 1e7) throw new Error('Invalid turn inspection query')
@@ -59,12 +69,18 @@ window.__ModuleLoader__.load({
       if (!['api', 'plan', 'total'].includes(q.basis) || ![q.offset, q.turnOffset].every(n => Number.isSafeInteger(n) && n >= 0 && n <= 1e7)) throw new Error('Invalid statistics query')
       return q
     }
+    const parseCallInspectionQuery = v => {
+      const q = { ...parseContextCostsQuery(v), seq: number(v.seq), atMs: number(v.atMs), offset: number(v.offset ?? 0) }
+      if (![q.seq, q.offset].every(n => Number.isSafeInteger(n) && n >= 0) || q.offset > 1e7 || q.atMs <= 0) throw new Error('Invalid call inspection query')
+      return q
+    }
     const codec = (name, parse) => { const schema = { parse }; return { mode: 'strict', typeSymbol: 'dsh-cost-meter#' + name, schema, create: () => schema } }
     // Remote contributions have separate ownership from Host manifests. The main
     // client already owns "dsh-cost-meter"; a lazy group needs its own identity.
     // Endpoints and type symbols still match the original Host costMeter face.
     const CONTRIBUTION = { package: 'dsh-cost-meter/statistics', descriptors: [
-      ['getBillingStatistics', 'BillingStatistics', parseStatistics], ['getSessionBilling', 'SessionBilling', parseDetail], ['getTurnInspection', 'TurnInspection', parseInspection, parseInspectionQuery], ['getContextCosts', 'ContextCosts', parseContextCosts, parseContextCostsQuery],
+      ['getSessionTrajectory', 'Trajectory', parseTrajectory, parseTrajectoryQuery],
+      ['getBillingStatistics', 'BillingStatistics', parseStatistics], ['getSessionBilling', 'SessionBilling', parseDetail], ['getTurnInspection', 'TurnInspection', parseInspection, parseInspectionQuery], ['getCallInspection', 'CallInspection', parseCallInspection, parseCallInspectionQuery], ['getContextCosts', 'ContextCosts', parseContextCosts, parseContextCostsQuery],
     ].map(([method, name, parse, queryParser]) => ({ id: 'dsh-cost-meter#costMeter/' + method, service: 'costMeter', namespace: 'costMeter', method, invocation: { kind: 'direct' },
       parameters: [{ name: 'query', wire: 'query', source: 'json', codec: codec(queryParser ? name + 'Query' : 'StatisticsQuery', queryParser ?? parseQuery) }], result: codec(name, parse) })).concat({
         id: 'dsh-cost-meter#costMeter/getContextIntegration', service: 'costMeter', namespace: 'costMeter', method: 'getContextIntegration', invocation: { kind: 'direct' }, parameters: [], result: codec('ContextIntegration', parseIntegration),
@@ -89,7 +105,7 @@ window.__ModuleLoader__.load({
       .cm-stat-page{display:flex;gap:12px;align-items:center;justify-content:flex-end;margin-top:14px}.cm-stat-note{padding:10px 12px;background:var(--dsw-alias-bg-layer-2,#f5f7fa);border-radius:8px;margin:12px 0!important;font-size:12px;color:var(--cm-muted)}.cm-stat-error{color:var(--dsw-alias-state-error-primary,#c75040);white-space:pre-wrap}.cm-stat-empty{padding:30px;text-align:center;color:var(--cm-muted)}.cm-stat-call{padding:11px 0;border-bottom:1px solid var(--dsw-alias-border-l1,#dce3ec)}.cm-stat-call summary{cursor:pointer;overflow-wrap:anywhere}.cm-stat-call p{overflow-wrap:anywhere;margin-top:6px}
       .cm-stat summary{cursor:pointer}.cm-stat-help{font-size:12px;color:var(--cm-muted);margin:10px 0}.cm-stat-help>p{margin-top:8px}.cm-stat-shares{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin:20px 0}.cm-stat-share-list{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:11px}.cm-stat-share-head{display:flex;justify-content:space-between;gap:12px;font-size:12px}.cm-stat-share-head>span:first-child{min-width:0;overflow-wrap:anywhere}.cm-stat-share-value{white-space:nowrap;font-variant-numeric:tabular-nums}.cm-stat-share-track{height:6px;background:var(--cm-surface);border-radius:99px;overflow:hidden;margin-top:5px}.cm-stat-share-fill{display:block;height:100%;background:var(--cm-accent);border-radius:99px;opacity:.68}.cm-stat-share-list li:nth-child(even) .cm-stat-share-fill{opacity:.42}.cm-stat-share-list li[data-other=true] .cm-stat-share-fill{background:var(--cm-plan)}
       .cm-stat-breakdown{padding-block:18px;border-block:1px solid var(--cm-border);margin-block:18px}.cm-stat-turns{margin-top:24px}.cm-stat-turn{border-top:1px solid var(--cm-border)}.cm-stat-turn-toggle{display:flex;align-items:center;gap:10px;justify-content:space-between;width:100%;text-align:left;padding:12px 4px;background:transparent;border:0}.cm-stat-turn-toggle:hover{background:var(--dsw-alias-interactive-bg-hover,#f5f6f8)}.cm-stat-turn-toggle>span:first-child{font-weight:500}.cm-stat-turn-toggle>span:last-child{color:var(--cm-muted);font-size:12px;text-align:right;font-variant-numeric:tabular-nums}.cm-stat-inspection{background:var(--cm-surface);padding:16px;border-radius:10px;margin:0 0 12px}.cm-stat-inspection h4{font-size:12px;font-weight:500;margin:0 0 8px}.cm-stat-pre{font:12px/1.6 var(--ds-font-family-code,monospace);white-space:pre-wrap;overflow-wrap:anywhere;max-height:280px;overflow:auto;margin:8px 0 16px;padding:12px;border:1px solid var(--cm-border);background:var(--dsw-alias-bg-base,#fff);border-radius:8px}.cm-stat-tool{border-top:1px solid var(--cm-border);padding:10px 0}.cm-stat-tool summary{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px}.cm-stat-tool summary::before{content:'›';color:var(--cm-muted)}.cm-stat-tool[open] summary::before{content:'⌄'}.cm-stat-tool .cm-stat-sub{margin-left:auto}.cm-stat-truncated{color:var(--cm-muted);font-size:12px}.cm-stat-step-list{columns:2;column-gap:28px}.cm-stat-step-list li{break-inside:avoid;margin-bottom:12px}.cm-stat-step-list.cm-stat-share-list{display:block}
-      .cm-stat-dialog{border-color:var(--dsw-alias-border-l3,#e9eaed);box-shadow:var(--dsw-elevation-prominent,0 20px 90px #0002)}.cm-stat-dialog-head>.cm-btn{border:0;border-radius:8px;background:transparent;font-size:22px;line-height:28px;width:32px;height:32px;padding:0}.cm-stat-dialog-head>.cm-btn:hover{background:var(--dsw-alias-interactive-bg-hover,#f0f1f4)}.cm-stat-dialog-head>.cm-btn:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#4d6bfe);outline-offset:2px}.cm-session-options{margin-top:18px;border-top:1px solid var(--cm-border);padding-top:12px}.cm-session-options>summary{color:var(--cm-muted);font-size:12px}.cm-session-options .cm-context-setting{border:0;padding:0}.cm-stat-session>.cm-stat-panel{border:0;padding:0;margin:0}.cm-stat-session .cm-stat-metrics{margin-top:0}.cm-stat-session .cm-plan{margin:20px 0}
+      .cm-stat-dialog{border-color:var(--dsw-alias-border-l3,#e9eaed);box-shadow:var(--dsw-elevation-prominent,0 20px 90px #0002)}.cm-stat-dialog-head>.cm-btn{border:0;border-radius:8px;background:transparent;font-size:22px;line-height:28px;width:32px;height:32px;padding:0}.cm-stat-dialog-head>.cm-btn:hover{background:var(--dsw-alias-interactive-bg-hover,#f0f1f4)}.cm-stat-dialog-head>.cm-btn:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary,#4d6bfe);outline-offset:2px}.cm-session-options{margin-top:8px;border-top:1px solid var(--cm-border);padding-top:8px}.cm-session-options>summary{color:var(--cm-muted);font-size:12px}.cm-session-options .cm-context-setting{border:0;padding:0}.cm-stat-session>.cm-stat-panel{border:0;padding:0;margin:0}.cm-stat-session .cm-stat-metrics{margin-top:0}.cm-stat-session .cm-plan{margin:20px 0}
       @container(max-width:700px){.cm-stat-shares{grid-template-columns:1fr;gap:20px}.cm-stat-step-list{columns:1}.cm-stat-turn-toggle{align-items:flex-start}.cm-stat-turn-toggle>span:last-child{max-width:60%}.cm-stat-metric{padding:10px!important}.cm-stat-metric:nth-child(2){border:0}.cm-stat-page{gap:8px}}
       @container(max-width:700px){.cm-stat-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.cm-stat-grid{grid-template-columns:1fr}.cm-stat-panel{padding:12px}.cm-stat-head{align-items:start}.cm-stat-controls label{flex:1}.cm-stat input,.cm-stat select{max-width:100%;width:100%}.cm-stat-value{font-size:23px}}
     `
@@ -231,7 +247,7 @@ window.__ModuleLoader__.load({
       .cm-context-compact>.cm-plan-head{margin-bottom:10px}.cm-context-compact .cm-context-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.cm-context-compact .cm-context-current,.cm-context-compact .cm-plan-last{min-width:0;container-type:inline-size}.cm-context-compact .cm-plan-last{border:0;border-left:1px solid var(--cmp-border);padding:0 0 0 18px;margin:0}.cm-context-compact .cm-plan-summary{margin:10px 0;padding:8px 0;gap:8px}.cm-context-compact .cm-plan-amount{font-size:18px}.cm-context-compact .cm-cost-chart{margin-top:10px;gap:6px 10px}.cm-context-compact .cm-cost-legend{grid-template-columns:1fr}.cm-context-compact .cm-plan-sub{font-size:10px}.cm-context-compact .cm-plan-total{margin-top:6px!important}.cm-context-compact .cm-plan-note{grid-column:1/-1}
       @container(max-width:740px){.cm-context-compact .cm-context-columns{grid-template-columns:1fr}.cm-context-compact .cm-plan-last{border:0;border-top:1px solid var(--cmp-border);padding:12px 0 0}}
 
-      .cm-session-tabs{display:flex;gap:4px;border-bottom:1px solid var(--cm-border);padding-bottom:8px;margin-bottom:10px}.cm-session-tabs .cm-stat-btn{border-color:transparent;padding:5px 12px;color:var(--cm-muted)}.cm-session-tabs .cm-stat-btn[aria-pressed=true]{background:var(--cm-surface);color:var(--cm-accent);box-shadow:none}.cm-stat-session .cm-stat-metrics{margin:4px 0 14px;padding:10px 0}.cm-stat-session .cm-stat-value{font-size:22px;margin:2px 0}.cm-stat-session .cm-stat-panel-head{margin-bottom:4px}.cm-stat-session .cm-spend{margin:10px 0}.cm-stat-session .cm-stat-chart{height:90px}.cm-stat-secondary{font-size:12px;color:var(--cm-muted)}.cm-stat-secondary>summary{padding:8px 0}.cm-stat-session .cm-spend-card{padding:14px}.cm-stat-session .cm-spend-card .cm-cost-chart{margin-top:8px;gap:6px 12px}.cm-stat-session .cm-spend-card .cm-cost-key{padding:3px 4px}.cm-stat-session .cm-cache-compare{padding-top:10px;margin-top:10px}.cm-stat-session .cm-cache-compare h3{margin-bottom:6px}.cm-stat-session .cm-cache-compare>div{margin-top:6px}.cm-stat-session .cm-cost-inspect{font-size:10px}.cm-stat-session .cm-cost-key-amount{margin-top:1px}
+      .cm-stat-session{position:relative}.cm-stat-session>.cm-stat-panel-head{position:absolute;right:0;top:0;z-index:1}.cm-stat-session>.cm-stat-panel-head>p{display:none}.cm-session-tabs{padding-right:65px;display:flex;gap:4px;border-bottom:1px solid var(--cm-border);padding-bottom:8px;margin-bottom:10px}.cm-session-tabs .cm-stat-btn{border-color:transparent;padding:5px 12px;color:var(--cm-muted)}.cm-session-tabs .cm-stat-btn[aria-pressed=true]{background:var(--cm-surface);color:var(--cm-accent);box-shadow:none}.cm-stat-session .cm-stat-metrics{margin:4px 0 14px;padding:10px 0}.cm-stat-session .cm-stat-value{font-size:22px;margin:2px 0}.cm-stat-session .cm-stat-panel-head{margin-bottom:4px}.cm-stat-session .cm-spend{margin:10px 0}.cm-stat-session .cm-stat-chart{height:90px}.cm-stat-secondary{font-size:12px;color:var(--cm-muted)}.cm-stat-secondary>summary{padding:8px 0}.cm-stat-session .cm-spend-card{padding:14px}.cm-stat-session .cm-spend-card .cm-cost-chart{margin-top:8px;gap:6px 12px}.cm-stat-session .cm-spend-card .cm-cost-key{padding:3px 4px}.cm-stat-session .cm-cache-compare{padding-top:10px;margin-top:10px}.cm-stat-session .cm-cache-compare h3{margin-bottom:6px}.cm-stat-session .cm-cache-compare>div{margin-top:6px}.cm-stat-session .cm-cost-inspect{font-size:10px}.cm-stat-session .cm-cost-key-amount{margin-top:1px}
 
       .cm-spend{margin:20px 0}.cm-spend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.cm-spend-card{border:1px solid var(--cmp-border);border-radius:12px;padding:18px;container-type:inline-size;min-width:0}.cm-spend-card .cm-cost-legend{grid-template-columns:1fr}.cm-spend-card .cm-cost-chart{margin-bottom:0}.cm-spend-card h3{font-weight:500}.cm-cache-compare{border-top:1px solid var(--cmp-border);padding-top:16px;margin-top:20px}.cm-cache-compare h3{font-size:12px;margin-bottom:12px}.cm-cache-compare>div{margin-top:10px}.cm-spend>.cm-plan-sub{margin-top:10px}.cm-cost-key-amount{display:block;font-size:10px;font-weight:400;margin-top:3px;color:var(--cmp-muted);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.cm-cost-key-label{overflow-wrap:anywhere}.cm-call-share{display:inline-block;border-radius:5px;padding:1px 7px;margin-left:8px;background:var(--cm-surface);color:var(--cm-accent);font-size:11px;font-variant-numeric:tabular-nums}.cm-plan .cm-cost-key[data-active=true]{background:var(--dsw-alias-interactive-bg-hover,#f2f5fc)}
       @container(max-width:740px){.cm-spend-grid{grid-template-columns:1fr}}
@@ -253,9 +269,9 @@ window.__ModuleLoader__.load({
         el('div', { className: 'cm-cost-donut' }, el('svg', { viewBox: '0 0 156 156', 'aria-label': label }, el('circle', { cx: 78, cy: 78, r: 61, fill: 'none', stroke: 'var(--cmp-bg)', strokeWidth: 16 }), ...arcs),
           el('div', { className: 'cm-cost-center', 'aria-hidden': true }, el('b', null, active ? share(active) : total > 0 ? '100%' : '—'), el('small', null, active?.label ?? label))),
         el('div', { className: 'cm-cost-legend' }, ...rows.map(row => el('button', { ...inspect(row), type: 'button', key: row.key, className: 'cm-cost-key', 'aria-label': row.label + ' ' + share(row) }, el('i', { className: 'cm-plan-dot', style: { background: row.color } }), el('span', { className: 'cm-cost-key-label' }, row.label, amounts ? el('small', { className: 'cm-cost-key-amount' }, row.amount) : null), el('span', { className: 'cm-cost-key-share' }, share(row))))),
-        el('div', { className: 'cm-cost-inspect', role: 'status', 'aria-live': 'polite' }, active ? el(Fragment, null, el('strong', null, active.label), el('span', null, meta(active)), el('strong', null, active.amount)) : onSelect ? text('悬停查看占比，点击单次调用查看明细', 'Hover for shares; select an individual call for details') : text('悬停图表或图例，查看费用与 Token', 'Hover or focus the chart or legend for costs and tokens')))
+        el('div', { className: 'cm-cost-inspect', role: 'status', 'aria-live': 'polite' }, active ? el(Fragment, null, el('strong', null, active.label), el('span', null, meta(active)), el('strong', null, active.amount)) : null))
     }
-    function ContextCosts({ api, sessionId, revision = '', text = (zh, en) => en, money = value => '$' + value.toLocaleString('en-US', { maximumFractionDigits: 6 }), integrated = false, compact = false }) {
+    function ContextCosts({ api, sessionId, revision = '', text = (zh, en) => en, money = value => '$' + value.toLocaleString('en-US', { maximumFractionDigits: 6 }), integrated = false, compact = false, expanded = false }) {
       const root = useRef(null), refresh = useRef(() => {}), revisionRef = useRef(revision)
       revisionRef.current = revision
       const [result, setResult] = useState(() => ({ value: cachedValue(requestEntry(api, 'getContextCosts', { sessionId }), revision), error: '', busy: true }))
@@ -301,10 +317,9 @@ window.__ModuleLoader__.load({
       return wrap(el('div', { className: 'cm-context-columns' },
         el('div', { className: 'cm-context-current' }, el('p', { className: 'cm-plan-sub' }, data.provider + ' / ' + data.model),
         el('div', { className: 'cm-plan-summary' }, el('div', null, el('div', { className: 'cm-plan-sub' }, text('当前上下文', 'Current context')), el('div', { className: 'cm-plan-amount' }, '≈ ' + countText(data.contextTokens) + ' tokens')),
-          el('div', null, el('div', { className: 'cm-plan-sub' }, text('输入费用参考', 'Input cost reference')), el('div', { className: 'cm-plan-amount' }, costText(breakdown.cost)))),
-        el('p', { className: 'cm-plan-sub', style: { marginBottom: 12 } }, text('按非缓存输入单价估算，未计缓存折扣；不代表已发生费用。', 'Estimated at uncached input rates, before cache discounts; not a charge already incurred.')),
+          el('div', null, el('div', { className: 'cm-plan-sub' }, data.basis === 'plan' ? text('Plan 输入等值', 'Plan input equivalent') : text('非缓存输入估算', 'Uncached input estimate')), el('div', { className: 'cm-plan-amount' }, costText(breakdown.cost)))),
         el(CostBreakdown, { rows: breakdown.parts.filter(row => row.tokens > 0).map(row => ({ key: row.key, label: names[contextKeys.indexOf(row.key)], tokens: Math.round(row.tokens), value: priced ? row.cost : row.tokens, amount: costText(row.cost), color: contextColors[contextKeys.indexOf(row.key)] })), total: priced ? breakdown.cost : data.contextTokens, label: priced ? text('参考费用占比', 'Reference cost share') : text('Token 占比', 'Token share'), text }),
-        el('details', { className: 'cm-cost-table' }, el('summary', null, text('展开各部分明细', 'Show component details')), el('ul', { className: 'cm-plan-parts' }, ...breakdown.parts.filter(row => row.tokens > 0).map(row => {
+        el('details', { className: 'cm-cost-table', open: expanded }, el('summary', null, text('各部分计费', 'Component costs')), el('ul', { className: 'cm-plan-parts' }, ...breakdown.parts.filter(row => row.tokens > 0).map(row => {
           const index = contextKeys.indexOf(row.key)
           return el('li', { key: row.key }, el('div', { className: 'cm-plan-part-head' }, el('span', null, el('i', { className: 'cm-plan-dot', style: { background: contextColors[index] } }), names[index]), el('span', null, costText(row.cost))),
             el('div', { className: 'cm-plan-part-meta' }, el('span', null, '≈ ' + countText(row.tokens) + ' tokens'), el('span', null, priced ? pct(row.cost, breakdown.cost) : '—')))
@@ -312,14 +327,12 @@ window.__ModuleLoader__.load({
         call ? el('section', { className: 'cm-plan-last' }, el('h3', null, text('最近一次调用 · 用量计费', 'Latest call · usage-based costs')),
           el('p', { className: 'cm-plan-sub' }, call.provider + ' / ' + call.model + ' · ' + new Date(call.atMs).toLocaleString()),
           el(CostBreakdown, { rows: call.rows.filter(row => row.tokens > 0 && (row.bucket !== 'reasoning' || row.rate > 0)).map(row => ({ key: row.bucket, label: buckets[row.bucket] ?? row.bucket, tokens: row.tokens, value: row.cost, amount: call.priced ? money(row.cost) : text('未定价', 'Unpriced'), color: contextColors[bucketColors[row.bucket] ?? 7] })), total: call.priced ? call.cost : 0, label: text('费用占比', 'Cost share'), text }),
-          el('details', { className: 'cm-cost-table' }, el('summary', null, text('展开调用明细', 'Show call details')), el('ul', { className: 'cm-plan-parts', style: { marginTop: 12 } }, ...call.rows.filter(row => row.bucket !== 'reasoning' || row.rate > 0).map(row => el('li', { key: row.bucket },
+          el('details', { className: 'cm-cost-table', open: expanded }, el('summary', null, text('调用计费明细', 'Call billing details')), el('ul', { className: 'cm-plan-parts', style: { marginTop: 12 } }, ...call.rows.filter(row => row.bucket !== 'reasoning' || row.rate > 0).map(row => el('li', { key: row.bucket },
             el('div', { className: 'cm-plan-part-head' }, el('span', null, buckets[row.bucket] ?? row.bucket), el('span', null, call.priced ? money(row.cost) : text('未定价', 'Unpriced'))),
             el('div', { className: 'cm-plan-part-meta' }, el('span', null, countText(row.tokens) + ' tokens'), el('span', null, call.priced ? pct(row.cost, call.cost) : '—')))))),
-          el('p', { className: 'cm-plan-total' }, text('合计 ', 'Total ') + (call.priced ? money(call.cost) : text('未定价', 'Unpriced')) + (call.plan ? text(' · Plan 的 API 等值', ' · Plan API equivalent') : '')),
-          el('p', { className: 'cm-plan-sub' }, text('基于提供商返回用量与调用时段的配置费率；与上方上下文参考费用不相加。', 'Uses reported usage and configured rates for the call time; do not add it to the context reference above.')))
+          el('p', { className: 'cm-plan-total' }, text('合计 ', 'Total ') + (call.priced ? money(call.cost) : text('未定价', 'Unpriced')) + (call.plan ? text(' · Plan 的 API 等值', ' · Plan API equivalent') : '')))
           : el('p', { className: 'cm-plan-note' }, text('尚无已完成调用的用量数据。', 'No reported usage from a completed call yet.')),
-        !priced ? el('p', { className: 'cm-plan-note' }, text('此模型没有可用单价；未知金额不按零计算。请在费用设置中配置价格。', 'This model has no available rates; unknown costs are not zero. Configure prices in Cost settings.')) : null,
-        data.basis === 'plan' ? el('p', { className: 'cm-plan-note' }, text('当前为 Plan：参考金额是 API 等值，不代表额外扣款。', 'This is a Plan route: reference amounts are API equivalents, not extra charges.')) : null))
+        !priced ? el('p', { className: 'cm-plan-note' }, text('未配置模型单价', 'Model rates not configured')) : null))
     }
 
     /** Public slot shadowing preserves the foreign registration and its props. */
@@ -499,10 +512,8 @@ window.__ModuleLoader__.load({
         el('div', { className: 'cm-context-intro-body' }, el('p', { id: 'cm-context-intro-description' }, state.available
           ? text('已检测到兼容版本 ', 'Compatible version detected: ') + 'dsh-context ' + state.peer.version + text('。启用后，在它的当前上下文面板内增加上下文费用区。', '. Add context costs inside its current-context panel.')
           : text('界面预览。检测到已验证的兼容版本后，可以开启联动。', 'Interface preview. Enable integration when a verified compatible version is detected.')),
-          el('div', { className: 'cm-context-previews' }, el(ContextPreview, { text, after: false }), el(ContextPreview, { text, after: true })),
-          el('p', { className: 'cm-context-muted' }, text('示例数据：输入 $1 / M tokens，输出 $4 / M tokens。实际界面显示当前上下文的各部分 Token、费用占比，以及最近一次调用的输入、缓存和输出费用。', 'Example data: $1 / M input tokens and $4 / M output tokens. The live panel shows context tokens and cost shares, plus input, cache and output costs for the latest call.')),
-          el('p', { style: { marginTop: 12 } }, text('只读取已有数据，不发送模型请求，不产生额外 API 费用。只显示数据，不修改或压缩上下文。', 'Reads existing data without model requests or extra API charges. The display does not modify or compact your context.'))),
-        el('footer', { className: 'cm-context-intro-foot' }, el('p', { className: 'cm-context-muted' }, text('关闭后不再自动提示；可在费用统计中随时开关。', 'No repeated prompt after closing. Change this anytime in Cost statistics.')),
+          el('div', { className: 'cm-context-previews' }, el(ContextPreview, { text, after: false }), el(ContextPreview, { text, after: true }))),
+        el('footer', { className: 'cm-context-intro-foot' },
           el('div', { className: 'cm-context-intro-actions' }, el('button', { type: 'button', onClick: () => void manager.dismiss() }, state.manual ? text('关闭预览', 'Close preview') : text('暂不启用', 'Not now')),
             el('button', { type: 'button', className: 'cm-context-primary', disabled: !state.available || state.saving, onClick: () => void manager.choose(true) }, text('启用联动', 'Enable integration')))))
     }
@@ -510,10 +521,9 @@ window.__ModuleLoader__.load({
       const state = React.useSyncExternalStore(manager.subscribe, manager.getSnapshot), text = (zh, en) => getLocale() === 'en' ? en : zh
       return el('details', { className: 'cm-plan cm-context-setting', 'aria-label': text('dsh-context 联动设置', 'dsh-context integration settings') }, el('style', null, contextCostsCss + introCss),
         el('summary', null, 'dsh-context ' + text('联动', 'integration') + ' · ' + (state.enabled ? text('已启用', 'On') : text('未启用', 'Off'))), el('div', null,
-        el('p', { className: 'cm-plan-sub', style: { marginBottom: 8 } }, text('联动为可选项；本插件的上下文费用功能可独立使用。', 'Integration is optional; context costs also work independently in this plugin.')),
         el('label', null, el('input', { type: 'checkbox', role: 'switch', checked: state.enabled, disabled: state.saving || !state.available, onChange: event => void manager.choose(event.target.checked) }), text('在 dsh-context 面板中显示上下文费用', 'Show context costs in dsh-context')),
-        el('p', { className: 'cm-plan-sub' }, state.available ? 'dsh-context ' + state.peer.version + text(' · 可随时关闭，独立上下文费用仍可使用。', ' · Turn off anytime; standalone context costs remain available.')
-          : text('需要启用已验证的 dsh-context 0.62.0 或 0.66.0，并由宿主提供版本信息。', 'Requires enabled dsh-context 0.62.0 or 0.66.0 and host version information.')),
+        el('p', { className: 'cm-plan-sub' }, state.available ? 'dsh-context ' + state.peer.version
+          : text('未检测到已启用的兼容版本（0.62.0 / 0.66.0）', 'No enabled compatible version found (0.62.0 / 0.66.0)')),
         state.error ? el('p', { className: 'cm-plan-error', role: 'alert' }, text('设置保存失败，联动保持关闭。可在此重试。', 'Could not save the setting; integration remains off. Retry here.')) : null,
         el('div', { className: 'cm-plan-actions' }, el('button', { type: 'button', onClick: manager.preview }, text('查看启用前后预览', 'Preview before and after')), el('button', { type: 'button', onClick: manager.refresh }, text('重新检测', 'Check again')))))
     }
@@ -569,7 +579,7 @@ window.__ModuleLoader__.load({
         staleNotice,
         el('h4', null, text('本轮用户输入', 'User input for this turn')),
         data.input ? el('pre', { className: 'cm-stat-pre' }, data.input) : el('p', { className: 'cm-stat-sub' }, text('日志未记录本轮用户输入。', 'No user input is recorded for this turn.')),
-        data.inputTruncated ? el('p', { className: 'cm-stat-truncated' }, text('输入过长，此处显示前 16,000 个字符。', 'Showing the first 16,000 characters of this input.')) : null,
+        data.inputTruncated ? el('p', { className: 'cm-stat-truncated' }, text('显示前 16,000 字符', 'First 16,000 characters')) : null,
         el('h4', null, text('工具调用', 'Tool calls') + ' · ' + data.totalTools),
         !data.totalTools ? el('p', { className: 'cm-stat-sub' }, text('这一轮没有工具调用记录。', 'No tool calls are recorded in this turn.')) : null,
         data.tools.map(tool => el('details', { key: tool.seq, className: 'cm-stat-tool' },
@@ -577,14 +587,131 @@ window.__ModuleLoader__.load({
             el('span', { className: 'cm-stat-sub' }, ({ complete: text('已完成', 'Completed'), error: text('调用失败', 'Failed'), pending: text('未记录结果', 'No recorded result') })[tool.status])),
           el('h4', { style: { marginTop: 12 } }, text('调用参数', 'Arguments')), el('pre', { className: 'cm-stat-pre' }, tool.arguments),
           el('h4', null, text('返回结果', 'Result')), el('pre', { className: 'cm-stat-pre' }, tool.result || text('没有可显示的文本结果', 'No text result is available')),
-          tool.truncated ? el('p', { className: 'cm-stat-truncated' }, text('长内容显示前 16,000 个字符；完整内容保留在会话轨迹中。', 'Long content is limited to 16,000 characters here; the full content remains in the conversation trajectory.')) : null)),
-        el(Pager, { offset, count: data.totalTools, size: 20, onChange: setOffset, text }),
-        el('p', { className: 'cm-stat-sub' }, text('这里显示整轮原始记录，不受上方模型或计费筛选影响。附件仅显示类型。', 'Shows the whole turn, independent of model and cost filters above. Attachments are represented by type.')))
+          tool.truncated ? el('p', { className: 'cm-stat-truncated' }, text('内容已截取', 'Content truncated')) : null)),
+        el(Pager, { offset, count: data.totalTools, size: 20, onChange: setOffset, text }))
+    }
+
+    function CallInspection({ api, sessionId, seq, atMs, revision, text, view, onViewChange }) {
+      const [offset, setOffset] = useState(0), [retry, setRetry] = useState(0)
+      const result = useRequest(api, 'getCallInspection', { sessionId, seq, atMs, offset }, revision + ':' + retry)
+      const data = result.value
+      const part = (label, value, open = false) => value ? el('details', { className: 'cm-stat-tool', open }, el('summary', null, label,
+        el('span', { className: 'cm-stat-sub' }, value.length.toLocaleString() + text(' 字符', ' chars'))), el('pre', { className: 'cm-stat-pre' }, value)) : null
+      return el('section', { className: 'cm-stat-inspection cm-call-content', 'aria-label': text('调用内容', 'Call content') },
+        el('nav', { className: 'cm-session-tabs', 'aria-label': text('调用内容视图', 'Call content views') },
+          ...[['input', text('输入记录', 'Inputs')], ['output', text('模型回复', 'Response')], ['tools', text('工具调用', 'Tools') + (data?.totalTools ? ' · ' + data.totalTools : '')]].map(([id, label]) => button(label, () => onViewChange(id), { key: id, 'aria-pressed': view === id }))),
+        result.failed ? el(Fragment, null, errorNotice(result.error), button(text('重试', 'Retry'), () => setRetry(n => n + 1))) : null,
+        !data ? result.loading ? el('p', { role: 'status' }, text('读取调用内容…', 'Loading call content…')) : null
+        : !data.found ? el('p', { className: 'cm-stat-sub' }, text('原始内容不可用', 'Original content unavailable')) : el(Fragment, null,
+          view === 'output' ? el(Fragment, null,
+            part(data.kind === 'compaction' ? text('压缩摘要', 'Compaction summary') : text('本次回复', 'Response'), data.output, true),
+            part(text('思考内容', 'Reasoning'), data.reasoning, !data.output),
+            !data.output && !data.reasoning ? el('p', { className: 'cm-stat-sub' }, data.totalTools ? text('本次回复为工具调用', 'This response contains tool calls') : text('未记录回复内容', 'No recorded response')) : null) : null,
+          view === 'input' ? el(Fragment, null, part(text('本轮用户输入', 'Turn input'), data.input, true), part(text('技能内容', 'Skills'), data.skills),
+            part(text('注入内容', 'Injected context'), data.injected), part(text('上一步工具返回', 'Previous step’s tool results'), data.precedingTools),
+            !data.input && !data.skills && !data.injected && !data.precedingTools ? el('p', { className: 'cm-stat-sub' }, text('未记录输入内容', 'No recorded input')) : null) : null,
+          view === 'tools' ? el(Fragment, null,
+            !data.totalTools ? el('p', { className: 'cm-stat-sub' }, text('本次没有工具调用', 'No tools in this call')) : null,
+            ...data.tools.map((tool, i) => el('details', { key: tool.callId, className: 'cm-stat-tool', open: i === 0 },
+              el('summary', null, tool.name, el('span', { className: 'cm-stat-sub' },
+                (tool.durationMs != null ? (tool.durationMs / 1000).toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' s · ' : '') + ({ complete: text('已完成', 'Completed'), error: text('失败', 'Failed'), pending: text('未记录结果', 'No result') })[tool.status])),
+              el('div', { className: 'cm-call-tool-parts' }, el('div', null, el('h4', null, text('参数', 'Arguments')), el('pre', { className: 'cm-stat-pre' }, tool.arguments)),
+                el('div', null, el('h4', null, text('返回结果', 'Result')), el('pre', { className: 'cm-stat-pre' }, tool.result || '—'))),
+              tool.truncated ? el('span', { className: 'cm-stat-truncated' }, text('内容已截取', 'Content truncated')) : null)),
+            data.totalTools > 20 ? el(Pager, { offset, count: data.totalTools, size: 20, onChange: setOffset, text }) : null) : null,
+          data.truncated ? el('span', { className: 'cm-stat-truncated' }, text('长文本显示前 16,000 字符', 'Long text limited to 16,000 characters')) : null))
+    }
+
+    function CallDetail({ call, sessionId, api, revision, money, text, names }) {
+      const [view, setView] = useState('output')
+      const rows = call.rows.filter(row => row.tokens > 0)
+      const chartRows = rows.filter(row => row.bucket !== 'reasoning' || row.cost > 0 || !row.priced).map(row => ({ key: row.bucket, label: names[row.bucket], tokens: row.tokens,
+        value: row.cost, unpriced: !row.priced, amount: row.priced ? money(row.cost) : text('未定价', 'Unpriced'), color: contextColors[bucketColors[row.bucket] ?? 7] }))
+      return el('div', { className: 'cm-call-detail-grid' }, el('style', null, `
+        .cm-call-detail-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:18px;margin-top:12px;align-items:start}
+        .cm-call-bill{min-width:0;container-type:inline-size}.cm-call-bill .cm-stat-value{font-size:22px}.cm-call-bill .cm-cost-chart{margin:10px 0 0}.cm-call-bill .cm-stat-table{font-size:11px}.cm-call-bill .cm-stat-table td,.cm-call-bill .cm-stat-table th{padding:8px 6px}.cm-call-bill .cm-stat-table td{font-variant-numeric:tabular-nums;white-space:nowrap}
+        .cm-call-content{min-width:0;padding:12px;margin:0}.cm-call-content .cm-session-tabs{margin-bottom:10px}.cm-call-content .cm-stat-pre{max-height:220px;font-size:12px;margin-bottom:8px}.cm-call-content .cm-stat-tool{padding:8px 0}.cm-call-content .cm-stat-tool>summary{color:var(--dsw-alias-label-primary)}.cm-call-tool-parts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:10px;margin-top:10px}.cm-call-tool-parts>div{min-width:0}
+        @container(max-width:850px){.cm-call-detail-grid{grid-template-columns:1fr}.cm-call-tool-parts{grid-template-columns:1fr}}
+      `),
+        el('section', { className: 'cm-plan cm-call-bill', 'aria-label': text('本次计费明细', 'Call billing breakdown') },
+          el('div', { className: 'cm-stat-panel-head' }, el('h3', null, call.plan ? text('Plan 等值费用', 'Plan equivalent') : text('API 费用', 'API cost')), el('strong', { className: 'cm-stat-value' }, call.priced ? money(call.cost) : '?')),
+          el('p', { className: 'cm-stat-sub' }, new Date(call.atMs).toLocaleString()),
+          el(CostBreakdown, { rows: chartRows, total: call.cost, label: text('本次费用构成', 'This call’s costs'), text, amounts: true, onSelect: row => setView(['output', 'reasoning'].includes(row.key) ? 'output' : 'input') }),
+          el('div', { className: 'cm-stat-scroll' }, el('table', { className: 'cm-stat-table' },
+            el('thead', null, el('tr', null, ...[text('计费项目', 'Component'), 'Tokens', text('单价 / 百万', 'Rate / 1M'), text('金额', 'Cost'), text('占比', 'Share')].map(label => el('th', { key: label }, label)))),
+            el('tbody', null, ...rows.map(row => { const included = row.bucket === 'reasoning' && row.priced && row.rate === 0; return el('tr', { key: row.bucket },
+              el('td', null, names[row.bucket]), el('td', null, row.tokens.toLocaleString()), el('td', null, row.priced ? money(row.rate) : '?'),
+              el('td', null, included ? text('未单独计费', 'No separate charge') : row.priced ? money(row.cost) : '?'), el('td', null, row.priced && !included ? pct(row.cost, call.cost) : '—')) }))))),
+        call.logSeq != null ? el(CallInspection, { api, sessionId: call.sessionId || sessionId, seq: call.logSeq, atMs: call.atMs, revision, text, view, onViewChange: setView })
+          : el('p', { className: 'cm-stat-sub' }, text('未保存调用内容', 'Call content not stored')))
+    }
+
+    function StepCosts({ api, sessionId, revision, money, text, basis, composition, detailed = false }) {
+      const [offset, setOffset] = useState(0), [pages, setPages] = useState([]), [expanded, setExpanded] = useState(''), [collapsed, setCollapsed] = useState([]), [individualOpen, setIndividualOpen] = useState(false), [retry, setRetry] = useState(0)
+      const result = useRequest(api, 'getSessionTrajectory', { sessionId, offset, basis }, revision + ':' + retry)
+      useEffect(() => { setOffset(0); setPages([]); setExpanded(''); setCollapsed([]) }, [sessionId, revision, basis])
+      useEffect(() => { if (result.value?.offset === offset) setPages(previous => offset === 0 ? result.value.steps : [...new Map([...previous, ...result.value.steps].map(row => [row.key, row])).values()]) }, [result.value, offset])
+      const value = result.value
+      const names = { input: text('输入', 'Input'), cacheRead: text('缓存读取', 'Cache read'), cacheWrite: text('缓存写入', 'Cache write'), output: text('输出', 'Output'), reasoning: text('推理', 'Reasoning') }
+      const kindName = kind => ({ model: text('模型调用', 'Model calls'), compaction: text('上下文压缩', 'Compaction'), search: text('原生搜索', 'Native search') })[kind] ?? kind
+      const selectedRows = row => row.rows.filter(r => basis === 'total' || (basis === 'plan' ? r.plan : !r.plan))
+      const bucketCost = (row, buckets) => {
+        const parts = selectedRows(row).filter(r => buckets.includes(r.bucket))
+        return money(parts.reduce((n, r) => n + r.cost, 0)) + (parts.some(r => !r.priced) ? ' + ?' : '')
+      }
+      if (!value) return el('p', { className: 'cm-stat-sub' }, result.error || text('读取步骤费用…', 'Reading step costs…'), result.error ? button(text('重试', 'Retry'), () => setRetry(n => n + 1)) : null)
+      const total = amount(value, basis)
+      const rows = value.shares.map((row, i) => ({ key: row.key,
+        label: row.other ? text('其余 ', 'Other ') + row.count + text(' 步', ' steps') : (row.sessionId !== sessionId ? text('子代理 · ', 'Subagent · ') : '') + (row.turn == null ? kindName(row.kind) : text('轮次 ', 'Turn ') + row.turn + (row.step == null ? '' : text(' · 步骤 ', ' · step ') + row.step)),
+        value: amount(row, basis), amount: money(amount(row, basis)) + (row.unpriced ? ' + ?' : ''), meta: row.tools.join(' + ') || kindName(row.kind), unpriced: row.unpriced, color: contextColors[row.other ? 7 : i % 7] }))
+      const shown = pages.length ? pages : value.steps
+      const isOpen = row => detailed ? !collapsed.includes(row.key) : expanded === row.key
+      const toggle = row => detailed ? setCollapsed(previous => previous.includes(row.key) ? previous.filter(key => key !== row.key) : [...previous, row.key]) : setExpanded(expanded === row.key ? '' : row.key)
+      if (detailed) return el('section', { className: 'cm-step-cards cm-plan', 'aria-label': text('逐步费用明细', 'Cost details by step') }, el('style', null, `
+        .cm-step-cards .cm-trajectory-pie{border:1px solid var(--cm-border);border-radius:12px;padding:14px;margin-bottom:12px}.cm-step-cards .cm-trajectory-pie .cm-cost-chart{grid-template-columns:180px minmax(0,1fr);gap:8px 20px;align-items:center}.cm-step-cards .cm-trajectory-pie .cm-cost-donut{width:180px;height:180px}.cm-step-cards .cm-trajectory-pie .cm-cost-center{inset:47px 30px}.cm-step-cards .cm-trajectory-pie .cm-cost-legend{grid-template-columns:repeat(2,minmax(0,1fr))}.cm-individual-steps>summary{padding:8px 0;font-size:13px}.cm-step-card-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.cm-step-fee-card{border:1px solid var(--cm-border);border-radius:12px;padding:12px;min-width:0;container-type:inline-size}.cm-step-fee-head{display:flex;justify-content:space-between;gap:8px;align-items:start}.cm-step-fee-head .cm-step-name{border:0;background:transparent;padding:0;text-align:left;font-size:12px;font-weight:500;min-width:0}.cm-step-fee-head small{display:block;margin-top:3px;overflow-wrap:anywhere;color:var(--cm-muted);font-size:10px;font-weight:400}.cm-step-fee-head strong{font-size:15px;font-weight:500;font-variant-numeric:tabular-nums}.cm-step-cards .cm-cost-chart{grid-template-columns:104px minmax(0,1fr);gap:5px 12px;margin:8px 0}.cm-step-cards .cm-cost-donut{width:104px;height:104px}.cm-step-cards .cm-cost-center{inset:25px 12px}.cm-step-cards .cm-cost-center b{font-size:19px}.cm-step-cards .cm-cost-legend{grid-template-columns:1fr;gap:2px}.cm-step-cards .cm-cost-key{padding:3px 4px;font-size:11px}.cm-step-cards .cm-cost-inspect{min-height:16px}.cm-step-cards .cm-stat-table td,.cm-step-cards .cm-stat-table th{font-size:10px;padding:6px 4px}.cm-step-cards .cm-step-rates{border-top:1px solid var(--cm-border)}.cm-step-cards .cm-step-rates td:not(:first-child){white-space:nowrap}.cm-step-cards .cm-step-more{text-align:center;margin-top:10px}
+        @container(max-width:720px){.cm-step-card-grid{grid-template-columns:1fr}.cm-step-cards .cm-trajectory-pie .cm-cost-chart{grid-template-columns:120px minmax(0,1fr);gap:6px}.cm-step-cards .cm-trajectory-pie .cm-cost-donut{width:120px;height:120px}.cm-step-cards .cm-trajectory-pie .cm-cost-center{inset:30px 18px}.cm-step-cards .cm-trajectory-pie .cm-cost-legend{grid-template-columns:1fr}}
+      `), result.error ? el('p', { className: 'cm-stat-error' }, result.error) : null,
+        el('section', { className: 'cm-trajectory-pie', 'aria-label': text('轨迹步骤费用占比', 'Trajectory step cost shares') }, el('div', { className: 'cm-stat-panel-head' }, el('h3', null, text('轨迹步骤费用占比', 'Trajectory step cost shares')), el('span', { className: 'cm-stat-sub' }, value.totalSteps + text(' 步 · ', ' steps · ') + money(total))),
+          el(CostBreakdown, { rows, total, label: text('总费用占比', 'Total cost share'), text, amounts: true })),
+        el('details', { className: 'cm-individual-steps', open: individualOpen, onToggle: event => { if (event.target === event.currentTarget) setIndividualOpen(event.currentTarget.open) } }, el('summary', null, text('逐步费用明细', 'Individual step details') + ' · ' + value.totalSteps),
+        individualOpen ? el('div', { className: 'cm-step-card-grid' }, ...shown.map(row => {
+          const parts = new Map()
+          for (const r of selectedRows(row)) {
+            if (r.bucket === 'reasoning' && r.priced && r.cost === 0) continue
+            const p = parts.get(r.bucket) ?? { key: r.bucket, label: names[r.bucket] ?? r.bucket, value: 0, tokens: 0, unpriced: false, color: contextColors[bucketColors[r.bucket] ?? 7] }
+            p.value += r.cost; p.tokens += r.tokens; p.unpriced ||= !r.priced; parts.set(r.bucket, p)
+          }
+          return el('article', { className: 'cm-step-fee-card', key: row.key }, el('div', { className: 'cm-step-fee-head' },
+            el('button', { type: 'button', className: 'cm-step-name', 'aria-expanded': isOpen(row), onClick: () => toggle(row) },
+              (isOpen(row) ? '⌄ ' : '› ') + (row.sessionId !== sessionId ? text('子代理 · ', 'Subagent · ') : '') + (row.turn == null ? kindName(row.kind) : text('轮次 ', 'Turn ') + row.turn + (row.step == null ? '' : text(' · 步骤 ', ' · step ') + row.step)),
+              el('small', null, row.tools.length ? row.tools.join(' + ') : kindName(row.kind))),
+            el('div', { style: { textAlign: 'right' } }, el('strong', null, money(amount(row, basis)) + (row.unpriced ? ' + ?' : '')), el('small', null, pct(amount(row, basis), total) + text(' 会话费用', ' of session cost')))),
+            el(CostBreakdown, { rows: [...parts.values()].map(p => ({ ...p, amount: money(p.value) + (p.unpriced ? ' + ?' : '') })), total: amount(row, basis), label: text('本步费用', 'Step cost'), text, amounts: true }),
+            isOpen(row) ? el('div', { className: 'cm-step-rates cm-stat-scroll' }, el('table', { className: 'cm-stat-table' }, el('thead', null, el('tr', null, ...[text('计费项目', 'Billing item'), 'Tokens', text('单价 / 百万', 'Rate / million'), text('金额', 'Cost')].map(label => el('th', { key: label }, label)))),
+              el('tbody', null, ...selectedRows(row).map((r, i) => el('tr', { key: i }, el('td', { title: r.provider + ' / ' + r.model }, names[r.bucket] ?? r.bucket), el('td', null, r.tokens.toLocaleString()), el('td', null, r.priced ? money(r.rate) : '—'), el('td', null, r.priced ? money(r.cost) : text('未定价', 'Unpriced'))))))) : null)
+        })) : null), individualOpen && shown.length < value.totalSteps ? el('div', { className: 'cm-step-more' }, button(result.loading ? text('读取中…', 'Loading…') : text('展开更多步骤', 'Show more steps'), () => setOffset(offset + 100), { disabled: result.loading })) : null)
+      return el('section', { className: 'cm-step-costs cm-plan', 'aria-label': text('步骤计费', 'Step billing') }, el('style', null, `
+        .cm-stat-session .cm-step-costs{margin:6px 0}.cm-step-costs .cm-step-name{border:0!important;padding:0!important;background:transparent!important;flex-direction:row!important;align-items:center;gap:8px!important}.cm-step-costs .cm-step-name small{max-width:150px!important}.cm-step-cost-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}.cm-step-cost-grid>section{min-width:0}.cm-step-cost-grid>section:last-child{grid-column:1/-1}.cm-step-costs .cm-spend-card{padding:12px!important}.cm-step-costs .cm-cost-chart{grid-template-columns:98px minmax(0,1fr);gap:4px 8px;margin-top:8px}.cm-step-costs .cm-cost-donut{width:98px;height:98px}.cm-step-costs .cm-cost-center{inset:24px 12px}.cm-step-costs .cm-cost-center b{font-size:18px}.cm-step-costs .cm-cost-key{padding:4px 2px!important;font-size:11px!important}.cm-step-costs .cm-cost-legend{grid-template-columns:1fr}.cm-step-costs .cm-cost-inspect{min-height:16px}.cm-step-costs .cm-stat-table td,.cm-step-costs .cm-stat-table th{padding:6px;font-size:11px}.cm-step-costs td:not(:first-child){white-space:nowrap}.cm-step-costs .cm-step-name{display:flex;flex-direction:column;gap:2px;min-width:100px;font-size:12px}.cm-step-costs .cm-step-name small{color:var(--cm-muted);font-size:10px;max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cm-step-costs .cm-step-rates{padding:10px;background:var(--cm-surface)}.cm-step-costs .cm-step-more{margin-top:8px;text-align:center}.cm-step-costs .cm-stat-panel-head{margin-bottom:6px}
+        @container(max-width:760px){.cm-step-cost-grid{grid-template-columns:1fr}.cm-step-costs .cm-cost-chart{grid-template-columns:98px minmax(0,1fr)}.cm-step-costs .cm-cost-legend{grid-template-columns:repeat(2,minmax(0,1fr))}}
+      `), result.error ? el('p', { className: 'cm-stat-error' }, result.error) : null,
+        el('div', { className: 'cm-step-cost-grid' }, composition, detailed ? null : el('section', { className: 'cm-spend-card', 'aria-label': text('步骤费用构成', 'Step cost composition') }, el('h3', null, text('步骤费用构成', 'Step cost composition')),
+          el(CostBreakdown, { rows, total, label: text('费用占比', 'Cost share'), text, amounts: false })),
+          el('section', null, el('div', { className: 'cm-stat-panel-head' }, el('h3', null, text('计费轨迹', 'Billing trajectory') + ' · ' + value.totalSteps + text(' 步', ' steps'))),
+            el('div', { className: 'cm-stat-scroll' }, el('table', { className: 'cm-stat-table' }, el('thead', null, el('tr', null, ...[text('步骤 / 工具', 'Step / tools'), text('输入', 'Input'), text('输出', 'Output'), text('缓存', 'Cache'), text('费用', 'Cost'), text('占比', 'Share')].map(label => el('th', { key: label }, label)))),
+              el('tbody', null, ...shown.map(row => el(Fragment, { key: row.key }, el('tr', null,
+                el('td', null, el('button', { type: 'button', className: 'cm-step-name', 'aria-expanded': isOpen(row), onClick: () => toggle(row) },
+                  el('span', null, (isOpen(row) ? '⌄ ' : '› ') + (row.sessionId !== sessionId ? text('子代理 · ', 'Subagent · ') : '') + (row.turn == null ? kindName(row.kind) : text('轮次 ', 'Turn ') + row.turn + (row.step == null ? '' : text(' · 步骤 ', ' · step ') + row.step))),
+                  el('small', { title: row.tools.join(' + ') }, row.tools.length ? row.tools.join(' + ') : kindName(row.kind)))),
+                el('td', null, bucketCost(row, ['input'])), el('td', null, bucketCost(row, ['output', 'reasoning'])), el('td', null, bucketCost(row, ['cacheRead', 'cacheWrite'])),
+                el('td', null, money(amount(row, basis)) + (row.unpriced ? ' + ?' : '')), el('td', null, pct(amount(row, basis), total))),
+                isOpen(row) ? el('tr', null, el('td', { colSpan: 6, className: 'cm-step-rates' }, el('table', { className: 'cm-stat-table' }, el('thead', null, el('tr', null, ...[text('模型 / 项目', 'Model / item'), 'Tokens', text('单价 / 百万', 'Rate / million'), text('金额', 'Cost')].map(label => el('th', { key: label }, label)))),
+                  el('tbody', null, ...selectedRows(row).map((r, i) => el('tr', { key: i }, el('td', null, r.model + ' · ' + (names[r.bucket] ?? r.bucket)), el('td', null, r.tokens.toLocaleString()), el('td', null, r.priced ? money(r.rate) : '—'), el('td', null, r.priced ? money(r.cost) : text('未定价', 'Unpriced')))))))) : null))))),
+            shown.length < value.totalSteps ? el('div', { className: 'cm-step-more' }, button(result.loading ? text('读取中…', 'Loading…') : text('展开更多步骤', 'Show more steps'), () => setOffset(offset + 100), { disabled: result.loading })) : null)))
     }
 
     function SessionDetail({ api, query, revision, money, formatTokens, text, overview = false, children }) {
       const [offset, setOffset] = useState(0), [selected, setSelected] = useState(-1), [turnOffset, setTurnOffset] = useState(0)
-      const [view, setView] = useState('summary')
+      const [view, setView] = useState('summary'), [callSectionOpen, setCallSectionOpen] = useState(false)
       const [expandedTurn, setExpandedTurn] = useState(null), [shareMetric, setShareMetric] = useState('cost'), [retry, setRetry] = useState(0)
       const result = useRequest(api, 'getSessionBilling', { ...query, offset, turnOffset }, revision + ':' + retry)
       const jump = useRef(false)
@@ -621,7 +748,7 @@ window.__ModuleLoader__.load({
       const mismatch = Math.abs(cost - recorded) > Math.max(1e-8, Math.abs(recorded) * 1e-8) || detail.totalCalls !== detail.recorded.calls
       const unknown = parts.some(row => row.unpriced)
       const shareLabel = unknown ? text('已知费用占比', 'Known cost share') : text('费用占比', 'Cost share')
-      const selectCall = index => { setView('calls'); jump.current = true; setOffset(Math.floor(index / 50) * 50); setSelected(index % 50) }
+      const selectCall = index => { setView('summary'); jump.current = true; setOffset(Math.floor(index / 50) * 50); setSelected(index % 50) }
       const chartPart = row => ({ key: row.bucket, label: names[row.bucket], tokens: row.tokens, value: row.cost, unpriced: row.unpriced,
         amount: row.unpriced && !row.cost ? text('未定价', 'Unpriced') : money(row.cost) + (row.unpriced ? ' + ?' : ''), color: contextColors[bucketColors[row.bucket] ?? 7] })
       const models = new Map()
@@ -645,53 +772,54 @@ window.__ModuleLoader__.load({
             el('div', { className: 'cm-stat-share-track', 'aria-hidden': true }, el('span', { style: { display: 'block', height: '100%', width: (total > 0 ? value / total * 100 : 0) + '%', borderRadius: 9, background: contextColors[6] } }))))) : null
       const costCard = (title, rows, props = {}, extra = null) => el('section', { className: 'cm-spend-card', 'aria-label': title }, el('h3', null, title),
         el(CostBreakdown, { rows, total: cost, label: shareLabel, text, amounts: true, ...props }), extra)
-      const formula = (row, i) => el('p', { key: i, className: 'cm-stat-sub' }, names[row.bucket] + ': ' + row.tokens.toLocaleString() + ' × ' + (row.priced ? money(row.rate) : '?') + ' / 1,000,000 = ' + (row.priced ? money(row.cost) : '?'))
+      const callShareCard = (detail.callShares?.length ?? 0) > 0 ? costCard(text('每次调用费用占比', 'Cost share per call'), detail.callShares.map((row, i) => ({ ...row, key: String(row.index),
+              label: row.other ? text('其余 ', 'Other ') + row.calls + text(' 次调用', ' calls') : text('调用 #', 'Call #') + (row.index + 1),
+              meta: row.other ? row.calls + text(' 次调用', ' calls') : row.tokens.toLocaleString() + ' tokens', value: amount(row, basis),
+              amount: row.unpriced && !amount(row, basis) ? text('未定价', 'Unpriced') : money(amount(row, basis)) + (row.unpriced ? ' + ?' : ''), color: contextColors[row.other ? 7 : i % 7] })),
+              { onSelect: row => { if (!row.other) selectCall(row.index) } }) : null
       const summaryTable = (label, rows, name) => el('div', { className: 'cm-stat-scroll', style: { marginTop: 20 } }, el('h3', null, label), el('table', { className: 'cm-stat-table' },
         el('thead', null, el('tr', null, ...[label, text('调用次数', 'Calls'), text('输入 / 缓存 / 输出 Tokens', 'Input / cache / output tokens'), 'API', text('Plan 等值', 'Plan equivalent')].map(v => el('th', { key: v }, v)))),
         el('tbody', null, rows.map((row, i) => el('tr', { key: i }, el('td', null, name(row)), el('td', null, row.calls),
           el('td', null, [row.input, row.cacheRead + row.cacheWrite, row.output].map(formatTokens).join(' / ')), el('td', null, money(row.apiCost) + (row.unpriced ? ' + ?' : '')), el('td', null, money(Math.max(0, row.cost - row.apiCost)) + (row.unpriced ? ' + ?' : '')))))))
       return el('section', { className: 'cm-stat-panel' }, el('style', null, contextCostsCss + spendCss),
-        overview ? el('nav', { className: 'cm-session-tabs', 'aria-label': text('费用视图', 'Cost views') }, ...[['summary', text('费用概览', 'Overview')], ['context', text('上下文', 'Context')], ['calls', text('调用明细', 'Call details')]].map(([id, label]) => button(label, () => { setView(id); setSelected(-1) }, { key: id, 'aria-pressed': view === id }))) : null,
+        overview ? el('nav', { className: 'cm-session-tabs', 'aria-label': text('费用视图', 'Cost views') }, ...[['summary', text('费用概览', 'Overview')], ['context', text('费用明细', 'Cost details')]].map(([id, label]) => button(label, () => { setView(id); setSelected(-1); setCallSectionOpen(false) }, { key: id, 'aria-pressed': view === id }))) : null,
         overview ? el('div', { className: 'cm-stat-metrics' }, ...[
           [basis === 'total' ? text('API + Plan 等值', 'API + Plan equivalent') : basis === 'plan' ? text('Plan 等值', 'Plan equivalent') : text('API 费用', 'API cost'), money(cost) + (parts.some(row => row.unpriced) ? ' + ?' : ''), text('按本对话调用日志估算', 'Estimated from this conversation’s call logs')],
           [text('调用次数', 'Calls'), detail.totalCalls.toLocaleString(), (detail.agents?.length ?? 0) > 1 ? text('包含子代理', 'Includes subagents') : text('本会话', 'This conversation')],
           [text('Token 用量', 'Token usage'), formatTokens(parts.reduce((n, row) => n + (row.bucket === 'reasoning' ? 0 : row.tokens), 0)), text('输入、缓存与输出', 'Input, cache and output')],
           [text('缓存命中率', 'Cache hit rate'), pct(parts.find(row => row.bucket === 'cacheRead')?.tokens ?? 0, parts.filter(row => ['input', 'cacheRead', 'cacheWrite'].includes(row.bucket)).reduce((n, row) => n + row.tokens, 0)), text('输入 Token 中的缓存读取', 'Cache reads among input tokens')],
         ].map(([label, value, sub]) => el('div', { className: 'cm-stat-metric', key: label }, el('div', { className: 'cm-stat-sub' }, label), el('div', { className: 'cm-stat-value' }, value), el('div', { className: 'cm-stat-sub' }, sub)))) : null,
-        !overview || view === 'context' ? children : null,
+        overview && view === 'context' ? el(StepCosts, { api, sessionId: query.sessionId, revision, money, text, basis, detailed: true }) : null,
+        !overview ? children : view === 'context' ? el('details', { className: 'cm-stat-secondary' }, el('summary', { style: { padding: '8px 0' } }, text('上下文费用参考', 'Context cost reference')), children) : null,
         !overview ? el('div', { className: 'cm-stat-panel-head' }, el('h3', null, overview ? text('已发生费用 · 调用明细', 'Recorded costs · call details') : text('单对话费用明细', 'Conversation cost details')), el('span', { className: 'cm-stat-sub' }, (detail.agents?.length ?? 0) > 1 ? text('包含子代理及其后代', 'Includes subagents and their descendants') : text('本会话自身的调用', 'Own conversation calls'))) : null,
         staleError,
         !overview && mismatch ? el('p', { className: 'cm-stat-note' }, text('账本与可用明细不同：账本 ', 'Ledger and available details differ: ledger ') + money(recorded) + ' / ' + detail.recorded.calls + text(' 次；明细 ', ' calls; details ') + money(cost) + ' / ' + detail.totalCalls + text(' 次。', ' calls.')) : null,
         (!overview || view === 'calls') && (detail.agents?.length ?? 0) > 1 ? summaryTable(text('主会话与子代理 · 账本费用', 'Main conversation and subagents · ledger costs'), detail.agents, row => agentName(row.id)) : null,
-        !overview || view === 'summary' ? el('div', { className: 'cm-plan cm-spend' },
-          unknown ? el('p', { className: 'cm-plan-sub' }, text('占比仅包含已知金额；未定价的用量显示 ?。', 'Shares cover known amounts only; unpriced usage is marked ?.')) : null,
+        !overview ? el('div', { className: 'cm-plan cm-spend' },
+          unknown ? el('p', { className: 'cm-plan-sub' }, text('存在未定价调用', 'Some calls are unpriced')) : null,
           el('div', { className: 'cm-spend-grid' },
             costCard(text('费用构成', 'Cost composition'), parts.filter(row => row.tokens > 0 && (row.bucket !== 'reasoning' || row.cost > 0 || row.unpriced)).map(chartPart), {}, cacheComparison),
-            (detail.callShares?.length ?? 0) > 0 ? costCard(text('每次调用费用占比', 'Cost share per call'), detail.callShares.map((row, i) => ({ ...row, key: String(row.index),
-              label: row.other ? text('其余 ', 'Other ') + row.calls + text(' 次调用', ' calls') : text('调用 #', 'Call #') + (row.index + 1),
-              meta: row.other ? row.calls + text(' 次调用', ' calls') : row.tokens.toLocaleString() + ' tokens', value: amount(row, basis),
-              amount: row.unpriced && !amount(row, basis) ? text('未定价', 'Unpriced') : money(amount(row, basis)) + (row.unpriced ? ' + ?' : ''), color: contextColors[row.other ? 7 : i % 7] })),
-              { onSelect: row => { if (!row.other) selectCall(row.index) } }) : null,
+            callShareCard,
             modelRows.length > 1 ? costCard(text('模型费用分布', 'Cost by model'), modelRows) : null,
             detail.kinds.length > 1 ? costCard(text('各环节费用占比', 'Cost by activity'), detail.kinds.map((row, i) => ({ key: row.kind, label: kinds[row.kind] ?? row.kind,
               value: amount(row, basis), tokens: tokens(row), meta: row.calls + text(' 次调用', ' calls') + ' · ' + formatTokens(tokens(row)) + ' tok', unpriced: row.unpriced,
-              amount: money(amount(row, basis)) + (row.unpriced ? ' + ?' : ''), color: contextColors[i] }))) : null),
-          (detail.callShares?.length ?? 0) > 0 ? el('p', { className: 'cm-plan-sub' }, text('全部调用为分母 · 前 7 次单列，其余合并 · 点击查看明细', 'Shares of all calls · Top 7 + remainder · Select for details')) : null) : null,
-        !overview || view === 'calls' ? el(Fragment, null,
-        el('details', { className: 'cm-stat-secondary', open: !overview }, el('summary', null, text('轮次、步骤与单价', 'Turns, steps and rates')),
+              amount: money(amount(row, basis)) + (row.unpriced ? ' + ?' : ''), color: contextColors[i] }))) : null)) : null,
+        overview && view === 'summary' ? el(StepCosts, { api, sessionId: query.sessionId, revision, money, text, basis, composition: costCard(text('费用构成', 'Cost composition'), parts.filter(row => row.tokens > 0 && (row.bucket !== 'reasoning' || row.cost > 0 || row.unpriced)).map(chartPart)) }) : null,
+        !overview || view === 'summary' ? el('details', { className: 'cm-call-section', open: !overview || callSectionOpen || selected >= 0, onToggle: e => { if (e.target === e.currentTarget) { setCallSectionOpen(e.currentTarget.open); if (!e.currentTarget.open) setSelected(-1) } } },
+        el('summary', { style: { padding: '10px 0', fontSize: 13 } }, text('逐次调用明细', 'Individual calls') + ' · ' + detail.totalCalls),
+        overview ? el('div', { className: 'cm-plan cm-spend-grid' }, callShareCard, modelRows.length > 1 ? costCard(text('模型费用分布', 'Cost by model'), modelRows) : cacheComparison) : null,
+        !overview ? el('details', { className: 'cm-stat-secondary', open: !overview }, el('summary', null, text('轮次、步骤与单价', 'Turns, steps and rates')),
         el('section', { className: 'cm-stat-breakdown' },
           el('div', { className: 'cm-stat-panel-head' }, el('h3', null, text('各步骤占比', 'Share by step')),
             el('div', { className: 'cm-stat-periods' }, ...[['cost', text('费用', 'Cost')], ['calls', text('调用次数', 'Calls')]].map(([id, title]) => button(title, () => setShareMetric(id), { key: id, 'aria-pressed': shareMetric === id })))),
           el(ShareChart, { title: shareMetric === 'cost' ? text('费用占比 · 全部调用', 'Cost share · all calls') : text('调用次数占比 · 全部调用', 'Call count share · all calls'),
             rows: (detail.stepShares?.[shareMetric] ?? []).map(row => ({ label: row.other ? text('其余步骤合计', 'All other steps') : turnLabel(row) + (row.step == null ? '' : text(' · 步骤 ', ' · step ') + row.step),
               value: shareMetric === 'cost' ? amount(row, basis) : row.calls, unpriced: shareMetric === 'cost' && row.unpriced, other: row.other })),
-            total: shareMetric === 'cost' ? cost : detail.totalCalls, format: shareMetric === 'cost' ? money : n => n.toLocaleString(), text, columns: true }),
-          el('p', { className: 'cm-stat-sub', style: { marginTop: 12 } }, text('分母包含所选范围的全部调用，跨页合计。显示前 12 项，其余合并；无步骤编号的调用单列。工具本身不额外算作模型调用。', 'Shares use all calls in the selected range, across pages. Top 12 entries are shown; the rest are combined. Missing step IDs remain explicit. Tools are not counted as extra model calls.'))),
+            total: shareMetric === 'cost' ? cost : detail.totalCalls, format: shareMetric === 'cost' ? money : n => n.toLocaleString(), text, columns: true })),
         el('details', { className: 'cm-stat-help' }, el('summary', null, text('单价与 Token 明细', 'Rates and token details')),
         el('div', { className: 'cm-stat-scroll' }, el('table', { className: 'cm-stat-table' },
           el('thead', null, el('tr', null, ...[text('费用构成', 'Cost component'), 'Tokens', text('费用', 'Cost'), text('费用占比', 'Cost share')].map(v => el('th', { key: v }, v)))),
           el('tbody', null, parts.map(row => el('tr', { key: row.bucket }, el('td', null, names[row.bucket]), el('td', null, row.tokens.toLocaleString()), el('td', null, money(row.cost) + (row.unpriced ? ' + ?' : '')), el('td', null, pct(row.cost, cost))))))),
-        el('p', { className: 'cm-stat-sub', style: { marginTop: 10 } }, text('推理 Token 可能包含在输出中；单价为 0 时不另收推理费。未定价用量显示 ?。', 'Reasoning tokens may overlap output; a zero reasoning rate adds no separate charge. Unpriced usage is marked ?.')),
         summaryTable(text('按调用类型统计', 'Cost by call type'), detail.kinds, row => kinds[row.kind] ?? row.kind)),
         el('section', { className: 'cm-stat-turns' }, el('div', { className: 'cm-stat-panel-head' }, el('h3', null, text('按轮次统计', 'Cost by turn')), el('span', { className: 'cm-stat-sub' }, text('展开查看输入和工具调用', 'Expand to inspect input and tool calls'))),
           detail.turns.map(row => el('div', { key: turnKey(row), className: 'cm-stat-turn' },
@@ -700,15 +828,13 @@ window.__ModuleLoader__.load({
               el('span', null, (row.turn == null ? '' : expandedTurn === turnKey(row) ? '⌄ ' : '› ') + turnLabel(row)),
               el('span', null, row.calls + text(' 次调用', ' calls') + ' · ' + formatTokens(tokens(row)) + ' tok · ' + money(amount(row, basis)) + (row.unpriced ? ' + ?' : '') + ' · ' + pct(amount(row, basis), cost))),
             row.turn != null && expandedTurn === turnKey(row) ? el(TurnInspection, { key: turnKey(row), api, sessionId: row.sessionId || query.sessionId, turn: row.turn, revision, text }) : null))),
-        el('p', { className: 'cm-stat-sub' }, text('轮次沿用日志编号；未记录轮次的调用单列。每轮包含其全部调用，跨调用分页也不会拆分。', 'Turn numbers come from the log; calls without one are listed separately. Each turn includes all its calls, across call pages.')),
-        el(Pager, { offset: turnOffset, count: detail.totalTurns, size: 25, onChange: n => { setTurnOffset(n); setExpandedTurn(null) }, text })),
+        el(Pager, { offset: turnOffset, count: detail.totalTurns, size: 25, onChange: n => { setTurnOffset(n); setExpandedTurn(null) }, text })) : null,
         el('div', { style: { marginTop: 24 } }, el(Chart, { rows: detail.calls.map((call, i) => ({ label: '#' + (offset + i + 1), index: i, value: amount(call, basis) })), money, text,
           label: text('逐次调用费用 · 当前页', 'Cost per call · current page'), onSelect: row => { setSelected(row.index); document.getElementById('cm-stat-call-' + row.index)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }) } })),
         detail.calls.map((call, i) => el('details', { key: offset + i, id: 'cm-stat-call-' + i, className: 'cm-stat-call', open: selected === i, onToggle: event => { if (event.currentTarget.open) setSelected(i); else setSelected(previous => previous === i ? -1 : previous) } },
           el('summary', null, '#' + (offset + i + 1) + ' · ' + turnLabel(call) + (call.step == null ? '' : text(' / 步骤 ', ' / step ') + call.step) + ' · ' + (kinds[call.kind] ?? call.kind) + ' · ' + call.provider + ' / ' + call.model + ' · ' + (call.plan ? 'Plan ' : 'API ') + (call.priced ? money(call.cost) : '?') + (call.longContext ? text(' · 长上下文价', ' · long-context rate') : ''),
             el('span', { className: 'cm-call-share' }, (call.priced ? pct(amount(call, basis), cost) : '—') + ' · ' + shareLabel)),
-          selected === i ? el('div', { className: 'cm-plan' }, el(CostBreakdown, { rows: call.rows.filter(visible).filter(row => row.tokens > 0 && (row.bucket !== 'reasoning' || row.cost > 0 || !row.priced)).map(row => chartPart({ ...row, unpriced: !row.priced })), total: amount(call, basis), label: text('本次费用构成', 'This call’s costs'), text, amounts: true })) : null,
-          el('p', { className: 'cm-stat-sub' }, new Date(call.atMs).toLocaleString()), call.rows.map(formula))),
+          selected === i ? el(CallDetail, { key: (call.sessionId || query.sessionId) + ':' + (call.logSeq ?? i), call, sessionId: query.sessionId, api, revision, money, text, names }) : null)),
         el(Pager, { offset, count: detail.totalCalls, size: 50, onChange: n => { setOffset(n); setSelected(-1) }, text })) : null)
     }
 
@@ -721,7 +847,7 @@ window.__ModuleLoader__.load({
       return el('div', { className: 'cm-stat cm-stat-session', 'data-session-id': sessionId }, el('style', null, css),
         el('div', { className: 'cm-stat-panel-head' }, el('p', { className: 'cm-stat-sub' }, text('当前对话 · 全部调用', 'This conversation · all calls')), button(text('刷新', 'Refresh'), () => setRevision(n => n + 1))),
         el(SessionDetail, { key: sessionId + ':' + basis, api, query, revision: refreshKey, money, formatTokens, text, overview: true },
-          el(ContextCosts, { key: sessionId, api, sessionId, revision: refreshKey, money, text, compact: true })),
+          el(ContextCosts, { key: sessionId, api, sessionId, revision: refreshKey, money, text, compact: true, expanded: true })),
         el('details', { className: 'cm-session-options' }, el('summary', null, text('显示与联动设置', 'Display and integration settings')),
           el('div', { className: 'cm-stat-controls' }, el('label', null, text('计费口径', 'Cost basis'), el('select', { value: basis, onChange: event => setBasis(event.target.value) }, ...[['api', text('API 费用', 'API cost')], ['plan', text('Plan 等值', 'Plan equivalent')], ['total', text('API + Plan 等值', 'API + Plan equivalent')]].map(([value, label]) => el('option', { key: value, value }, label))))),
           contextIntegration ? el(ContextIntegrationSettings, contextIntegration) : null))
@@ -763,21 +889,20 @@ window.__ModuleLoader__.load({
           pick(text('计费口径', 'Cost basis'), basis, setBasis, [['api', text('API 费用', 'API cost')], ['plan', text('Plan 等值', 'Plan equivalent')], ['total', text('API + Plan 等值', 'API + Plan equivalent')]]),
           pick(text('提供商', 'Provider'), provider, value => { setProvider(value); setModel('') }, [['', text('全部提供商', 'All providers')], ...[...new Set([provider, ...(data?.providers ?? [])])].filter(Boolean).map(s => [s, s])]),
           pick(text('模型', 'Model'), model, setModel, [['', text('全部模型', 'All models')], ...[...new Set([model, ...(data?.modelOptions ?? [])])].filter(Boolean).map(s => [s, s])])),
-        el('details', { className: 'cm-stat-help' }, el('summary', null, text('计费说明', 'About billing')), el('p', null, text('按宿主时区归日：', 'Days use the host timezone: ') + (state.meta.timezone || 'UTC') + ' · ' + text('API 金额是按已记录用量和配置单价计算的估算；Plan 为订阅用量的 API 等值，不是订阅账单。外部导入用量在原概览中单列。', 'API amounts estimate recorded usage at configured rates; Plan is API-equivalent usage, not the subscription invoice. External usage remains separate in Overview.'))),
         showsPlaceholder(result) ? (result.loading ? el('p', { className: 'cm-stat-empty', role: 'status' }, text('加载统计…', 'Loading statistics…')) : errorNotice(result.error)) : data ? el(Fragment, null,
           result.failed ? errorNotice(result.error) : null,
           el('p', { className: 'cm-stat-sub', style: { marginTop: 8 } }, data.from + ' – ' + data.to + (data.retainedFrom ? ' · ' + text('账本保留范围 ', 'Retained ledger ') + data.retainedFrom + ' – ' + data.retainedTo : '')),
           el('div', { className: 'cm-stat-metrics' },
             metric(text('API 费用', 'API cost'), money(top.apiCost), text('已入账估算', 'Recorded estimate')),
-            metric(text('Plan 等值费用', 'Plan equivalent'), money(Math.max(0, top.cost - top.apiCost)), text('不代表实际扣款', 'Not an actual debit')),
+            metric(text('Plan 等值费用', 'Plan equivalent'), money(Math.max(0, top.cost - top.apiCost)), ''),
             metric(text('调用次数', 'Calls'), top.calls.toLocaleString(), data.sessionCount + text(' 个对话 · 平均 ', ' conversations · average ') + money(top.calls ? amount(top, basis) / top.calls : 0)),
             metric(text('缓存命中率', 'Cache hit rate'), pct(top.cacheRead, top.input + top.cacheRead + top.cacheWrite), formatTokens(tokens(top)) + ' Tokens')),
           scope.id ? el('section', { className: 'cm-stat-panel' }, el(ContextCosts, { key: scope.id, api, sessionId: scope.id, revision: refreshKey, money, text })) : null,
           scope.id ? el(SessionDetail, { key: JSON.stringify([scope.id, from, to, provider, model, basis]), api, query: { ...query, from: data.from, to: data.to, offset: 0 }, revision: refreshKey, money, formatTokens, text }) : null,
-          data.models.some(r => !r.priced) ? el('p', { className: 'cm-stat-note' }, text('部分模型当前未配置价格，金额可能不完整；未定价不等于免费。', 'Some models have no configured price. Amounts may be incomplete; unpriced usage is not free.')) : null,
+          data.models.some(r => !r.priced) ? el('p', { className: 'cm-stat-note' }, text('部分模型未配置价格', 'Some models have no rates')) : null,
           !top.calls && !top.cost ? el('p', { className: 'cm-stat-empty' }, text('所选范围没有已记录的用量。', 'No recorded usage in this range.')) : null,
           el('section', { className: 'cm-stat-panel' }, el(Chart, { rows: dailyChartRows(data.days, basis), money, text, label: text('费用趋势 · ', 'Cost over time · ') + basisName,
-            onSelect: row => { setCustom({ from: row.from, to: row.to }); choosePeriod('custom') } }), el('p', { className: 'cm-stat-sub', style: { marginTop: 12 } }, text('点击柱形查看该日期范围。长区间按相邻日期合并，保留全部金额。', 'Select a bar to inspect its date range. Long ranges group adjacent days without dropping costs.'))),
+            onSelect: row => { setCustom({ from: row.from, to: row.to }); choosePeriod('custom') } })),
           el('div', { className: 'cm-stat-grid' },
             panel(text('模型费用排行', 'Cost by model'), el(Fragment, null,
               el('ol', { className: 'cm-stat-rank' }, (showModels ? data.models : data.models.slice(0, 8)).map(row => el('li', { key: row.key }, el('button', { type: 'button', onClick: () => { setProvider(row.provider); setModel(row.model); setOffset(0) }, title: row.key },
@@ -788,7 +913,6 @@ window.__ModuleLoader__.load({
               data.unmodeledCost > 1e-8 ? el('p', { className: 'cm-stat-note' }, text('历史未分配到模型的费用：', 'Historical cost without a model: ') + money(data.unmodeledCost)) : null)),
             panel(text('Token 构成', 'Token composition'), el(Fragment, null,
               el('ol', { className: 'cm-stat-rank' }, Object.entries(inputNames).map(([key, title]) => el('li', { key }, el('div', { className: 'cm-stat-rankline' }, el('span', null, title), el('span', { className: 'cm-stat-number' }, formatTokens(top[key]))), el('div', { className: 'cm-stat-track' }, el('span', { style: { width: pct(top[key], tokens(top)), background: key.startsWith('cache') ? 'var(--cm-plan)' : undefined } }))))),
-              el('p', { className: 'cm-stat-note' }, text('这里展示 Token 数量占比，不是费用占比。缓存写入计入输入分母，不算缓存命中。', 'These are token shares, not cost shares. Cache writes count as input, not cache hits.')),
               el('p', { className: 'cm-stat-sub' }, text('单独上报的推理 Token：', 'Reported reasoning tokens: ') + formatTokens(top.reasoning))))),
           !scope.id ? el('section', { className: 'cm-stat-panel' },
             el('div', { className: 'cm-stat-panel-head' }, el('h3', null, text('对话费用排行', 'Cost by conversation')), el('span', { className: 'cm-stat-sub' }, state.config.includeSubagentCost ? text('点击查看明细 · 包含子代理，每笔费用只计一次', 'Select for details · includes subagents, each call counted once') : text('点击对话查看明细', 'Select a conversation for details'))),
@@ -810,10 +934,10 @@ window.__ModuleLoader__.load({
       const unmount = await ctx.get('remote').$mount(CONTRIBUTION)
       ctx.effect(() => () => unmount(), 'cost-meter: statistics contribution')
       const remote = ctx.get('remote.costMeter')
-      const api = Object.fromEntries(['getBillingStatistics', 'getSessionBilling', 'getTurnInspection', 'getContextCosts'].map(method => [method, async query => {
-        const result = await remote[method]((method === 'getContextCosts' ? parseContextCostsQuery : method === 'getTurnInspection' ? parseInspectionQuery : parseQuery)(query))
+      const api = Object.fromEntries(['getBillingStatistics', 'getSessionBilling', 'getTurnInspection', 'getCallInspection', 'getContextCosts', 'getSessionTrajectory'].map(method => [method, async query => {
+        const result = await remote[method]((method === 'getSessionTrajectory' ? parseTrajectoryQuery : method === 'getContextCosts' ? parseContextCostsQuery : method === 'getCallInspection' ? parseCallInspectionQuery : method === 'getTurnInspection' ? parseInspectionQuery : parseQuery)(query))
         if (!result?.ok) throw new Error(result?.error?.message || 'Statistics request failed')
-        return ({ getBillingStatistics: parseStatistics, getSessionBilling: parseDetail, getTurnInspection: parseInspection, getContextCosts: parseContextCosts }[method])(result.value)
+        return ({ getBillingStatistics: parseStatistics, getSessionBilling: parseDetail, getTurnInspection: parseInspection, getCallInspection: parseCallInspection, getContextCosts: parseContextCosts, getSessionTrajectory: parseTrajectory }[method])(result.value)
       }]))
       let manager
       if (source?.subscribe && typeof ctx.get('slots')?.entries === 'function') {

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import './call-inspection.mjs'
+import './trajectory.mjs'
 import { inspectTurn, getTurnInspection } from '../lib/turn-inspection.js'
 import { turnInspectionSchema } from '../lib/typert.host.js'
 const rows = [

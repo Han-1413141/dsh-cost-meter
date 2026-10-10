@@ -14,6 +14,8 @@ import { TYPERT } from '../lib/typert.host.js'
 import { billingStatistics } from '../lib/billing-statistics.js'
 import { getSessionBilling } from '../lib/turn-cost.js'
 import { getTurnInspection } from '../lib/turn-inspection.js'
+import { getCallInspection } from '../lib/call-inspection.js'
+import { getSessionTrajectory } from '../lib/trajectory.js'
 import { getContextCosts, getContextIntegration } from '../lib/context-costs.js'
 
 assert.ok(process.env.DSH_TEST_NODE_MODULES, 'set DSH_TEST_NODE_MODULES to an installed DSH runtime')
@@ -72,6 +74,8 @@ class Connection extends Service {
         if (endpoint === 'costMeter/getBillingStatistics') return { ok: true, value: billingStatistics(ledger, payload.args.query) }
         if (endpoint === 'costMeter/getSessionBilling') return { ok: true, value: await getSessionBilling(ledger, { get: () => ({ get: () => ({ snapshotEvents: () => [] }) }) }, payload.args.query) }
         if (endpoint === 'costMeter/getTurnInspection') return { ok: true, value: await getTurnInspection({ get: () => ({ get: () => ({ snapshotEvents: () => [] }) }) }, payload.args.query) }
+        if (endpoint === 'costMeter/getSessionTrajectory') return { ok: true, value: await getSessionTrajectory(ledger, { get: () => ({ get: () => ({ snapshotEvents: () => [] }) }) }, payload.args.query) }
+        if (endpoint === 'costMeter/getCallInspection') return { ok: true, value: await getCallInspection({ get: () => ({ get: () => ({ snapshotEvents: () => [] }) }) }, payload.args.query) }
         throw new Error('unexpected RPC ' + endpoint)
       },
     }
@@ -128,6 +132,11 @@ try {
     await assert.rejects(api.getBillingStatistics({ ...query, turnOffset: -1 }), /Invalid statistics query/)
     assert.equal(calls.length, count, 'strict input validation runs before transport')
     assert.equal((await api.getTurnInspection({ sessionId: 'selected', turn: 1 })).found, false)
+    assert.equal((await api.getCallInspection({ sessionId: 'selected', seq: 0, atMs: 1 })).found, false)
+    assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))), ['costMeter/getCallInspection', { query: { sessionId: 'selected', seq: 0, atMs: 1, offset: 0 } }])
+    await assert.rejects(api.getCallInspection({ sessionId: 'selected', seq: -1, atMs: 1 }), /Invalid call inspection/)
+    assert.equal((await api.getSessionTrajectory({ sessionId: 'selected' })).totalSteps, 0)
+    await assert.rejects(api.getSessionTrajectory({ sessionId: 'selected', offset: -1 }), /Invalid step billing/)
     assert.equal((await api.getContextCosts({ sessionId: 'selected' })).status, 'session-unavailable')
     assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))), ['costMeter/getContextCosts', { query: { sessionId: 'selected' } }])
     const prefetchStart = calls.length
