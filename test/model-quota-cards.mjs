@@ -261,6 +261,11 @@ assert.equal(draft.gatewayQuotas.sources[1].antigravityOnlyGemini, true, 'Gemini
 quota.render(quotaProps())
 gateway.render(cards()[0].props)
 assert.equal(nodes(gateway.tree.props.configNode).find(n => n.type === 'input' && n.props.type === 'checkbox').props.checked, true)
+const refreshInput = nodes(gateway.tree.props.configNode).find(n => n.type === 'input' && n.props.type === 'number')
+assert.ok(refreshInput, '网关来源卡片存在刷新间隔数字输入框')
+refreshInput.props.onChange({ target: { value: '30' } })
+draft = plain(e.ui.parseConfig(applyConfigPatch(quotaState.config, { gatewayQuotas: draft.gatewayQuotas }).config, 'config'))
+assert.equal(draft.gatewayQuotas.sources[1].refreshMinutes, 30, '网关刷新间隔通过组件回调、服务端和客户端回读')
 const customCards = () => cards().filter(n => n.type === e.ui.CustomBalanceEntryPanel)
 const preservedKey = customCards()[1].props.key
 const custom = e.mount(e.ui.CustomBalanceEntryPanel, customCards()[1].props)
