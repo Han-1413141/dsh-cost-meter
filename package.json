@@ -132,8 +132,8 @@
     "docs/dsh-0.2.1-compatibility.md"
   ],
   "dependencies": {
-    "acorn": "8.15.0",
-    "zod": "4.6.5"
+    "acorn": "8.19.0",
+    "zod": "4.6.7"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-credentials": ">=0.2.0-rc.1 <0.3.0-0 || >=0.2.1-0 <0.3.0-0",
