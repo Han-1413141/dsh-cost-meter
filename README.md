@@ -1,6 +1,8 @@
 <h1 align="center">dsh-cost-meter</h1>
 
-<p align="center"><b>Session cost tracking for DeepSeek Harness · bilingual UI</b></p>
+<p align="center"><b>Every cent you spend, in plain sight</b></p>
+
+<p align="center">Session cost · subscription quotas · budget alerts for DeepSeek Harness</p>
 
 <p align="center">
   <a href="https://github.com/Han-1413141/dsh-cost-meter"><img src="https://img.shields.io/badge/version-1.9.38-4176E6?style=flat-square" alt="version"></a>
@@ -21,7 +23,7 @@
   <a href="#contributors">Contributors</a>
 </p>
 
-What each conversation cost, how much quota is left this month, what percentage of your subscription plan you have used — DSH does not show any of it. This plugin puts those numbers in front of you.
+Install the plugin and a row of numbers appears in the sidebar: what this conversation cost, the running total for today, how much of your plan quota is left. No bill to dig through, no arithmetic to do.
 
 ![dsh-cost-meter UI preview](docs/promo.en.png)
 

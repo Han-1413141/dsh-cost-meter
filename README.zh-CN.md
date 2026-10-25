@@ -1,6 +1,8 @@
 <h1 align="center">dsh-cost-meter</h1>
 
-<p align="center"><b>DeepSeek Harness 会话费用统计插件 · 界面中英双语</b></p>
+<p align="center"><b>花的每一分，都看得见</b></p>
+
+<p align="center">DeepSeek Harness 会话费用 · 订阅额度 · 预算告警</p>
 
 <p align="center">
   <a href="https://github.com/Han-1413141/dsh-cost-meter"><img src="https://img.shields.io/badge/version-1.9.38-4176E6?style=flat-square" alt="version"></a>
@@ -21,7 +23,7 @@
   <a href="#贡献者">贡献者</a>
 </p>
 
-每次对话花了多少钱、这个月还剩多少额度、订阅套餐用到了百分之几——这些数字 DSH 本身不显示，本插件把它们放到你眼前。
+装上一个插件，侧边栏就多出一行数字：这次对话花了多少、今天累计多少、套餐里的额度还剩几成。不用翻账单，不用自己算。
 
 ![dsh-cost-meter 界面预览](docs/promo.png)
 
