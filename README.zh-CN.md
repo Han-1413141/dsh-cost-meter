@@ -11,7 +11,7 @@
 
 [English](README.md) | **简体中文**
 
-[功能](#核心功能) · [安装](#安装) · [文档](#文档) · [交流群](#交流与反馈)
+[功能](#核心功能) · [安装](#安装) · [文档](#文档) · [交流群](#交流与反馈) · [贡献者](#贡献者)
 
 </div>
 
@@ -85,6 +85,14 @@ dsh plugin --profile web add link:./dsh-cost-meter
 </p>
 
 也可以直接[提 Issue](https://github.com/Han-1413141/dsh-cost-meter/issues)。提交前请先读[贡献指南](CONTRIBUTING.md)。
+
+## 贡献者
+
+谢谢每一位提过问题、给过建议、写过代码的人。名单由 GitHub 自动汇总，点开头像可看各自的贡献。
+
+<a href="https://github.com/Han-1413141/dsh-cost-meter/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Han-1413141/dsh-cost-meter" alt="dsh-cost-meter 贡献者" />
+</a>
 
 ## Star 增长记录
 

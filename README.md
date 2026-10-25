@@ -11,7 +11,7 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-[Features](#core-features) · [Install](#install) · [Docs](#docs) · [Community](#community)
+[Features](#core-features) · [Install](#install) · [Docs](#docs) · [Community](#community) · [Contributors](#contributors)
 
 </div>
 
@@ -85,6 +85,14 @@ Questions, ideas, or just curious how others use it — join the WeChat group.
 </p>
 
 You can also [open an issue](https://github.com/Han-1413141/dsh-cost-meter/issues). Please read the [contributing guide](CONTRIBUTING.md) first.
+
+## Contributors
+
+Thanks to everyone who reported a problem, suggested an improvement, or sent code. The list is collected by GitHub — click an avatar to see their contributions.
+
+<a href="https://github.com/Han-1413141/dsh-cost-meter/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Han-1413141/dsh-cost-meter" alt="dsh-cost-meter contributors" />
+</a>
 
 ## Star history
 
