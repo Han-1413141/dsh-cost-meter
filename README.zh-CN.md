@@ -7,6 +7,8 @@
 <p align="center">
   <a href="https://github.com/Han-1413141/dsh-cost-meter"><img src="https://img.shields.io/badge/version-1.9.38-4176E6?style=flat-square" alt="version"></a>
   <a href="https://www.npmjs.com/package/dsh-cost-meter"><img src="https://img.shields.io/npm/v/dsh-cost-meter?label=npm&style=flat-square" alt="npm"></a>
+  <a href="https://www.npmjs.com/package/dsh-cost-meter"><img src="https://img.shields.io/npm/dm/dsh-cost-meter?label=downloads&style=flat-square&color=4176E6&suffix=%2Fmonth" alt="downloads per month"></a>
+  <a href="https://github.com/Han-1413141/dsh-cost-meter/stargazers"><img src="https://img.shields.io/github/stars/Han-1413141/dsh-cost-meter?label=stars&style=flat-square&color=D9A400" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="license"></a>
   <a href="https://github.com/deepseek-ai/deepseek-harness"><img src="https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6?style=flat-square" alt="DSH plugin"></a>
 </p>
