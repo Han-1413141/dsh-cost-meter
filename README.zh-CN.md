@@ -4,10 +4,7 @@
 
 **DeepSeek Harness 会话费用统计插件 · 界面中英双语**
 
-[![version](https://img.shields.io/badge/version-1.9.39-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
-[![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm)](https://www.npmjs.com/package/dsh-cost-meter)
-[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
+[![version](https://img.shields.io/badge/version-1.9.38-4176E6?style=flat-square)](https://github.com/Han-1413141/dsh-cost-meter) [![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm&style=flat-square)](https://www.npmjs.com/package/dsh-cost-meter) [![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE) [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
 
 [English](README.md) | **简体中文**
 
