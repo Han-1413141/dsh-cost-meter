@@ -66,5 +66,5 @@ The **preview buttons** render through the real component: copy language, popup 
 
 ## Related docs
 
-- [README](../README.md) — feature overview
+- [Features and screenshots](features.en.md) — the full feature list and UI walkthrough
 - [Model & Plan adaptation guide](model-and-plan-adaptation.en.md) — peak/off-peak billing rules and vendor price sources

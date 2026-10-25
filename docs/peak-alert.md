@@ -66,5 +66,5 @@ dsh-cost-meter 在进入峰时/谷时计价档位**切换前**会主动提醒,�
 
 ## 相关文档
 
-- [README](../README.zh-CN.md) — 功能总览
+- [功能清单与截图](features.md) — 全部功能与界面截图
 - [模型与 Plan 适配说明](model-and-plan-adaptation.md) — 峰谷计价规则与厂商价格来源

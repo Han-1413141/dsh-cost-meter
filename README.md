@@ -1,585 +1,115 @@
-# dsh-cost-meter
+<h1 align="center">dsh-cost-meter</h1>
 
-**English** | [简体中文](README.zh-CN.md) · [Install](#installation) · [Features](#feature-overview) · [Screenshots](#screenshots--walkthrough) · [Community](#community)
+<p align="center"><b>Every cent you spend, in plain sight</b></p>
 
-<div align="center">
+<p align="center">Session cost · subscription quotas · budget alerts for DeepSeek Harness</p>
 
-**Session cost tracking plugin for the DeepSeek Harness web GUI (bilingual UI)**
+<p align="center">
+  <a href="https://github.com/Han-1413141/dsh-cost-meter"><img src="https://img.shields.io/badge/version-1.9.39-4176E6?style=flat-square" alt="version"></a>
+  <a href="https://www.npmjs.com/package/dsh-cost-meter"><img src="https://img.shields.io/npm/v/dsh-cost-meter?label=npm&style=flat-square" alt="npm"></a>
+  <a href="https://www.npmjs.com/package/dsh-cost-meter"><img src="https://img.shields.io/npm/dm/dsh-cost-meter?label=downloads&style=flat-square&color=4176E6&suffix=%2Fmonth" alt="downloads per month"></a>
+  <a href="https://github.com/Han-1413141/dsh-cost-meter/stargazers"><img src="https://img.shields.io/github/stars/Han-1413141/dsh-cost-meter?label=stars&style=flat-square&color=D9A400" alt="GitHub stars"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="license"></a>
+  <a href="https://github.com/deepseek-ai/deepseek-harness"><img src="https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6?style=flat-square" alt="DSH plugin"></a>
+</p>
 
-[![version](https://img.shields.io/badge/version-1.9.39-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
-[![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm)](https://www.npmjs.com/package/dsh-cost-meter)
-[![dshfind](https://dshfind.com/api/badge/Han-1413141/dsh-cost-meter?metric=downloads&lang=en)](https://dshfind.com/zh/plugins/Han-1413141/dsh-cost-meter?ref=badge)
-[![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6)](https://github.com/deepseek-ai/deepseek-harness)
-[![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
-[![WhaleHarness audit](https://whaleharness.com/badge/Han-1413141/dsh-cost-meter/badge.svg)](https://whaleharness.com/audit-report.md)
+<p align="center">
+  <b>English</b> | <a href="README.zh-CN.md">简体中文</a>
+</p>
 
-</div>
+<p align="center">
+  <a href="#core-features">Features</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#docs">Docs</a> ·
+  <a href="#community">Community</a> ·
+  <a href="#contributors">Contributors</a>
+</p>
 
-**v1.9.39** fixes billing read recovery, gateway and WorkBuddy cancellation, export expiry and invalid Token buckets, and syncs journal archives before removing originals.
+Install the plugin and a row of numbers appears in the sidebar: what this conversation cost, the running total for today, how much of your plan quota is left. No bill to dig through, no arithmetic to do.
 
-**Host floor: DSH 0.2.0** · Adaptation target: **0.2.1-rc.2** (npm `next`). Expand the compatibility notes below for exact declarations, host records and troubleshooting.
+![dsh-cost-meter UI preview](docs/promo.en.png)
 
-Release notes: [v1.9.39](docs/update-notes-1.9.39.md#english). Fully restart DSH after updating.
+## Core features
 
-![Promo art](docs/promo.en.png)
+**Per-conversation cost, live.** The cost of the current session appears below the composer or in the session title bar, with input, cache and output token counts. Every model call is billed at the moment it happens, not estimated.
 
-<details>
-<summary>Full feature summary</summary>
+**Subscription quotas and balances in one place.** A single card at the bottom of the sidebar collects the current Coding Plan quota windows (Anthropic, Z.ai, MiniMax, Kimi, OpenRouter, SiliconFlow, Volcano Ark, Xiaomi MiMo, OpenDesign and more), your official account balance, and any custom provider balance. How much is used and when it resets, at a glance.
 
-Per-conversation cost · daily totals · OpenCode Go subscription quota display · budget with usage percentage · official account balance · custom provider balance · balance progress bar · history · peak/off-peak pricing hours display (peak hours UTC 01:00–04:00, 06:00–10:00; weekends and Chinese public holidays are off-peak all day, with separate labels) · pre-switch popup & system-notification alerts for peak/off-peak changes (position / lead time / alert type configurable) · one-click price sync from the official docs · Codex-style token usage heat grid · multi-vendor model pricing (built-in 170+ model-ID catalog with auto-matching) · mainstream Coding Plan quota queries & display (Anthropic / Z.ai / MiniMax / Kimi / OpenRouter / SiliconFlow / CommandCode / Cline Pass / SCNet / Volcano Ark / Qwen / Xiaomi MiMo / Factory Droid) plan/API dual-track billing (subscription quota vs pay-as-you-go money separated, per-1% & full-window token/equivalent-cost estimates with daily/weekly/monthly curves) · subscription plugin compatibility (Codex / ChatGPT subscription plans) · mobile layout (dsh-pocket) · quota strip above the input box (budget / Go / coding-plan usage in one row, toggleable)
+**Budget and peak-hour alerts.** Set a monthly or custom-range budget and track it with a progress bar. Before DeepSeek switches into peak or off-peak pricing, a popup fires at the lead time you choose — optionally as a system notification, so you still get it with the page in the background.
 
-</details>
+**Automatic pricing across vendors.** A built-in catalog of 170+ model IDs, with matching that ignores case, spaces and hyphens. Sync prices from the official page in one click when they change. Subscription-plan usage and pay-as-you-go spend are tracked separately and never mixed.
 
-<details>
-<summary>Compatibility, configuration and troubleshooting</summary>
+**Bilingual UI and mobile layout.** The interface follows DSH's language automatically, and narrow screens switch to a single-column layout.
 
-**Minimum supported host: DSH 0.2.0.** The plugin declares the floor in `engines.dsh`, the host's admission gate for plugins, and no longer supports any DSH 0.1.x release; the adaptation target is the npm `next` release **0.2.1-rc.2**. Exact ranges and how the host reads them: [compatibility declaration](docs/dsh-0.2.1-compatibility.md#english).
+The full list is in the [feature reference](docs/features.en.md).
 
-Supports [official Search/Fetch request fees](docs/web-request-fees.md#english), separately from model tokens.
+## Install
 
-Configuration and verification: [OpenDesign queries](docs/opendesign-billing.md), [dynamic ports / LAN / WorkBuddy2API setup](docs/custom-balance-sources.md), and [opacity fixes with performance measurements](docs/performance-2026-10-18.md).
-
-Desktop users: follow the [Desktop installation instructions](docs/install-troubleshooting.md#desktop-安装与更新) for the application's own CLI and `desktop` Profile.
-
-Host records inside the declared range, and the earlier 0.1.x history, are in the [compatibility record](docs/host-compatibility.md); the per-release list lives in `package.json` (`dsh.compatibility.dshReleases`).
-
-If startup reports **Ledger is busy** and the cost widgets are missing, see [ledger lock recovery](docs/ledger-lock-recovery.md#english).
-
-Community and feedback: [Join the WeChat group →](#community). The WeChat group is open. You're welcome to join.
-
-</details>
-
----
-
-## Feature overview
-
-| Feature | Location | Description |
-|---|---|---|
-| OpenRouter model prices | Model picker / Settings → Cost → Prices | Hover a model for token rates and update time, or search the full catalog in Settings; automatic foreground refresh, price-change markers in the table and official model links. No API key or inference charges. [Guide](docs/openrouter-prices.md#english) |
-| Cost statistics | Below the conversation input / title bar / Settings → Cost → Cost statistics | Day, week, month, all retained and custom periods; API/Plan split, trends, model/conversation rankings and per-call costs. [Guide](docs/billing-statistics.md#english); statistics requires DSH’s asynchronous module loader |
-| Per-model cost card | Sidebar / composer dock (optional) | Disabled by default; inline Top-N, Other totals, shares and optional tokens, Today / Last 90 days, remembered expansion and a Top-1 chip. See the [guide](docs/model-cost-card.md#english) |
-| Per-conversation cost | Below the composer / session title bar | Live accumulated cost + input/cache/output tokens; the composer footer shows cache hit rate before Input (cache reads / all input, including cache writes); position configurable; Display settings can show only amounts below the composer, with the full line retained on hover |
-| Official balance | Sidebar top / Settings page (configurable) | Total / granted / topped-up balance, auto-refresh + manual refresh; optional three-segment progress bar (blue/orange/gray), whose today segment only counts official-channel spend (coding plans / custom providers excluded) |
-| Custom provider balance | Sidebar / Settings page (configurable) | Configurable HTTP balance lookup (e.g. LiteLLM); bilingual labels, currency, extract rules (dot path / number / add / subtract / divide — use divide for NewApi-style quota endpoints, see [example](#custom-provider-balance-example-newapi-template)); collapsible panel alongside Coding Plan quotas |
-| OpenCode Go quota | Sidebar / Settings / bottom-right dock (configurable) | Rolling-5h / weekly / monthly usage percent and reset times, each window toggleable independently, budget used % can show alongside; key auto-discovered (dedicated ref / official Go route apiKeyEnv / env / opencode login) or entered manually |
-| Coding plan quotas | Sidebar / Settings page (per vendor) | Multi-vendor coding-plan quota queries (Anthropic Claude Pro/Max, Z.ai / Zhipu GLM Coding Plan, MiniMax Token Plan, Kimi Code weekly + 5-hour quotas with PAYG balance fallback when no subscription key, OpenRouter credits, SiliconFlow balance, CommandCode 5h/weekly windows + monthly credits balance, Cline Pass 5-hour/weekly/monthly windows, Xiaomi MiMo Token Plan plan/compensation credit windows + period-end reset + balance via console cookie); per-vendor enable switch, key, display position and refresh interval (sidebar card in the same box style as the Go quota; the collapsed rail shows percentages), official endpoints by default, with a [configurable trusted MiniMax origin](docs/minimax-quota-endpoint.md#english); neutral hints when no credentials/subscription; SCNet Token Plan supports [external console snapshots](docs/scnet-official-snapshot.md#english); without a valid snapshot, monthly usage is estimated from the local ledger via the official credits deduction table (no credentials needed) |
-| Subscription plugin compatibility | Settings → Cost → Codex / sidebar & quota cards | Detects installed Codex / ChatGPT subscription plugins and classifies their subscription calls as Plan quota instead of pay-as-you-go API spend; new usage is classified at record time, and a one-time dismissible prompt decides whether historical Codex billing is reclassified (idempotent). Explicit plan/API choices are never overridden. [Details](docs/update-notes-1.9.0.md#english) |
-| Codex quota display | Settings → Display → Codex / sidebar & quota strip | Reads actual quota windows from `dsh-codex-subscription`, the native DSH pi-ai login, `dsh-chatgpt-sub`, `@eddyskywalker/dsh-chatgpt-subscription`, or `dsh-codex-connect`. Select `auto` (tries these sources in order), `subscription`, `pi-ai`, `chatgpt-sub`, `chatgpt`, or `connect`. Enable quota display and select `dsh-chatgpt-sub` for its bound account's remaining bars and reset times. Weekly-only accounts show no 5h bar. An explicit source uses only that source's current account; billing classification remains separate. |
-| SQLite session storage (better-session) | Host integration | Auto-detects the host session backend; with `@morlay/better-session` / `@morlay/session-rdb` (SQLite) storage, historical backfill, legacy import, history repricing, hour-bucket repair, fork cleanup and per-session cost/trajectory/call details keep working. The JSONL path is unchanged; old JSONL and RDB histories are not merged automatically. [Guide](docs/better-session.md) |
-| OpenDesign quota | Sidebar / Settings (OpenDesign vendor) | Workspace coding-plan windows from the console API; with a Control Key, a 401/403 from the primary endpoint triggers one conservative `/billing/preflight` Bearer fallback, and window/wallet reads degrade independently. [Troubleshooting](docs/opendesign-billing.md#english) |
-| Mobile / dsh-pocket layout | All cost UIs | On screens ≤1023px and dsh-pocket mobile layouts: single-column cards, horizontally scrolling tabs, 36px touch targets, dialogs capped at 90vh with safe-area padding and scrolling wide tables; desktop layout unchanged |
-| Quota strip | Above the input box (toggle in Display settings) | One compact chip row for budget used % / the Go main window / each enabled coding-plan usage window (short label + mini progress bar, ≥80% warn, ≥100% over, hover for reset times); click any chip to refresh its data source (budget → state, Go → Go quota, vendor → all its windows); multiple windows of one vendor merge into a single segmented chip; a first-run guide card lets you decide whether to enable it; hides itself when there is no quota data |
-| Click to refresh | Sidebar balance/quota boxes | Click the official balance / custom balance / coding-plan box (collapsed rail included) to fetch the latest data immediately; the box pulses while refreshing, failures keep the previous value and surface the reason in the hover tooltip; keyboard Enter/Space also triggers; a one-time guide card appears after the update |
-| Simple sidebar display | Settings → Cost → Display | Optional, with a one-time choice after updating. Condenses cards and caps panel height at 38% of the viewport and 320 px, while preserving amounts, quotas, refresh actions and hover details. Turn off to restore your layout. [Guide](docs/sidebar-simple.md#english) |
-| Today's cost | Sidebar bottom (above the settings button) | “Today ¥x”, hover for call count and token details |
-| Budget box | Sidebar bottom (between the balance row and the settings button) | Rounded-square frame: budget, used %, progress bar, today's cost & share of budget, used/limit; ≥80% warning, ≥100% over-budget |
-| Summary cards | Settings page | Today / this month / cumulative cost and call counts |
-| External usage | Settings → Cost | [Read-only snapshots](docs/external-usage.md#english) from other processes on the same account; per-source tokens/calls/cost and recent days, plus DSH + external daily/monthly/all-time totals. Fresh external cost for today joins official balance reconciliation. |
-| Token usage stats | Settings page (Cost section) | All-time token totals (input/cache/output/calls) + a Codex-style 26-week daily usage heat grid that fills the settings width; hover a cell for that day's detail |
-| Token Plan usage stats | Settings page (Usage) | Per enabled coding plan (incl. Go): per-1% quota and full-window token / equivalent-cost estimates for the current windows (sample delta / live ratio), plus daily/weekly/monthly usage curves; plan-channel amounts are equivalent-only and never touch real money (issue #64) |
-| Today's sessions | Settings page | Per-session call count, input/cache/output tokens and cost |
-| History | Settings page | Per-day totals; retention days configurable (default 180) |
-| Pre-install history import | Automatic on first launch | After install/upgrade, the first launch automatically replays all host session logs to import conversations from before the plugin was installed (missing dates are rebuilt whole; existing dates only gain previously unknown sessions; idempotent and never double-counts live metering; costs priced at per-event historical rates); a manual re-run entry remains in Settings |
-| Budget settings | Settings page, top | Limit, period (today / month / cumulative / custom date range), used % |
-| Price table | Settings page | Per-model off-peak / peak prices (input/output shorthand supported; cache prices derived automatically); fully editable |
-| Peak/off-peak hours display | Settings / budget / today | Shows UTC peak hours 01:00–04:00 and 06:00–10:00 with the current tier; weekends and configured Chinese public holidays (Beijing dates) are off-peak all day, with separate labels; expanded view shows a period strip and countdown, collapsed view shows a vertical bar; independently toggleable |
-| Peak/off-peak switch popup alert | Global overlay | A full-width bracketed popup appears when the next tier switch is within the configured lead time (default 2 minutes, 1–30), with an alert-colored badge distinguishing entering peak vs off-peak; position selectable (**bottom-right / screen center**), alert type selectable (entering peak / entering off-peak / both), one alert per switch point; optionally **sends a browser (system) notification** (so you still get alerted when the page is backgrounded; requires granting notification permission); configured in the peak pricing panel in Settings, with a **one-click popup preview** (rendered by the real component — copy, position and notifications exactly as they will fire) |
-| Official price sync | Settings page | Fetches and parses the official pricing page, applies with one click; the **official price currency** is selectable (USD · English page / CNY · Chinese page) — CNY prices are booked at the display exchange rate and match the official CNY bill when displayed in CNY |
-| UI language | Settings → Display settings | Simplified Chinese / English / Follow DSH (auto); switches instantly and auto-saves |
-| Hide official balance / hide today's cost | Settings → Display settings | Two independent toggles: when on, the matching UI blocks (sidebar balance row & panels / today's cost row, budget details, overview today card) **are not rendered at all**; token and call-count stats stay visible — safe for screen sharing and screenshots |
-| AI price sync | [prompt](docs/AI-PRICE-SYNC-PROMPT.en.md) | DeepSeek official sync; other providers use the verified official price catalog and manual configuration |
-| Model & Plan adaptation guide | [adaptation doc](docs/model-and-plan-adaptation.en.md) | Adaptation matrix for per-model billing and the Coding Plan vendors, the auto-matching mechanism and price sources ([中文](docs/model-and-plan-adaptation.md)) |
-| Peak/off-peak alert guide | [alert doc](docs/peak-alert.en.md) | Fully illustrated guide to the pre-switch popup and system notification: effect screenshots (EN/中文), settings reference and usage tips ([中文](docs/peak-alert.md)) |
-| Token Plan usage stats guide | [panel doc](docs/token-plan-stats.md) | Meaning of the four columns in the per-1% & full-window panel, the end-to-end delta estimation method and precision tags, the scope boundary (dsh-made calls only) and usage curves ([中文](docs/token-plan-stats.md#中文)) |
-| OpenRouter passthrough pricing | [pricing doc](docs/openrouter-pricing.md#english) | Token reference prices: offline snapshot, scoped zero-cost backfill, public-catalog refresh, custom-price preservation and failure fallback ([中文](docs/openrouter-pricing.md)) |
-| Multi-provider billing | Settings / ledger | OpenAI, Anthropic, Google Gemini, Mistral and other providers with input/output, cache and reasoning-token pricing isolated by provider + model |
-| Model-name auto-matching | Settings / ledger | Unknown model ids are matched against the price table: case/spaces/hyphens/dots and bracket annotations (e.g. (go)) are ignored — a normalized-equal or containing name hits (e.g. `gpt5.6 luna(go)`); router providers (opencode/zen etc.) search across all vendors; can be restricted to exact match, and unmatched models can be pinned to a specific entry in Settings |
-| Extended price catalog | Settings → Extended price catalog | Built-in reference catalog grouped by vendor and model family (expandable; vendors collapsed by default); mount entries into billing with one click — mounted third-party models live inside the catalog and stay editable; a per-model “Show directly in Cost settings” toggle chooses which models (DeepSeek included) appear directly in the price table |
-
-## Custom provider balance example (NewApi template)
-
-**POST with a JSON body:** in **Settings → Cost → Quota**, expand a custom balance entry, select **POST**, then fill in **Request body (JSON)**. For example, if the endpoint expects an account and returns `{"data":{"balance":12.5}}`:
-
-```json
-{"account_id":"example-account","include_credit":true}
-```
-
-Set **Extract rules (JSON)** to `{"remaining":"data.balance"}`. Valid JSON is saved per entry and sent exactly as entered, including nested values and large integer IDs. Invalid JSON shows an error and keeps the last valid configuration; clearing the editor removes the body. GET/HEAD send no body while retaining it for a later switch back to POST. `Content-Type: application/json` is added automatically unless you supply a Content-Type header (any capitalization).
-
-Existing `request.body` objects and raw strings remain supported. The body is ordinary saved configuration; `{{VAR}}` credential substitution applies only to request headers. For header authentication, use a reference such as `{"Authorization":"Bearer {{MY_API_KEY}}"}` and the credential input below it.
-
-**Display currency conversion:** open **Settings → Cost → Quota**, expand a custom balance entry, and enable **Convert USD balance to display currency**. It defaults to off for each entry. Keep **Source currency** set to the endpoint's actual currency. With a USD balance of 54.3792, a CNY display rate of 7.2 and two decimal places, the balance displays as **¥391.53**. Spend and API/manual limits convert together in the sidebar, settings and tooltips; progress percentages and stored balances do not change. Enter a manual limit in the source currency. The setting persists as `convertToDisplayCurrency: true` inside that `customBalances[]` entry (legacy `customBalance` is also supported).
-
-The global exchange rate converts **USD to the display currency**. CNY/EUR source balances and Credits keep their original units; the switch is disabled for them. Alibaba Cloud balances use the currency returned by its API. No exchange-rate lookup or extra balance request is made when toggling this setting. Turning it off restores the original currency immediately.
-
-**DeepSeek CNY billing:** USD prices × the display exchange rate and the official CNY table can give different amounts. Settings → Cost → Prices now explains this and provides a CNY selection button. See [currency selection, sync and settlement timing](docs/billing-currency.md#english).
-
-For Qianwen / Alibaba Cloud fund accounts, use **Add Qianwen / Alibaba Cloud balance** to query available funds with a RAM AccessKey signature. The card uses the currency returned by the API. See the [setup, permissions and balance definition](docs/qianwen-balance.md#english).
-
-Qwen Token Plan can use the [official CLI subscription quota](docs/qwen-cli-quota.md#english). Install the CLI on the DSH host and run `qianwen auth login` as the same OS user. Local estimates remain the default; CLI mode shows current account credits without changing the local ledger.
-
-Local Qwen Token Plan credits include Plan calls assigned to Qwen. Existing subscription aliases such as `qwen` and `qwen-tokenplan` remain supported; custom providers can select Qwen under Model statistics → Billing class, or use an explicit vendor name and plan marker for auto detection. Explicit API calls are excluded. The pay-as-you-go `qianwen` provider is not assigned merely because its model ID is identical. Models outside the credits table need all three rates configured.
-
-Xiaomi MiMo Token Plan quotas are queried with the **MiMo console cookie**, not an API key: log in at `platform.xiaomimimo.com`, press F12 → Network → find the `balanceAlertConfig` request and paste the full `cookie` request header into the MiMo card in Settings → Cost → Quotas (it must include `serviceToken` and `userId`; the DSH credential store keeps it as `MIMO_COOKIE`). The card shows the plan/compensation credit windows with the period-end reset (Beijing time) plus a balance row. Copy a fresh console cookie when the card reports an expired login. Token Plan inference keys (`tp-*` / `ttp-*`) are not accepted by this console adapter. Local plan statistics use the calendar month; compensation and balance are displayed without estimates because local calls cannot be attributed to those pools.
-
-Each CLIProxyAPI source has a **Gemini quota only** option for its Antigravity groups. It defaults to off. Intentional filtering to no visible quota shows an empty list; malformed quota data still reports an error.
-
-The `extract` rules accept four forms: a numeric constant, a dot path string, `add`/`subtract` over multiple paths, and `divide` scaling by a `by` divisor. **`divide` fits NewApi and other endpoints that meter balance in integer quota** (1 USD = 500000 quota — the same conversion cc-switch uses).
-
-- **`unit: "CREDITS"`**: displays non-monetary credits using the configured decimal precision and a Credits suffix. Dollar spend is not converted to credits or shown as today's credit usage. Credit bars use the endpoint's credit cap; the global monetary budget does not apply.
-- **Plain HTTP is allowed for loopback endpoints**: `http://` is accepted when the host is `127.0.0.1` / `localhost` / `[::1]` (the traffic never leaves the machine), which covers local read-only routes that listen on loopback only and serve no TLS (e.g. `dsh-workbuddy-connect`'s `/plugins/dsh-workbuddy-connect/status`). **Every non-loopback host still requires https**; plaintext is refused.
-
-### WorkBuddy credits example (local plugin route)
-
-The dedicated **WorkBuddy credits** quota card now supports dsh-xdpool. Select **Credit source → dsh-xdpool** when using multiple connectors; current, all and selected accounts work across CN/global pools. See the [integration notes](docs/update-notes-1.9.38.md#english).
-
-With `dsh-workbuddy-connect` installed, its web status route already returns the aggregated credit total — no credential needs to be copied:
-
-```json
-{
-  "enabled": true,
-  "display": "sidebar",
-  "refreshMinutes": 15,
-  "label": "WorkBuddy 积分",
-  "labelEn": "WorkBuddy Credits",
-  "unit": "CREDITS",
-  "request": { "url": "http://127.0.0.1:3080/plugins/dsh-workbuddy-connect/status", "method": "GET", "headers": {} },
-  "extract": { "remaining": "credits.total" }
-}
-```
-
-Adjust the port and response fields to the local service. This example requires the other plugin to expose that route. Cost-meter refuses redirects and continues to enforce configured credential host allowlists.
-
-For NewApi `GET /api/usage/token` (response `{ "code": 200, "data": { "total_granted": ..., "total_used": ..., "total_available": ..., "unlimited_quota": false } }`):
-
-```json
-{
-  "enabled": true,
-  "display": "both",
-  "refreshMinutes": 15,
-  "label": "NewApi",
-  "labelEn": "NewApi",
-  "unit": "USD",
-  "request": {
-    "url": "https://your-newapi-host/api/usage/token",
-    "method": "GET",
-    "headers": { "Authorization": "Bearer {{NEWAPI_API_KEY}}" }
-  },
-  "extract": {
-    "remaining": { "op": "divide", "path": "data.total_available", "by": 500000 },
-    "maxBudget": { "op": "divide", "path": "data.total_granted", "by": 500000 },
-    "spend": { "op": "divide", "path": "data.total_used", "by": 500000 },
-    "unit": "USD"
-  }
-}
-```
-
-- `{{NEWAPI_API_KEY}}` resolves from the DSH credential vault or an environment variable (**placeholders work in headers only** — the URL must be a literal address);
-- Unlimited-quota tokens (`unlimited_quota: true`) have no `total_available`, so `remaining` cannot be extracted and the query reports “remaining is missing or not numeric” — use a limited-quota token or a middle-layer endpoint that converts the units;
-- Entry point: Settings → Cost (Quota tab) → “Custom provider balance” → expand config; or write `config.customBalance` in `storages/cost-meter/ledger.json`.
-
-### Credentials & security
-
-- **Variable naming**: `{{VAR_NAME}}` follows the `<ROUTE>_API_KEY` convention — `<ROUTE>` is the Provider ID from the DSH Models page (Settings → Models), uppercased with non-alphanumeric characters replaced by underscores, e.g. `openai`→`{{OPENAI_API_KEY}}`, `anthropic`→`{{ANTHROPIC_API_KEY}}`, `abc23-d`→`{{ABC23_D_API_KEY}}`. Sharing a name with the Models page means the balance query and model calls **share the same key** (both resolve from the DSH credential store). This note is also shown above the “Headers (JSON)” input in Settings.
-- **Credential input fields**: after expanding an entry, the “Credential input” section renders one write-only field per `{{VAR}}` placeholder found in the headers — the key goes straight into the DSH credential store (never written to disk, never echoed back, never stored in `ledger.json`); no need to hand-edit environment variables or credential files.
-- **Automatic plaintext migration**: older versions let a literal `Bearer sk-…` in the headers leak into `ledger.json` in plaintext. The plugin imports such keys into the DSH credential store at startup and replaces the header value with a `{{CUSTOM_BALANCE_KEY_…}}` placeholder (derived from the entry's host + header name, stable across restarts) — nothing breaks. From now on `ledger.json` and the config shipped to the browser **never contain plaintext keys**: suspected secret headers (Authorization / X-Api-Key / Bearer / sk- prefixes / long opaque strings) are blanked, while placeholders and ordinary headers pass through.
-- **Credential allowlist `allowedHosts`**: when headers carry credentials (placeholders or plaintext), the outbound host must be on this list or the request is refused — protection against leaked keys when importing someone else's config. Without a list, requests proceed with a one-time logged warning. The entry panel provides an “Allowed hosts” input (comma-separated).
-- **Mixed credential templates**: a header containing both a static secret and dynamic placeholders cannot be migrated as one nested credential. It is reported as pending and excluded from persisted/client config. Store the static part separately and use credential references throughout. Pure forms such as `Bearer {{VAR}}` and `{{USER}}:{{PASS}}` remain supported.
-
-## CLIProxyAPI Gateway Quotas and WorkBuddy Credits (Issue #87)
-
-Connects to a local or LAN-deployed [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) proxy gateway to observe quotas across upstream providers and WorkBuddy plugin credits in one place:
-
-- **Native Multi-Provider Discovery & Quotas**: Auto-discovers active credentials via the CPA Management API and queries official native endpoints for Antigravity, Claude, Codex, Kimi, and xAI (Grok). Normalized into standard 5h / 7d / weekly / monthly usage percentage windows with ISO reset timestamps.
-- **WorkBuddy Plugin Credits**: Queries WorkBuddy's read-only management route (`/v0/management/plugins/workbuddy/credits`) to display total, used, and remaining credit balances alongside package lifecycle end-dates, preserving separate account cards.
-- **Zero Metering Side-Effects Guarantee**: Completely read-only — strictly avoids mutating actions such as Codex reset-credit consume, xAI token-consuming chat completion probes, and any WorkBuddy POST routes.
-- **Strict Credential Isolation & Transport Security**:
-  - Management Keys are stored strictly write-only in the DSH credential store (`CLIPROXYAPI_MANAGEMENT_KEY_<SOURCE_ID>_<HASH>`), never exposed in config, state, or browser views.
-  - Management calls are strictly restricted to 3 fixed paths (`/v0/management/auth-files`, `/v0/management/api-call`, `/v0/management/plugins/workbuddy/credits`). Arbitrary upstream URLs are forbidden.
-  - Outbound host whitelist (`allowedHosts`): Non-loopback origins require exact host matches, and plain HTTP requires an explicit `allowInsecureHttp` opt-in.
-  - HTTP redirects are strictly forbidden (`redirect: 'manual'`; any 3xx response is rejected) to guard against credential leakage or request hijacking.
-  - Privacy and metadata sanitization: Strips raw tokens, cookies, and identity claims from auth-files discovery; emails are masked in public state (`s***@domain`).
-
-## Bilingual UI
-
-The plugin UI (session badge, sidebar balance row & budget box, and the entire Settings page) supports **Simplified Chinese** and **English**:
-
-- Language options: **Simplified Chinese** / **English** / **Follow DSH (auto)**;
-- Default is “Follow DSH”: auto uses DSH’s active language and updates live, including the statistics screen and Settings sidebar label. Older hosts without the locale face use the saved DSH preference when available, then the browser language (`zh*` → Chinese, otherwise English). Auto stays `auto` in the saved config;
-- Switch it under **Settings → Cost → Display settings → Language** — the whole plugin UI updates instantly and auto-saves; the section label in the Settings sidebar switches too (费用 / Cost);
-- An explicit Chinese/English plugin choice overrides DSH for both UI and server-generated notices. In auto mode, the Host reads DSH’s saved language preference; without an observable preference it retains the Chinese compatibility fallback. Browser/native-only provisional choices and different clients’ languages cannot be inferred by the Host, so notices may differ in those cases.
-
-## Screenshots & walkthrough
-
-> All screenshots were captured on a live DeepSeek Harness instance. They show the Chinese UI by default; the plugin UI itself is bilingual (Simplified Chinese / English) — switch to English under Settings → Cost → Display settings → Language.
-
-### Main page
-
-**Sidebar bottom** (top to bottom: official balance → quota/budget box → settings button):
-
-![Sidebar footer](docs/screenshot-sidebar-footer.png)
-
-- The balance row shows the official open-platform total balance; hovering reveals the granted/topped-up split; with “Balance progress bar” enabled, both official and custom balances use the same three-segment box (blue = remaining, orange = today, gray = spent);
-- With no budget enabled, that spot shows the “Today ¥x” badge.
-
-**Balance progress bar & custom provider settings**:
-
-| Sidebar progress bar + display settings | Custom provider balance panel |
-|---|---|
-| ![Balance progress bar](docs/screenshot-balance-progress-bar-zh.png) | ![Custom provider settings](docs/screenshot-custom-balance-settings-zh.png) |
-
-- Display settings → global “Balance progress bar” toggle; optional “Budget cap” overrides API `max_budget`;
-- Settings → Cost → “Custom provider balance”: expand to edit URL / headers (JSON) / extract (JSON), bilingual names, and currency.
-
-**Quota / budget box — three states** (OpenCode Go quota and the budget each toggle independently in the same rounded style; with both on they **merge into one card** — Go on top, budget below, thin divider, each keeps its own warning colors; the “box details” toggle collapses secondary rows to just label + used % + progress bar):
-
-| Go quota only | Budget only | Merged |
-|---|---|---|
-| ![Go quota only](docs/screenshot-go-box.png) | ![Budget only](docs/screenshot-budget-box.png) | ![Merged card](docs/screenshot-sidebar-footer-v2.png) |
-
-- The budget box shows “budget · used % · progress bar · today's cost & share of budget · used/limit”; ≥80% warning, ≥100% over-budget; rail mode narrows to a percentage tile;
-- The peak/off-peak hours display shows UTC peak hours 01:00–04:00 and 06:00–10:00 with the current tier; the budget box and today's cost area show a compact one-line period strip — a thin orange/blue track with a marker line on the current period, and text on the right showing the current period plus the countdown to the next switch (refreshed every 30 seconds); no prices are shown; it can be disabled independently in Settings, and the “Peak period strip style” option switches between the Compact and Classic looks; collapsed rail mode shows the same design vertically with a short horizontal label (“Peak / Off-peak”) below — the countdown and full text appear on hover;
-
-**Peak/off-peak period strip & collapsed vertical progress bar**:
-
-| Settings peak panel (notice toggle / style switch / preview) | Settings bottom-right (dock) display & box details |
-|---|---|
-| ![Peak/off-peak pricing & notice panel](docs/peak-panel-settings-en.png) | ![Dock display & box details settings](docs/dock-display-settings-en.png) |
-
-Real captures from an actual DSH sidebar of the period strip and collapsed vertical bar (current looks), grouped by UI type (shown during peak hours):
-
-**Expanded** — the budget box / today's cost area shows a one-line period strip:
-
-| Compact | Classic |
-|---|---|
-| ![Expanded · Compact](docs/peak-strip-expanded-compact-en.png) | ![Expanded · Classic](docs/peak-strip-expanded-classic-en.png) |
-
-- Compact: thin orange/blue track with a marker line on the current period and a short caption, e.g. “Peak · Off-peak in 1h 40m”;
-- Classic: same track and marker line with the full caption “Peak · Off-peak in HH:MM:SS” countdown (refreshed every 30 seconds); no prices are shown.
-
-**Collapsed (rail)** — a vertical period bar stacked at the sidebar bottom, centered with the percentage squares:
-
-| Compact | Classic |
-|---|---|
-| ![Collapsed · Compact](docs/peak-strip-rail-compact-en.png) | ![Collapsed · Classic](docs/peak-strip-rail-classic-en.png) |
-
-- Compact: only the short horizontal label (“Peak / Off-peak”) below the vertical bar;
-- Classic: the full caption stacked vertically below the bar, including the countdown to the next switch; in both styles the full text is also available on hover.
-
-- The display follows the `peakNotice` / `peakEnabled` / `peakEffectiveAt` / `peakWindows` gates and uses the configured UTC peak windows;
-- Settings → Cost → Peak/off-peak pricing includes an independent “Prominent notice during peak hours” toggle; turning it off hides both the expanded strip and the collapsed vertical bar;
-- The first image above is the Settings peak panel (notice toggle, style switch and live preview); see the grouped captures for the strip and collapsed vertical bar; the dock toggles and box-details switches are shown in the second image.
-
-- The Go box shows the main window's used % and progress bar (default rolling 5h; switchable to weekly/monthly in Display settings), with the other two windows and reset times in a row below:
-
-![Rail mode](docs/screenshot-sidebar-rail-v2.png)
-
-**Bottom-right (dock) quota / budget chips** (enabled in Display settings; four independent toggles: 5h / weekly / monthly quota + budget used %):
-
-| Corner chips in action | Display settings (where the toggles live) |
-|---|---|
-| ![Corner chips](docs/screenshot-display-corner-v2.png) | ![Dock display settings](docs/dock-display-settings-en.png) |
-
-**Per-conversation cost** (two positions, switchable in Settings):
-
-| Below the composer | Session title bar |
-|---|---|
-| ![Session dock](docs/screenshot-session-dock.png) | ![Session header](docs/screenshot-session-header.png) |
-
-> Left: this session ¥5.5939 · input 321K · cache 119M · output 235K; right: title-bar badge “cost ¥6.1606” (real session captures)
-
-![Session page](docs/screenshot-session.png)
-
-### Settings → Cost
-
-**Overview** (OpenCode Go quota → budget → balance → summary cards → today's sessions → history → display settings → price table → data & sync):
-
-![Settings page](docs/screenshot-settings.png)
-
-**OpenCode Go quota panel** (very top of the Settings page: three progress bars, main window highlighted, manual refresh; a neutral hint when there is no subscription, one-click disable):
-
-![Go quota panel](docs/screenshot-settings-top-v2.png)
-
-**Budget panel** (including custom date ranges):
-
-![Budget](docs/screenshot-budget-panel.png)
-
-**Balance panel** (total/granted/topped-up + manual refresh):
-
-![Balance](docs/screenshot-balance-panel.png)
-
-**Display settings** (Go main window & key, corner chips, box details, …):
-
-![Display settings](docs/screenshot-display-settings-v2.png)
-
-**Summary cards**:
-
-![Cards](docs/screenshot-cards.png)
-
-**Token usage stats** (all-time totals + a Codex-style 26-week heat grid filling the settings width; translucent glass cells for unused days):
-
-![Token usage stats](docs/screenshot-usage-grid.png)
-
-**Today's sessions / history** (input, cache and output tokens in separate columns):
-
-![Today's sessions](docs/screenshot-table-1.png) ![History](docs/screenshot-table-2.png)
-
-**Price table** (off-peak / peak tiers, with input/output shorthand support, USD / 1M tokens):
-
-![Price table](docs/screenshot-price-card.png)
-
-**Data & sync** (instant auto-save of settings + official price sync + clear history):
-
-![Sync](docs/screenshot-sync.png)
-
-## Installation
-
-> Requirements: Node.js ≥ 20 + DeepSeek Harness (a version with the `dsh plugin` command; `npm install -g @deepseek-ai/dsh`) + **pnpm on the DSH process's PATH**, including npm-name installs and Plugin Hub installs. Node.js ≥ 22.13 is recommended for the pinned pnpm 11 below; Node.js 20 users can use pnpm 10.
-
-### One-click install (recommended)
-
-**First-time setup on macOS / Linux:** install pnpm in the terminal you use to start DSH (the same commands also work on Windows):
+Requires **Node.js ≥ 20**, **DeepSeek Harness** (0.2.0 and later; adapted for 0.2.1-rc.2), and **pnpm** on the DSH process's PATH.
 
 ```sh
-npm install -g pnpm@11.21.0
-pnpm --version
-```
-
-On Node.js 20, use `npm install -g pnpm@10` instead. See [pnpm installation and supported Node.js versions](https://pnpm.io/installation).
-
-**npm package name** (published to the npm registry, always tracks the latest version; no git needed):
-
-```sh
+# install from npm, always the latest release
 dsh plugin --profile web add dsh-cost-meter
 ```
 
-**PowerShell one-click script** (copy the whole line, paste, press Enter; pnpm is provisioned automatically, git is auto-detected — no clone needed; the install chain is **pinned to the release tag `v1.9.39`** — review the script before running):
+Restart `dsh web` afterwards.
+
+On Windows you can also use the one-click script (provisions pnpm, detects git):
 
 ```powershell
 irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.39/install.ps1 | iex
 ```
 
-**Or a plain command line** (the machine must already have pnpm and git; also pinned to the tag):
+If the install fails, pnpm reports an error, or the plugin stays disabled after reinstalling, see [installation and updates](docs/install.en.md) and [installation troubleshooting](docs/install-troubleshooting.md).
 
-```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.39
-```
+## Docs
 
-Without git, use the GitHub tag archive:
+| What you need | Where |
+|---|---|
+| Every feature and screenshot | [Features and screenshots](docs/features.en.md) |
+| How billing and peak pricing work | [Billing rules](docs/billing.en.md) |
+| Configuring balances and quotas | [Custom balance](docs/custom-balance-sources.en.md) · [Balance credentials](docs/balance-credentials.md) |
+| Adjusting the sidebar and settings | [Display settings](docs/display-settings.md) |
+| Supported host versions | [DSH 0.2.1 compatibility](docs/dsh-0.2.1-compatibility.md) |
+| Code layout and local setup | [Architecture and development](docs/architecture.en.md) |
+| Known issues | [Architecture · Known limitations](docs/architecture.en.md#known-limitations) |
+| “Ledger is busy” and the cost widgets are gone | [Ledger lock recovery](docs/ledger-lock-recovery.md#english) |
+| What changed in each release | [Update history](docs/UPDATE-HISTORY.md) · [CHANGELOG](CHANGELOG.md) |
 
-```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.9.39.tar.gz
-```
-
-After installing, **restart** `dsh web` (plugin rows, the Typert manifest and the client bundle are all scanned at startup):
-
-```sh
-dsh web
-```
-
-### Install troubleshooting: pnpm was not found (macOS / Linux)
-
-`dsh: pnpm was not found; install pnpm and make it available on PATH.` means DSH cannot start its package manager; the plugin has not loaded yet. Installing by npm package name still requires pnpm.
-
-After the setup above, check the commands from the **same terminal and OS user** that start DSH:
-
-```sh
-command -v node
-command -v pnpm
-command -v dsh
-```
-
-If npm installed pnpm but the shell cannot find it, add npm's global executable directory for the current shell, then retry:
-
-```sh
-export PATH="$(npm prefix -g)/bin:$PATH"
-pnpm --version
-dsh plugin --profile web add dsh-cost-meter@latest
-dsh web
-```
-
-Stop the existing DSH process before restarting it. Plugin Hub runs inside DSH and inherits that process's PATH; reopening the browser alone will not refresh it. With nvm/fnm, select the Node.js version used by DSH before installing pnpm. If npm reports `EACCES`, use a user-owned Node.js installation/global prefix as described in the pnpm guide, then repeat the PATH check. For a persistent shell setup, add the executable directory to your shell profile. A successful install on your machine is confirmed by the plugin appearing after DSH restarts.
-
-### Install troubleshooting: ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION
-
-Symptom: `dsh plugin --profile web add` fails with `[ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION] N lockfile entries failed verification`.
-
-Cause: your environment (pnpm config or a policy bundled into the invoking installer) enforces the "minimum release age" supply-chain protection — any lockfile entry **published more recently than the threshold** is rejected. Plugin releases from before runtime dependencies were exact-pinned declared floating ranges, so a fresh install resolved them to whatever was newest at that moment (a floating `@deepseek-ai/dsh-credentials` range was observed to land on a build published barely a week earlier), which such a policy refuses.
-
-Fix:
-
-1. **Upgrade the plugin and use the host's plugin installer**: `zod` remains exact-pinned. `@deepseek-ai/dsh-credentials` and `@deepseek-ai/dsh-home-paths` are now peer dependencies supplied by DSH, avoiding duplicate old host packages that can fail dependency preflight (issue #106). Pinning prevents version drift but cannot satisfy every age threshold;
-2. If an age restriction remains, wait until the version reaches the threshold, or review the exact package and version in the error before choosing to add an individual exclusion to the profile's `pnpm-workspace.yaml` (default `$DSH_HOME/profiles/web/pnpm-workspace.yaml`):
-
-```yaml
-minimumReleaseAgeExclude:
-  - '<name@version from the error>'
-```
-
-DSH `0.2.0-rc.1` passes packed installation, Web startup, shared-module checks, synthetic billing, RPC and the full regression suite, and the current declaration accepts `>=0.2.0-rc.1 <0.3.0-0` while rejecting `0.1.x` and `0.3.0`. Earlier 0.1.x checks (`0.1.2-rc.1`, `0.1.3-alpha.2`, `0.1.5-alpha.1`) are kept in the compatibility record for reference only; `0.1.3-alpha.1` remains unknown because its official npm version was unavailable during the earlier check. See the [compatibility record](docs/host-compatibility.md) for the environment and limits.
-
-If Plugin Hub reports only `diagnostics: .../.plugin-manager/logs/operation-.../pnpm.log`, that line does not identify the failed package or command. Open the named `pnpm.log` and include the first actual error when reporting the failure; remove credentials and private paths before sharing it. Git URL and npm-name installation on DSH `0.2.0-rc.1` are covered by isolated Windows checks, but an individual machine's failure still requires its diagnostic log.
-
-Account-mode balance: in DSH Desktop a signed-in official account is read without any API key; if you still get HTTP 401, save a dedicated Open Platform key under **Settings → Cost → Account balance**. See [credential sources and priority](docs/balance-credentials.md).
-
-### Install troubleshooting: uninstall fails with ERR_PNPM_RESOLUTION_POLICY_VIOLATIONS_UNHANDLED (DSH 0.2.1-rc.x)
-
-On DSH **0.2.1-rc.1 / 0.2.1-rc.2** the host bundles pnpm **11.28.5**, which enables a built-in 24-hour `minimumReleaseAge`. Uninstalling or reinstalling a plugin can then fail with `ERR_PNPM_RESOLUTION_POLICY_VIOLATIONS_UNHANDLED`; the plugin page shows something like `Uninstall failed` plus `✓ Lockfile passes supply-chain policies (verified 28m ago)` and `Progress: resolved 1, reused 0, ...`. A package younger than 24 hours (the plugin version just installed, or a host `0.2.1-rc.x` package) is enough to trigger it. The unhandled-callback error comes from the host's bundled pnpm, so the plugin cannot patch it.
-
-Workarounds:
-
-1. Wait until the package is 24 hours old, then retry. The plugin keeps working in the meantime.
-2. Add an exact exclusion to the profile's `pnpm-workspace.yaml` (keep existing entries), then fully restart DSH and retry:
-
-   ```yaml
-   minimumReleaseAgeExclude:
-     - dsh-cost-meter@1.9.39
-   ```
-
-3. For a one-off CLI operation, forward the pnpm flag: `dsh plugin --profile desktop remove dsh-cost-meter --config.minimum-release-age=0` (or add `--trust-lockfile` when only lockfile verification fails). Both flags were verified against pnpm 11.28.5 in a temporary profile.
-
-Read the first `ERR_PNPM_*` line in `<profile>/.plugin-manager/logs/operation-*/pnpm.log` before reporting and remove credentials. Do not delete the profile or the ledger. Details: [pnpm supply-chain policy](docs/pnpm-supply-chain-policy.md).
-
-### Update / Uninstall
-
-```sh
-# update: re-run the new release's install.ps1 (the pinned tag inside it moves with the release)
-dsh plugin --profile web remove dsh-cost-meter  # uninstall
-```
-
-Installation errors and plugins still disabled after reinstall: see [troubleshooting](docs/install-troubleshooting.md).
-
-### Local development
+Local development:
 
 ```sh
 git clone https://github.com/Han-1413141/dsh-cost-meter.git
 cd <parent directory of the clone>
-dsh plugin --profile web add link:./dsh-cost-meter  # symlink; edit lib/client.js, refresh the page, done
+dsh plugin --profile web add link:./dsh-cost-meter
 ```
-
-## Billing rules
-
-![Billing rules & peak/off-peak pricing](docs/diagram-pricing.en.svg)
-
-- Price units match the official docs: **USD / 1M tokens**;
-- cost = cache-missed input × cache-miss + output × output + (cache read + cache write) × cache-hit (cache writes follow the legacy official rule and are billed at the hit price);
-- **Pure two-tier peak/off-peak pricing** (the official scheme since 2026-08): peak hours (01:00–04:00, 06:00–10:00 UTC) bill at the peak price and all other hours at the off-peak price (off-peak = half of peak). The base tier equals the off-peak tier, and billing falls back to off-peak when peak/off-peak is disabled; the Settings page shows the live tier (peak / off-peak); the budget/today's cost area shows a peak/off-peak period strip (current/next period with countdown), and the collapsed rail shows a vertical peak/off-peak progress bar;
-- **Weekends and Chinese public holidays**: weekends are off-peak all day from 2026-08-23 00:00 Beijing time, including work-shift weekends. Chinese public holidays are also off-peak all day. `peakHolidays` contains Beijing dates in `YYYY-MM-DD` format and defaults to the published 2026 Mid-Autumn and National Day dates after the peak-pricing change; edit the list in Settings → Cost → Peak pricing for future holidays. The period strip labels holidays separately and counts down to the next actual price change. Historical DeepSeek costs are recalculated once from complete session logs; rows without complete logs keep their recorded amounts;
-- **Historical billing correctness**: calls before 2026-08-16 16:00 UTC (the peak-era boundary) are billed at the base prices of that time, and later calls at the two-tier scheme;
-- The ledger always stores amounts in **USD**; currency and FX rate only affect display (default 1 USD = 7.2 CNY, configurable);
-- The session badge is **billed exactly** at the moment each call is made (host-exported per-call cost), just like daily/monthly/cumulative totals and the budget;
-- Billing uses usage blocks reported through the host's `llm/stream`, including sub-agents, compression, title generation and other auxiliary calls in isolated LLM services. Child sessions retain their own `sessionId` and do not contribute to the parent badge; background calls without a `sessionId` contribute only to daily/monthly/lifetime totals. Memory or other plugins that call external APIs directly without reporting usage to the host cannot be tracked;
-- **Peak/off-peak tiers follow the request-initiation moment**: a streaming call can span the tier boundary hour; attributing by completion time would put a request started minutes earlier into the wrong tier;
-- **Peak effective-time anchoring**: the official pricing page no longer lists an effective time, and price sync no longer resets the peak effective moment to "now" — historical recomputes (session projection refolds / per-model backfill) always tier events against the 2026-08-16 16:00 UTC boundary, so peak-hour history is no longer re-costed at half price; ledgers polluted earlier are clamped back automatically on upgrade (idempotent migration);
-- **Historical pricing**: changing pricing currency, rates or mappings affects subsequent calls. Saved price versions preserve older details; explicit recalculation requires confirmation and retains original amounts, price versions and a full ledger backup. See the [update notes](docs/update-notes-2026-10-15.md#english).
-- **Aligning with official bills**: ① minute-level lag vs live official numbers is expected — the ledger flushes on a 2s debounce, and streams still in flight at shutdown are billed server-side while their usage block is never received (the gap concentrates in cache-hit columns); ② reasoning tokens are reported separately by the API and are **not billed** — the token columns sum five buckets and will never line up with the official three columns, so **reconcile by amount**; ③ with pricing currency set to CNY, entries are recorded directly on the official CNY price list (recommended for CNY-billed accounts); with USD, displayed amounts go through a fixed FX rate and carry a small structural difference (the two lists' per-column ratios are not uniform); ④ granted-balance expiry or reclaim is not consumption: when the day's balance drop is confined to the granted bucket (top-up balance unchanged) and local official-channel usage explains at most a quarter of it, the reconciliation baseline is reset with an informational expiry/reclaim notice instead of a consumption-drift warning;
-- Budget and over-budget warnings **only warn — they never block calls**.
-- **Plan/API dual-track billing** (issue #64): calls on subscription-style channels (MiniMax, Codex / ChatGPT subscription plugins, etc.) are recorded as catalog-price equivalents only; budget/today-cost/overview cards count the pay-as-you-go (API) channel exclusively.
-- **Full-repo security audit fixes**: resolved 3 high-risk findings — ledger writes lost on exit (close/flush ordering), command injection in the release script, panel null-pointer crash on null Go monthly window — plus 30+ medium/low issues including missing hour-bucket entries for routed calls, dead balance-reconciliation warnings, failed custom-balance extraction silently showing $0, and leaked upstream streams on consumer abort; ledger corruption auto-backup, write-failure retry, config-patch atomicity and prototype-chain hardening included. Itemized list: [CHANGELOG.md](CHANGELOG.md).
-- **"Include plan totals" toggle** under the overview cards switches every amount between real-money (API channels only, default) and total equivalent cost (plan subscriptions included); routed calls with a missing provider whose models match third-party catalogs are auto-classified into the matching plan, and legacy per-day residuals without model details count toward the API scope; The Token Plan stats panel in Settings → Usage provides per-1% and full-window token/equivalent-cost estimates plus daily/weekly/monthly usage curves; classification is configurable per vendor and per provider:model.
-
-## Data storage
-
-- Ledger: `$DSH_HOME/storages/cost-meter/ledger.json` (atomic write + 2-second debounce; retained per `historyDays`, up to 200 per-session entries per day);
-- **API keys never touch disk**: all credentials (OpenCode Go key, coding-plan keys, Volcano AK/SK) live only in the DSH credential store — neither the ledger file nor anything sent back to the settings page contains plaintext; the settings inputs are write-only and never echo a saved key back;
-- Every settings change is **saved instantly and automatically** (600 ms debounce) — no manual save needed;
-- Delete the ledger file to reset everything, or use “Clear all history” in Settings;
-- Privacy boundary: balance/quota endpoints (official balance and each coding plan) **only get contacted after you explicitly enable the corresponding provider** — no network traffic for disabled ones.
-
-## Architecture
-
-![Architecture & data flow](docs/diagram-architecture.en.svg)
-
-```
-dsh-cost-meter
-├── cordis.patch.yml        # bundle patch: inserts the cost-meter row into the web profile
-├── install.ps1             # one-click install/update script (irm … | iex)
-├── .github/workflows/      # CI: install-smoke for the one-click install path
-├── package.json            # dsh.bundle patch declaration + dsh.client browser declaration
-└── lib/
-    ├── index.js            # host plugin: llm/stream billing wrapper, costUsage session
-    │                       #   projection, costMeter service (hand-written typertRemote
-    │                       #   binding), balance lookup
-    ├── pricing.js          # official price table, official page HTML parsing, peak/off-peak math
-    ├── store.js            # ledger persistence & config management ($DSH_HOME/storages/cost-meter)
-    ├── typert.host.js      # ./typert export: Typert manifest (auto-registered by typert-loader)
-    └── client.js           # ./client export: browser single-file bundle (badges/box/settings)
-```
-
-Data channels:
-
-- **Per-conversation cost**: the host registers the `costUsage` session projection (pure token buckets, split per model); the browser reads it via `useProjection('costUsage')` and prices it with the current price table;
-- **Global ledger / budget / balance / config**: `costMeter/getState | updateConfig | fetchPrices | refreshBalance | resetHistory` over the Typert gateway RPC (`remote.costMeter.*`);
-- **Balance**: calls the official `GET {baseURL}/user/balance`, reusing the same API key as model requests (credential service / env var), with an in-process cache expiring per `refreshMinutes`.
-
-The plugin never imports cordis/dsh Service/Context runtime classes (only Node builtins, zod, and pure functions from dsh-home-paths and dsh-credentials), so it shares one runtime instance with the host with no duplicated dependency risk.
-
-## How official price sync works
-
-`fetchPrices` fetches the official pricing page (Docusaurus server-side pre-rendered; the English page lists USD prices and the Chinese page CNY prices, selected by the "official price currency" setting — currency is auto-detected from the money symbols, and peak windows on the Chinese page are converted from Beijing time to UTC by −8h) and parses:
-
-1. the base price table (transposed layout: first row MODEL + model ids, price labels followed by the prices);
-2. the peak/off-peak price table (two rows per model: OFF-PEAK / PEAK);
-3. the effective time (“take effect at …”) and the peak-hour windows (“Peak hours are …”).
-
-The parsed result is written into the price table and persisted; if the page structure changes, sync reports an error and keeps the previous prices, with manual editing as a fallback.
-
-## AI price sync
-
-[docs/AI-PRICE-SYNC-PROMPT.en.md](docs/AI-PRICE-SYNC-PROMPT.en.md) (English) and [docs/AI-PRICE-SYNC-PROMPT.md](docs/AI-PRICE-SYNC-PROMPT.md) (中文) provide prompts you can copy straight into any AI:
-the AI reads the official pricing on its own → outputs per-model, time-of-day (base/off-peak/peak + effective time) price JSON → you review and apply it (Settings page / RPC / file — pick one). Handy when the official prices change.
-
-## Development & verification
-
-```sh
-corepack pnpm install                                   # dependencies
-node --check lib/index.js && node --check lib/pricing.js \
-  && node --check lib/store.js && node --check lib/typert.host.js \
-  && node --check lib/client.js                         # syntax checks
-node test/verify.mjs                                    # pure-module verification (parsing/billing/ledger/config)
-node test/mock-balance.mjs                              # (optional) local balance API mock: 3101
-dsh --profile web --dump-config                         # composition-tree check
-dsh --profile web --port 3099                           # real startup (watch logs and the UI)
-```
-
-## Known limitations
-
-For loading placeholders followed by “No matching sessions” after opening Cost,
-see [non-destructive sidebar search recovery](docs/session-sidebar-recovery.md).
-Check and clear the host search before changing stored data.
-
-- Official-page parsing depends on the current page structure; after a redesign, “Sync prices from official docs” fails — edit the price table manually as a fallback;
-- The session badge's fallback estimate (used when ledger data is unavailable) prices all of a session's calls at the tier of the *current* moment, including plan-type sessions: a session spanning peak and off-peak hours gets its off-peak portion overestimated during peak hours; exact figures come from the ledger (which bills each call at its own initiation moment);
-- Price sync overwrites the same-named models listed on the official page; custom model entries are unaffected;
-- Balance lookup needs network access to api.deepseek.com and a valid API key; **the API key is only ever sent to the official domain** (if baseURL points at a non-official host, balance queries refuse to run — model requests are unaffected);
-- The OpenCode Go quota endpoint is the official opencode.ai endpoint (community-documented); if its response shape changes, the Settings page shows an error and the display can be turned off in Display settings;
-- The per-1% quota / full-window figures in Token Plan stats are estimates: vendors only report percentages with ones-digit quantization (a displayed 1% may really be 0.5%–1.5%), so the plugin derives them from end-to-end deltas over continuous sample segments to suppress quantization noise (segments spanning <5 percentage points are tagged "low reading precision"; samples older than 7 days fall back to live ratio; window edges align to whole hours). Server percentages cover ALL usage of the account — consumption of the same key on other machines/CLIs is not in the local ledger, so low estimates are expected; treat them as cross-plan comparisons only;
-- Plan/API classification is inferred from channel and config; mixed subscription/PAYG usage of one vendor (e.g. Kimi) can be overridden per provider:model in settings.
-- A restart of `dsh web` is required after installing/updating the plugin.
 
 ## Community
 
-Join the WeChat group to discuss the plugin, share feedback, and suggest features.
+Questions, ideas, or just curious how others use it — join the WeChat group.
 
 <p align="center">
-  <a href="docs/community-wechat.jpg"><img src="docs/community-wechat.jpg" alt="dsh-cost-meter WeChat community QR code" width="320" /></a><br />
-  <a href="docs/community-wechat.jpg">View full-size QR code</a>
+  <a href="docs/community-wechat.jpg"><img src="docs/community-wechat.jpg" alt="dsh-cost-meter WeChat community QR code" width="300" /></a><br />
+  <sub>Scan to join · click for full size</sub>
 </p>
 
-## Update history
+You can also [open an issue](https://github.com/Han-1413141/dsh-cost-meter/issues). Please read the [contributing guide](CONTRIBUTING.md) first.
 
-**Version policy**: releases increment only the patch number (for example `1.9.0 → 1.9.1`), including feature releases, new plugin compatibility and UI updates. The minor/major positions stay fixed unless a breaking change requires them and is explicitly approved; 1.9.0 was the last minor bump.
+## Contributors
 
-A per-version overview and the community-issue resolution log live in [docs/UPDATE-HISTORY.md](docs/UPDATE-HISTORY.md) (中文); the itemized changelog is [CHANGELOG.md](CHANGELOG.md).
+Thanks to everyone who reported a problem, suggested an improvement, or sent code. The list is collected by GitHub — click an avatar to see their contributions.
 
-## Star History
+<a href="https://github.com/Han-1413141/dsh-cost-meter/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=Han-1413141/dsh-cost-meter" alt="dsh-cost-meter contributors" />
+</a>
+
+## Star history
 
 <a href="https://www.star-history.com/?repos=han-1413141%2Fdsh-cost-meter&type=timeline&legend=bottom-right">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=han-1413141/dsh-cost-meter&type=timeline&theme=dark&legend=bottom-right" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=han-1413141/dsh-cost-meter&type=timeline&legend=bottom-right" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=han-1413141/dsh-cost-meter&type=timeline&legend=bottom-right" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=han-1413141/dsh-cost-meter&type=timeline&theme=light&legend=bottom-right" />
+   <img alt="Star history chart" src="https://api.star-history.com/chart?repos=han-1413141/dsh-cost-meter&type=timeline&legend=bottom-right" />
  </picture>
 </a>
 
