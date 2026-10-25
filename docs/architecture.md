@@ -4,7 +4,7 @@
 
 ## 架构
 
-![架构与数据流](docs/diagram-architecture.zh.svg)
+![架构与数据流](diagram-architecture.zh.svg)
 
 ```
 dsh-cost-meter

@@ -61,7 +61,7 @@ The complete feature list and UI walkthrough. The README keeps only the core fea
 
 **Sidebar bottom** (top to bottom: official balance → quota/budget box → settings button):
 
-![Sidebar footer](docs/screenshot-sidebar-footer.png)
+![Sidebar footer](screenshot-sidebar-footer.png)
 
 - The balance row shows the official open-platform total balance; hovering reveals the granted/topped-up split; with “Balance progress bar” enabled, both official and custom balances use the same three-segment box (blue = remaining, orange = today, gray = spent);
 - With no budget enabled, that spot shows the “Today ¥x” badge.
@@ -70,7 +70,7 @@ The complete feature list and UI walkthrough. The README keeps only the core fea
 
 | Sidebar progress bar + display settings | Custom provider balance panel |
 |---|---|
-| ![Balance progress bar](docs/screenshot-balance-progress-bar-zh.png) | ![Custom provider settings](docs/screenshot-custom-balance-settings-zh.png) |
+| ![Balance progress bar](screenshot-balance-progress-bar-zh.png) | ![Custom provider settings](screenshot-custom-balance-settings-zh.png) |
 
 - Display settings → global “Balance progress bar” toggle; optional “Budget cap” overrides API `max_budget`;
 - Settings → Cost → “Custom provider balance”: expand to edit URL / headers (JSON) / extract (JSON), bilingual names, and currency.
@@ -79,7 +79,7 @@ The complete feature list and UI walkthrough. The README keeps only the core fea
 
 | Go quota only | Budget only | Merged |
 |---|---|---|
-| ![Go quota only](docs/screenshot-go-box.png) | ![Budget only](docs/screenshot-budget-box.png) | ![Merged card](docs/screenshot-sidebar-footer-v2.png) |
+| ![Go quota only](screenshot-go-box.png) | ![Budget only](screenshot-budget-box.png) | ![Merged card](screenshot-sidebar-footer-v2.png) |
 
 - The budget box shows “budget · used % · progress bar · today's cost & share of budget · used/limit”; ≥80% warning, ≥100% over-budget; rail mode narrows to a percentage tile;
 - The peak/off-peak hours display shows UTC peak hours 01:00–04:00 and 06:00–10:00 with the current tier; the budget box and today's cost area show a compact one-line period strip — a thin orange/blue track with a marker line on the current period, and text on the right showing the current period plus the countdown to the next switch (refreshed every 30 seconds); no prices are shown; it can be disabled independently in Settings, and the “Peak period strip style” option switches between the Compact and Classic looks; collapsed rail mode shows the same design vertically with a short horizontal label (“Peak / Off-peak”) below — the countdown and full text appear on hover;
@@ -88,7 +88,7 @@ The complete feature list and UI walkthrough. The README keeps only the core fea
 
 | Settings peak panel (notice toggle / style switch / preview) | Settings bottom-right (dock) display & box details |
 |---|---|
-| ![Peak/off-peak pricing & notice panel](docs/peak-panel-settings-en.png) | ![Dock display & box details settings](docs/dock-display-settings-en.png) |
+| ![Peak/off-peak pricing & notice panel](peak-panel-settings-en.png) | ![Dock display & box details settings](dock-display-settings-en.png) |
 
 Real captures from an actual DSH sidebar of the period strip and collapsed vertical bar (current looks), grouped by UI type (shown during peak hours):
 
@@ -96,7 +96,7 @@ Real captures from an actual DSH sidebar of the period strip and collapsed verti
 
 | Compact | Classic |
 |---|---|
-| ![Expanded · Compact](docs/peak-strip-expanded-compact-en.png) | ![Expanded · Classic](docs/peak-strip-expanded-classic-en.png) |
+| ![Expanded · Compact](peak-strip-expanded-compact-en.png) | ![Expanded · Classic](peak-strip-expanded-classic-en.png) |
 
 - Compact: thin orange/blue track with a marker line on the current period and a short caption, e.g. “Peak · Off-peak in 1h 40m”;
 - Classic: same track and marker line with the full caption “Peak · Off-peak in HH:MM:SS” countdown (refreshed every 30 seconds); no prices are shown.
@@ -105,7 +105,7 @@ Real captures from an actual DSH sidebar of the period strip and collapsed verti
 
 | Compact | Classic |
 |---|---|
-| ![Collapsed · Compact](docs/peak-strip-rail-compact-en.png) | ![Collapsed · Classic](docs/peak-strip-rail-classic-en.png) |
+| ![Collapsed · Compact](peak-strip-rail-compact-en.png) | ![Collapsed · Classic](peak-strip-rail-classic-en.png) |
 
 - Compact: only the short horizontal label (“Peak / Off-peak”) below the vertical bar;
 - Classic: the full caption stacked vertically below the bar, including the countdown to the next switch; in both styles the full text is also available on hover.
@@ -116,65 +116,65 @@ Real captures from an actual DSH sidebar of the period strip and collapsed verti
 
 - The Go box shows the main window's used % and progress bar (default rolling 5h; switchable to weekly/monthly in Display settings), with the other two windows and reset times in a row below:
 
-![Rail mode](docs/screenshot-sidebar-rail-v2.png)
+![Rail mode](screenshot-sidebar-rail-v2.png)
 
 **Bottom-right (dock) quota / budget chips** (enabled in Display settings; four independent toggles: 5h / weekly / monthly quota + budget used %):
 
 | Corner chips in action | Display settings (where the toggles live) |
 |---|---|
-| ![Corner chips](docs/screenshot-display-corner-v2.png) | ![Dock display settings](docs/dock-display-settings-en.png) |
+| ![Corner chips](screenshot-display-corner-v2.png) | ![Dock display settings](dock-display-settings-en.png) |
 
 **Per-conversation cost** (two positions, switchable in Settings):
 
 | Below the composer | Session title bar |
 |---|---|
-| ![Session dock](docs/screenshot-session-dock.png) | ![Session header](docs/screenshot-session-header.png) |
+| ![Session dock](screenshot-session-dock.png) | ![Session header](screenshot-session-header.png) |
 
 > Left: this session ¥5.5939 · input 321K · cache 119M · output 235K; right: title-bar badge “cost ¥6.1606” (real session captures)
 
-![Session page](docs/screenshot-session.png)
+![Session page](screenshot-session.png)
 
 ### Settings → Cost
 
 **Overview** (OpenCode Go quota → budget → balance → summary cards → today's sessions → history → display settings → price table → data & sync):
 
-![Settings page](docs/screenshot-settings.png)
+![Settings page](screenshot-settings.png)
 
 **OpenCode Go quota panel** (very top of the Settings page: three progress bars, main window highlighted, manual refresh; a neutral hint when there is no subscription, one-click disable):
 
-![Go quota panel](docs/screenshot-settings-top-v2.png)
+![Go quota panel](screenshot-settings-top-v2.png)
 
 **Budget panel** (including custom date ranges):
 
-![Budget](docs/screenshot-budget-panel.png)
+![Budget](screenshot-budget-panel.png)
 
 **Balance panel** (total/granted/topped-up + manual refresh):
 
-![Balance](docs/screenshot-balance-panel.png)
+![Balance](screenshot-balance-panel.png)
 
 **Display settings** (Go main window & key, corner chips, box details, …):
 
-![Display settings](docs/screenshot-display-settings-v2.png)
+![Display settings](screenshot-display-settings-v2.png)
 
 **Summary cards**:
 
-![Cards](docs/screenshot-cards.png)
+![Cards](screenshot-cards.png)
 
 **Token usage stats** (all-time totals + a Codex-style 26-week heat grid filling the settings width; translucent glass cells for unused days):
 
-![Token usage stats](docs/screenshot-usage-grid.png)
+![Token usage stats](screenshot-usage-grid.png)
 
 **Today's sessions / history** (input, cache and output tokens in separate columns):
 
-![Today's sessions](docs/screenshot-table-1.png) ![History](docs/screenshot-table-2.png)
+![Today's sessions](screenshot-table-1.png) ![History](screenshot-table-2.png)
 
 **Price table** (off-peak / peak tiers, with input/output shorthand support, USD / 1M tokens):
 
-![Price table](docs/screenshot-price-card.png)
+![Price table](screenshot-price-card.png)
 
 **Data & sync** (instant auto-save of settings + official price sync + clear history):
 
-![Sync](docs/screenshot-sync.png)
+![Sync](screenshot-sync.png)
 
 ## Bilingual UI
 

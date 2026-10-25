@@ -4,7 +4,7 @@ File layout, data channels, local debugging and the regression suite, plus known
 
 ## Architecture
 
-![Architecture & data flow](docs/diagram-architecture.en.svg)
+![Architecture & data flow](diagram-architecture.en.svg)
 
 ```
 dsh-cost-meter
