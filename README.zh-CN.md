@@ -1,17 +1,25 @@
-<div align="center">
+<h1 align="center">dsh-cost-meter</h1>
 
-# dsh-cost-meter
+<p align="center"><b>DeepSeek Harness 会话费用统计插件 · 界面中英双语</b></p>
 
-**DeepSeek Harness 会话费用统计插件 · 界面中英双语**
+<p align="center">
+  <a href="https://github.com/Han-1413141/dsh-cost-meter"><img src="https://img.shields.io/badge/version-1.9.38-4176E6?style=flat-square" alt="version"></a>
+  <a href="https://www.npmjs.com/package/dsh-cost-meter"><img src="https://img.shields.io/npm/v/dsh-cost-meter?label=npm&style=flat-square" alt="npm"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="license"></a>
+  <a href="https://github.com/deepseek-ai/deepseek-harness"><img src="https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6?style=flat-square" alt="DSH plugin"></a>
+</p>
 
-[![version](https://img.shields.io/badge/version-1.9.38-4176E6?style=flat-square)](https://github.com/Han-1413141/dsh-cost-meter) [![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm&style=flat-square)](https://www.npmjs.com/package/dsh-cost-meter) [![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE) [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
+<p align="center">
+  <a href="README.md">English</a> | <b>简体中文</b>
+</p>
 
-[English](README.md) | **简体中文**
-
-[功能](#核心功能) · [安装](#安装) · [文档](#文档) · [交流群](#交流与反馈) · [贡献者](#贡献者)
-
-</div>
-
+<p align="center">
+  <a href="#核心功能">功能</a> ·
+  <a href="#安装">安装</a> ·
+  <a href="#文档">文档</a> ·
+  <a href="#交流与反馈">交流群</a> ·
+  <a href="#贡献者">贡献者</a>
+</p>
 
 每次对话花了多少钱、这个月还剩多少额度、订阅套餐用到了百分之几——这些数字 DSH 本身不显示，本插件把它们放到你眼前。
 

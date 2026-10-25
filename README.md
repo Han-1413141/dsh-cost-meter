@@ -1,17 +1,25 @@
-<div align="center">
+<h1 align="center">dsh-cost-meter</h1>
 
-# dsh-cost-meter
+<p align="center"><b>Session cost tracking for DeepSeek Harness · bilingual UI</b></p>
 
-**Session cost tracking for DeepSeek Harness · bilingual UI**
+<p align="center">
+  <a href="https://github.com/Han-1413141/dsh-cost-meter"><img src="https://img.shields.io/badge/version-1.9.38-4176E6?style=flat-square" alt="version"></a>
+  <a href="https://www.npmjs.com/package/dsh-cost-meter"><img src="https://img.shields.io/npm/v/dsh-cost-meter?label=npm&style=flat-square" alt="npm"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="license"></a>
+  <a href="https://github.com/deepseek-ai/deepseek-harness"><img src="https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6?style=flat-square" alt="DSH plugin"></a>
+</p>
 
-[![version](https://img.shields.io/badge/version-1.9.38-4176E6?style=flat-square)](https://github.com/Han-1413141/dsh-cost-meter) [![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm&style=flat-square)](https://www.npmjs.com/package/dsh-cost-meter) [![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE) [![dsh](https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6?style=flat-square)](https://github.com/deepseek-ai/deepseek-harness)
+<p align="center">
+  <b>English</b> | <a href="README.zh-CN.md">简体中文</a>
+</p>
 
-**English** | [简体中文](README.zh-CN.md)
-
-[Features](#core-features) · [Install](#install) · [Docs](#docs) · [Community](#community) · [Contributors](#contributors)
-
-</div>
-
+<p align="center">
+  <a href="#core-features">Features</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#docs">Docs</a> ·
+  <a href="#community">Community</a> ·
+  <a href="#contributors">Contributors</a>
+</p>
 
 What each conversation cost, how much quota is left this month, what percentage of your subscription plan you have used — DSH does not show any of it. This plugin puts those numbers in front of you.
 
