@@ -10,6 +10,7 @@ import './ledger-lock-recovery.mjs'
 // This service fixture owns startup timers and must not overlap slow static imports.
 import './context-costs.mjs'
 import './clinepass-quota.mjs'
+import './anthropic-quota-display.mjs'
 import './pi-ai-codex-quota.mjs'
 import './chatgpt-sub-quota.mjs'
 import './pi-ai-codex-client.mjs'

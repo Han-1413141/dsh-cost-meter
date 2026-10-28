@@ -2885,7 +2885,8 @@
     /** 通用 Coding Plan 侧边栏卡片(issue #31):每窗口一行进度条;文本窗口(余额等)整行文本。 */
     function codingPlanWindowLabel(name, t) {
       if (name.startsWith('core_')) return 'Core · ' + codingPlanWindowLabel(name.slice(5), t)
-      if (name === 'fiveHour' || name === '5h') return '5h'
+      if (name === 'fiveHour' || name === 'five_hour' || name === '5h') return '5h'
+      if (name === 'seven_day') return '7d'
       if (name === 'weekly' || name === 'week' || name === '7d') return name === '7d' ? '7d' : t('goShortWeekly')
       if (name === 'monthly' || name === 'month') return t('goShortMonthly')
       if (name === 'daily' || name === 'day') return t('goShortDaily')
@@ -2902,6 +2903,30 @@
         return /^(fivehour|five|5h|rolling|session)$/.test(key) ? 0 : /^(daily|day|1d)$/.test(key) ? 1 : /^(weekly|week|7d|sevenday)$/.test(key) ? 2 : /^(monthly|month|30d)$/.test(key) ? 3 : 4
       }
       return Object.entries(windows ?? {}).filter(([name]) => provider !== 'volcengine' || [0, 2, 3].includes(rank(name))).sort((a, b) => rank(a[0]) - rank(b[0]))
+    }
+
+    // Claude 的 5 小时 / 7 天窗口长度固定,可由重置时间反推窗口起点,按当前速度线性外推。
+    // 窗口刚开始(已过不足 10%)样本太少,不预测;只在重置前预计会打满时才给出提示。
+    function quotaWindowHours(name) {
+      return /^(five_?hour|5h)$/i.test(name) ? 5 : /^(seven_?day|7d)$/i.test(name) ? 168 : 0
+    }
+
+    function quotaResetLines(name, win, t, locale, now = Date.now()) {
+      const resetMs = Date.parse(win?.resetsAt)
+      const hours = quotaWindowHours(name)
+      if (!Number.isFinite(resetMs) || hours === 0 || typeof win.percent !== 'number') return null
+      const left = resetMs - now
+      if (left <= 0) return null
+      const fmt = new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'zh-CN',
+        hours === 5 ? { hour: '2-digit', minute: '2-digit', hour12: false } : { weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false })
+      const minutes = Math.ceil(left / 60000)
+      const reset = hours === 5
+        ? (minutes >= 60 ? t('quotaResetInHm', { h: Math.floor(minutes / 60), m: minutes % 60 }) : t('quotaResetInM', { m: minutes }))
+        : t('quotaResetAt', { time: fmt.format(resetMs) })
+      const total = hours * 3600000
+      const elapsed = now - (resetMs - total)
+      const hitMs = win.percent > 0 && elapsed / total >= 0.1 ? resetMs - total + elapsed * 100 / win.percent : Infinity
+      return { reset, forecast: hitMs < resetMs ? t('quotaForecastHit', { time: fmt.format(hitMs) }) : '' }
     }
 
     function CodingPlanBox(props) {
@@ -2923,19 +2948,24 @@
       // 窗口文本只装数值,标题行自己补「余额:」标签。textWindowOf 只产非空文本,真值检查即可。
       const titleValue = (id === 'workbuddy' || id === 'opendesign') && windows.balance?.text
         ? t('codingPlanWindowBalance') + ': ' + windows.balance.text : null
+      const locale = resolveLocale(state.config)
       const rows = (titleValue ? entries.filter(([name]) => name !== 'balance') : entries).map(([name, win]) => {
         const pct = pctOf(win)
         if (pct === null) {
           return el('div', { key: name, className: 'cm-mm-row wide' },
             el('span', { className: 'cm-mm-text' }, typeof win?.text === 'string' ? win.text : '—'))
         }
-        const level = pct >= 100 ? 'over' : pct >= 80 ? 'warn' : 'ok'
+        const level = pct >= 95 ? 'over' : pct >= 80 ? 'warn' : 'ok'
         const barView = simpleBarByDirection(pct, planDirection)
-        return el('div', { key: name, className: 'cm-mm-row wide' + (level === 'ok' ? '' : ' ' + level) },
+        const row = el('div', { key: name, className: 'cm-mm-row wide' + (level === 'ok' ? '' : ' ' + level) },
           el('span', { className: 'cm-bbox-label' }, codingPlanWindowLabel(name, t)),
           el('div', { className: 'cm-bbox-bar' },
             el('div', { className: 'cm-bbox-fill', style: { width: barView.width + '%' } })),
           el('span', { className: 'cm-bbox-pct cm-num' }, barView.label === null ? '—' : barView.label + '%'))
+        const lines = id === 'anthropic' ? quotaResetLines(name, win, t, locale) : null
+        return lines === null ? row : el(Fragment, { key: name }, row,
+          el('div', { className: 'cm-mm-sub' }, lines.reset,
+            lines.forecast && el('div', { className: 'cm-mm-sub warn' }, lines.forecast)))
       })
       const detailParts = entries.map(([name, win]) => {
         const pct = pctOf(win)
@@ -2949,7 +2979,7 @@
       detailParts.push(...clickRefreshTipLines(t, refresh))
       const detail = [t(rowDef.labelKey), ...detailParts].join('\n')
       const pcts = entries.map(([, win]) => pctOf(win)).filter(p => p !== null)
-      const level = pcts.some(p => p >= 100) ? 'over' : pcts.some(p => p >= 80) ? 'warn' : 'ok'
+      const level = pcts.some(p => p >= 95) ? 'over' : pcts.some(p => p >= 80) ? 'warn' : 'ok'
       const railText = pcts.length > 0
         ? pcts.slice(0, 2).map(p => simpleBarByDirection(p, planDirection).label + '%').join(' ')
         : (typeof entries[0][1]?.text === 'string' ? entries[0][1].text : '—')
