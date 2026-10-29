@@ -33,12 +33,14 @@ async function scenario({ initial = 'zh', explicit = 'auto', late = false, brows
   const React = { createElement: (type, props, ...children) => ({ type, props: { ...props, children } }), useState: initial => [forcedDraft && hookIndex++ === 0 ? forcedDraft : typeof initial === 'function' ? initial() : initial, () => {}], useEffect() {}, useRef: value => ({ current: value }), Fragment: 'Fragment' }
   const source = artifact ? readSource('lib/client.js') : readdirSync(join(root, 'src/client')).filter(name => name.endsWith('.js')).sort().map(name => readSource('src/client/' + name)).join('')
   vm.runInNewContext(source, {
+    setTimeout, clearTimeout,
     window: { __ModuleLoader__: { load: value => { factory = value.factory } }, addEventListener: (name, fn) => windowListeners.set(name, fn), removeEventListener: (name, fn) => { if (windowListeners.get(name) === fn) windowListeners.delete(name) } }, navigator: browserData,
     document: { querySelector: () => ({}), addEventListener: (name, fn) => documentListeners.set(name, fn), removeEventListener: (name, fn) => { if (documentListeners.get(name) === fn) documentListeners.delete(name) }, hidden: false, documentElement: { lang: '' } },
     setInterval: fn => { timers.add(fn); return fn }, clearInterval: fn => timers.delete(fn), queueMicrotask, AbortController, AbortSignal, console,
   })
   let statisticsFactory
   vm.runInNewContext(readSource(artifact ? 'lib/client.statistics.js' : 'src/statistics/index.js'), {
+    setTimeout, clearTimeout,
     window: { __ModuleLoader__: { load: value => { statisticsFactory = value.factory } } }, navigator: browserData,
   })
   const statistics = statisticsFactory(() => React)
@@ -136,6 +138,7 @@ async function mixedClients(artifact) {
   const React = { createElement: (type, props, ...children) => ({ type, props: { ...props, children } }) }
   const source = artifact ? readSource('lib/client.js') : readdirSync(join(root, 'src/client')).filter(name => name.endsWith('.js')).sort().map(name => readSource('src/client/' + name)).join('')
   vm.runInNewContext(source, {
+    setTimeout, clearTimeout,
     window: { __ModuleLoader__: { load: value => { factory = value.factory } } }, navigator: { language: 'en-US' },
     document: { querySelector: () => ({}), addEventListener() {}, removeEventListener() {}, hidden: false },
     setInterval: fn => { timers.add(fn); return fn }, clearInterval: fn => timers.delete(fn), console,
