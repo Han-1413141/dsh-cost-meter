@@ -159,9 +159,14 @@ try {
       await settle(() => { view = render(Surface, { slots: env.slots, name, sessionId: index === 1 ? 'two' : 'one' }) })
       const card = view.container.querySelector('[data-lc-current]')
       assert.ok(card, version + ' actual current-context card: ' + name)
-      assert.equal(card.querySelectorAll('[data-cm-context-costs]').length, 1, 'planner resides inside partner card')
-      assert.equal(card.querySelector('[data-cm-plan-session]').dataset.cmPlanSession, index === 1 ? 'two' : 'one')
-      assert.match(card.textContent, /Context cost breakdown/)
+      const costHost = view.container.querySelector('[data-cm-context-costs]')
+      assert.ok(costHost, 'each partner surface has one cost host')
+      if (name === 'conversation.input.overlay') {
+        assert.equal(card.querySelectorAll('[data-cm-context-costs]').length, 0, 'modal costs do not change the measured partner card')
+        assert.equal(costHost.previousElementSibling, card, 'modal costs follow the overview in normal flow')
+      } else assert.equal(card.querySelectorAll('[data-cm-context-costs]').length, 1, 'main and sidebar costs stay inside the partner card')
+      assert.equal(costHost.querySelector('[data-cm-plan-session]').dataset.cmPlanSession, index === 1 ? 'two' : 'one')
+      assert.match(costHost.textContent, /Context cost breakdown/)
       views.push(view)
     }
     assert.ok(reads.includes('one') && reads.includes('two'), 'two simultaneously visible sessions stay scoped')
