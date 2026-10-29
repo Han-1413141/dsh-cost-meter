@@ -2911,10 +2911,14 @@
       return /^(five_?hour|5h)$/i.test(name) ? 5 : /^(seven_?day|7d)$/i.test(name) ? 168 : 0
     }
 
+    function codingPlanQuotaLevel(percent, provider) {
+      return percent >= (provider === 'anthropic' ? 95 : 100) ? 'over' : percent >= 80 ? 'warn' : 'ok'
+    }
+
     function quotaResetLines(name, win, t, locale, now = Date.now()) {
       const resetMs = Date.parse(win?.resetsAt)
       const hours = quotaWindowHours(name)
-      if (!Number.isFinite(resetMs) || hours === 0 || typeof win.percent !== 'number') return null
+      if (!Number.isFinite(resetMs) || hours === 0 || !Number.isFinite(win.percent)) return null
       const left = resetMs - now
       if (left <= 0) return null
       const fmt = new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : 'zh-CN',
@@ -2925,8 +2929,8 @@
         : t('quotaResetAt', { time: fmt.format(resetMs) })
       const total = hours * 3600000
       const elapsed = now - (resetMs - total)
-      const hitMs = win.percent > 0 && elapsed / total >= 0.1 ? resetMs - total + elapsed * 100 / win.percent : Infinity
-      return { reset, forecast: hitMs < resetMs ? t('quotaForecastHit', { time: fmt.format(hitMs) }) : '' }
+      const hitMs = win.percent > 0 && win.percent < 100 && elapsed / total >= 0.1 ? resetMs - total + elapsed * 100 / win.percent : Infinity
+      return { reset, forecast: hitMs > now && hitMs < resetMs ? t('quotaForecastHit', { time: fmt.format(hitMs) }) : '' }
     }
 
     function CodingPlanBox(props) {
@@ -2955,7 +2959,7 @@
           return el('div', { key: name, className: 'cm-mm-row wide' },
             el('span', { className: 'cm-mm-text' }, typeof win?.text === 'string' ? win.text : '—'))
         }
-        const level = pct >= 95 ? 'over' : pct >= 80 ? 'warn' : 'ok'
+        const level = codingPlanQuotaLevel(pct, id)
         const barView = simpleBarByDirection(pct, planDirection)
         const row = el('div', { key: name, className: 'cm-mm-row wide' + (level === 'ok' ? '' : ' ' + level) },
           el('span', { className: 'cm-bbox-label' }, codingPlanWindowLabel(name, t)),
@@ -2979,7 +2983,7 @@
       detailParts.push(...clickRefreshTipLines(t, refresh))
       const detail = [t(rowDef.labelKey), ...detailParts].join('\n')
       const pcts = entries.map(([, win]) => pctOf(win)).filter(p => p !== null)
-      const level = pcts.some(p => p >= 95) ? 'over' : pcts.some(p => p >= 80) ? 'warn' : 'ok'
+      const level = codingPlanQuotaLevel(Math.max(0, ...pcts), id)
       const railText = pcts.length > 0
         ? pcts.slice(0, 2).map(p => simpleBarByDirection(p, planDirection).label + '%').join(' ')
         : (typeof entries[0][1]?.text === 'string' ? entries[0][1].text : '—')
