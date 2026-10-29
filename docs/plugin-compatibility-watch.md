@@ -57,3 +57,12 @@ DSH_TEST_NODE_MODULES=/path/to/host/node_modules \
 DSH_TEST_CODEX_PACKAGE=/path/to/dsh-codex-subscription-3.2.0.tgz \
 node test/codex-subscription-published.mjs
 ```
+
+## 2026-10-29：billion-context 0.1.209 与 Codex Subscription 3.2.1
+
+处理 github-actions[bot] 在 [#441](https://github.com/Han-1413141/dsh-cost-meter/issues/441)、[#442](https://github.com/Han-1413141/dsh-cost-meter/issues/442) 报告的版本及接入函数变化。实际 npm 发布包的 SHA-512 已与官方元数据匹配。
+
+- billion-context 0.1.209：代理增加插件渲染路由；原生传输增加代理重启等待、直连前的超长请求检查和模式变化日志。实际发布包通过四协议计费、缓存用量、压缩、重试、父子会话、API/Plan 分类、回放、重启、取消、隐私及原版 CLI 自动接入检查。
+- dsh-codex-subscription 3.2.1：RPC 增加默认模型重置分支，额度解析器及 reader 指纹保持一致。实际发布包通过单周／双窗口、默认缓存、强制刷新、账号切换、共享请求取消、登录失效与真实宿主传输拒绝检查。
+
+费用插件运行时代码无需调整。仅更新上述两个基线，保留 Connect 基线，并在 CI 中保留旧版本、加入两个新版本。测试使用合成数据与本机服务器，外部账户及模型请求为 0。

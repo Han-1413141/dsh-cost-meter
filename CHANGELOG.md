@@ -4,6 +4,8 @@
 
 ## [1.9.46] - 2026-10-29
 
+- 验证 billion-context 0.1.209 与 dsh-codex-subscription 3.2.1 的实际发布包，更新兼容基线与持续集成；处理 github-actions[bot] 的 [#441](https://github.com/Han-1413141/dsh-cost-meter/issues/441)、[#442](https://github.com/Han-1413141/dsh-cost-meter/issues/442)。
+
 - 修复峰谷切换前后分段样式箭头超出左右边界的问题，保留实际时段进度，避免临近切换时出现横向溢出。
 - 浏览器测试固定到已复现的时刻，并覆盖工作日与周末结束前、切换后的箭头边界。
 - Keep the classic peak-period arrow within the component at phase boundaries; retain progress tracking and add deterministic boundary coverage.

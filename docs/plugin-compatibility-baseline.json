@@ -1,8 +1,8 @@
 {
-  "recordedAt": "2026-10-28T08:04:25.931Z",
+  "recordedAt": "2026-10-29T06:09:51.940Z",
   "plugins": {
     "billion-context": {
-      "version": "0.1.208",
+      "version": "0.1.209",
       "signature": {
         "main": "dist/index.js",
         "exports": {
@@ -28,17 +28,17 @@
         },
         "functions": {
           "fetchWithTimeout": "81eb689c0031bee81a652982a573fa3196f4aab61c5e205d8495ef8245a0999c",
-          "handle": "5c4efdbbe6dd4bb104a343d8b7418152fe87af5476d1a7be45d949818ac6db92",
+          "handle": "0dd735ebb7179b0f6d4ebff338a6296d3b0db6c63be0bb85d23fa5242af0909a",
           "requestSummaryBody": "6af0543c5e140a10feb8552acbc1010680035e52c480b9130a9a966db6c70a13",
           "fetchWithRetry": "3dbdc1b29c2fa85771e39c5a242971ca836aae3b1e89ff97981a42ea1f45ffc1",
-          "installNativeFetchIntercept": "fa0f348039d152e148dcfcb7ae1d33e7ade89bc37989a73037f59df57d30c95d"
+          "installNativeFetchIntercept": "7d4d6bc881b0ed0aa59c5fff9dc3846d17b575621d9d0c8f8898d8d4aa592bc0"
         }
       },
-      "interfaceHash": "2f1aaa2710e985da398bf493a8b0a5f9cafe511f1c67b9c974f1c28781aefe2b",
-      "integrity": "sha512-UxsXmDoXRFZJ5D/hyhq33QGd0dOWqA5uo/ssJLd79NH54yU7wFlb1Bf9h+b9+nzKcrfCxEo9iIibKMUzeedwDA=="
+      "interfaceHash": "d12e6cccffc548edf9492e7042b9ce1cd82df3537c023d3225aadb6b866bf4eb",
+      "integrity": "sha512-Lz43W6+WXlR/FkdWAvYVXrxsK8IqXx4sPjru/cYaxm8/DtO5na9HBFR9Ab46kYuC0Wx5vfKeO6X9rR9W/qs4lw=="
     },
     "dsh-codex-subscription": {
-      "version": "3.2.0",
+      "version": "3.2.1",
       "signature": {
         "main": "./lib/index.js",
         "exports": {
@@ -78,13 +78,13 @@
         },
         "functions": {
           "registerSubscriptionTransport": "bc8cd28620c0c117e12eaf0e6e82bf2454951091a3a6beaa560acf0e363160d4",
-          "createSubscriptionRpcHandler": "c944275322a94822c521c981516db3aabc5b9d07f983a8148a1d35a78660c91b",
+          "createSubscriptionRpcHandler": "3fbf1c2e6c3d110b3ab0572f7867927fbf2d5aba8d52188c61487d7e365f9b5d",
           "parseCodexUsage": "5c72a7a920ed4edb5f9e5610e93bfd84a4ad76f4d72e33283370c8800781df0e",
           "createCodexUsageReader": "4918e349e503c7764bc196138c7af3ea1255ef5c47a887c6616f047e82d81edf"
         }
       },
-      "interfaceHash": "830bf419761de83b58c848198b889bb68a5df0fe59b24b9b8d2bef13277dcbdf",
-      "integrity": "sha512-JGbqA38POQzER9NCW7/9/4MbbsmuaVHoZ6V6KF5mHFHPwKLQsqSnvhMzudKVZlvx+NT32NTpfKGtPk2NG6tj0w=="
+      "interfaceHash": "81887fd683c29c62ad8b1e909b73c376102ecd824fdc08db6925a00c867a6665",
+      "integrity": "sha512-WvAgrk/XREDX/x2Ggl8qckGFGwcs1YNWKn5h0ImsS+Uy4+R9jYtEEiAyQnQbIB9rmS8hXkInWspuUVjdQDTcGw=="
     },
     "dsh-codex-connect": {
       "version": "0.2.0-alpha.10",
