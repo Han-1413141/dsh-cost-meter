@@ -118,6 +118,7 @@ jobs:
           node test/session-costs-browser.mjs
           node test/billing-export-browser.mjs
           node test/query-accounts-browser.mjs
+          node test/display-settings-browser.mjs --quick-hide-only
           node test/session-costs-performance-browser.mjs
           node test/statistics-cache.mjs
           node test/statistics-warmup.mjs

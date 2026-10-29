@@ -7,7 +7,11 @@ import { CLIENT_CONTRIBUTION } from './typert-codecs.mjs'
 
 const defaults = sanitizeConfig({})
 assert.equal(defaults.balance.officialChannelOnly, false)
+assert.equal(defaults.balance.quickHide, false)
+assert.equal(sanitizeConfig(applyConfigPatch(defaults, { balance: { quickHide: true } }).config).balance.quickHide, true)
 for (const value of ['true', 1, null, {}, []]) {
+  assert.ok(applyConfigPatch(defaults, { balance: { quickHide: value } }).errors.length)
+  assert.equal(sanitizeConfig({ balance: { quickHide: value } }).balance.quickHide, false)
   assert.ok(applyConfigPatch(defaults, { balance: { officialChannelOnly: value } }).errors.length)
   assert.equal(sanitizeConfig({ balance: { officialChannelOnly: value } }).balance.officialChannelOnly, false)
 }

@@ -9,6 +9,10 @@
     }
 
     const loadedPages = new WeakMap()
+    function loadWithDeadline(load, message) {
+      let timer
+      return Promise.race([Promise.resolve().then(load), new Promise((_, reject) => { timer = setTimeout(() => reject(Error(message)), 15000) })]).finally(() => clearTimeout(timer))
+    }
     const warmPage = (load, props) => load?.().then(page => { loadedPages.set(load, page); return page.prefetch?.(props) }).catch(() => {})
     function BillingAccuracyNote({ state }) {
       const meter = state?.billionContext
@@ -2228,7 +2232,12 @@
       }
       const pages = {}
       const loadPage = name => {
-        if (!pages[name]) pages[name] = require.async('./client.' + name + '.js').then(module => module.mount(ctx, store, resolveLocale, { formatMoneyUsd, displayCostOf, formatTokens, updateConfig: patch => api.updateConfig(patch) })).catch(error => { delete pages[name]; throw error })
+        if (!pages[name]) {
+          const task = loadWithDeadline(() => require.async('./client.' + name + '.js'), rpcT()('pageLoadTimeout'))
+            .then(module => module.mount(ctx, store, resolveLocale, { formatMoneyUsd, displayCostOf, formatTokens, updateConfig: patch => api.updateConfig(patch) }))
+            .catch(error => { if (pages[name] === task) delete pages[name]; throw error })
+          pages[name] = task
+        }
         return pages[name]
       }
       const api = {

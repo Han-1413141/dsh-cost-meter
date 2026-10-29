@@ -237,11 +237,15 @@ window.__ModuleLoader__.load({
       return entry
     }
     const cachedValue = (entry, revision) => entry.revision === revision ? entry.value : null
+    function requestWithDeadline(task, message, timeout = 15000) {
+      let timer
+      return Promise.race([task, new Promise((_, reject) => { timer = setTimeout(() => reject(Error(message)), timeout) })]).finally(() => clearTimeout(timer))
+    }
     function readRequest(api, method, query, revision, force = false) {
       const entry = requestEntry(api, method, query)
       if (entry.pending && entry.pendingRevision === revision) return entry.pending
       if (!force && cachedValue(entry, revision) && Date.now() - entry.at < 1000) return Promise.resolve(entry.value)
-      const task = (async () => api[method](query))().then(value => {
+      const task = requestWithDeadline((async () => api[method](query))(), api.timeoutMessage?.() ?? 'Statistics request timed out. Refresh to retry.').then(value => {
         if (entry.pending === task) Object.assign(entry, { value, revision, at: Date.now() })
         return value
       }).finally(() => { if (entry.pending === task) entry.pending = null })
@@ -300,7 +304,7 @@ window.__ModuleLoader__.load({
       .cm-context-compact>.cm-plan-head{margin-bottom:10px}.cm-context-compact .cm-context-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.cm-context-compact .cm-context-current,.cm-context-compact .cm-plan-last{min-width:0;container-type:inline-size}.cm-context-compact .cm-plan-last{border:0;border-left:1px solid var(--cmp-border);padding:0 0 0 18px;margin:0}.cm-context-compact .cm-plan-summary{margin:10px 0;padding:8px 0;gap:8px}.cm-context-compact .cm-plan-amount{font-size:18px}.cm-context-compact .cm-cost-chart{margin-top:10px;gap:6px 10px}.cm-context-compact .cm-cost-legend{grid-template-columns:1fr}.cm-context-compact .cm-plan-sub{font-size:10px}.cm-context-compact .cm-plan-total{margin-top:6px!important}.cm-context-compact .cm-plan-note{grid-column:1/-1}
       @container(max-width:740px){.cm-context-compact .cm-context-columns{grid-template-columns:1fr}.cm-context-compact .cm-plan-last{border:0;border-top:1px solid var(--cmp-border);padding:12px 0 0}}
 
-      .cm-stat-session{position:relative}.cm-stat-session>.cm-stat-panel-head{position:absolute;right:0;top:0;z-index:1}.cm-stat-session>.cm-stat-panel-head>p{display:none}.cm-session-tabs{padding-right:65px;display:flex;gap:4px;border-bottom:1px solid var(--cm-border);padding-bottom:8px;margin-bottom:10px}.cm-session-tabs .cm-stat-btn{border-color:transparent;padding:5px 12px;color:var(--cm-muted)}.cm-session-tabs .cm-stat-btn[aria-pressed=true]{background:var(--cm-surface);color:var(--cm-accent);box-shadow:none}.cm-stat-session .cm-stat-metrics{margin:4px 0 14px;padding:10px 0}.cm-stat-session .cm-stat-value{font-size:22px;margin:2px 0}.cm-stat-session .cm-stat-panel-head{margin-bottom:4px}.cm-stat-session .cm-spend{margin:10px 0}.cm-stat-session .cm-stat-chart{height:90px}.cm-stat-secondary{font-size:12px;color:var(--cm-muted)}.cm-stat-secondary>summary{padding:8px 0}.cm-stat-session .cm-spend-card{padding:14px}.cm-stat-session .cm-spend-card .cm-cost-chart{margin-top:8px;gap:6px 12px}.cm-stat-session .cm-spend-card .cm-cost-key{padding:3px 4px}.cm-stat-session .cm-cache-compare{padding-top:10px;margin-top:10px}.cm-stat-session .cm-cache-compare h3{margin-bottom:6px}.cm-stat-session .cm-cache-compare>div{margin-top:6px}.cm-stat-session .cm-cost-inspect{font-size:10px}.cm-stat-session .cm-cost-key-amount{margin-top:1px}
+      .cm-stat-session{position:relative}.cm-session-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--cm-border);padding-bottom:8px;margin-bottom:10px}.cm-session-toolbar>.cm-stat-controls{margin:0;align-items:center;gap:8px;margin-left:auto}.cm-session-toolbar>.cm-session-tabs{border:0;padding:0;margin:0}.cm-session-tabs{display:flex;gap:4px;border-bottom:1px solid var(--cm-border);padding-bottom:8px;margin-bottom:10px}.cm-session-tabs .cm-stat-btn{border-color:transparent;padding:5px 12px;color:var(--cm-muted)}.cm-session-tabs .cm-stat-btn[aria-pressed=true]{background:var(--cm-surface);color:var(--cm-accent);box-shadow:none}.cm-stat-session .cm-stat-metrics{margin:4px 0 14px;padding:10px 0}.cm-stat-session .cm-stat-value{font-size:22px;margin:2px 0}.cm-stat-session .cm-stat-panel-head{margin-bottom:4px}.cm-stat-session .cm-spend{margin:10px 0}.cm-stat-session .cm-stat-chart{height:90px}.cm-stat-secondary{font-size:12px;color:var(--cm-muted)}.cm-stat-secondary>summary{padding:8px 0}.cm-stat-session .cm-spend-card{padding:14px}.cm-stat-session .cm-spend-card .cm-cost-chart{margin-top:8px;gap:6px 12px}.cm-stat-session .cm-spend-card .cm-cost-key{padding:3px 4px}.cm-stat-session .cm-cache-compare{padding-top:10px;margin-top:10px}.cm-stat-session .cm-cache-compare h3{margin-bottom:6px}.cm-stat-session .cm-cache-compare>div{margin-top:6px}.cm-stat-session .cm-cost-inspect{font-size:10px}.cm-stat-session .cm-cost-key-amount{margin-top:1px}
 
       .cm-spend{margin:20px 0}.cm-spend-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.cm-spend-card{border:1px solid var(--cmp-border);border-radius:12px;padding:18px;container-type:inline-size;min-width:0}.cm-spend-card .cm-cost-legend{grid-template-columns:1fr}.cm-spend-card .cm-cost-chart{margin-bottom:0}.cm-spend-card h3{font-weight:500}.cm-cache-compare{border-top:1px solid var(--cmp-border);padding-top:16px;margin-top:20px}.cm-cache-compare h3{font-size:12px;margin-bottom:12px}.cm-cache-compare>div{margin-top:10px}.cm-spend>.cm-plan-sub{margin-top:10px}.cm-cost-key-amount{display:block;font-size:10px;font-weight:400;margin-top:3px;color:var(--cmp-muted);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.cm-cost-key-label{overflow-wrap:anywhere}.cm-call-share{display:inline-block;border-radius:5px;padding:1px 7px;margin-left:8px;background:var(--cm-surface);color:var(--cm-accent);font-size:11px;font-variant-numeric:tabular-nums}.cm-plan .cm-cost-key[data-active=true]{background:var(--dsw-alias-interactive-bg-hover,#f2f5fc)}
       @container(max-width:740px){.cm-spend-grid{grid-template-columns:1fr}}
@@ -1094,7 +1098,7 @@ window.__ModuleLoader__.load({
             shown.length < matching ? el('div', { className: 'cm-step-more' }, button(result.loading ? text('读取中…', 'Loading…') : text('展开更多步骤', 'Show more steps'), () => { setLimit(n => n + 20); if (limit >= loaded.length) setOffset(loaded.length) }, { disabled: result.loading })) : null) : null))
     }
 
-    function SessionDetail({ api, query, revision, money, formatTokens, text, overview = false, children }) {
+    function SessionDetail({ api, query, revision, money, formatTokens, text, overview = false, actions, children }) {
       const [offset, setOffset] = useState(0), [selected, setSelected] = useState(-1), [turnOffset, setTurnOffset] = useState(0)
       const [view, setView] = useState('summary'), [callSectionOpen, setCallSectionOpen] = useState(false), [callPopup, setCallPopup] = useState(null)
       const [expandedTurn, setExpandedTurn] = useState(null), [shareMetric, setShareMetric] = useState('cost'), [retry, setRetry] = useState(0)
@@ -1118,6 +1122,9 @@ window.__ModuleLoader__.load({
       const names = { input: text('非缓存输入', 'Uncached input'), output: text('输出', 'Output'), cacheRead: text('缓存读取', 'Cache read'), cacheWrite: text('缓存写入', 'Cache write'), reasoning: text('推理', 'Reasoning'), ...requestNames(text) }
       const kinds = { model: text('模型调用', 'Model call'), compaction: text('上下文压缩', 'Compaction'), search: text('原生搜索', 'Native search'), fetch: text('网页抓取', 'Web fetch') }
       const turnName = turn => turn == null ? text('未标明轮次', 'Turn not recorded') : text('轮次 ', 'Turn ') + turn
+      const toolbar = overview ? el('div', { className: 'cm-session-toolbar' },
+        el('nav', { className: 'cm-session-tabs', 'aria-label': text('费用视图', 'Cost views') }, ...[['summary', text('费用概览', 'Overview')], ['context', text('费用明细', 'Cost details')]].map(([id, label]) => button(label, () => { setView(id); setSelected(-1); setCallSectionOpen(false) }, { key: id, 'aria-pressed': view === id }))),
+        el('div', { className: 'cm-stat-controls' }, actions)) : null
       if (showsPlaceholder(result) && !overview) return result.loading
         ? el('p', { className: 'cm-stat-empty', role: 'status' }, text('正在读取本对话的用量明细…', 'Loading this conversation’s usage records…'))
         : errorNotice(result.error)
@@ -1128,7 +1135,7 @@ window.__ModuleLoader__.load({
       const staleError = result.failed || detail?.refreshFailed
         ? el('div', null, errorNotice(result.error || text('后台更新未完成', 'Background refresh incomplete')), button(text('重试', 'Retry'), () => setRetry(n => n + 1)))
         : null
-      if (!detail.found) return el(Fragment, null, staleError, el('p', { className: 'cm-stat-note' }, text('没有可用的调用日志；缺失明细不代表零费用。', 'Call logs are unavailable; missing details do not mean zero cost.')), children)
+      if (!detail.found) return el(Fragment, null, toolbar, staleError, el('p', { className: 'cm-stat-note' }, text('没有可用的调用日志；缺失明细不代表零费用。', 'Call logs are unavailable; missing details do not mean zero cost.')), children)
       const agentName = id => !id || id === query.sessionId ? text('主会话', 'Main conversation') : text('子代理 ', 'Subagent ') + ((detail.agents ?? []).find(row => row.id === id)?.title || id).slice(0, 80)
       const turnKey = row => JSON.stringify([row.sessionId || query.sessionId, row.turn])
       const turnLabel = row => ((detail.agents?.length ?? 0) > 1 ? agentName(row.sessionId) + ' · ' : '') + turnName(row.turn)
@@ -1181,7 +1188,7 @@ window.__ModuleLoader__.load({
           el('td', null, [row.input, row.cacheRead + row.cacheWrite, row.output].map(formatTokens).join(' / ')), el('td', null, money(row.apiCost) + (row.unpriced ? ' + ?' : '')), el('td', null, money(Math.max(0, row.cost - row.apiCost)) + (row.unpriced ? ' + ?' : '')))))))
       return el('section', { className: 'cm-stat-panel' }, el('style', null, contextCostsCss + spendCss),
         callPopup != null ? el(CallPopup, { key: [query.sessionId, basis, callPopup.index].join(':'), api, sessionId: query.sessionId, revision, row: callPopup, money, text, names, onClose: () => setCallPopup(null) }) : null,
-        overview ? el('nav', { className: 'cm-session-tabs', 'aria-label': text('费用视图', 'Cost views') }, ...[['summary', text('费用概览', 'Overview')], ['context', text('费用明细', 'Cost details')]].map(([id, label]) => button(label, () => { setView(id); setSelected(-1); setCallSectionOpen(false) }, { key: id, 'aria-pressed': view === id }))) : null,
+        toolbar,
         overview ? el('div', { className: 'cm-stat-metrics' }, ...[
           [basis === 'total' ? text('API + Plan 等值', 'API + Plan equivalent') : basis === 'plan' ? text('Plan 等值', 'Plan equivalent') : text('API 费用', 'API cost'), money(cost) + (parts.some(row => row.unpriced) ? ' + ?' : ''), text('按本对话调用日志估算', 'Estimated from this conversation’s call logs')],
           [text('调用次数', 'Calls'), detail.totalCalls.toLocaleString(), (detail.agents?.length ?? 0) > 1 ? text('包含子代理', 'Includes subagents') : text('本会话', 'This conversation')],
@@ -1348,8 +1355,8 @@ window.__ModuleLoader__.load({
       const query = { sessionId, from: '', to: '', provider: '', model: '', basis, offset: 0 }
       return el('div', { className: 'cm-stat cm-stat-session', 'data-session-id': sessionId }, el('style', null, css),
         compressionBillingNotice(text, state.billionContext),
-        el('div', { className: 'cm-stat-panel-head' }, el('p', { className: 'cm-stat-sub' }, text('当前对话 · 全部调用', 'This conversation · all calls')), el('div', { className: 'cm-stat-controls' }, el(ExportEntry, { api, query, text }), button(text('刷新', 'Refresh'), () => setRevision(n => n + 1)))),
-        el(SessionDetail, { key: sessionId + ':' + basis, api, query, revision: refreshKey, money, formatTokens, text, overview: true },
+        el(SessionDetail, { key: sessionId + ':' + basis, api, query, revision: refreshKey, money, formatTokens, text, overview: true,
+          actions: el(Fragment, null, el(ExportEntry, { api, query, text }), button(text('刷新', 'Refresh'), () => setRevision(n => n + 1))) },
           el(ContextCosts, { key: sessionId, api, sessionId, revision: refreshKey, money, text, compact: true, expanded: true })),
         el('details', { className: 'cm-session-options' }, el('summary', null, text('显示与联动设置', 'Display and integration settings')),
           el('div', { className: 'cm-stat-controls' }, el('label', null, text('计费口径', 'Cost basis'), el('select', { value: basis, disabled: preference.saving, onChange: event => preference.choose(event.target.value) }, ...[['api', text('API 费用', 'API cost')], ['plan', text('Plan 等值', 'Plan equivalent')], ['total', text('API + Plan 等值', 'API + Plan equivalent')]].map(([value, label]) => el('option', { key: value, value }, label))))),
@@ -1440,8 +1447,15 @@ window.__ModuleLoader__.load({
     }
     async function mount(ctx, source, resolveLocale) {
       modelLabels = () => source?.getSnapshot?.()?.state?.modelLabels ?? {}
-      const getLocale = typeof source === 'function' ? source : () => source && resolveLocale ? resolveLocale(source.getSnapshot().state?.config ?? { activeLocale: source.getSnapshot().locale }) : 'en'
-      const unmount = await ctx.get('remote').$mount(CONTRIBUTION)
+      const getLocale = typeof source === 'function' ? source : () => {
+        const snapshot = source?.getSnapshot?.()
+        return resolveLocale ? resolveLocale(snapshot?.state?.config ?? source?.config ?? { activeLocale: snapshot?.locale }) : 'en'
+      }
+      const timeoutMessage = () => getLocale() === 'zh' ? '读取费用记录超时，请刷新重试。' : 'Statistics request timed out. Refresh to retry.'
+      let abandoned = false
+      const pendingMount = Promise.resolve().then(() => ctx.get('remote').$mount(CONTRIBUTION)).then(unmount => { if (abandoned) unmount(); return unmount })
+      let unmount
+      try { unmount = await requestWithDeadline(pendingMount, timeoutMessage()) } catch (error) { abandoned = true; throw error }
       ctx.effect(() => () => unmount(), 'cost-meter: statistics contribution')
       const remote = ctx.get('remote.costMeter')
       const api = Object.fromEntries(['getBillingExport', 'getBillingStatistics', 'getSessionBilling', 'getTurnInspection', 'getCallInspection', 'getContextCosts', 'getSessionTrajectory'].map(method => [method, async query => {
@@ -1451,6 +1465,7 @@ window.__ModuleLoader__.load({
         if (!result?.ok) throw new Error(result?.error?.message || 'Statistics request failed')
         return ({ getBillingExport: parseExport, getBillingStatistics: parseStatistics, getSessionBilling: parseDetail, getTurnInspection: parseInspection, getCallInspection: parseCallInspection, getContextCosts: parseContextCosts, getSessionTrajectory: parseTrajectory }[method])(result.value)
       }]))
+      api.timeoutMessage = timeoutMessage
       api.saveStatisticsBasis = async statisticsBasis => {
         const result = await remote.updateConfig({ statisticsBasis })
         if (!result?.ok || result.value?.config?.statisticsBasis !== statisticsBasis) throw new Error('Cost basis setting failed')

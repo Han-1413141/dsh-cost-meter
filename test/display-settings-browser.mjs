@@ -15,6 +15,7 @@ import { checkTodayAndOrder } from './today-sidebar-order-checks.mjs'
 import { checkDisplayPreview } from './display-preview-checks.mjs'
 import { checkFeedbackSidebar } from './feedback-sidebar-checks.mjs'
 import { checkSidebarTextOnly } from './sidebar-text-only-checks.mjs'
+import { checkBalanceQuickHide } from './balance-quick-hide-checks.mjs'
 
 const modules = resolve(process.env.DSH_TEST_UI_MODULES ?? '.tmp-pr240-host/node_modules')
 const req = createRequire(join(modules, '__display.cjs'))
@@ -49,6 +50,7 @@ window.changeLocale=locale=>window.setConfig({locale});window.setFixtureState=pa
 const api={refreshCodingPlan:async id=>{window.planRefreshes=(window.planRefreshes??0)+1;await new Promise(done=>setTimeout(done,50))},refreshBalance:async()=>{window.balanceRefreshes=(window.balanceRefreshes??0)+1;await new Promise(done=>setTimeout(done,50))},loadDisplay:async()=>Display,loadCommunity:async()=>()=>null,loadPricing:async()=>()=>null,loadStatistics:async()=>()=>null,updateConfig:async patch=>{
   if(window.failSave)throw Error('synthetic save failure');const config=await window.saveConfig(patch);window.patches.push(patch);state={...state,config:parseConfig(config,'config')};return publish()}};
 window.configure=patch=>api.updateConfig(patch);
+api.refreshCustomBalance=async()=>{window.customBalanceRefreshes=(window.customBalanceRefreshes??0)+1};
 window.orderUI.mount({effect:()=>{}},{getSnapshot:()=>({state}),subscribe:fn=>{window.listeners.add(fn);return()=>window.listeners.delete(fn)}},config=>config?.locale??'zh',{updateConfig:patch=>api.updateConfig(patch)});
 function useCost(){const[value,setValue]=React.useState(state);React.useEffect(()=>{window.listeners.add(setValue);return()=>window.listeners.delete(setValue)},[]);return{state:value,status:'ready'}}
 function FixturePreview(){return window.mainUI.preview.renderSidebarFooter(useCost().state,true,undefined,true)}
@@ -91,7 +93,11 @@ await page.exposeFunction('saveConfig', patch => {
 })
 try {
   await page.goto(url)
-  if (process.argv.includes('--feedback-only')) {
+  if (process.argv.includes('--quick-hide-only')) {
+    const result = await checkBalanceQuickHide(page, output)
+    assert.deepEqual(errors, []); assert.deepEqual(external, [])
+    console.log('[ok] balance quick hide ' + JSON.stringify(result))
+  } else if (process.argv.includes('--feedback-only')) {
     const result = await checkFeedbackSidebar(page, output)
     assert.deepEqual(errors, []); assert.deepEqual(external, [])
     console.log('[ok] feedback ' + JSON.stringify(result))

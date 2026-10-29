@@ -6,7 +6,7 @@
 
 **DeepSeek Harness 会话费用统计插件(界面中英双语)**
 
-[![version](https://img.shields.io/badge/version-1.9.44-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.9.45-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm)](https://www.npmjs.com/package/dsh-cost-meter)
 [![dshfind](https://dshfind.com/api/badge/Han-1413141/dsh-cost-meter?metric=downloads&lang=zh)](https://dshfind.com/zh/plugins/Han-1413141/dsh-cost-meter?ref=badge)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -16,11 +16,11 @@
 
 </div>
 
-**v1.9.44** 修复峰谷游标，更新 32 条模型目录记录，补入 Kimi K3.1 Pro / 高速版、MiniMax M3.1 Flash，并更新 Kimi 新套餐与 MiniMax M Plan。
+**v1.9.45** 新增 OpenDesign 网页 Cookie 额度查询与可选的余额快速隐藏，费用明细加载超时可重试，修复按钮错位，并改进 Anthropic 额度标签、重置时间和告警。
 
 **宿主要求：DSH 0.2.0 起支持** · 适配目标 **0.2.1-rc.2**（npm `next`）。完整声明、历史记录与安装排障见下方展开项。
 
-更新说明：[v1.9.44](docs/update-notes-1.9.44.md#中文)。更新后完全重启 DSH。
+更新说明：[v1.9.45](docs/update-notes-1.9.45.md#中文)。更新后完全重启 DSH。
 
 ![宣传图](docs/promo.png)
 
@@ -356,22 +356,22 @@ Node.js 20 请改用 `npm install -g pnpm@10`。版本要求见 [pnpm 官方安�
 dsh plugin --profile web add dsh-cost-meter
 ```
 
-**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.9.44`**,建议先下载审阅再运行):
+**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.9.45`**,建议先下载审阅再运行):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.44/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.45/install.ps1 | iex
 ```
 
 **或直接命令行**(机器上需已有 pnpm 与 git;同样固定到 tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.44
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.45
 ```
 
 没有 git 时可用 GitHub tag 打包直链:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.9.44.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.9.45.tar.gz
 ```
 
 安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):
@@ -436,7 +436,7 @@ DSH **0.2.1-rc.1 / 0.2.1-rc.2** 宿主自带 pnpm **11.28.5**，默认启用内�
 
    ```yaml
    minimumReleaseAgeExclude:
-     - dsh-cost-meter@1.9.44
+     - dsh-cost-meter@1.9.45
    ```
 
 3. 仅本次操作用 CLI 透传 pnpm 参数：`dsh plugin --profile desktop remove dsh-cost-meter --config.minimum-release-age=0`；若只是 lockfile 校验阶段失败，可改用 `--trust-lockfile`。这两个参数已在本机 pnpm 11.28.5 临时 Profile 上实测可用。

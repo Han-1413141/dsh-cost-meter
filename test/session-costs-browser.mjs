@@ -81,6 +81,17 @@ try {
   assert.equal(await page.locator('dialog').count(),0,'hover prepares data before opening a dialog')
   await page.locator('.cm-stat-entry').click()
   await page.locator('.cm-stat-metrics').waitFor()
+  for (const width of [1280, 460, 360]) {
+    await page.setViewportSize({ width, height: 900 })
+    const geometry = await page.locator('.cm-session-toolbar').evaluate(toolbar => {
+      const tabs = toolbar.querySelector('nav').getBoundingClientRect(), controls = toolbar.querySelector('.cm-stat-controls').getBoundingClientRect(), box = toolbar.getBoundingClientRect()
+      return { tabs: { top: tabs.top, bottom: tabs.bottom, right: tabs.right }, controls: { top: controls.top, bottom: controls.bottom, left: controls.left, right: controls.right }, box: { bottom: box.bottom, right: box.right } }
+    })
+    assert.ok(geometry.controls.bottom <= geometry.box.bottom && geometry.controls.right <= geometry.box.right + 1, 'actions stay within the toolbar and above the separator')
+    assert.ok(geometry.controls.top >= geometry.tabs.bottom || geometry.controls.left >= geometry.tabs.right, 'tabs and actions never overlap')
+    if (width === 1280) assert.ok(Math.abs((geometry.tabs.top + geometry.tabs.bottom - geometry.controls.top - geometry.controls.bottom) / 2) <= 1, '#438 controls align vertically with tabs')
+  }
+  await page.setViewportSize({ width: 1280, height: 900 })
   assert.equal(await page.getByText('正在读取本对话的用量明细…',{exact:true}).count(),0,'preloaded data is present on opening')
   await page.evaluate(()=>{window.rpcDelay=0})
   await page.getByRole('button',{name:'归类占比',exact:true}).click()
@@ -271,7 +282,7 @@ try {
   await page.screenshot({path:join(output,'04-theme-popup-opacity.png')})
   await page.locator('.cm-stat-dialog-body').evaluate(n=>{n.scrollTop=0})
   await page.evaluate(()=>{window.refreshFails=true})
-  await page.locator('.cm-stat-session>.cm-stat-panel-head').getByRole('button',{name:'刷新',exact:true}).click()
+  await page.locator('.cm-session-toolbar').getByRole('button',{name:'刷新',exact:true}).click()
   await page.getByRole('alert').filter({hasText:'offline fixture'}).waitFor()
   assert.match(await page.locator('.cm-stat-metrics').innerText(),/0\.027104/,'failed refresh preserves current results')
   await page.keyboard.press('Escape'); assert.equal(await page.locator('dialog[open]').count(),0)

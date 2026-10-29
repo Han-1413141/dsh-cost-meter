@@ -22,7 +22,7 @@ for (const [id, meta] of Object.entries(CODING_PLAN_PROVIDERS)) {
 assert.equal(secretRefOf('codingPlans.volcengine.sk'), CODING_PLAN_PROVIDERS.volcengine.credentialEnvsSecret[0])
 
 const root = mkdtempSync(join(tmpdir(), 'cm-opendesign-credentials-'))
-const envNames = ['DSH_HOME', 'USERPROFILE', 'HOME', 'XDG_CONFIG_HOME', 'OPENDESIGN_CONTROL_KEY', 'VELA_CONTROL_KEY']
+const envNames = ['DSH_HOME', 'USERPROFILE', 'HOME', 'XDG_CONFIG_HOME', 'OPENDESIGN_CONTROL_KEY', 'VELA_CONTROL_KEY', 'OPENDESIGN_COOKIE']
 const saved = Object.fromEntries(envNames.map(name => [name, process.env[name]]))
 const originalFetch = globalThis.fetch, disposers = [], requests = [], writes = []
 const secrets = new Map(), first = 'TEST_OD_FIRST', second = 'TEST_OD_SECOND', alias = 'TEST_VELA_ALIAS', legacy = 'TEST_OD_LEGACY'
@@ -204,8 +204,33 @@ try {
     console.log('[ok] #317: real DSH local credential provider saves, resolves, queries and removes the Control Key in an isolated profile')
   }
 
+  // The same write-only editor and both wire codecs also support browser Cookies.
+  noStore = false; delete process.env.VELA_CONTROL_KEY; secrets.delete('VELA_CONTROL_KEY')
+  const cookie = 'session=SYNTHETIC_OD_COOKIE', cookieReads = []
+  globalThis.fetch = async (url, init) => {
+    assert.equal(init.headers.cookie, cookie); assert.equal(init.headers.authorization, undefined)
+    assert.equal(init.method, 'GET'); assert.equal(init.redirect, 'error'); cookieReads.push(url)
+    if (url.endsWith('/workspaces/current')) return Response.json({ activeWorkspaceId: 'ws-cookie' })
+    assert.equal(init.headers['x-vela-workspace-id'], 'ws-cookie')
+    if (url.endsWith('/wallet/balance')) return Response.json({ workspaceId: 'ws-cookie', workspaceMemberId: 'cookie-member', billingScopeVersion: 2, balanceUsd: '3.45' })
+    assert.ok(url.endsWith('/billing/coding-plan-usage'))
+    return Response.json({ workspaceId: 'ws-cookie', workspaceMemberId: 'cookie-member', eligible: true, windows: [
+      { policyId: 'cookie-window', durationSeconds: 18000, usedCredits: '10', remainingCredits: '90', limitCredits: '100', resetsAt: null },
+    ] })
+  }
+  assert.equal((await service.setCredential(target, cookie)).ok, true)
+  await service.updateConfig({ codingPlans: { opendesign: { enabled: true, workspaceId: '' } } })
+  const cookieState = (await service.refreshCodingPlan('opendesign')).state
+  assert.equal(publicState(cookieState).windows.fiveHour.percent, 10)
+  assert.equal(cookieState.codingPlans.opendesign.windows.balance.text, '$3.45')
+  assert.ok(cookieReads.some(url => url.endsWith('/workspaces/current')))
+  assert.ok(!JSON.stringify(cookieState).includes(cookie))
+  await service.updateConfig({ codingPlans: { opendesign: { enabled: false, workspaceId: 'ws-second' } } })
+  await service.clearCredential(target)
+
   for (const cleanup of disposers.splice(0).reverse()) await cleanup()
   const disk = readFileSync(path, 'utf8')
+  assert.ok(!disk.includes(cookie), 'Cookie stays out of the ledger')
   for (const value of [first, second, alias, legacy]) assert.ok(!disk.includes(value), 'no key in the ledger')
   const reopened = Ledger.load(path)
   assert.equal(reopened.config.codingPlans.opendesign.workspaceId, 'ws-second')

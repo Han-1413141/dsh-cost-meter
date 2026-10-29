@@ -18,6 +18,7 @@ const captured = new Error('contribution captured')
 await assert.rejects(client.apply({ remote: { $mount: async value => { contribution = value; throw captured } } }), error => error === captured)
 let chunkFactory
 vm.runInNewContext(readFileSync(new URL('../lib/client.statistics.js', import.meta.url), 'utf8'), {
+  setTimeout, clearTimeout,
   window: { __ModuleLoader__: { load: module => { chunkFactory = module.factory } } },
 })
 const statistics = chunkFactory(() => ({}))

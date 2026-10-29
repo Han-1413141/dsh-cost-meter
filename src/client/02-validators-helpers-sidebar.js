@@ -253,6 +253,7 @@
           showProgressBar: v.balance?.showProgressBar === true,
           showSource: v.balance?.showSource === true,
           officialChannelOnly: v.balance?.officialChannelOnly === true,
+          quickHide: v.balance?.quickHide === true,
           budgetCap: typeof v.balance?.budgetCap === 'number' && Number.isFinite(v.balance.budgetCap) && v.balance.budgetCap > 0 ? v.balance.budgetCap : null,
           ...(Object.hasOwn(v.balance ?? {}, 'clickHintSeen') ? { clickHintSeen: v.balance?.clickHintSeen === true } : {}),
         },
@@ -1940,21 +1941,49 @@
         el('path', { d: 'M8 4H4a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-4M11 3h6v6M9 11l8-8' })))
     }
 
+    const balancePrivacy = makeStore({})
+    function useBalancePrivacy(config, id, t) {
+      const read = () => {
+        const current = balancePrivacy.getSnapshot()[id]
+        if (current !== undefined) return current
+        try { return window.localStorage?.getItem('cm.balance.hidden.' + id) === '1' } catch { return false }
+      }
+      const [value, setValue] = useState(read)
+      useEffect(() => {
+        const update = () => setValue(read())
+        const dispose = balancePrivacy.subscribe(update)
+        update()
+        return dispose
+      }, [id])
+      const enabled = config.balance?.quickHide === true, hidden = enabled && value
+      const toggle = event => {
+        event.stopPropagation()
+        const next = !read()
+        try { window.localStorage?.setItem('cm.balance.hidden.' + id, next ? '1' : '0') } catch {}
+        balancePrivacy.set({ ...balancePrivacy.getSnapshot(), [id]: next })
+        setValue(next)
+      }
+      return { hidden, label: caption => enabled ? el('span', { role: 'button', tabIndex: 0, 'aria-pressed': hidden, title: t('balanceToggle'), onClick: toggle,
+        onKeyDown: event => { event.stopPropagation(); if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(event) } } }, caption) : caption,
+        tip: [t('balanceHidden'), t('balanceToggle')].join(' · ') }
+    }
+
     function BalanceRowContent(props) {
       const { state, wide, api } = props
       const balance = state.balance
       const t = makeT(resolveLocale(state.config))
       const refresh = useClickRefresh(api ? () => api.refreshBalance() : null)
+      const privacy = useBalancePrivacy(state.config, 'official', t)
       if (!balance || balance.status === 'off') return null
       if (balance.status === 'error') {
         return el(Tooltip, { portal: true, label: [t('balanceQueryFailed', { message: balance.message || t('unknownError') }), ...clickRefreshTipLines(t, refresh)].join('; '), side: 'right', delayMs: 300 },
           el('div', { 'data-cm-display': 'balance', className: 'cm-foot clickable' + (wide ? '' : ' cm-foot-rail') + ' cm-bal-err' + (refresh.busy ? ' busy' : ''), ...clickableRefreshProps(refresh.busy, refresh.run) },
             wide ? el(Fragment, null, balanceLabel(t, state.config), ' ', el('span', { className: 'cm-num' }, t('queryFailed'))) : '⚠'))
       }
-      const detail = officialBalanceTooltip(t, balance, state.config, state.reconcile, refresh)
+      const detail = privacy.hidden ? privacy.tip : officialBalanceTooltip(t, balance, state.config, state.reconcile, refresh)
       return el(Tooltip, { portal: true, label: detail, side: 'right', delayMs: 300 },
         el('div', { 'data-cm-display': 'balance', className: 'cm-foot clickable' + (wide ? '' : ' cm-foot-rail') + (refresh.busy ? ' busy' : ''), ...clickableRefreshProps(refresh.busy, refresh.run) },
-          wide ? el(Fragment, null, el('span', { className: 'cm-balance-name' }, balanceLabel(t, state.config), rechargeLinkEl(t)), el('span', { className: 'cm-num cm-bal-amt' }, formatBalanceMoney(balance.totalBalance, state.config, balance.currency)), state.reconcile?.ok === false ? ' ⚠' : '') : el(WalletIcon, { size: 16 })))
+          wide ? el(Fragment, null, el('span', { className: 'cm-balance-name' }, privacy.label(balanceLabel(t, state.config)), rechargeLinkEl(t)), el('span', { className: 'cm-num cm-bal-amt' }, privacy.hidden ? '••••' : formatBalanceMoney(balance.totalBalance, state.config, balance.currency)), state.reconcile?.ok === false ? ' ⚠' : '') : el(WalletIcon, { size: 16 })))
     }
 
     function officialBalanceVisible(state, provider, preview) {
@@ -1979,18 +2008,19 @@
       const balance = state.balance
       const t = makeT(resolveLocale(config))
       const refresh = useClickRefresh(api ? () => api.refreshBalance() : null)
+      const privacy = useBalancePrivacy(config, 'official', t)
       if (!balance || balance.status !== 'ok') return null
       const segments = segmentsForOfficialBalance(state, config)
-      const remaining = formatBalanceMoney(balance.totalBalance, config, balance.currency)
-      const detail = officialBalanceTooltip(t, balance, config, state.reconcile, refresh)
+      const remaining = privacy.hidden ? '••••' : formatBalanceMoney(balance.totalBalance, config, balance.currency)
+      const detail = privacy.hidden ? privacy.tip : officialBalanceTooltip(t, balance, config, state.reconcile, refresh)
       const body = el(Fragment, null,
         el('div', { className: 'cm-bbox-head' },
-          el('span', { className: 'cm-balance-name' }, el('span', { className: 'cm-bbox-label' }, balanceLabel(t, config)), rechargeLinkEl(t)),
+          el('span', { className: 'cm-balance-name' }, el('span', { className: 'cm-bbox-label' }, privacy.label(balanceLabel(t, config))), rechargeLinkEl(t)),
           el('span', { className: 'cm-bbox-pct cm-num cm-bal-amt' }, remaining)),
-        el(BalanceBar, { segments, direction: barDirectionOf(config, 'balance') }))
+        privacy.hidden ? null : el(BalanceBar, { segments, direction: barDirectionOf(config, 'balance') }))
       return el(Tooltip, { portal: true, label: detail, side: 'right', delayMs: 300 },
         el('div', { 'data-cm-display': 'balance', className: 'cm-bbox clickable' + (wide ? '' : ' rail') + (refresh.busy ? ' busy' : ''), ...clickableRefreshProps(refresh.busy, refresh.run) },
-          wide ? body : el('div', { className: 'cm-bbox-rail cm-num' }, Math.round(segments.remainingPct) + '%')))
+          wide ? body : el('div', { className: 'cm-bbox-rail cm-num' }, privacy.hidden ? '••••' : Math.round(segments.remainingPct) + '%')))
     }
 
     function resolveCustomBalanceLabel(cfg, locale) {
@@ -2056,18 +2086,18 @@
       return capLine ? base + ' · ' + capLine : base
     }
 
-    function customBalanceBoxBody(state, config, t, custom, entryCfg) {
+    function customBalanceBoxBody(state, config, t, custom, entryCfg, privacy) {
       const label = resolveCustomBalanceLabel(entryCfg ?? config.customBalance ?? {}, resolveLocale(config))
-      const remaining = formatCustomBalanceMoney(custom.remaining, config, custom, entryCfg)
+      const remaining = privacy?.hidden ? '••••' : formatCustomBalanceMoney(custom.remaining, config, custom, entryCfg)
       const segments = segmentsForCustomBalance(state, config, custom, entryCfg)
       return {
         level: 'ok',
-        rail: Math.round(segments.remainingPct) + '%',
+        rail: privacy?.hidden ? '••••' : Math.round(segments.remainingPct) + '%',
         body: el(Fragment, null,
           el('div', { className: 'cm-bbox-head' },
-            el('span', { className: 'cm-balance-name' }, el('span', { className: 'cm-bbox-label' }, label), rechargeLinkEl(t, entryCfg?.dashboardUrl || '', label)),
+            el('span', { className: 'cm-balance-name' }, el('span', { className: 'cm-bbox-label' }, privacy ? privacy.label(label) : label), rechargeLinkEl(t, entryCfg?.dashboardUrl || '', label)),
             el('span', { className: 'cm-bbox-pct cm-num cm-bal-amt' }, remaining)),
-          el(BalanceBar, { segments, direction: barDirectionOf(config, 'balance') })),
+          privacy?.hidden ? null : el(BalanceBar, { segments, direction: barDirectionOf(config, 'balance') })),
       }
     }
 
@@ -2107,11 +2137,12 @@
     function CustomBalanceEntryBox(props) {
       const { state, wide, api, t, index, entry, snapshot } = props
       const config = state.config
+      const privacy = useBalancePrivacy(config, 'custom-' + index, t)
+      const refresh = useClickRefresh(api ? () => api.refreshCustomBalance(index) : null)
       // 无快照(尚未查询)不渲染图框;error/off 状态由行组件渲染提示。
       if (snapshot === null || snapshot === undefined || snapshot.status !== 'ok') return null
-      const refresh = useClickRefresh(api ? () => api.refreshCustomBalance(index) : null)
-      const view = customBalanceBoxBody(state, config, t, snapshot, entry)
-      const detail = [customBalanceDetailText(snapshot, config, t, state, entry), ...clickRefreshTipLines(t, refresh)].join(' · ')
+      const view = customBalanceBoxBody(state, config, t, snapshot, entry, privacy)
+      const detail = privacy.hidden ? privacy.tip : [customBalanceDetailText(snapshot, config, t, state, entry), ...clickRefreshTipLines(t, refresh)].join(' · ')
       return el(Tooltip, { portal: true, label: detail, side: 'right', delayMs: 300 },
         el('div', { 'data-cm-display': 'customBalance', className: 'cm-bbox clickable' + (view.level === 'ok' ? '' : ' ' + view.level) + (wide ? '' : ' rail') + (refresh.busy ? ' busy' : ''), ...clickableRefreshProps(refresh.busy, refresh.run) },
           wide ? view.body : el('div', { className: 'cm-bbox-rail cm-num' }, view.rail)))
@@ -2130,20 +2161,21 @@
     function CustomBalanceEntryRow(props) {
       const { state, wide, api, t, index, entry, snapshot } = props
       const config = state.config
+      const privacy = useBalancePrivacy(config, 'custom-' + index, t)
       const custom = snapshot ?? emptyCustomSnapshot(index)
-      if (custom.status === 'off') return null
       const refresh = useClickRefresh(api ? () => api.refreshCustomBalance(index) : null)
+      if (custom.status === 'off') return null
       const label = resolveCustomBalanceLabel(entry ?? config.customBalance ?? {}, resolveLocale(config))
       if (custom.status === 'error') {
         return el(Tooltip, { portal: true, label: [custom.message || t('unknownError'), ...clickRefreshTipLines(t, refresh)].join('; '), side: 'right', delayMs: 300 },
           el('div', { 'data-cm-display': 'customBalance', className: 'cm-foot clickable' + (wide ? '' : ' cm-foot-rail') + ' cm-bal-err' + (refresh.busy ? ' busy' : ''), ...clickableRefreshProps(refresh.busy, refresh.run) },
             wide ? el(Fragment, null, el('span', { className: 'cm-balance-name' }, el('span', { className: 'cm-bal-label', title: label }, label), rechargeLinkEl(t, entry?.dashboardUrl || '', label)), el('span', { className: 'cm-num cm-bal-amt' }, t('queryFailed'))) : '⚠'))
       }
-      const amount = formatCustomBalanceMoney(custom.remaining, config, custom, entry)
-      const detail = [customBalanceDetailText(custom, config, t, state, entry), ...clickRefreshTipLines(t, refresh)].join(' · ')
+      const amount = privacy.hidden ? '••••' : formatCustomBalanceMoney(custom.remaining, config, custom, entry)
+      const detail = privacy.hidden ? privacy.tip : [customBalanceDetailText(custom, config, t, state, entry), ...clickRefreshTipLines(t, refresh)].join(' · ')
       return el(Tooltip, { portal: true, label: detail, side: 'right', delayMs: 300 },
         el('div', { 'data-cm-display': 'customBalance', className: 'cm-foot clickable' + (wide ? '' : ' cm-foot-rail') + (refresh.busy ? ' busy' : ''), ...clickableRefreshProps(refresh.busy, refresh.run) },
-          wide ? el(Fragment, null, el('span', { className: 'cm-balance-name' }, el('span', { className: 'cm-bal-label', title: label }, label), rechargeLinkEl(t, entry?.dashboardUrl || '', label)), el('span', { className: 'cm-num cm-bal-amt' }, amount)) : el(WalletIcon, { size: 16 })))
+          wide ? el(Fragment, null, el('span', { className: 'cm-balance-name' }, el('span', { className: 'cm-bal-label', title: label }, privacy.label(label)), rechargeLinkEl(t, entry?.dashboardUrl || '', label)), el('span', { className: 'cm-num cm-bal-amt' }, amount)) : el(WalletIcon, { size: 16 })))
     }
 
     function CornerChips(props) {

@@ -53,3 +53,9 @@ Codex 额度的真实数据来自已启用并登录的 `dsh-codex-subscription`�
 “合并卡片”将今日 Token 与费用、余额和峰谷进度放入同一外框。选择时默认开启今日双项显示，之后仍可分别关闭。Codex 组件提供额度查询总开关；显式开启其显示时会启用查询。billion-context 的统计偏差说明放在“费用 → 概览”，使用普通灰色文字，不再自动弹窗或提供弹窗开关。
 
 “费用 → 显示 → 侧栏”中的“今日消费与余额同行”是独立开关，可与现有布局组合使用。开启时默认只显示今日费用，Token 可在今日组件中单独开启；两项保留悬停详情，余额进度条照常显示，隐藏官方余额时使用第一条可见的自定义余额。排序在设置预览中调整，关闭开关恢复各组件独立排列。
+
+## 点击名称隐藏余额
+
+1.9.45 起，在“设置 → 费用 → 显示 → 侧栏 → 调整组件 → 余额（或自定义余额）”中可以开启“点击名称快速隐藏余额”。默认关闭。开启后，点击余额名称隐藏或显示金额，点击金额继续刷新。隐藏时不显示进度条及悬停金额；四种侧栏布局、同行显示和收起样式共用隐藏状态。本机浏览器记住隐藏状态；关闭选项即恢复原有点击刷新方式。
+
+In Settings → Cost → Display → Sidebar → Balance (or Custom balance), enable **Click name to hide balance**. This is off by default. Click the label to hide/show the amount; click the amount to refresh. Hidden balances also hide progress bars and tooltip amounts across sidebar layouts. The browser remembers hidden state. Disabling this option restores the original click-to-refresh behavior.
