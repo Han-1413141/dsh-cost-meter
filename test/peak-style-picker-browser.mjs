@@ -48,6 +48,7 @@ page.on('pageerror',e=>errors.push(e.message))
 await page.route('**/*',route=>new URL(route.request().url()).origin===new URL(url).origin?route.continue():(external.push(route.request().url()),route.abort()))
 await page.exposeFunction('persist',patch=>{const result=applyConfigPatch(saved,patch);assert.deepEqual(result.errors,[]);saved=stateSchema.shape.config.parse(result.config);return saved})
 try{
+  await page.clock.setFixedTime(new Date('2026-10-29T05:57:32Z'))
   await page.goto(url);await page.getByLabel('调整组件',{exact:true}).selectOption('peak')
   const choices=page.getByRole('group',{name:'峰谷条样式',exact:true})
   await choices.locator('.cm-peak-progress').waitFor()

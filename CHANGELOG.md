@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.9.46] - 2026-10-29
+
+- 修复峰谷切换前后分段样式箭头超出左右边界的问题，保留实际时段进度，避免临近切换时出现横向溢出。
+- 浏览器测试固定到已复现的时刻，并覆盖工作日与周末结束前、切换后的箭头边界。
+- Keep the classic peak-period arrow within the component at phase boundaries; retain progress tracking and add deterministic boundary coverage.
+
+[更新说明 / Release notes](docs/update-notes-1.9.46.md)
+
 ## [1.9.45] - 2026-10-29
 
 - OpenDesign 额度新增网页 Cookie 查询，可自动读取网页当前工作区；保留 Control Key，补充无需桌面版的配置步骤。

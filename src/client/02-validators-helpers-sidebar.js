@@ -2463,7 +2463,7 @@
         : t('nextOffPeakIn', { time: countdownText(view, now, t) })
       return el(Tooltip, { portal: true, label: t(keys.notice), side: 'right', delayMs: 300 },
         el('div', { 'data-cm-display': 'peak', className: 'cm-peak-classic ' + (view.weekend || view.holiday ? 'weekend' : view.inPeak ? 'peak' : 'off') },
-          el('div', { className: 'cm-peak-classic-marker', style: { left: peakMarkerPosition(config, view, now) } }),
+          el('div', { className: 'cm-peak-classic-marker', style: { left: 'clamp(6px, ' + peakMarkerPosition(config, view, now) + ', calc(100% - 6px))' } }),
           el('div', { className: 'cm-peak-track' },
             el('div', { className: 'cm-peak-segment cm-peak-high' }),
             el('div', { className: 'cm-peak-segment cm-peak-low' })),

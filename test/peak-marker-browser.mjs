@@ -21,7 +21,7 @@ const url=`http://127.0.0.1:${server.address().port}/`
 const executablePath=process.env.CM_TEST_BROWSER??['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe','/usr/bin/google-chrome','/usr/bin/chromium'].find(existsSync)
 const browser=await chromium.launch({executablePath,headless:true}),page=await browser.newPage({viewport:{width:650,height:650}})
 const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.route('**/*',r=>new URL(r.request().url()).origin===new URL(url).origin?r.continue():r.abort())
-const positions=()=>page.locator('.cm-peak-marker,.cm-peak-classic-marker,.cm-peak-rail-marker,.cm-peak-rail-classic-marker').evaluateAll(ns=>ns.map(n=>parseFloat(n.style.left||n.style.top)))
+const positions=()=>page.locator('.cm-peak-marker,.cm-peak-classic-marker,.cm-peak-rail-marker,.cm-peak-rail-classic-marker').evaluateAll(ns=>ns.map(n=>parseFloat((n.style.left||n.style.top).match(/[\d.]+%/)?.[0])))
 const samples=[]
 try{
  await page.clock.install({time:new Date('2026-10-28T01:30:00Z')});await page.goto(url);await page.locator('.cm-peak-marker').waitFor()
@@ -41,6 +41,14 @@ try{
   for(let i=0;i<4;i++){assert.ok(Number.isFinite(end[i])&&end[i]<=100);assert.ok(end[i]>start[i],'full-width weekend/holiday marker moves')}
   samples.push({at,positions:start,later:end})
  }
- await page.screenshot({path:join(out,'holiday.png'),animations:'disabled'});assert.deepEqual(errors,[])
+ await page.screenshot({path:join(out,'holiday.png'),animations:'disabled'})
+ for(const at of ['2026-10-29T05:57:32Z','2026-10-29T05:59:59Z','2026-10-29T06:00:00Z','2026-11-02T00:59:59Z']){
+  await page.clock.setSystemTime(new Date(at));await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await page.clock.runFor(500)
+  const bounds=await page.locator('.cm-peak-classic').evaluate(node=>{const box=node.getBoundingClientRect(),marker=node.querySelector('.cm-peak-classic-marker').getBoundingClientRect(),center=marker.x+marker.width/2;return {width:node.clientWidth,scroll:node.scrollWidth,left:center-5-box.x,right:center+5-box.right}})
+  assert.equal(bounds.scroll,bounds.width,at+' classic marker does not widen the component')
+  assert.ok(bounds.left>=0&&bounds.right<=0,at+' complete arrow stays inside the component at both ends')
+  samples.push({at,bounds})
+ }
+ assert.deepEqual(errors,[])
  writeFileSync(join(out,'report.json'),JSON.stringify({passed:true,samples,errors},null,2));console.log('[ok] #434: all four mounted marker styles advance, switch at the boundary and move on weekends/holidays')
 }finally{await browser.close();await new Promise(r=>server.close(r))}
