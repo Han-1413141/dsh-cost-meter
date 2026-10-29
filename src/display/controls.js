@@ -59,9 +59,8 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
     config.budget?.enabled !== true && !examples ? el('p', { className: 'cm-inspector-note' }, text('先在“概览”中设置预算，启用后会在这里显示。', 'Set up a budget in Overview to show it here.')) : null,
     check(t('budgetDetailLabel'), config.budget?.detail !== false, value => nested('budget', { detail: value }), { 'data-display-option': 'budget-detail' }), direction('budget')]
   if (selected === 'today') controls = todayControls()
-  const quickHide = () => check(text('点击名称快速隐藏余额', 'Click name to hide balance'), config.balance?.quickHide === true, value => nested('balance', { quickHide: value }), { 'data-display-option': 'balance-quick-hide' })
+  const quickHide = () => check(text('点击名称快速隐藏余额', 'Click name to hide balance'), config.balance?.quickHide === true, value => nested('balance', { quickHide: value }), { 'data-display-option': 'balance-quick-hide', title: text('点击名称隐藏或显示，点击金额刷新。', 'Click the name to hide/show; click the amount to refresh.') })
   if (selected === 'balance') controls = [display('balance'), quickHide(),
-    el('p', { className: 'cm-inspector-note' }, text('默认关闭。开启后点击名称隐藏或显示金额，点击金额刷新；隐藏时同时隐藏进度条和悬停金额。', 'Off by default. Click the name to hide/show; click the amount to refresh. Hidden balances also hide progress and tooltip amounts.')),
     check(text('仅官方渠道显示', 'Show only on official channels'), config.balance?.officialChannelOnly === true, value => nested('balance', { officialChannelOnly: value }), { 'data-display-option': 'balance-official-only' }),
     el('p', { className: 'cm-inspector-note' }, text('按当前会话渠道显示；无会话渠道时参考今日官方调用。设置页与预览始终保留。', 'Uses the current session channel, or today’s official calls if unavailable. Settings and previews remain visible.')),
     check(text('显示余额来源（DeepSeek）', 'Show balance source (DeepSeek)'), config.balance?.showSource === true, value => nested('balance', { showSource: value }), { 'data-display-option': 'balance-source' }),

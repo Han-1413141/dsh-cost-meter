@@ -7,9 +7,11 @@
 - OpenDesign 额度新增网页 Cookie 查询，可自动读取网页当前工作区；保留 Control Key，补充无需桌面版的配置步骤。
 - UI 显示设置新增可选的“点击名称快速隐藏余额”，默认关闭。开启后点名称隐藏／显示、点金额刷新，隐藏状态覆盖金额、进度条和悬停金额。
 - 费用明细页面加载与数据读取增加超时重试，保留已有数据显示，防止迟到响应覆盖新结果；保留首次打开的并行加载与缓存。
+- 降低长期使用的缓存内存：同一会话只保留最新记录版本，统计快照按总量淘汰，服务端闲置两分钟、页面缓存闲置一分钟后释放。
+- 针对 [#440](https://github.com/Han-1413141/dsh-cost-meter/issues/440) 隔离 dsh-context 命令弹窗的联动布局：费用内容放在上游卡片之外，避免加载时改变其测量高度。感谢 [@LUgABeEEE](https://github.com/LUgABeEEE) 提供开关对照、滚动及焦点探针。
 - 修复费用明细标签与导出／刷新按钮错位，窄窗口自动换行。感谢 [@fouriyeo](https://github.com/fouriyeo) 在 [#438](https://github.com/Han-1413141/dsh-cost-meter/issues/438) 提供复现、测量与 CSS 定位。
 - 合并 [@windybirth](https://github.com/windybirth) 的 [#437](https://github.com/Han-1413141/dsh-cost-meter/pull/437)，解决 [#436](https://github.com/Han-1413141/dsh-cost-meter/issues/436) 的 Anthropic 误报红色：隐藏内部窗口、标注 5h／7d、显示重置时间和本窗口平均用量预测；95% 红色阈值仅适用于 Anthropic。
-- Add OpenDesign web-cookie quotas, opt-in balance hiding, recoverable cost-view loading, responsive toolbar alignment, and reviewed Anthropic quota readability improvements.
+- Add OpenDesign web-cookie quotas, opt-in balance hiding, recoverable cost-view loading, bounded memory caches, responsive toolbar alignment, and reviewed Anthropic quota readability improvements.
 
 [更新说明 / Release notes](docs/update-notes-1.9.45.md)
 

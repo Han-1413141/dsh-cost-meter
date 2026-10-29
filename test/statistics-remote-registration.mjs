@@ -211,6 +211,7 @@ try {
     for (const fn of listeners.get('pointerover') ?? []) fn({ target: { closest: () => null } })
     assert.equal(loadCalls, 3, 'unrelated hover does not load model prices')
     for (const fn of listeners.get('pointerover') ?? []) fn({ target: { closest: selector => selector === '[data-slot="conversation.input.model"]' } })
+    await new Promise(resolve => setImmediate(resolve))
     assert.equal(loadCalls, 4, 'first composer hover loads prices without opening Settings')
     const [Prices, samePrices] = await Promise.all([first.api.loadOpenRouter(), first.api.loadOpenRouter()])
     assert.equal(Prices, samePrices, 'concurrent catalog opens share one mounted contribution')

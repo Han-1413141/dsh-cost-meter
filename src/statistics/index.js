@@ -231,9 +231,14 @@ window.__ModuleLoader__.load({
     function requestEntry(api, method, query) {
       let cache = requestCaches.get(api)
       if (!cache) requestCaches.set(api, cache = new Map())
+      clearTimeout(cache.timer)
+      cache.timer = setTimeout(() => { cache.clear(); cache.timer = null }, 60_000)
+      cache.timer.unref?.()
       const key = method + ':' + requestKey(query)
       let entry = cache.get(key)
-      if (!entry) { entry = {}; cache.set(key, entry); if (cache.size > 32) cache.delete(cache.keys().next().value) }
+      if (!entry) entry = {}
+      cache.delete(key); cache.set(key, entry)
+      if (cache.size > 32) cache.delete(cache.keys().next().value)
       return entry
     }
     const cachedValue = (entry, revision) => entry.revision === revision ? entry.value : null
@@ -419,7 +424,14 @@ window.__ModuleLoader__.load({
               if (node.isConnected && currentCard?.matches('[data-lc-current]') && scope.contains(currentCard)) return
               const card = Original ? scope.querySelector('[data-lc-current]') : [...scope.querySelectorAll('[data-slot="conversation.view"] [data-lc-current]')].find(card => card.closest('[data-conversation-session]') === scope)
               if (!card) { node.remove(); setTarget(null); return }
-              if (node.parentElement !== card) { currentCard = card; card.appendChild(node); setTarget(node) }
+              // The peer measures its overview card to lay out the context browser.
+              // In a modal, keep our asynchronous content outside that measured card.
+              const parent = card.closest('.lc-modal-card') ? card.parentElement : card
+              if (node.parentElement !== parent) {
+                currentCard = card
+                if (parent === card) card.appendChild(node); else card.after(node)
+                setTarget(node)
+              }
             }
             const observer = new MutationObserver(sync)
             observer.observe(scope, { childList: true, subtree: true }); sync()
@@ -1490,7 +1502,7 @@ window.__ModuleLoader__.load({
       }
       const Page = props => el(props.sessionId ? SessionStatistics : Statistics, { ...props, api, contextIntegration: manager ? { manager, getLocale } : null })
       Page.prefetch = options => prefetchStatistics(api, options)
-      ctx.effect(() => () => requestCaches.delete(api), 'cost-meter: statistics cache cleanup')
+      ctx.effect(() => () => { clearTimeout(requestCaches.get(api)?.timer); requestCaches.delete(api) }, 'cost-meter: statistics cache cleanup')
       return Page
     }
     return { mount, prefetchStatistics, Statistics, SessionStatistics, SessionDetail, TurnInspection, ShareChart, ContextCosts, ContextPrompt, ContextPreview, ContextIntegrationSettings, createContextIntegration, contextCostBreakdown, installContextCosts, CONTRIBUTION, parseContextCosts, parseStatistics, parseDetail, parseInspection, dailyChartRows, requestStart, requestValue, requestFailure, showsPlaceholder, refreshKeyOf }

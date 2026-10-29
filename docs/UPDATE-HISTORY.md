@@ -1,9 +1,11 @@
 # dsh-cost-meter 版本更新历史
 
-## v1.9.45(2026-10-29)—— 额度查询、余额隐藏与费用明细
+## v1.9.45(2026-10-29)—— 额度查询、余额隐藏与内存优化
 
 - OpenDesign 支持网页 Cookie 与当前工作区查询，新增具体配置步骤。
 - 显示设置提供可选的余额隐藏操作，金额、进度条与悬停内容同步隐藏。
+- 同一会话只缓存最新记录版本，限制统计快照总量，并释放闲置的前后端缓存。
+- 针对 [#440](https://github.com/Han-1413141/dsh-cost-meter/issues/440) 将命令弹窗费用内容与 dsh-context 原卡片分开，避免异步加载改变上游测量高度；感谢 @LUgABeEEE 的对照测试与探针。
 - 费用明细加载超时可重试；修复 [#438](https://github.com/Han-1413141/dsh-cost-meter/issues/438) 的按钮错位，感谢 @fouriyeo 的报告与定位。
 - 合并 @windybirth 的 [#437](https://github.com/Han-1413141/dsh-cost-meter/pull/437)，修复 Anthropic 主窗口的误报红色并补充重置时间与预测。
 

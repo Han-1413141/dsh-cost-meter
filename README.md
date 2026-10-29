@@ -16,7 +16,7 @@
 
 </div>
 
-**v1.9.45** adds OpenDesign web-Cookie quota queries and optional click-to-hide balances, makes cost-view loading recoverable, fixes toolbar alignment, and improves Anthropic quota labels, reset times and warnings.
+**v1.9.45** adds OpenDesign web-Cookie quota queries and optional click-to-hide balances, reduces retained cache memory, makes cost-view loading recoverable, fixes toolbar alignment, and improves Anthropic quota labels, reset times and warnings.
 
 **Host floor: DSH 0.2.0** · Adaptation target: **0.2.1-rc.2** (npm `next`). Expand the compatibility notes below for exact declarations, host records and troubleshooting.
 

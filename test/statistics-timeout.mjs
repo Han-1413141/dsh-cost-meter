@@ -2,10 +2,13 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 
-const timers = new Set()
+const timers = new Set(), idle = new Set()
 const clock = {
-  setTimeout: (fn, ms) => { const id = setTimeout(() => { timers.delete(id); fn() }, ms === 15000 ? 5 : ms); timers.add(id); return id },
-  clearTimeout: id => { clearTimeout(id); timers.delete(id) },
+  setTimeout: (fn, ms) => {
+    if (ms === 60000) { const id = { unref() {}, fire() { idle.delete(id); fn() } }; idle.add(id); return id }
+    const id = setTimeout(() => { timers.delete(id); fn() }, ms === 15000 ? 5 : ms); timers.add(id); return id
+  },
+  clearTimeout: id => { clearTimeout(id); timers.delete(id); idle.delete(id) },
 }
 let factory
 vm.runInNewContext(readFileSync(new URL('../src/statistics/index.js', import.meta.url), 'utf8').replace('return { mount, prefetchStatistics', 'return { readRequest, requestWithDeadline, mount, prefetchStatistics'), {
@@ -22,6 +25,11 @@ assert.equal((await ui.readRequest(api, 'getSessionBilling', query, 'r1')).total
 resolveLate({ totalCalls: 1 }); await Promise.resolve()
 assert.equal((await ui.readRequest(api, 'getSessionBilling', query, 'r1')).totalCalls, 42, 'late result cannot overwrite retry')
 assert.equal(calls, 2)
+assert.equal(idle.size, 1, 'each browser cache owns only one idle timer')
+for (const timer of idle) timer.fire()
+await ui.readRequest(api, 'getSessionBilling', query, 'r1')
+assert.equal(calls, 3, 'an idle cache releases its response and the next open reads again')
+for (const timer of idle) timer.fire()
 
 let completeMount, unmounts = 0
 await assert.rejects(ui.mount({ get: () => ({ $mount: () => new Promise(resolve => { completeMount = resolve }) }) }, () => 'en'), /timed out/)

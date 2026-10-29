@@ -113,6 +113,10 @@ jobs:
           node test/context-costs-client.mjs
           node test/context-costs-lifecycle.mjs
           node test/context-costs-regression-browser.mjs
+          mkdir -p .tmp-context-078
+          npm pack dsh-context@0.78.0 --ignore-scripts --pack-destination .tmp-context-078
+          tar -xzf .tmp-context-078/dsh-context-0.78.0.tgz -C .tmp-context-078
+          DSH_CONTEXT_068="$PWD/.tmp-context-078/package/lib/client.js" CM_TEST_SCREENSHOTS="$PWD/.tmp-context-modal-review" node test/context-costs-regression-browser.mjs --scroll-only
           node test/context-costs-browser.mjs
           node test/session-list-browser.mjs
           node test/session-costs-browser.mjs
@@ -121,6 +125,7 @@ jobs:
           node test/display-settings-browser.mjs --quick-hide-only
           node test/session-costs-performance-browser.mjs
           node test/statistics-cache.mjs
+          node --expose-gc test/statistics-memory.mjs
           node test/statistics-warmup.mjs
           node test/cost-views-browser.mjs
           node test/pricing-theme-browser.mjs
@@ -159,6 +164,7 @@ jobs:
             .tmp-peak-alert-browser/*
             .tmp-idle-performance/result.json
             .tmp-context-regression-browser/report.json
+            .tmp-context-modal-review/*
             .tmp-pricing-theme-browser/*.png
             .tmp-pricing-theme-browser/report.json
             .tmp-skin-opacity-after/*.png

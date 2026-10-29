@@ -148,7 +148,7 @@ for (const locale of ['zh', 'en']) {
   const input = contents.find(row => row.type === 'input' && row.props['aria-label'] === t('opendesignWorkspace'))
   assert.equal(input.props.value, 'ws-1'); input.props.onChange({ target: { value: 'ws-2' } })
   assert.equal(saved.codingPlans.opendesign.workspaceId, 'ws-2')
-  assert.ok(contents.some(row => row.props.target === 'codingPlans.opendesign' && row.props.placeholder === 'OPENDESIGN_CONTROL_KEY'))
+  assert.ok(contents.some(row => row.props.target === 'codingPlans.opendesign' && /Cookie:.*vela_ctrl_/.test(row.props.placeholder)))
   assert.ok(contents.some(row => row.children?.includes(t('opendesignNote'))))
   // Distinct allowances exercise the reported swap through settings, sidebar and strip.
   const enabledWindows = { ...clientConfig, locale, quotaStrip: { ...clientConfig.quotaStrip, enabled: true, plans: true }, codingPlans: { ...clientConfig.codingPlans, opendesign: { ...clientConfig.codingPlans.opendesign, enabled: true, display: 'both' } } }

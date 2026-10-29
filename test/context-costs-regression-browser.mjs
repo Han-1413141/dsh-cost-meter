@@ -27,7 +27,8 @@ const executablePath = process.env.CM_TEST_BROWSER ?? [
 assert.ok(executablePath, 'a local Chromium, Chrome or Edge is required')
 const peerPath = resolve(process.env.DSH_CONTEXT_068 ?? '.tmp-test-fixtures/context/0.68.1/package/lib/client.js')
 const peerVersion = JSON.parse(readFileSync(join(dirname(peerPath), '../package.json'), 'utf8')).version
-assert.equal(peerVersion, '0.68.1', 'this regression exercises published dsh-context 0.68.1')
+const scrollOnly = process.argv.includes('--scroll-only')
+assert.equal(peerVersion, scrollOnly ? '0.78.0' : '0.68.1', 'exercise the pinned published dsh-context package')
 const hostVersion = hostReq('@deepseek-ai/dsh-client-ui-conversation/package.json').version
 const hostSource = readFileSync(hostReq.resolve('@deepseek-ai/dsh-client-ui-conversation/client'), 'utf8')
 const projection = hostSource.match(/const viewTabs = ([\s\S]+?);\n\s*const activateView =/)
@@ -65,8 +66,11 @@ window.fetch=async resource=>{
   window.fixturePublicReads.push(url);return{ok:true,status:200,json:async()=>value};
 };
 const h=React.createElement, createPortal=ReactDOM.createPortal, atoms=new Map();
-const primitives=new Proxy({}, {get:(_,name)=>{
+const primitiveExports=Object.fromEntries(['IconChecklistOutlineRegular','IconPanelLeftOutlineRegular','IconRightUpOutlineRegular','IconSendOutlineRegular','IconUserOutlineRegular','IconUsersOutlineRegular','IconWorkspaceTreeOutlineRegular','JsonTree','MarkdownText','Menu','StateDot','Tooltip'].map(name=>[name,({children})=>h('span',{'data-fixture-atom':name},children)]));
+primitiveExports.useCodeHighlighter=()=>null;
+const primitives=new Proxy(primitiveExports, {get:(target,name)=>{
   if(name==='__esModule')return true;
+  if(name in target)return target[name];
   if(!atoms.has(name))atoms.set(name,({children})=>h('span',{'data-fixture-atom':String(name)},children));
   return atoms.get(name);
 }});
@@ -135,7 +139,7 @@ let compressedTokens=null;
 const compressedCases=${JSON.stringify(compressedCases)};
 const api={
   getContextIntegration:async()=>({version:${JSON.stringify(peerVersion)},compatible:true,reason:'ready'}),
-  getContextCosts:async({sessionId})=>{window.reads.push(sessionId);if(compressedTokens!==null)return{...compressedCases[compressedTokens],sessionId};return{status:'ready',sessionId,
+  getContextCosts:async({sessionId})=>{window.reads.push(sessionId);if(${scrollOnly})await new Promise(resolve=>setTimeout(resolve,250));if(compressedTokens!==null)return{...compressedCases[compressedTokens],sessionId};return{status:'ready',sessionId,
     generatedAt:1800000000000,revision:2,provider:'fixture',model:'example-model',basis:'api',
     priced:true,source:'usage',linked:true,contextTokens:12000,
     components:Object.entries(amounts).map(([key,tokens])=>({key,tokens})),
@@ -192,7 +196,7 @@ window.fixture={
     projections.contextBreakdown=${JSON.stringify(compressedProjections.contextBreakdown)};
     projections.contextPressure={projectedTokens:tokens,pressureTokens:65000,contextWindow:128000};controls.setCardGeneration(value=>value+1)},
   setView:id=>controls.setViewId(id),replaceCard:()=>controls.setCardGeneration(value=>value+1),
-  setSession:id=>controls.setSessionId(id),showModal:open=>controls.setModal(open),
+  setSession:id=>controls.setSessionId(id),showModal:open=>controls.setModal(open),enable:()=>manager.choose(true),
   refresh:()=>{manager.refresh();manager.refresh()},dispose:()=>manager.dispose(),
   recreate:()=>{manager=UI.createContextIntegration(ctx,api,store,()=> 'en',createPortal);controls.setManager(manager)},
   releaseSaves:()=>{window.deferSaves=false;for(const resolve of window.pendingSaves.splice(0))resolve()},
@@ -290,6 +294,38 @@ try {
   }
   await page.goto(url)
   await ready()
+  if (scrollOnly) {
+    await page.setViewportSize({ width: 974, height: 698 })
+    await page.evaluate(async () => { await window.fixture.enable(); window.fixture.showModal(true) })
+    await page.locator('[data-modal-fixture] [data-cm-context-costs]').waitFor()
+    const scroll = await page.evaluate(() => new Promise(resolve => {
+      const started = performance.now(), values = [], card = document.querySelector('[data-modal-fixture] .lc-modal-card')
+      const frame = () => {
+        values.push({ top: card.scrollTop, height: card.scrollHeight, client: card.clientHeight, peerHeight: card.querySelector('[data-lc-current]').getBoundingClientRect().height })
+        if (performance.now() - started < 4000) requestAnimationFrame(frame)
+        else resolve({ maxTop: Math.max(...values.map(row => row.top)), peerHeightChange: Math.max(...values.map(row => row.peerHeight)) - Math.min(...values.map(row => row.peerHeight)), changes: values.filter((row, i) => i === 0 || row.top !== values[i - 1].top || row.height !== values[i - 1].height), reads: window.reads })
+      }; frame()
+    }))
+    await page.screenshot({ path: join(output, 'modal-scroll.png') })
+    console.log(JSON.stringify({ peerVersion, scroll, errors }))
+    assert.ok(scroll.maxTop <= 1, 'opening the integrated context modal must stay at the top')
+    assert.ok(scroll.peerHeightChange <= 1, 'cost loading must not resize the peer overview card')
+    const modal = page.locator('[data-modal-fixture] .lc-modal-card')
+    assert.equal(await modal.locator('[data-lc-current] [data-cm-context-costs]').count(), 0, 'modal costs live outside the measured overview')
+    const manualTop = await modal.evaluate(card => { card.scrollTop = 200; card.querySelector('.cm-plan-head button:last-child').click(); return card.scrollTop })
+    await page.waitForFunction(() => window.reads.filter(id => id === 'modal-session').length >= 2 && !document.querySelector('[data-modal-fixture] .cm-plan-head button:last-child')?.disabled)
+    assert.equal(await modal.evaluate(card => card.scrollTop), manualTop, 'refresh preserves a user-selected scroll position')
+    await page.evaluate(() => window.fixture.showModal(false))
+    await modal.waitFor({ state: 'detached' })
+    assert.equal(await page.locator('[data-modal-fixture] [data-cm-context-costs]').count(), 0)
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.evaluate(() => window.fixture.showModal(true))
+    await modal.locator('.cm-plan-summary').waitFor()
+    assert.equal(await modal.evaluate(card => card.scrollTop), 0, 'narrow modal reopens at the top')
+    assert.deepEqual(errors, [])
+    await page.screenshot({ path: join(output, 'modal-narrow.png') })
+    writeFileSync(join(output, 'report.json'), JSON.stringify({ status: 'passed', peerVersion, hostVersion, scroll, manualTop, errors, checks: ['initial scroll', 'stable peer height', 'manual scroll and refresh', 'close cleanup', 'narrow reopening'] }, null, 2))
+  } else {
   await assertIntegration(false, 'initial opt-out')
   const toggle = page.getByRole('switch')
   for (let cycle = 1; cycle <= 3; cycle++) {
@@ -343,10 +379,10 @@ try {
   assert.equal(await second.locator('[data-cm-plan-session="two"]').count(), 0, 'the previous session costs never remain anywhere under the new session')
   assert.ok(await page.evaluate(() => window.reads.includes('three')), 'the new session requests its own costs')
   await page.evaluate(() => window.fixture.showModal(true))
-  await page.locator('[data-modal-fixture] [data-lc-current] [data-cm-context-costs]').waitFor()
-  assert.equal(await page.locator('[data-modal-fixture] [data-lc-current] [data-cm-context-costs]').count(), 1, 'published modal current-context card is integrated exactly once')
-  assert.equal(await page.locator('[data-modal-fixture] [data-lc-current] [data-cm-plan-session]').getAttribute('data-cm-plan-session'), 'modal-session', 'modal costs remain session scoped')
-  await assertVisibleSessionCosts(page.locator('[data-modal-fixture] [data-lc-current] [data-cm-plan-session]'), 'modal-session', 'actual published modal visible')
+  await page.locator('[data-modal-fixture] [data-cm-context-costs]').waitFor()
+  assert.equal(await page.locator('[data-modal-fixture] [data-cm-context-costs]').count(), 1, 'published modal is integrated exactly once')
+  assert.equal(await page.locator('[data-modal-fixture] [data-cm-plan-session]').getAttribute('data-cm-plan-session'), 'modal-session', 'modal costs remain session scoped')
+  await assertVisibleSessionCosts(page.locator('[data-modal-fixture] [data-cm-plan-session]'), 'modal-session', 'actual published modal visible')
   await assertHeader('actual published modal visible')
   await page.evaluate(() => window.fixture.showModal(false))
   await page.waitForFunction(() => !document.querySelector('[data-modal-fixture] [data-lc-current]'))
@@ -380,6 +416,7 @@ try {
   writeFileSync(join(output, 'report.json'), JSON.stringify(report, null, 2) + '\n')
   console.log('[ok] real Chromium: one Context header tab through 3 checkbox cycles, repeated refresh, immediate opt-out, persisted browser reload, enabled manager restart, two main sessions, card/view/session replacement, sidebar/modal and synchronous store reentrancy')
   console.log('Validated dsh-context ' + peerVersion + ' / DSH ' + hostVersion + '; screenshots and report: ' + output)
+  }
 } catch (error) {
   // Persist evidence before teardown even when a late strict locator, assertion
   // or browser error aborts the run. Capture failures must not replace its cause.
