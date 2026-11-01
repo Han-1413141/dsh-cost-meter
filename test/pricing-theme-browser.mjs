@@ -37,7 +37,7 @@ import {createRoot} from ${literal(req.resolve('react-dom/client'))};
 import {createPortal} from ${literal(req.resolve('react-dom'))};
 window.__ModuleLoader__={load:mod=>{const value=mod.factory(name=>name==='react'?React:name==='react-dom'?{createPortal}:{Tooltip:({children})=>children});if(mod.chunk==='client.pricing.js')window.priceUI=value;else window.costUI=value}};
 ${client}
-${readSource('src/pricing/index.js')}
+${readSource('src/pricing/index.js').replace('/* PEAK_PANEL_SOURCE */', () => readSource('src/pricing/peak-panel.js'))}
 const {CostSection,parseConfig}=window.costUI.preview;
 const state=${literal(initialState)};state.config=parseConfig(state.config,'config');
 if(new URLSearchParams(location.search).has('many'))state.today.byProviderModel=state.month.byProviderModel=Object.fromEntries(Array.from({length:500},(_,i)=>['channel:model-'+i,{calls:1,input:1,output:1,cost:0}]));
@@ -281,6 +281,35 @@ try {
   await page.waitForFunction(() => document.querySelectorAll('.cm-match-row').length === 0)
   await page.evaluate(() => window.updateAvailability(undefined))
   await page.waitForFunction(() => document.querySelectorAll('.cm-match-row').length === 2)
+  await page.getByRole('tab', { name: '同步与规则', exact: true }).click()
+  await page.getByText('按渠道设置峰谷时段', { exact: true }).click()
+  const schedules = page.locator('.cm-provider-schedules')
+  await schedules.getByLabel('渠道 ID', { exact: true }).fill('fixture')
+  await schedules.getByRole('checkbox', { name: '自定义峰时段', exact: true }).check()
+  await schedules.getByLabel('峰时段（UTC）', { exact: true }).fill('22.5-2, 6-10')
+  await schedules.getByLabel('峰时段（UTC）', { exact: true }).press('Enter')
+  await schedules.getByLabel('日历规则', { exact: true }).selectOption('daily')
+  await schedules.getByLabel('节假日', { exact: true }).selectOption('none')
+  await page.waitForFunction(() => window.patches.some(p => p.prices?.providers?.fixture?.peakWindows?.[0]?.start === 22.5 && p.prices.providers.fixture.peakSchedule === 'daily' && p.prices.providers.fixture.peakHolidays === null))
+  for (const width of [1100, 390]) {
+    await page.setViewportSize({ width, height: 950 })
+    assert.equal(await schedules.evaluate(node => node.scrollWidth > node.clientWidth + 1), false)
+    await schedules.screenshot({ path: join(output, 'provider-peak-' + width + '.png') })
+  }
+  await page.getByRole('tab', { name: '模型定价', exact: true }).click()
+  const relay = page.locator('[data-model-key="fixture:unknown"]')
+  await relay.getByRole('button', { name: 'fixture:unknown · 设置价格', exact: true }).click()
+  await relay.getByRole('button', { name: '自定义', exact: true }).click()
+  const peakEditor = page.getByRole('group', { name: /fixture:unknown.*自定义价格/ })
+  await peakEditor.getByText('峰谷价格与时段', { exact: true }).click()
+  await peakEditor.getByRole('checkbox', { name: '启用峰谷价格', exact: true }).check()
+  await peakEditor.getByRole('group', { name: '峰价', exact: true }).getByLabel('输入', { exact: true }).fill('4')
+  await peakEditor.getByRole('group', { name: '谷价', exact: true }).getByLabel('输入', { exact: true }).fill('2')
+  await page.waitForFunction(() => window.patches.some(p => p.prices?.custom?.['fixture:unknown']?.peak?.cacheMiss === 4 && p.prices.custom['fixture:unknown'].offPeak?.cacheMiss === 2 && p.prices.custom['fixture:unknown'].billingMode === 'deepseek-peak'))
+  const checkboxLayout = await peakEditor.getByRole('checkbox', { name: '启用峰谷价格', exact: true }).evaluate(node => ({ display: getComputedStyle(node.parentElement).display, width: node.getBoundingClientRect().width }))
+  assert.equal(checkboxLayout.display, 'flex')
+  assert.ok(checkboxLayout.width < 24, 'peak-pricing checkbox keeps its native width')
+  await peakEditor.screenshot({ path: join(output, 'custom-peak-prices.png') })
   assert.deepEqual(external, [], 'theme test sends no external requests')
   assert.deepEqual(errors, [], 'settings render without browser errors')
   writeFileSync(join(output, 'report.json'), JSON.stringify({ checks, baseline, errors, external }, null, 2) + '\n')

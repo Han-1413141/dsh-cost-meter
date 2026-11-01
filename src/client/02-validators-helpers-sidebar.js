@@ -107,6 +107,7 @@
           return { ...parsePrice({ ...period, rateHistory: undefined }, path + '.rateHistory.' + i), before: period.before }
         })
       }
+      Object.assign(out, peakScheduleSettings(v))
       for (const key of ['billingMode', 'sourceUrl', 'checkedAt', 'notes']) if (typeof v[key] === 'string') out[key] = v[key]
       return out
     }
@@ -714,6 +715,58 @@
     }
     /** 一档价格补齐(v1.6.9 起与 lib/pricing.js completeTier 同口径的客户端镜像):
      *  只认非负有限数字,补齐 cacheMiss/cacheHit 缺省;子档(offPeak/peak/legacyBase)同规则。 */
+    // Mirror of lib/peak-schedule.js, exercised with the server pricing tests.
+    const peakScheduleKeys = ['peakWindows', 'peakHolidays', 'peakSchedule']
+    function peakScheduleSettings(value) {
+      return Object.fromEntries(peakScheduleKeys.filter(key => value?.[key] !== undefined).map(key => [key, value[key]]))
+    }
+    function validPeakSchedule(value) {
+      if (!value || typeof value !== 'object') return false
+      if (value.peakWindows !== undefined && (!Array.isArray(value.peakWindows) || value.peakWindows.length > 24 || value.peakWindows.some(w => !w || !Number.isFinite(w.start) || !Number.isFinite(w.end) || w.start < 0 || w.start >= 24 || w.end < 0 || w.end > 24 || w.start === w.end))) return false
+      if (value.peakSchedule !== undefined && !['deepseek', 'volcengine', 'ollama', 'daily', 'utc-weekdays'].includes(value.peakSchedule)) return false
+      if (value.peakHolidays !== undefined && value.peakHolidays !== null && (!Array.isArray(value.peakHolidays) || value.peakHolidays.length > 366 || value.peakHolidays.some(day => typeof day !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(day) || !Number.isFinite(Date.parse(day + 'T00:00:00Z')) || new Date(day + 'T00:00:00Z').toISOString().slice(0, 10) !== day))) return false
+      return true
+    }
+    function withProviderPeakSchedule(result, provider, prices) {
+      if (!result?.entry) return result
+      const table = prices?.providers?.[provider] ?? (['deepseek-official', 'deepseek-account', ''].includes(provider) ? prices?.providers?.deepseek : undefined)
+      const entry = { ...peakScheduleSettings(table), ...result.entry }
+      return { ...result, entry, billingMode: (entry.peak || entry.offPeak) && Object.keys(peakScheduleSettings(entry)).length && entry.billingMode !== 'flat' ? 'deepseek-peak' : result.billingMode }
+    }
+    function configuredPeakAt(entry, atMs, peak) {
+      const explicit = entry.peakWindows !== undefined || entry.peakHolidays !== undefined || ['daily', 'utc-weekdays', 'deepseek'].includes(entry.peakSchedule)
+      if (!explicit) return null
+      if (peak?.enabled !== true || !Number.isFinite(atMs) || (Number.isFinite(peak.effectiveAtMs) && atMs < peak.effectiveAtMs)) return 'base'
+      const schedule = entry.peakSchedule ?? (entry.billingMode === 'utc-peak' ? 'utc-weekdays' : 'deepseek')
+      const windows = entry.peakWindows ?? (schedule === 'ollama' ? [{ start: 12, end: 18 }] : peak.windows ?? [])
+      const holidays = entry.peakHolidays === null ? [] : entry.peakHolidays ?? (['ollama', 'volcengine', 'utc-weekdays', 'daily'].includes(schedule) ? [] : peak.holidays ?? [])
+      const local = new Date(atMs + 8 * 3600000), utc = new Date(atMs)
+      const day = ['ollama', 'utc-weekdays'].includes(schedule) ? utc.getUTCDay() : local.getUTCDay()
+      if ((schedule !== 'daily' && (day === 0 || day === 6)) || holidays.includes(local.toISOString().slice(0, 10))) return 'offPeak'
+      const hour = utc.getUTCHours() + utc.getUTCMinutes() / 60 + utc.getUTCSeconds() / 3600 + utc.getUTCMilliseconds() / 3600000
+      return windows.some(w => w.start < w.end ? hour >= w.start && hour < w.end : hour >= w.start || hour < w.end) ? 'peak' : 'offPeak'
+    }
+
+    function configuredPeakPhase(entry, atMs, peak) {
+      const phase = configuredPeakAt(entry, atMs, peak)
+      if (phase === null || phase === 'base') return null
+      const windows = entry.peakWindows ?? (entry.peakSchedule === 'ollama' ? [{ start: 12, end: 18 }] : peak.windows ?? [])
+      const midnight = Math.floor(atMs / 86400000) * 86400000, candidates = new Set()
+      const span = Math.max(9, Math.min(380, (entry.peakHolidays ?? peak.holidays ?? []).length + 8))
+      for (let day = -span; day <= span; day++) {
+        const start = midnight + day * 86400000
+        for (const hour of [0, 16, ...windows.flatMap(w => [w.start, w.end])]) candidates.add(start + hour * 3600000)
+      }
+      let previous = null, next = null
+      for (const time of candidates) {
+        if (configuredPeakAt(entry, time - 1, peak) === configuredPeakAt(entry, time, peak)) continue
+        if (time <= atMs && (previous === null || time > previous)) previous = time
+        if (time > atMs && (next === null || time < next)) next = time
+      }
+      if (previous === null || next === null) return null
+      return { inPeak: phase === 'peak', weekend: false, prevAtMs: previous, nextAtMs: next, nextIntoPeak: configuredPeakAt(entry, next, peak) === 'peak' }
+    }
+
     function priceMultiplierSettings(entry) {
       return Object.fromEntries(['multiplier', 'separateMultipliers', 'multipliers'].filter(key => entry?.[key] !== undefined).map(key => [key, entry[key]]))
     }
@@ -750,7 +803,7 @@
     function normalizeClientPrice(raw) {
       const base = normalizeClientTier(raw)
       if (base === undefined) return null
-      Object.assign(base, priceMultiplierSettings(raw))
+      Object.assign(base, priceMultiplierSettings(raw), peakScheduleSettings(raw))
       if (raw.billingMode === 'utc-peak') base.billingMode = 'utc-peak'
       if (raw.peakSchedule === 'volcengine') base.peakSchedule = 'volcengine'
       // 峰谷/历史子档必须随主档一起保留:usageSplit 回退计价与 Plan 拆分靠 tierFor
@@ -820,6 +873,8 @@
     function tierFor(entry, atMs, peak) {
       const base = priceAt(entry, atMs) ?? { cacheHit: 0, cacheMiss: 0, output: 0 }
       const asTier = (price, path = 'base') => ({ reasoning: 0, ...multipliedTier(price, base, path) })
+      const configured = configuredPeakAt(base, atMs, peak)
+      if (configured !== null) return configured === 'base' || !base[configured] ? asTier(base) : asTier(base[configured], configured)
       // Go 与 Ollama Cloud 按 UTC 工作日计峰谷(与 lib/pricing.js tierFor 同分支)。
       const ollama = base.peakSchedule === 'ollama'
       if (ollama || base.billingMode === 'utc-peak') {
@@ -1030,7 +1085,7 @@
       const override = overrides[provider + ':' + modelId]
       if (override === '__custom__') {
         const entry = prices.custom?.[provider + ':' + modelId]
-        return { entry: entry ?? null, priced: !!entry, billingMode: 'flat', matched: true, currency: entry?.currency ?? 'USD' }
+        return { entry: entry ?? null, priced: !!entry, billingMode: entry?.billingMode ?? 'flat', matched: true, currency: entry?.currency ?? 'USD' }
       }
       // 「本地模型(零消耗)」哨兵(与 pricing.js 同口径):覆盖目标 __local__ →
       // 未定价(token 照记、费用 0),matched=true 表示已人工指定。
@@ -1136,8 +1191,11 @@
           ? { ...result, entry: cnyPrice(result.entry), currency: 'CNY' }
           : { ...result, currency: result.priced && result.billingMode === 'deepseek-peak' && config?.prices?.currency === 'CNY' ? 'CNY' : 'USD' }
       }
+      result = withProviderPeakSchedule(result, normalized, config?.prices)
+      if (normalized === 'ollama-cloud' && config?.prices?.ollamaPeak !== false && result.entry && result.billingMode === 'deepseek-peak'
+        && (config?.prices?.ollamaTaggedPeak === false ? ['deepseek-v4.1-flash', 'deepseek-v4-pro'].includes(String(modelId).trim().toLowerCase()) : matchModelIdLocal(modelId, ['deepseek-v4.1-flash', 'deepseek-v4-pro']) !== null)) result = { ...result, entry: { ...result.entry, peakSchedule: result.entry.peakSchedule ?? 'ollama' } }
       return ['volcengine', 'ark'].includes(normalized) && config?.prices?.volcenginePeak !== false && result.entry && result.billingMode === 'deepseek-peak'
-        ? { ...result, entry: { ...result.entry, peakSchedule: 'volcengine' } } : result
+        ? { ...result, entry: { ...result.entry, peakSchedule: result.entry.peakSchedule ?? 'volcengine' } } : result
     }
     /** 投影 token 桶 → 按当前时刻档位计价的美元成本。 */
     /**
@@ -1335,7 +1393,7 @@
           // providerPriceEntryFor 的 peakSchedule 标记同口径(trim、小写、剥离 llm- 前缀)。
           if (entry && resolved.billingMode === 'deepseek-peak' && config.prices?.ollamaPeak !== false
             && provider.trim().toLowerCase().replace(/^llm-/, '') === 'ollama-cloud'
-            && (config.prices?.ollamaTaggedPeak === false ? ['deepseek-v4.1-flash', 'deepseek-v4-pro'].includes(modelId.trim().toLowerCase()) : matchModelIdLocal(modelId, ['deepseek-v4.1-flash', 'deepseek-v4-pro']) !== null)) entry.peakSchedule = 'ollama'
+            && (config.prices?.ollamaTaggedPeak === false ? ['deepseek-v4.1-flash', 'deepseek-v4-pro'].includes(modelId.trim().toLowerCase()) : matchModelIdLocal(modelId, ['deepseek-v4.1-flash', 'deepseek-v4-pro']) !== null)) entry.peakSchedule ??= 'ollama'
           const c = costOfBuckets(byModel[providerKey], tierFor(entry, now, { ...peak, enabled: ['deepseek-peak', 'utc-peak'].includes(resolved.billingMode) && peak.enabled }))
           const billed = usdFromCostLocal(c, resolved.currency, cnyRate)
           total += billed
@@ -2307,6 +2365,10 @@
 
     function peakPhaseForConfig(config, now) {
       const provider = String(config?.peakProvider ?? '').trim().toLowerCase().replace(/^llm-/, '')
+      const table = config?.prices?.providers?.[provider] ?? (['deepseek-official', 'deepseek-account', ''].includes(provider) ? config?.prices?.providers?.deepseek : undefined)
+      const entry = table && { peakSchedule: provider === 'ollama-cloud' && config.prices.ollamaPeak !== false ? 'ollama' : ['volcengine', 'ark'].includes(provider) && config.prices.volcenginePeak !== false ? 'volcengine' : undefined, ...table }
+      const peak = { enabled: config?.peakEnabled === true, effectiveAtMs: Date.parse(config?.peakEffectiveAt), windows: config?.peakWindows, holidays: config?.peakHolidays }
+      if (entry && configuredPeakAt(entry, now, peak) !== null) return configuredPeakPhase(entry, now, peak)
       return peakPhaseAt(now, config?.peakWindows ?? [], config?.peakHolidays, ['volcengine', 'ark'].includes(provider) ? 'volcengine' : undefined)
     }
 
