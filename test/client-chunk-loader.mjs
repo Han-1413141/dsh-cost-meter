@@ -31,7 +31,12 @@ function fixture(protocol = 'dsh-app://app') {
   const system = new ClientModuleSystem({
     manifest: { rev: 'first', modules: [{ id: owner, url, initialUrl: url, rev: 'first', inject: [], external: [] }], plugins: [] },
     staticModules: seed, bootstrapModule: { id: 'bootstrap', exports: {} }, registrationTarget: facade,
-    loadBundle: async url => { const file = url.includes('/??') ? 'client.js' : new URL(url).pathname.split('/').at(-1); loads.push(url); run(sources.get(file)) },
+    loadBundle: async url => {
+      const file = url.includes('/??') ? 'client.js' : new URL(url).pathname.split('/').at(-1)
+      loads.push(url)
+      // Combined scripts must work even when the previous registration has no semicolon.
+      run("window.__ModuleLoader__.load({id:'bundle-prefix-" + loads.length + "',factory:()=>({})})\n" + sources.get(file))
+    },
   })
   const install = () => shim.installClient({ window, dshVersion: '0.2.1-rc.3', effect: fn => effects.push(fn()) })
   return { run, facade, system, loads, install, effects }
