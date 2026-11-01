@@ -2564,7 +2564,7 @@
       const mainKey = config?.goQuota?.main === 'weekly' || config?.goQuota?.main === 'monthly' ? config.goQuota.main : 'rolling'
       const mainWin = goQuota[mainKey]
       const pct = mainWin !== null && typeof mainWin?.percent === 'number' ? Math.max(0, Math.min(100, Number(mainWin.percent) || 0)) : 0
-      const pctOf = win => (win !== null && typeof win?.percent === 'number') ? Math.round(Math.max(0, Math.min(100, win.percent))) + '%' : '—'
+      const pctOf = win => (win !== null && typeof win?.percent === 'number') ? Math.round(simpleBarByDirection(win.percent, barDirectionOf(config, 'go')).label) + '%' : '—'
       const shortOf = k => k === 'rolling' ? t('goShortRolling') : k === 'weekly' ? t('goShortWeekly') : t('goShortMonthly')
       const others = ['rolling', 'weekly', 'monthly'].filter(k => k !== mainKey)
       const resets = mainWin !== null && typeof mainWin?.resetsAt === 'string' && mainWin.resetsAt.length > 0
