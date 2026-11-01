@@ -3363,10 +3363,11 @@
           key: 'codex',
           label: 'Codex',
           level: worst >= 100 ? 'over' : worst >= 80 ? 'warn' : 'ok',
-          tip: t('codexQuotaTitle') + ': ' + [
-            fivePct === null ? null : '5h ' + quotaValueText(100 - fivePct, 'remaining', t),
-            weekPct === null ? null : t('codingPlanRemain7d') + ' ' + quotaValueText(100 - weekPct, 'remaining', t),
-          ].filter(Boolean).join(' · '),
+          tip: [t('codexQuotaTitle'), ...[['5h', fiveWin], [t('codingPlanRemain7d'), weekWin]].filter(([, win]) => win).map(([name, win]) =>
+            name + ': ' + quotaValueText(100 - pctOf(win), 'remaining', t)
+            + (typeof win.resetsAt === 'string' && Number.isFinite(Date.parse(win.resetsAt)) ? ' · ' + t('goResetAt', { time: new Date(win.resetsAt).toLocaleString() }) : '')),
+            codexQuotaCache.fetchedAt > 0 ? t('goQuotaFetchedAt', { time: new Date(codexQuotaCache.fetchedAt).toLocaleTimeString() }) : null,
+          ].filter(Boolean).join('\n'),
           segs: [
             fivePct === null ? null : { name: '5h', pct: 100 - fivePct },
             weekPct === null ? null : { name: 'weekly', pct: 100 - weekPct },
@@ -3412,7 +3413,7 @@
           if (!busy && api) tipLines.push(t('clickToRefresh'))
           if (busy) tipLines.push(t('refreshing'))
           if (err) tipLines.push('⚠ ' + t('balanceRefreshFailed', { message: err }))
-          return el(Tooltip, { portal: true, key: c.key, label: tipLines.join('; '), side: 'bottom', delayMs: 400 },
+          return el(Tooltip, { portal: true, key: c.key, label: c.key === 'codex' ? el('span', { style: { whiteSpace: 'pre-line' } }, tipLines.join('\n')) : tipLines.join('; '), side: 'bottom', delayMs: 400 },
             el('span', {
               className: 'cm-qchip' + (api ? ' action' : '') + (c.level === 'ok' ? '' : ' ' + c.level),
               ...(api ? clickableRefreshProps(busy, () => doRefresh(c.key)) : {}),

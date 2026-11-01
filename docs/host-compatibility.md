@@ -2,6 +2,18 @@
 
 > **当前声明范围**：`engines.dsh` = `>=0.2.0-rc.1 <0.3.0-0`，`dsh.compatibility.dsh` 与 `dshhub.compatibility.dsh` 同值；本轮适配目标为 npm `next` 标签的 `0.2.1-rc.2`（此前的 `0.2.1-rc.1` 验证记录保留在下方）。**DSH 0.1.x 已不在支持范围内**：下文「历史验证：DSH 0.1」与 [1.7.14 兼容记录](host-compatibility-v1.7.14.md)中的 0.1.x 条目只作历史留存，不代表当前支持。声明理由见[兼容性说明](dsh-0.2.1-compatibility.md)。
 
+## 2026-11-01：模块加载兼容（#452）
+
+[@3-yanyupingsheng](https://github.com/3-yanyupingsheng) 在 [#452](https://github.com/Han-1413141/dsh-cost-meter/issues/452) 报告 DSH NEXT 2.0.20-next 的重复注册。该桌面壳按[发布说明](https://github.com/anywhere-labs/dsh-desktop/releases/tag/v2.0.20-next)使用核心 0.2.1-rc.3；桌面壳版本与核心版本分别记录，不把 `2.0.20-next` 写入核心 `dshReleases`。
+
+| 核心模块包 | 测试组合 | 结果 |
+| --- | --- | --- |
+| dsh-client-modules 0.2.0-rc.2 | 原生；dsh-loader 1.3.5 在主入口前／后启用 | 通过 |
+| dsh-client-modules 0.2.1-rc.3 | 同上，对应所报桌面版的核心 | 通过 |
+| dsh-client-modules 0.2.1-rc.5 | 同上 | 通过 |
+
+`test/client-chunk-loader.mjs` 执行实际 npm 包的模块系统和 dsh-loader 客户端工厂。先复现丢失 `chunk` 的重复注册与丢失 `require.async`，再验证发布产物的主入口和 13 个分块；覆盖 HTTPS／`dsh-app://`、并发加载、缓存复用、包级失效、带新修订号重载，以及其他插件别名不变。这里验证的是模块集成，未运行完整 Electron 桌面端；完整宿主安装与 RPC 的既有记录保留如下。
+
 ## 已验证宿主：DSH 0.2.1-rc.2（2026-10-17）
 
 > 发布版本说明：v1.8.36 沿用本节的 rc.2 兼容结论——该版本只包含 #300/#302 的账本与对账修复及文档更新，未改动宿主兼容声明、依赖范围与运行时导入面。v1.9.0 同样沿用本节 rc.2 结论——该版本新增订阅插件兼容（Codex / ChatGPT）、better-session SQLite 会话存储适配、dsh-pocket 手机端适配与 OpenDesign preflight 回退，未改动宿主兼容声明、依赖范围与运行时导入面。

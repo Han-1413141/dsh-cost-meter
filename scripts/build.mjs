@@ -19,6 +19,7 @@ import { transform, build } from 'esbuild'
 import { runInNewContext } from 'node:vm'
 import assert from 'node:assert/strict'
 import { javascriptLiteral } from './javascript-literal.mjs'
+import { withClientRegistration } from './client-registration.mjs'
 import { SUBSCRIPTION_CATALOG } from '../lib/subscription-catalog.js'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -168,7 +169,7 @@ while (cssPhrases.length < 128) {
 }
 assert.equal(packedCss.replace(new RegExp(cssTokenRange, 'g'), token => cssPhrases[token.charCodeAt(0) - cssTokenBase]), compactCss)
 src = src.replace(cssMatch[0], () => `const cssPhrases=${javascriptLiteral(cssPhrases.join('~'))}.split("~");const css=${javascriptLiteral(packedCss)}.replace(/${cssTokenRange}/g,token=>cssPhrases[token.charCodeAt(0)-${cssTokenBase}])`)
-const result = await transform(src, {
+const result = await transform(withClientRegistration(src), {
   minify: true,
   keepNames: false,
   legalComments: 'none',
@@ -178,7 +179,8 @@ const result = await transform(src, {
   // 输出,比默认 \uXXXX 转义(每字 6 字节)省一半以上,给 256 KiB 单文件上限留出余量。
   charset: 'utf8',
 })
-const header = '// Generated from src/client/*.js by node scripts/build.mjs; do not edit.\n'
+// Separate the registration IIFE from any preceding script in a combined bundle.
+const header = '// Generated from src/client/*.js by node scripts/build.mjs; do not edit.\n;'
 const outPath = resolve(projectRoot, 'lib/client.js')
 writeFileSync(outPath, header + result.code)
 // 字节口径与 test/verify.mjs 的门禁一致(UTF-8 字节而非 UTF-16 字符数,中文文案算多字节)。
@@ -209,10 +211,11 @@ for (const chunk of ['billing-storage', 'settings-overview', 'statistics', 'open
     const styles = await transform(readFileSync(resolve(projectRoot, 'src/peak/style.css'), 'utf8'), { loader: 'css', minify: true })
     source = source.replace("'PEAK_STYLE_SOURCE'", () => javascriptLiteral(styles.code))
   }
-  const result = await transform(source, { minify: true, target: 'es2022', charset: 'utf8', legalComments: 'none' })
-  for (const [name, text] of [[`src/${chunk}/index.js`, source], [`lib/client.${chunk}.js`, result.code]]) {
+  const result = await transform(withClientRegistration(source), { minify: true, target: 'es2022', charset: 'utf8', legalComments: 'none' })
+  const code = ';' + result.code
+  for (const [name, text] of [[`src/${chunk}/index.js`, source], [`lib/client.${chunk}.js`, code]]) {
     if (Buffer.byteLength(text) > 262144) throw new Error(`${name} exceeds the 262144-byte bound`)
   }
-  writeFileSync(resolve(projectRoot, `lib/client.${chunk}.js`), result.code)
-  console.log(`✓ lib/client.${chunk}.js ${Buffer.byteLength(result.code)} bytes (loaded on demand)`)
+  writeFileSync(resolve(projectRoot, `lib/client.${chunk}.js`), code)
+  console.log(`✓ lib/client.${chunk}.js ${Buffer.byteLength(code)} bytes (loaded on demand)`)
 }

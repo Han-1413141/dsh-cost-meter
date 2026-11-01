@@ -70,3 +70,7 @@ node test/codex-subscription-published.mjs
 ### 2026-11-01：Codex Subscription 3.2.2 / 3.2.3
 
 针对 `github-actions[bot]` 的 [#444](https://github.com/Han-1413141/dsh-cost-meter/issues/444)，验证两个实际 npm 发布包的额度解析、单周／双窗口、缓存、强制刷新、账号切换、共享请求取消和宿主传输拒绝。两版通过，外部请求数为 0；基线更新至处理时的 latest 3.2.3，并保存官方包完整性值，CI 保留两版。未改变其他插件基线。
+
+### 2026-11-01：billion-context 0.1.210 / 0.1.211
+
+响应 github-actions[bot] 的 [#451](https://github.com/Han-1413141/dsh-cost-meter/issues/451)。两个实际 npm 发布包通过代理／原生计费、四协议、压缩、重试、缓存、父子会话、API/Plan、历史回放、重启及原版 CLI 自动接入检查；仅使用合成数据与本机服务，外部模型请求为 0。无需修改运行时代码，基线更新至处理时的 0.1.211，CI 保留两版并继续验证旧版。

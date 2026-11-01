@@ -25,7 +25,9 @@ import React from ${JSON.stringify(req.resolve('react'))};
 import {createRoot} from ${JSON.stringify(req.resolve('react-dom/client'))};
 window.__ModuleLoader__={load:mod=>window.connectionUI=mod.factory(()=>({}))};
 ${connectionSource}
-const costRequire=name=>name==='react'?React:{Tooltip:({children})=>children};
+// Render the supplied tooltip label for browser assertions; positioning is fixture-only.
+function TestTooltip({children,label}){const[open,setOpen]=React.useState(false);return React.createElement('span',{style:{display:'contents'},onMouseEnter:()=>setOpen(true),onMouseLeave:()=>setOpen(false)},children,open?React.createElement('span',{role:'tooltip',className:'quota-test-tooltip'},label):null)}
+const costRequire=name=>name==='react'?React:{Tooltip:TestTooltip};
 costRequire.async=async path=>{if(path!=='./client.codex.js')throw Error('Unexpected chunk');return window.codexUI};
 window.__ModuleLoader__={load:mod=>window.codexUI=mod.factory(costRequire)};
 ${readFileSync('lib/client.codex.js', 'utf8')}
@@ -88,12 +90,12 @@ const server = createServer(async (request, response) => {
   }
   if (request.url !== '/') { response.statusCode = 404; return response.end() }
   response.setHeader('content-type', 'text/html; charset=utf-8')
-  response.end(`<!doctype html><html><head><meta charset="utf-8"><style>${readFileSync('test/fixtures/peak-theme.css', 'utf8')}body{margin:0;padding:24px}#root{width:280px}</style></head><body><div id="root"></div><script type="module" src="/app.js"></script></body></html>`)
+  response.end(`<!doctype html><html><head><meta charset="utf-8"><style>${readFileSync('test/fixtures/peak-theme.css', 'utf8')}body{margin:0;padding:24px}#root{width:280px}.quota-test-tooltip{position:fixed;bottom:18px;left:24px;max-width:calc(100vw - 48px);padding:10px 14px;border-radius:10px;background:#45474b;color:#fff;font:14px/1.65 system-ui;z-index:999}</style></head><body><div id="root"></div><script type="module" src="/app.js"></script></body></html>`)
 })
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 const origin = `http://127.0.0.1:${server.address().port}`
 const browser = await chromium.launch({ executablePath, headless: true })
-const page = await browser.newPage({ viewport: { width: 600, height: 400 }, timezoneId: 'Asia/Shanghai' })
+const page = await browser.newPage({ viewport: { width: 600, height: 400 }, timezoneId: 'Asia/Shanghai', locale: 'zh-CN' })
 const errors = [], external = []
 page.on('pageerror', error => errors.push(String(error)))
 await page.route('**/*', route => {
@@ -117,6 +119,15 @@ try {
   await card.locator('.cm-codex-resets').getByText('7d · 10/25 08:10 重置', { exact: true }).waitFor()
   assert.equal(await card.locator('.cm-mm-row .cm-bbox-fill').evaluateAll(nodes => nodes.map(n => n.style.width).join(',')), '60%,83%')
   assert.equal(calls.length, 2, 'sign-in recovers through the real RPC without remounting')
+  await page.locator('#composer .cm-qchip').hover()
+  const tooltip = page.getByRole('tooltip')
+  await tooltip.waitFor()
+  assert.match(await tooltip.innerText(), /5h: 剩余 60% · 重置:2026\/10\/19 18:10:00/)
+  assert.match(await tooltip.innerText(), /7d: 剩余 83% · 重置:2026\/10\/25 08:10:00/)
+  assert.match(await tooltip.innerText(), /更新于 .*\n点击立即刷新/)
+  assert.equal(await tooltip.locator('span').first().evaluate(node => getComputedStyle(node).whiteSpace), 'pre-line')
+  await page.screenshot({ path: join(output, 'composer-codex-dual-reset.png') })
+  await page.mouse.move(590, 5)
   await page.screenshot({ path: join(output, 'quota-dual.png') })
   const layouts = []
   const checkLayout = async (locale, mode, theme, width, rows) => {
@@ -145,6 +156,13 @@ try {
   assert.doesNotMatch(await card.innerText(), /5h/, 'weekly-only accounts never render a 5h row')
   assert.equal(await page.locator('#composer .cm-qseg').count(), 1, 'weekly-only accounts render exactly one composer segment')
   assert.equal(calls.at(-1).payload.force, true)
+  await page.locator('#composer .cm-qchip').hover()
+  await tooltip.waitFor()
+  assert.match(await tooltip.innerText(), /7d: 剩余 83% · 重置:2026\/10\/25 08:10:00/)
+  assert.doesNotMatch(await tooltip.innerText(), /5h:/)
+  await page.screenshot({ path: join(output, 'composer-codex-weekly-reset.png') })
+  await page.mouse.move(590, 5)
+
   await card.locator('.cm-codex-resets').getByText('10/25 08:10 重置', { exact: true }).waitFor()
   for (const mode of ['standard', 'compact', 'simple']) for (const theme of ['light', 'dark']) await checkLayout('zh', mode, theme, 324, 1)
   await page.screenshot({ path: join(output, 'quota.png') })
@@ -166,6 +184,12 @@ try {
     await card.click(); await page.waitForFunction(() => document.querySelector('[data-cm-display="codex"]').getAttribute('aria-busy') === 'false')
     assert.equal(await card.locator('.cm-codex-resets > span').count(), 0, 'missing or invalid reset times do not invent a date')
     assert.equal(await card.locator('.cm-mm-row .cm-bbox-fill').evaluate(node => node.style.width), '83%')
+    await page.locator('#composer .cm-qchip').hover()
+    await tooltip.waitFor()
+    assert.match(await tooltip.innerText(), /7d: 83% remaining/)
+    assert.doesNotMatch(await tooltip.innerText(), /Resets:|Invalid Date/)
+    await page.mouse.move(590, 5)
+
   }
   await page.evaluate(() => window.configure({ codexQuotaStrip: false }))
   await page.locator('#composer .cm-qchip').waitFor({ state: 'detached' })
@@ -300,7 +324,7 @@ try {
   assert.equal(await page.evaluate(()=>window.nativeReads),stoppedNative,'hiding both native quota positions stops reads')
   assert.equal(await page.evaluate(()=>window.chatgptSubReads),stoppedSub,'hiding both ChatGPT sub positions stops reads')
   assert.deepEqual(errors, []); assert.deepEqual(external, [])
-  writeFileSync(join(output, 'result.json'), JSON.stringify({ passed: true, calls: calls.length, chatgptCalls, layouts, workbuddyLayouts, remainingBars: true, resetTopRight: true, weeklyOnly: true, missingReset: true, externalRequests: 0, browserErrors: errors }, null, 2))
+  writeFileSync(join(output, 'result.json'), JSON.stringify({ passed: true, calls: calls.length, chatgptCalls, layouts, workbuddyLayouts, remainingBars: true, resetTopRight: true, composerResetTooltip: true, weeklyOnly: true, missingReset: true, externalRequests: 0, browserErrors: errors }, null, 2))
   await page.evaluate(() => window.dispose())
   console.log('[ok] Codex quota: shipped assets, DSH Connection RPC, native pi-ai and ChatGPT HTTP, login recovery, weekly-only/dual windows, source fallback and disable cleanup')
 } finally { await browser.close(); await new Promise(resolve => server.close(resolve)) }
