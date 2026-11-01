@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [1.9.48] - 2026-11-01
+
+- 修复启用 dsh-loader 时的客户端重复注册及异步模块加载失败：为费用插件保留原生 `chunk` 与 `require.async`，继续使用按需加载和宿主热更新。感谢 [@3-yanyupingsheng](https://github.com/3-yanyupingsheng) 在 [#452](https://github.com/Han-1413141/dsh-cost-meter/issues/452) 提供桌面环境、错误日志、重启复现及跨版本对照。
+- Codex 输入栏额度的悬停提示按窗口显示剩余百分比与完整重置时间，并显示更新时间；有 5 小时窗口时与 7 天窗口一起展示，缺少时间时保留额度、不生成日期。
+- 验证 billion-context 0.1.210、0.1.211 实际发布包的计费与原版 CLI 自动接入，更新兼容基线和 CI，处理 github-actions[bot] 的 [#451](https://github.com/Han-1413141/dsh-cost-meter/issues/451)。
+- Preserve native chunk registration under dsh-loader, display Codex reset dates in the input-bar tooltip, and verify published billion-context 0.1.210–0.1.211 packages.
+
+[更新说明 / Release notes](docs/update-notes-1.9.48.md)
+
 ## [1.9.47] - 2026-11-01
 
 - 自定义余额支持算式、嵌套运算及订阅数组求和，区分剩余额度与已用量。[配置示例](docs/custom-balance-sources.md#复杂计算与订阅余额)。

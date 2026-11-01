@@ -1,8 +1,8 @@
 {
-  "recordedAt": "2026-11-01T00:00:00Z",
+  "recordedAt": "2026-11-01T13:10:32.058379Z",
   "plugins": {
     "billion-context": {
-      "version": "0.1.209",
+      "version": "0.1.211",
       "signature": {
         "main": "dist/index.js",
         "exports": {
@@ -35,7 +35,8 @@
         }
       },
       "interfaceHash": "d12e6cccffc548edf9492e7042b9ce1cd82df3537c023d3225aadb6b866bf4eb",
-      "integrity": "sha512-Lz43W6+WXlR/FkdWAvYVXrxsK8IqXx4sPjru/cYaxm8/DtO5na9HBFR9Ab46kYuC0Wx5vfKeO6X9rR9W/qs4lw=="
+      "integrity": "sha512-Wup1pOPTCQm2t1RKJwGfL6neO83MU8jOEzEVkXXIS9Xf+xl8c09CyquzOL++TxY8UBGUJ/e1plIZpHr2CA50DA==",
+      "packageUrl": "https://registry.npmjs.org/billion-context/-/billion-context-0.1.211.tgz"
     },
     "dsh-codex-subscription": {
       "version": "3.2.3",

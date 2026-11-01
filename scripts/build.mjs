@@ -19,6 +19,7 @@ import { transform, build } from 'esbuild'
 import { runInNewContext } from 'node:vm'
 import assert from 'node:assert/strict'
 import { javascriptLiteral } from './javascript-literal.mjs'
+import { withClientRegistration } from './client-registration.mjs'
 import { SUBSCRIPTION_CATALOG } from '../lib/subscription-catalog.js'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -168,7 +169,7 @@ while (cssPhrases.length < 128) {
 }
 assert.equal(packedCss.replace(new RegExp(cssTokenRange, 'g'), token => cssPhrases[token.charCodeAt(0) - cssTokenBase]), compactCss)
 src = src.replace(cssMatch[0], () => `const cssPhrases=${javascriptLiteral(cssPhrases.join('~'))}.split("~");const css=${javascriptLiteral(packedCss)}.replace(/${cssTokenRange}/g,token=>cssPhrases[token.charCodeAt(0)-${cssTokenBase}])`)
-const result = await transform(src, {
+const result = await transform(withClientRegistration(src), {
   minify: true,
   keepNames: false,
   legalComments: 'none',
@@ -209,7 +210,7 @@ for (const chunk of ['billing-storage', 'settings-overview', 'statistics', 'open
     const styles = await transform(readFileSync(resolve(projectRoot, 'src/peak/style.css'), 'utf8'), { loader: 'css', minify: true })
     source = source.replace("'PEAK_STYLE_SOURCE'", () => javascriptLiteral(styles.code))
   }
-  const result = await transform(source, { minify: true, target: 'es2022', charset: 'utf8', legalComments: 'none' })
+  const result = await transform(withClientRegistration(source), { minify: true, target: 'es2022', charset: 'utf8', legalComments: 'none' })
   for (const [name, text] of [[`src/${chunk}/index.js`, source], [`lib/client.${chunk}.js`, result.code]]) {
     if (Buffer.byteLength(text) > 262144) throw new Error(`${name} exceeds the 262144-byte bound`)
   }
