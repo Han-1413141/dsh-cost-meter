@@ -66,3 +66,7 @@ node test/codex-subscription-published.mjs
 - dsh-codex-subscription 3.2.1：RPC 增加默认模型重置分支，额度解析器及 reader 指纹保持一致。实际发布包通过单周／双窗口、默认缓存、强制刷新、账号切换、共享请求取消、登录失效与真实宿主传输拒绝检查。
 
 费用插件运行时代码无需调整。仅更新上述两个基线，保留 Connect 基线，并在 CI 中保留旧版本、加入两个新版本。测试使用合成数据与本机服务器，外部账户及模型请求为 0。
+
+### 2026-11-01：Codex Subscription 3.2.2 / 3.2.3
+
+针对 `github-actions[bot]` 的 [#444](https://github.com/Han-1413141/dsh-cost-meter/issues/444)，验证两个实际 npm 发布包的额度解析、单周／双窗口、缓存、强制刷新、账号切换、共享请求取消和宿主传输拒绝。两版通过，外部请求数为 0；基线更新至处理时的 latest 3.2.3，并保存官方包完整性值，CI 保留两版。未改变其他插件基线。

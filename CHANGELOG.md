@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [1.9.47] - 2026-11-01
+
+- 自定义余额支持算式、嵌套运算及订阅数组求和，区分剩余额度与已用量。[配置示例](docs/custom-balance-sources.md#复杂计算与订阅余额)。
+- 按渠道与模型配置峰谷时段、日历及节假日，自定义模型可分别填写峰价和谷价；设置进入价格历史并在官方同步时保留。感谢 [@wexther](https://github.com/wexther) 在 [#445](https://github.com/Han-1413141/dsh-cost-meter/issues/445) 提出需求与配置结构建议。
+- 合并 [@wegret](https://github.com/wegret) 的 [#447](https://github.com/Han-1413141/dsh-cost-meter/pull/447)，修复其在 [#446](https://github.com/Han-1413141/dsh-cost-meter/issues/446) 报告的 Go 侧栏额度明细方向问题。
+- 合并 Dependabot 的 [#448](https://github.com/Han-1413141/dsh-cost-meter/pull/448)、[#449](https://github.com/Han-1413141/dsh-cost-meter/pull/449)，同步 rc.4 开发依赖与安装策略；验证 Codex 订阅 3.2.2、3.2.3 发布包，处理 github-actions[bot] 的 [#444](https://github.com/Han-1413141/dsh-cost-meter/issues/444)。
+- Add custom balance arithmetic and subscription sums, provider/model peak schedules and separate rates; preserve historical pricing and synchronization overrides, correct Go detail direction, and verify current Codex subscription packages.
+
+[更新说明 / Release notes](docs/update-notes-1.9.47.md)
+
 ## [1.9.46] - 2026-10-29
 
 - 验证 billion-context 0.1.209 与 dsh-codex-subscription 3.2.1 的实际发布包，更新兼容基线与持续集成；处理 github-actions[bot] 的 [#441](https://github.com/Han-1413141/dsh-cost-meter/issues/441)、[#442](https://github.com/Han-1413141/dsh-cost-meter/issues/442)。

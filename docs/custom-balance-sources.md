@@ -1,5 +1,55 @@
 # 自定义余额：随机端口、局域网与 WorkBuddy2API
 
+## 复杂计算与订阅余额
+
+1.9.47 起，“费用 → 额度 → 自定义余额 → 解析规则 (JSON)”支持 `expression` 算式和嵌套运算。`remaining` 是剩余额度，`spend` 是已用量，`maxBudget` 是总额度；不能把接口的已用量字段直接填到 `remaining`。
+
+例如接口返回 `{"data":{"amount_total":15000000,"amount_used":2500000}}`，且该站点使用 500000 额度单位折合 1 美元时，可以填写：
+
+```json
+{
+  "remaining": {"expression": "(data.amount_total - data.amount_used) / 500000"},
+  "spend": {"expression": "data.amount_used / 500000"},
+  "maxBudget": {"expression": "data.amount_total / 500000"}
+}
+```
+
+本例显示余额 25 美元、已用 5 美元、总额 30 美元。字段路径和换算比例按站点实际响应修改。NewAPI 的订阅对象使用 `amount_total` 和 `amount_used`，响应外层与账户余额接口有所不同，不能直接套用另一个接口的路径。[上游字段定义](https://github.com/QuantumNous/new-api/blob/main/web/src/features/subscriptions/types.ts)
+
+如果响应的 `data.subscriptions` 是订阅数组，且每项包含 `subscription.amount_total`、`subscription.amount_used`，可先逐项计算再求和：
+
+```json
+{
+  "remaining": {
+    "op": "sum",
+    "path": "data.subscriptions",
+    "value": {"expression": "(subscription.amount_total - subscription.amount_used) / 500000"}
+  },
+  "spend": {
+    "op": "sum",
+    "path": "data.subscriptions",
+    "value": {"expression": "subscription.amount_used / 500000"}
+  },
+  "maxBudget": {
+    "op": "sum",
+    "path": "data.subscriptions",
+    "value": {"expression": "subscription.amount_total / 500000"}
+  }
+}
+```
+
+数组须对应要展示的有效订阅。已有“路径”“常量”“add/subtract 的 paths”和“divide 的 path/by”规则继续使用；新规则用 `args` 嵌套，例如：
+
+```json
+{"remaining":{"op":"divide","args":[{"op":"subtract","args":["data.amount_total","data.amount_used"]},500000]}}
+```
+
+算式支持 `+ - * / % **`、括号、数组下标，以及 `min`、`max`、`abs`、`round`、`floor`、`ceil`。不运行 JavaScript。字段缺失、非数值、除零和非有限结果会报告解析失败，不会显示为余额 0。
+
+### English: formulas
+
+Use `remaining` for available balance, `spend` for usage and `maxBudget` for the total allowance. Expressions support arithmetic, parentheses, JSON field paths, array indices and the listed numeric functions. Nested rules use `args`; `sum` evaluates `value` for each item at `path`. Match the example paths, active-subscription scope and conversion factor to the actual endpoint. Existing rules remain supported. Invalid or missing numeric data fails explicitly.
+
 ## 侧栏跳转链接
 
 在“费用 → 额度”展开任一自定义余额条目，填写“跳转链接（可选）”（`dashboardUrl`）。链接可指向中转站账户、充值或控制台页面，使用完整 HTTP(S) 地址，不能包含用户名或密码。保存后，侧栏余额行或进度卡的名称旁显示跳转箭头；点击箭头打开新标签页，不触发余额刷新。各条目独立设置，留空时不显示链接。余额接口 URL、请求头和凭据不会被用作跳转链接。

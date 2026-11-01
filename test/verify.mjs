@@ -160,7 +160,7 @@ function readClientSource() {
   const dir = new URL('../src/client/', import.meta.url)
   const parts = readdirSync(dir).filter(name => name.endsWith('.js')).sort()
   assert.ok(parts.length > 0, 'src/client/ 源码片段缺失')
-  return parts.map(name => readFileSync(new URL(name, dir), 'utf8').replace(/\r\n/g, '\n')).join('') + readFileSync(new URL('../src/plan-settings/index.js', import.meta.url), 'utf8')
+  return parts.map(name => readFileSync(new URL(name, dir), 'utf8').replace(/\r\n/g, '\n')).join('') + readFileSync(new URL('../src/plan-settings/index.js', import.meta.url), 'utf8') + readFileSync(new URL('../src/pricing/peak-panel.js', import.meta.url), 'utf8')
 }
 const displaySource = readFileSync(new URL('../src/display/index.js', import.meta.url), 'utf8')
 
@@ -394,7 +394,7 @@ console.log('[ok] usdFromCost(CNY 折算/USD 原值/非法兜底/往返抵消)�
   assert.ok(indexSource.includes("parsePricingHtml(await fetchPricingHtml(locale, wanted === 'CNY' ? 'USD' : 'CNY'))"), '目标币种页失败回退另一语言页')
   const syncSource = readFileSync(new URL('../lib/official-price-sync.js', import.meta.url), 'utf8')
   assert.ok(indexSource.includes('prices: officialPriceSyncTable(ledger.config.prices, parsed, locale)') && syncSource.includes("const currency = parsed.currency === 'CNY' ? 'CNY' : 'USD'"), '同步通过原子币种保护构建价表')
-  assert.ok(syncSource.includes('default: { ...fallback, ...priceMultiplierSettings(current?.default) }'), 'default 随页面替换，仅保留用户倍率，不残留旧币种单价')
+  assert.ok(syncSource.includes('default: { ...fallback, ...priceMultiplierSettings(current?.default), ...peakScheduleSettings(current?.default) }'), 'default 随页面替换，保留用户倍率与时段，不残留旧币种单价')
   assert.ok(indexSource.includes('pricesSyncedFallback'), '回退提示文案存在(zh/en)')
   const clientSource = readClientSource()
   assert.ok(clientSource.includes("setField('pricingCurrency'"), '设置页含官方价格币种下拉')
@@ -3831,7 +3831,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(readFileSync(new URL('../src/display/controls.js', import.meta.url), 'utf8').includes("t('languageLabel')"), '语言选择在显示预览的右侧面板')
   between('load: api.loadDisplay', branch.display, branch.pricing, '交互预览在显示标签按需加载')
   // 价格:峰谷 + 价格表 + 匹配 + 拓展目录 + 官方同步。
-  between('el(PeakPanel, { state, draft, setDraft, t })', branch.pricing, tabsSrc.length, '峰谷计价面板在价格标签')
+  between('el(PeakPanel, { state, draft, setDraft, t, api })', branch.pricing, tabsSrc.length, '峰谷计价面板在价格标签')
   between("t('priceTableTitle')", branch.pricing, tabsSrc.length, '价格表在价格标签')
   between("t('dataSync')", branch.pricing, tabsSrc.length, '官方价格同步在价格标签')
   // 拓展价格表面板已移除:第三方价格卡片改由价格表内的厂商折叠分组承载。
@@ -7037,6 +7037,8 @@ await import('./display-onboarding.mjs')
 await import('./official-price-sync-currency.mjs')
 
 await import('./catalog-october-28.mjs')
+await import('./custom-balance-expressions.mjs')
+await import('./provider-peak-schedule.mjs')
 
 // Drain any remaining async host disposers before the synchronous exit cleanup.
 await removeFixture(suiteRoot, { recursive: true, force: true })

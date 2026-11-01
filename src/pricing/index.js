@@ -226,6 +226,69 @@ window.__ModuleLoader__.load({
             : el('p', { className: 'cm-hint' }, en ? 'All bundled models are mounted.' : '内置模型均已挂载。')) : null)
     }
 
+    /* PEAK_PANEL_SOURCE */
+
+    function PeakScheduleEditor({ value, onChange, locale, defaults = [] }) {
+      const en = locale === 'en', windows = value.peakWindows
+      const text = rows => rows.map(w => w.start + '-' + w.end).join(', ')
+      const [input, setInput] = useState(() => text(windows ?? defaults)), [error, setError] = useState('')
+      useEffect(() => setInput(text(windows ?? defaults)), [JSON.stringify(windows), JSON.stringify(defaults)])
+      const write = (key, next) => { const row = { ...value }; if (next === undefined) delete row[key]; else row[key] = next; onChange(row) }
+      const saveWindows = () => {
+        const parts = input.trim() ? input.split(/[,，]/).map(s => s.trim()) : []
+        const rows = parts.map(part => { const hit = part.match(/^(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)$/); return hit ? { start: Number(hit[1]), end: Number(hit[2]) } : null })
+        if (rows.length > 24 || rows.some(w => !w || w.start >= 24 || w.end > 24 || w.start === w.end)) { setError(en ? 'Use UTC hours, e.g. 1-4, 6-10 or 22-2.' : '填写 UTC 小时，例如 1-4, 6-10，跨午夜可填 22-2。'); return }
+        setError(''); write('peakWindows', rows)
+      }
+      return el('fieldset', { className: 'cm-peak-schedule' }, el('legend', null, en ? 'Peak schedule' : '峰谷时段'),
+        el('label', { className: 'cm-check' }, el('input', { type: 'checkbox', checked: windows !== undefined, onChange: e => { setError(''); write('peakWindows', e.target.checked ? structuredClone(defaults) : undefined) } }), en ? 'Override peak hours' : '自定义峰时段'),
+        windows !== undefined ? el('label', { className: 'cm-field' }, en ? 'Peak hours (UTC)' : '峰时段（UTC）', el('input', { className: 'cm-input', value: input, onChange: e => setInput(e.target.value), onBlur: saveWindows, onKeyDown: e => { if (e.key === 'Enter') { e.preventDefault(); saveWindows() } } })) : null,
+        el('label', { className: 'cm-field' }, en ? 'Calendar' : '日历规则', el('select', { className: 'cm-input', 'aria-label': en ? 'Calendar' : '日历规则', value: value.peakSchedule ?? '', onChange: e => write('peakSchedule', e.target.value || undefined) },
+          ...[['', '沿用上级／渠道默认', 'Inherit channel/default'], ['daily', '每天', 'Every day'], ['deepseek', '北京时间工作日', 'Beijing weekdays'], ['utc-weekdays', 'UTC 工作日', 'UTC weekdays'], ['ollama', 'Ollama Cloud', 'Ollama Cloud'], ['volcengine', '火山方舟', 'Volcano Ark']].map(([id, zh, english]) => el('option', { key: id, value: id }, en ? english : zh)))),
+        el('label', { className: 'cm-field' }, en ? 'Holidays' : '节假日', el('select', { className: 'cm-input', 'aria-label': en ? 'Holidays' : '节假日', value: value.peakHolidays === null ? 'none' : Array.isArray(value.peakHolidays) ? 'custom' : 'inherit', onChange: e => write('peakHolidays', e.target.value === 'none' ? null : e.target.value === 'custom' ? [] : undefined) },
+          el('option', { value: 'inherit' }, en ? 'Inherit' : '沿用上级／渠道默认'), el('option', { value: 'none' }, en ? 'No holiday table' : '不使用节假日表'), el('option', { value: 'custom' }, en ? 'Custom dates' : '自定义日期'))),
+        Array.isArray(value.peakHolidays) ? el('label', { className: 'cm-field' }, en ? 'Off-peak Beijing dates' : '全天谷价日期（北京时间）', el('input', { className: 'cm-input', key: JSON.stringify(value.peakHolidays), defaultValue: value.peakHolidays.join(', '), placeholder: '2026-11-01, 2026-11-02', onBlur: e => {
+          const dates = e.target.value.split(/[,，\s]+/).filter(Boolean)
+          if (dates.length > 366 || dates.some(day => !/^\d{4}-\d{2}-\d{2}$/.test(day) || !Number.isFinite(Date.parse(day + 'T00:00:00Z')) || new Date(day + 'T00:00:00Z').toISOString().slice(0, 10) !== day)) { setError(en ? 'Use valid YYYY-MM-DD dates.' : '请填写有效的 YYYY-MM-DD 日期。'); return }
+          setError(''); write('peakHolidays', [...new Set(dates)].sort())
+        } })) : null,
+        error ? el('p', { className: 'cm-err', role: 'alert' }, error) : null,
+        el('p', { className: 'cm-hint' }, en ? 'Hours use UTC; Beijing time is UTC + 8. Windows include the start and exclude the end. Empty hours mean all off-peak. Model settings override channel settings.' : '小时采用 UTC，北京时间减 8 小时后填写。包含起点、不含终点，时段留空表示全天谷价。模型设置优先于渠道设置。'))
+    }
+
+    function PeakPriceEditor({ value, onChange, locale, defaults }) {
+      const en = locale === 'en', enabled = value.billingMode === 'deepseek-peak' || !!(value.peak || value.offPeak)
+      const base = { cacheMiss: value.cacheMiss ?? value.input ?? 0, cacheHit: value.cacheHit ?? value.cachedInput ?? value.input ?? 0, output: value.output ?? 0 }
+      return el('details', { className: 'cm-custom-more' }, el('summary', null, en ? 'Peak / off-peak pricing' : '峰谷价格与时段'),
+        el('label', { className: 'cm-check' }, el('input', { type: 'checkbox', checked: enabled, onChange: e => {
+          const next = { ...value, billingMode: e.target.checked ? 'deepseek-peak' : 'flat' }
+          if (e.target.checked) { next.peak = value.peak ?? { ...base }; next.offPeak = value.offPeak ?? { ...base } }
+          else { delete next.peak; delete next.offPeak }
+          onChange(next)
+        } }), en ? 'Enable peak / off-peak prices' : '启用峰谷价格'),
+        enabled ? el(Fragment, null, ...['peak', 'offPeak'].map(tier => el('fieldset', { key: tier }, el('legend', null, tier === 'peak' ? (en ? 'Peak' : '峰价') : (en ? 'Off-peak' : '谷价')),
+          el('div', { className: 'cm-custom-grid' }, ...[['cacheMiss', '输入', 'Input'], ['cacheHit', '缓存读取', 'Cached input'], ['output', '输出', 'Output'], ['cacheWrite', '缓存写入', 'Cache write'], ['reasoning', '单独推理', 'Reasoning']].map(([key, zh, english]) => el('label', { key }, en ? english : zh,
+            el('input', { type: 'number', min: 0, step: 'any', className: 'cm-input', value: value[tier]?.[key] ?? '', onChange: e => {
+              const next = { ...value, [tier]: { ...base, ...value[tier] } }
+              if (e.target.value === '') { if (['cacheWrite', 'reasoning'].includes(key)) delete next[tier][key]; else return }
+              else if (Number.isFinite(e.target.valueAsNumber) && e.target.valueAsNumber >= 0) next[tier][key] = e.target.valueAsNumber; else return
+              onChange(next)
+            } })))))), el(PeakScheduleEditor, { value, onChange, locale, defaults })) : null)
+    }
+
+    function ProviderScheduleSettings({ state, draft, setDraft, locale }) {
+      const en = locale === 'en', config = draft ?? state.config
+      const [provider, setProvider] = useState('deepseek')
+      const id = provider.trim().toLowerCase().replace(/^llm-/, '')
+      const table = config.prices?.providers?.[id] ?? { models: {} }
+      const names = [...new Set(['deepseek', ...Object.keys(config.prices?.providers ?? {}), ...Object.keys(state.today?.byProviderModel ?? {}).map(key => key.split(':')[0])])].sort()
+      return el('details', { className: 'cm-provider-schedules' }, el('summary', null, en ? 'Channel peak schedules' : '按渠道设置峰谷时段'),
+        el('label', { className: 'cm-field' }, en ? 'Provider ID' : '渠道 ID', el('input', { className: 'cm-input', list: 'cm-peak-providers', value: provider, onChange: e => setProvider(e.target.value) })),
+        el('datalist', { id: 'cm-peak-providers' }, ...names.map(name => el('option', { key: name, value: name }))),
+        /^[a-z0-9][a-z0-9_.-]{0,99}$/.test(id) && !['constructor', 'prototype', '__proto__'].includes(id) ? el(PeakScheduleEditor, { key: id, value: table, locale, defaults: id === 'ollama-cloud' ? [{ start: 12, end: 18 }] : config.peakWindows, onChange: value => setDraft({ ...config, prices: { ...config.prices, providers: { ...config.prices.providers, [id]: value } } }) }) : null,
+        el('p', { className: 'cm-hint' }, en ? 'Use the channel ID from model pricing. Applies to peak-enabled models and is retained when official prices sync.' : '填写模型定价中显示的渠道 ID。规则用于已启用峰谷价格的模型，同步官方价格时会保留。'))
+    }
+
     function CustomPriceEditor({ value, label, locale, onChange, t, priceEditor }) {
       const en = locale === 'en'
       const { PriceInput, priceFactor, setPriceFactor, multiplierOptions } = priceEditor
@@ -248,6 +311,7 @@ window.__ModuleLoader__.load({
             el('option', { value: 'USD' }, en ? 'USD · US dollar' : 'USD · 美元'), el('option', { value: 'CNY' }, en ? 'CNY · Yuan' : 'CNY · 人民币')))),
         el('div', { className: 'cm-custom-grid' }, ...fields.slice(0, 3).map(field)),
         multiplierOptions(value, t, separate => onChange({ ...value, separateMultipliers: separate, multipliers: {} })),
+        el(PeakPriceEditor, { value, onChange, locale, defaults: [{ start: 1, end: 4 }, { start: 6, end: 10 }] }),
         el('div', { className: 'cm-custom-effective', role: 'status' },
           el('div', { className: 'cm-effective-heading' }, el('span', null, en ? 'Effective prices' : '实际单价'), el('small', null, en ? 'Price × multiplier / 1M tokens' : '单价 × 倍率 / 百万 Token')),
           el('div', { className: 'cm-effective-grid' }, ...fields.slice(0, 3).map(([key, title]) => el('div', { key }, el('span', null, title), el('strong', null, (value.currency === 'CNY' ? '¥' : '$') + Number((value[key] * priceFactor(value, 'base.' + key)).toPrecision(8)).toLocaleString(en ? 'en-US' : 'zh-CN', { maximumFractionDigits: 8 })))))),
@@ -447,7 +511,12 @@ window.__ModuleLoader__.load({
                   el('button', { type: 'button', className: 'cm-catalog-model', 'aria-label': name + (en ? ' · Edit price' : ' · 编辑价格'), 'aria-expanded': active, onClick: () => setEditing(active ? null : key) },
                     el('span', { className: 'cm-catalog-model-name' }, el('strong', null, name), variants ? el('small', null, variants) : null),
                     el(RateSummary, { entry, currency, priceEditor, locale }), el(Chevron, { className: 'cm-catalog-edit-caret', open: active })),
-                  active ? el('div', { className: 'cm-catalog-editor' }, renderEditor(id, model, entry)) : null)
+                  active ? el('div', { className: 'cm-catalog-editor' }, renderEditor(id, model, entry),
+                    el(PeakPriceEditor, { value: entry, locale, defaults: prices.providers?.[id]?.peakWindows ?? draft.peakWindows, onChange: value => {
+                      const next = id === 'deepseek' ? { ...prices, ...(model === '__default__' ? { default: value } : { models: { ...prices.models, [model]: value } }) }
+                        : { ...prices, providers: { ...prices.providers, [id]: { ...prices.providers[id], models: { ...prices.providers[id].models, [model]: value } } } }
+                      setDraft({ ...draft, prices: next })
+                    } })) : null)
               }),
               ids.length > limit ? el('button', { type: 'button', className: 'cm-catalog-more', onClick: () => setLimits(value => ({ ...value, [id]: limit + 16 })) }, en ? `Show more · ${ids.length - limit} remaining` : `显示更多 · 还有 ${ids.length - limit} 个`) : null) : null)
         }),
@@ -541,6 +610,7 @@ window.__ModuleLoader__.load({
       style.textContent += '.cm-price-search{display:grid;gap:6px;min-width:0}.cm-price-search small{color:var(--dsw-alias-label-tertiary)}.cm-price-search select,.cm-price-search input{width:100%;min-width:0}.cm-repricing-warning{padding:12px;border:1px solid var(--dsw-alias-state-warn-primary,#c58a25);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}.cm-repricing-warning p{margin:8px 0 12px;line-height:1.6}.cm-repricing-history{margin-top:12px}.cm-repricing-history table{width:100%;text-align:left;font-variant-numeric:tabular-nums}.cm-repricing-history td,.cm-repricing-history th{padding:8px;border-bottom:1px solid var(--dsw-alias-border-l1)}'
       style.textContent += '.cm-repricing-history .cm-stat-scroll{overflow-x:auto;max-width:100%}.cm-repricing-history table{min-width:560px}.cm-repricing-history th{white-space:nowrap}.cm-repricing-history td:nth-child(2){min-width:150px;max-width:260px;overflow-wrap:anywhere}'
       style.textContent += '.cm-pricing-page .cm-free-model{margin:0 0 12px;padding:10px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:transparent}.cm-pricing-page .cm-free-model>.cm-check{display:flex;align-items:center;gap:8px;margin:0;font-size:12px;line-height:20px;color:var(--dsw-alias-label-primary)}.cm-pricing-page .cm-free-model input{flex:none;width:16px;height:16px;margin:0;accent-color:var(--dsw-alias-state-business-primary)}.cm-pricing-page .cm-free-model>.cm-hint{display:block;margin:4px 0 0 24px;font-size:11px;line-height:1.5}'
+      style.textContent += '.cm-provider-schedules{margin:12px 0}.cm-provider-schedules>.cm-field{max-width:360px;margin:12px 0}.cm-peak-schedule,.cm-custom-more fieldset{min-width:0;margin:12px 0;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px}.cm-peak-schedule{display:grid;gap:12px}.cm-custom-more .cm-check{display:flex;align-items:center;gap:8px;margin:12px 0}.cm-custom-more .cm-check input{width:auto;flex:none;margin:0}.cm-peak-schedule legend{font-size:12px}.cm-peak-schedule .cm-hint{margin:0;line-height:1.6}'
       style.textContent += '.cm-custom-price{grid-column:1/-1;display:grid;gap:14px;margin:4px 0 12px;padding:16px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-1);min-width:0}.cm-custom-price legend{padding:0 6px;font-weight:500;font-size:13px}.cm-custom-price label{display:grid;gap:7px;font-size:12px;min-width:0;color:var(--dsw-alias-label-secondary)}.cm-custom-price .cm-input{width:100%;min-width:0}.cm-custom-head{display:flex;justify-content:space-between;align-items:center;gap:12px;color:var(--dsw-alias-label-secondary);font-size:12px}.cm-custom-head label{display:flex;align-items:center;gap:8px}.cm-custom-head select{width:auto!important}.cm-custom-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.cm-custom-amount{position:relative;display:block}.cm-custom-amount>span{position:absolute;inset-inline-start:11px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--dsw-alias-label-tertiary)}.cm-custom-amount input{padding-inline-start:28px}.cm-custom-more summary{cursor:pointer;font-size:12px;color:var(--dsw-alias-label-secondary)}.cm-custom-more .cm-custom-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin:12px 0 8px}.cm-custom-price p{margin:0;line-height:1.6}@media(max-width:700px){.cm-custom-grid{grid-template-columns:1fr}.cm-custom-head{flex-wrap:wrap}}'
       document.head.appendChild(style)
       style.textContent += `
@@ -600,7 +670,7 @@ window.__ModuleLoader__.load({
         '@media (max-width:1023px){.cm-custom-grid,.cm-effective-grid,.cm-rate-summary{grid-template-columns:1fr}.cm-model-toolbar,.cm-custom-head,.cm-catalog-toolbar{flex-wrap:wrap}.cm-repricing-history table{min-width:480px}.cm-model-matching .cm-match-row{padding:8px 10px}}body[data-dsh-pocket-layout="mobile"] .cm-custom-grid{grid-template-columns:1fr}body[data-dsh-pocket-layout="mobile"] .cm-rate-summary{grid-template-columns:1fr}',
       ].join('')
       ctx.effect(() => () => style.remove(), 'cost-meter: pricing settings styles')
-      return props => props.mode === 'billing' ? el(ProviderBillingSettings, props) : props.mode === 'matching' ? el(Matching, props) : el(props.mode === 'catalog' ? Catalog : props.mode === 'restore' ? RestorePrices : History, { ...props, rpc })
+      return props => props.mode === 'peak-settings' ? el(PeakPanel, props) : props.mode === 'schedule' ? el(ProviderScheduleSettings, props) : props.mode === 'billing' ? el(ProviderBillingSettings, props) : props.mode === 'matching' ? el(Matching, props) : el(props.mode === 'catalog' ? Catalog : props.mode === 'restore' ? RestorePrices : History, { ...props, rpc })
     }
     return { mount, CONTRIBUTION }
   },
