@@ -18,16 +18,17 @@ const client = readdirSync('src/client').filter(n => n.endsWith('.js')).sort().m
   .replace('exports.apply = apply', 'exports.skinPreview={renderSidebarFooter,parseConfig};exports.apply = apply')
 const stats = read('src/statistics/index.js').replace('return { mount, prefetchStatistics,', 'return { css, introCss, FeeDialog, mount, prefetchStatistics,')
 const footerConfig = sanitizeConfig({locale:'zh',currency:'CNY',symbol:'¥',exchangeRate:1,sidebar:true,sidebarTodayMetric:'both',sidebarModels:{enabled:true},balance:{display:'sidebar',budgetCap:200},customBalances:[{enabled:true,label:'自定义余额',display:'sidebar',refreshMinutes:15,request:{url:'https://example.invalid',method:'GET'},extract:{remaining:'balance'}}],budget:{enabled:true,amount:200},codingPlans:{zai:{enabled:true,display:'sidebar'}},goQuota:{enabled:true,display:'sidebar'},peakEnabled:true,peakNotice:true,peakStyle:'classic'})
+// These files run as separate scripts in DSH; delimit them when combining the fixture.
 const source = `
 import React from ${literal(req.resolve('react'))};
 import {createRoot} from ${literal(req.resolve('react-dom/client'))};
 import {createPortal} from ${literal(req.resolve('react-dom'))};
 window.chunks={};window.__ModuleLoader__={load:mod=>window.chunks[mod.chunk??'main']=mod.factory(name=>name==='react'?React:name==='react-dom'?{createPortal}:{Tooltip:({children})=>children})};
-${client}
-${read('src/pricing/index.js')}
-${stats}
-${read('lib/client.display.js')}
-${read('lib/client.sidebar-order.js')}
+${client};
+${read('src/pricing/index.js')};
+${stats};
+${read('lib/client.display.js')};
+${read('lib/client.sidebar-order.js')};
 let skinState={config:{followSkinTransparency:false}};const skinListeners=new Set(),skinDisposers=[];
 window.chunks['client.display.js'].mount({effect:fn=>skinDisposers.push(fn())},{getSnapshot:()=>({state:skinState}),subscribe:fn=>{skinListeners.add(fn);return()=>skinListeners.delete(fn)}});
 // The ordering chunk mounts after the skin style, matching the real lazy load order.
@@ -56,7 +57,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 const url = 'http://127.0.0.1:' + server.address().port, browser = await chromium.launch({ executablePath, headless: true })
 const page = await browser.newPage({ viewport: { width: 960, height: 720 }, deviceScaleFactor: 1 }), errors = [], checks = [], sidebarChecks = []
 const output = resolve('.tmp-skin-opacity' + (baseline ? '-before' : '-after')); mkdirSync(output, { recursive: true })
-page.on('pageerror', error => errors.push(String(error)))
+page.on('pageerror', error => { errors.push(String(error)); console.error(error) })
 await page.route('**/*', route => new URL(route.request().url()).origin === url ? route.continue() : route.abort())
 const classes = ['cm-section', 'cm-stat-dialog', 'cm-qguide', 'cm-peak-alert', 'cm-footer-stack simple', 'cm-simple-summary', 'cm-combo-panel', 'cm-context-intro', 'cm-stat', 'cm-fee-dialog']
 try {
