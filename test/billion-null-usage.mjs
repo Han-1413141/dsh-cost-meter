@@ -72,6 +72,21 @@ for (const groups of [[[]], [[{ usage: null }]], [[{ usage: null, attempt: 1 }, 
   await h.bridge.ingest(); await h.restart(); await h.bridge.ingest()
   assert.equal(h.ledger.sumDays().calls, 1, 'reimport and restart retain exactly one fallback')
 })
+// #458: locally generated context estimates have no corresponding model call.
+for (const inputTokens of [100, 2271493]) await fixture(async h => {
+  await h.run('local-estimate', [[]], { ...usage, inputTokens, outputTokens: 0 })
+  assert.equal(h.hostCalls, 0, 'ordinary stream fallback must not re-admit the estimate')
+  assert.equal(h.ledger.sumDays().calls, 0)
+  assert.equal(h.metadata('local-estimate').value.coverage.reason, 'input-only-without-model-call')
+  await h.restart()
+  assert.equal(h.ledger.sumDays().calls, 0)
+})
+await fixture(async h => {
+  const large = { ...usage, inputTokens: 2271493, outputTokens: 0 }
+  await h.run('real-large', [[{ usage: large }]], large)
+  await h.run('real-null', [[{ usage: null }]], large)
+  assert.equal(h.ledger.sumDays().input, large.inputTokens * 2, 'actual model-call receipts allow large input-only usage')
+})
 await fixture(async h => {
   await h.run('compression', [[{ usage: { ...usage, inputTokens: 30, outputTokens: 10 }, kind: 'compaction', model: 'summary' }, { usage: null }]])
   assert.equal(h.ledger.sumDays().calls, 2); assert.equal(h.ledger.sumDays().input, 19834)
