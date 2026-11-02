@@ -396,6 +396,7 @@ window.__ModuleLoader__.load({
       '.cm-section,.cm-stat-dialog,.cm-qguide,.cm-peak-alert,.cm-footer-stack.simple{background:var(--cm-opaque-base,#fff);background:rgb(from var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-base,#fff)) r g b / 1)}',
       '.cm-today-values{display:inline-flex;flex-wrap:wrap;justify-content:flex-end;gap:2px 8px;min-width:0;max-width:100%}.cm-today-values>span{white-space:nowrap}.cm-today-values[data-both=true]>[data-cm-today=tokens]{font-size:11px;color:var(--dsw-alias-label-secondary)}',
       '.cm-simple-summary{background:var(--cm-opaque-base,#fff);background:rgb(from var(--dsw-alias-bg-layer-1,var(--dsw-alias-bg-base,#fff)) r g b / 1)}',
+      '.cm-plan-gauges{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(52px,1fr));gap:6px}.cm-plan-gauges .cm-mm-row{display:grid;grid-template-columns:1fr;gap:0;justify-items:center;margin:0;padding:0;color:var(--dsw-alias-state-business-primary,#4b7ff5)}.cm-plan-gauges svg{grid-area:1/1;width:100%;max-width:64px}.cm-plan-gauges .cm-bbox-pct{grid-area:1/1;align-self:center;transform:translateY(-3px);font-size:12px}.cm-plan-gauges .cm-bbox-label{grid-area:1/1;align-self:end;padding-bottom:8%;max-width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis}.cm-plan-gauges .cm-mm-row:not(:has(svg)){grid-column:1/-1;display:flex}.cm-plan-gauges .warn{color:var(--dsw-alias-state-warn-primary,#d97706)}.cm-plan-gauges .over{color:var(--dsw-alias-state-error-primary,#dc2626)}',
     ].join('\n')
     // 样式表注入。**按内容比对,不按 id 去重**:客户端插件热更新(DSH 的 client HMR,不刷新
     // 页面就换掉插件代码)时,页面上留着的是上一版的 <style>,旧写法只看 id 存不存在就跳过
@@ -452,7 +453,7 @@ window.__ModuleLoader__.load({
         todayShare: '今日 {amount} · 占预算 {pct}',
         monthTotal: '本月 {month} · 累计 {total}',
         budget: '预算',
-        todayCostTitle: '今日费用(按官方价格精确计费)',
+        todayCostTitle: '今日费用（按当前价表计算）',
         todayTokensTitle: '今日 Token 用量',
         tokensUnit: 'tokens',
         callsTokens: '调用 {calls} 次 · 输入 {input} · 缓存 {cache} · 输出 {output}',
@@ -991,7 +992,7 @@ window.__ModuleLoader__.load({
         todayShare: 'Today {amount} · {pct} of budget',
         monthTotal: 'This month {month} · All time {total}',
         budget: 'Budget',
-        todayCostTitle: "Today's cost (billed exactly at official prices)",
+        todayCostTitle: "Today's cost (calculated using current rates)",
         todayTokensTitle: "Today's token usage",
         tokensUnit: 'tokens',
         callsTokens: 'Calls {calls} · Input {input} · Cache {cache} · Output {output}',

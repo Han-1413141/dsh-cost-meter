@@ -24,14 +24,14 @@ const ctx = new Context()
 let session
 ctx.provide('agents', { currentInitiator: () => session && ({ session }) })
 const ledger = new Ledger(sanitizeConfig({}), {}, join(root, 'ledger.json'))
-let withUsage = true
+let withUsage = true, withSearchResult = false
 const server = createServer((request, response) => {
   assert.equal(request.url, '/anthropic/v1/messages')
   request.resume()
   response.setHeader('content-type', 'application/json')
   response.end(JSON.stringify({ model: 'deepseek-v4-flash',
     ...(withUsage ? { usage: { input_tokens: 123, output_tokens: 45 } } : {}),
-    content: [{ type: 'web_search_tool_result', content: [] }] }))
+    content: [{ type: 'web_search_tool_result', tool_use_id: 'search-local', content: withSearchResult ? Array.from({ length: 8 }, (_, i) => ({ type: 'web_search_result', url: 'https://example.test/' + i })) : [] }] }))
 })
 server.listen(0, '127.0.0.1')
 await once(server, 'listening')
@@ -92,6 +92,10 @@ try {
   assert.equal(ledger.days[localDayKey(Date.now())].calls, 4, 'unload removes all observers')
   // #203: a host-compatible fetch transport with no Undici request diagnostics.
   const nativeFetch = globalThis.fetch
+  const fallback = ctx.plugin(c => installNativeSearchBilling(c, ledger))
+  await fallback.await()
+  withSearchResult = true
+  // #456: replace the transport after the cost plugin has already mounted.
   globalThis.fetch = (url, options) => new Promise((resolve, reject) => {
     assert.equal(url, 'https://api.deepseek.com/anthropic/v1/messages')
     const request = httpRequest({ hostname: '127.0.0.1', port: server.address().port, path: '/anthropic/v1/messages', method: options.method }, response => {
@@ -102,13 +106,13 @@ try {
     request.on('error', reject); request.end(options.body)
   })
   const customFetch = globalThis.fetch
-  const fallback = ctx.plugin(c => installNativeSearchBilling(c, ledger))
-  await fallback.await()
   try {
     session = { id: 'without-undici' }
-    assert.deepEqual(await ctx.web.search({ query: 'transport without diagnostics' }), { sources: [], truncated: false })
-    assert.equal((await nativeSearchRecordsFor(ledger.path, session.id)).length, 1)
-    assert.equal(ledger.days[localDayKey(Date.now())].calls, 5)
+    assert.equal((await ctx.web.search({ query: 'transport without diagnostics' })).sources.length, 8)
+    const rows = await nativeSearchRecordsFor(ledger.path, session.id)
+    assert.equal(rows.length, 2)
+    assert.equal(rows.find(row => row.data.requestFee)?.data.requestFee.requests, 1, 'eight results are one successful server search')
+    assert.equal(ledger.days[localDayKey(Date.now())].calls, 6)
     await fallback.dispose()
     assert.equal(globalThis.fetch, customFetch, 'unload restores the host transport')
     const counters = JSON.parse(readFileSync(`${ledger.path}.native-search-coverage.json`, 'utf8')).runtime.counters

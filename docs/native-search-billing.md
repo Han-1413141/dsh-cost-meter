@@ -35,8 +35,14 @@ fnOS 的 #203 在 1.8.3 上确认搜索作用域和事件正常、官方请求�
 
 升级并重启后完成一次搜索，约 1 秒后提供 coverage 文件即可继续区分通道、匹配和 JSON 观察的断点；不用发送账本、搜索正文或 API Key。若文件不存在，需先核对实际插件版本、宿主 PID 和账本目录写入权限。
 
-已经发生、且旧宿主只留下请求日志的搜索无法恢复真实 token。新版本不会把这部分历史估算为精确费用。第三方搜索 endpoint、其他搜索 provider，以及既未通过 `ctx.web.search` 也没有对应搜索事件的直接请求不在此观察范围；改写网络实现且不再提供上述响应能力的宿主需要额外适配。`server_tool_use` 计数不作为额外 token 或单次价格收费项。
+已经发生、且旧宿主只留下请求日志的搜索无法恢复真实 token。新版本不会把这部分历史估算为精确费用。第三方搜索 endpoint、其他搜索 provider，以及既未通过 `ctx.web.search` 也没有对应搜索事件的直接请求不在此观察范围；改写网络实现且不再提供上述响应能力的宿主需要额外适配。仅有 `server_tool_use` 声明不收费；成功的 `web_search_tool_result` 按唯一工具调用 ID 另记搜索请求费，遵循 2026 年 11 月 1 日开始收费的规则，详见[网页搜索与抓取计费](web-request-fees.md)。
 
 验证覆盖 Node 20/22/24 的真实原生 `fetch`、gzip 响应、独立并发计数、精确端点过滤、取消与错误透传、兼容方法恢复、超限响应、无 usage 及缺口重启留存。DSH 0.1.5-rc.1 / rc.2 使用真实持久化后端产生明文和 Zstandard 日志，复现冷读拒绝，再验证锁竞争、备份修复、继续搜索、追加及再次重启；测试不访问付费接口。CI 在安装的宿主依赖上运行该冷读回归。
 
 相关上游契约：[Undici 诊断通道](https://github.com/nodejs/undici/blob/main/docs/docs/api/DiagnosticsChannel.md)、[响应数据诊断通道讨论](https://github.com/nodejs/undici/issues/4166)、[Anthropic 缓存 token 口径](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)。
+
+## 1.9.49：后加载网络实现与手动补记
+
+针对 [#456](https://github.com/Han-1413141/dsh-cost-meter/issues/456)，每次搜索开始及官方搜索事件触发时检查当前全局 fetch；被其他插件替换后，重新添加范围受限的 JSON 响应观察，保留其实际网络实现。新的包装器委托旧包装器时共享请求状态，单次成功请求不重复收费。卸载只恢复费用插件仍持有的包装器。
+
+已用实际发布的 DeepSeek provider 和本地 HTTP 服务器验证后替换场景，包含没有 Undici 诊断的传输；完整浏览器壳环境仍需报告者升级验证。已确认漏记的历史成功请求可用 [record-search 命令](web-request-fees.md#手动补记已确认的漏记请求)补记请求费；缺失模型 Token 与覆盖缺口保持原状。

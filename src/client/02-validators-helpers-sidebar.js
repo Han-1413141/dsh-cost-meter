@@ -157,6 +157,7 @@
         // 直通白名单缺失会导致关闭后重开页面又弹提示,或应用后状态行回落「未应用」。
         codexCompatHistoryAppliedAt: num0(v.codexCompatHistoryAppliedAt),
         sidebarStyle: oneOf(v.sidebarStyle, ['standard', 'compact', 'summary'], 'standard'),
+        planQuotaStyle: v.planQuotaStyle === 'gauge' ? 'gauge' : 'bars',
         ...mapFields(v, ['sidebarSimplePromptSeen', 'sidebarSummaryPromptSeen', 'peakProgressPromptSeen'].filter(key => Object.hasOwn(v, key)), value => value === true),
         billionContextNoticeEnabled: v.billionContextNoticeEnabled !== false,
         billionContextNoticesSeen: Array.isArray(v.billionContextNoticesSeen) ? v.billionContextNoticesSeen.filter(value => typeof value === 'string').slice(-32) : [],
@@ -2732,7 +2733,15 @@
      * 「余量」填充,与通用卡片/额度横条的「已用」方向相反,同屏并列时引起误读
      * (issue #57);现统一为已用口径,告警阈值也与 CodingPlanBox 一致(≥80 warn / ≥100 over)。
      */
-    function miniMaxRow(label, win, direction, t, explicit) {
+    function quotaTrack(width, gauge) {
+      if (!gauge) return el('div', { className: 'cm-bbox-bar' }, el('div', { className: 'cm-bbox-fill', style: { width: width + '%' } }))
+      const path = { d: 'M22 78 A40 40 0 1 1 78 78', pathLength: 100, fill: 'none', strokeWidth: 8, strokeLinecap: 'round' }
+      return el('svg', { viewBox: '0 0 100 100', 'aria-hidden': true },
+        el('path', { ...path, stroke: 'currentColor', opacity: .18 }),
+        el('path', { ...path, stroke: 'currentColor', strokeDasharray: width + ' 100', opacity: width > 0 ? 1 : 0 }))
+    }
+
+    function miniMaxRow(label, win, direction, t, explicit, gauge) {
       const pct = planWindowUsedPct(win)
       const level = pct === null ? 'ok' : pct >= 100 ? 'over' : pct >= 80 ? 'warn' : 'ok'
       const barView = simpleBarByDirection(pct, direction)
@@ -2744,18 +2753,17 @@
         label: barView.label,
         row: el('div', { key: label, className: 'cm-mm-row' + (level === 'ok' ? '' : ' ' + level) },
           el('span', { className: 'cm-bbox-label' }, label),
-          el('div', { className: 'cm-bbox-bar' },
-            el('div', { className: 'cm-bbox-fill', style: { width: barView.width + '%' } })),
+          quotaTrack(barView.width, gauge),
           el('span', { className: 'cm-bbox-pct cm-num' }, text)),
       }
     }
 
     function MiniMaxPlanCard(props) {
-      const { five, seven, fetchedAt, t, wide, refresh, direction = 'used' } = props
+      const { five, seven, fetchedAt, t, wide, refresh, direction = 'used', gauge } = props
       const hoverProps = useQuotaHoverRefresh(five?.resetsAt)
       const countdown = formatResetCountdown(five?.resetsAt, t)
-      const fiveView = miniMaxRow(t('codingPlanRemain5h'), five, direction, t)
-      const sevenView = miniMaxRow(t('codingPlanRemain7d'), seven, direction, t)
+      const fiveView = miniMaxRow(t('codingPlanRemain5h'), five, direction, t, false, gauge)
+      const sevenView = miniMaxRow(t('codingPlanRemain7d'), seven, direction, t, false, gauge)
       const level = fiveView.level === 'over' || sevenView.level === 'over' ? 'over'
         : fiveView.level === 'warn' || sevenView.level === 'warn' ? 'warn' : 'ok'
       const lineOf = (label, win, view) => {
@@ -2772,8 +2780,7 @@
       ].filter(Boolean).join('\n')
       const body = el(Fragment, null,
         el('div', { className: 'cm-mm-title' }, t('codingPlanMinimaxTitle')),
-        fiveView.row,
-        sevenView.row,
+        el(gauge ? 'div' : Fragment, gauge ? { className: 'cm-plan-gauges' } : null, fiveView.row, sevenView.row),
         countdown ? el('div', { className: 'cm-mm-reset' }, '5h · ' + countdown) : null)
       const rail = el(Fragment, null,
         el('div', { className: 'cm-bbox-rail cm-num' }, fiveView.text),
@@ -2795,7 +2802,7 @@
       if (!live || live.status !== 'ok') return null
       const { five, seven } = miniMaxWindowsOf(live.windows)
       if (five == null && seven == null) return null
-      return el(MiniMaxPlanCard, { five, seven, fetchedAt: live.fetchedAt, t, wide, refresh, direction: barDirectionOf(state.config, 'plan') })
+      return el(MiniMaxPlanCard, { five, seven, fetchedAt: live.fetchedAt, t, wide, refresh, direction: barDirectionOf(state.config, 'plan'), gauge: wide !== false && state.config.planQuotaStyle === 'gauge' && !state.config.sidebarTextOnly })
     }
 
     // ── ChatGPT PLUS(Codex)额度(issue #59 / dsh-codex-subscription)──────────
@@ -3042,6 +3049,7 @@
         ? Math.max(0, Math.min(100, Math.round(Number(win.percent) || 0))) : null
       // 条形方向(issue #67):Plan 卡默认已用方向,剩余方向时填充与标签显示剩余%。
       const planDirection = barDirectionOf(state.config, 'plan')
+      const gauge = wide !== false && state.config.planQuotaStyle === 'gauge' && !state.config.sidebarTextOnly
       // 余额放在标题行右端,正文只保留额度窗口;
       // 窗口文本只装数值,标题行自己补「余额:」标签。textWindowOf 只产非空文本,真值检查即可。
       const titleValue = (id === 'workbuddy' || id === 'opendesign') && windows.balance?.text
@@ -3057,11 +3065,10 @@
         const barView = simpleBarByDirection(pct, planDirection)
         const row = el('div', { key: name, className: 'cm-mm-row wide' + (level === 'ok' ? '' : ' ' + level) },
           el('span', { className: 'cm-bbox-label' }, codingPlanWindowLabel(name, t)),
-          el('div', { className: 'cm-bbox-bar' },
-            el('div', { className: 'cm-bbox-fill', style: { width: barView.width + '%' } })),
+          quotaTrack(barView.width, gauge),
           el('span', { className: 'cm-bbox-pct cm-num' }, barView.label === null ? '—' : barView.label + '%'))
         const lines = id === 'anthropic' ? quotaResetLines(name, win, t, locale) : null
-        return lines === null ? row : el(Fragment, { key: name }, row,
+        return lines === null ? row : el(gauge ? 'div' : Fragment, { key: name }, row,
           el('div', { className: 'cm-mm-sub' }, lines.reset,
             lines.forecast && el('div', { className: 'cm-mm-sub warn' }, lines.forecast)))
       })
@@ -3090,7 +3097,7 @@
               el('div', { className: titleValue ? 'cm-mm-title cm-mm-row wide' : 'cm-mm-title' },
                 t(rowDef.labelKey),
                 titleValue && el('span', { className: 'cm-mm-text' }, titleValue)),
-              ...rows)))
+              el(gauge ? 'div' : Fragment, gauge ? { className: 'cm-plan-gauges' } : null, ...rows))))
     }
 
     const readGatewayAccountLS = id => {
