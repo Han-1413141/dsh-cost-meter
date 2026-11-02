@@ -109,6 +109,7 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
       choice(text('套餐', 'Plan'), selectedPlan, props.planOptions, selectPlan),
       field(text('显示位置', 'Placement'), el('select', { className: 'cm-input', value: quotaPlacementValue(entry, config.quotaStrip, 'plans'), onChange: e => setPlanDisplay(e.target.value) }, ...quotaPlacementOptions(t).filter(option => option.props.value !== 'off'))),
       direction('plan', text('所有套餐的进度条方向', 'Bar direction for all plans')),
+      choice(text('套餐额度样式', 'Plan quota style'), config.planQuotaStyle ?? 'bars', [['bars', text('横向进度条', 'Bars')], ['gauge', text('开口圆环', 'Open rings')]], value => set({ planQuotaStyle: value })),
       el('button', { type: 'button', className: 'cm-btn small', onClick: openQuota }, text('账户与额度设置 →', 'Account and quota settings →')),
     ]
   }

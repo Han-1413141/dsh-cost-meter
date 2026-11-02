@@ -75,29 +75,6 @@
           el('div', { className: 'cm-stat-dialog-body' }, state ? el(BillingStatistics, { key: props.sessionId, state, api: props.api, sessionId: props.sessionId }) : el('p', { role: snapshot?.error ? 'alert' : 'status' }, snapshot?.error || (en ? 'Loading…' : '加载中…'), el('button', { type: 'button', className: 'cm-btn', onClick: () => props.api.reload() }, en ? 'Retry' : '重试')))) : null)
     }
 
-    function ExternalUsagePanel({ state, t }) {
-      const ext = state.externalUsage
-      if (!ext) return null
-      const config = state.config
-      const amount = day => formatMoneyUsd(displayCostOf(day, config), config)
-      const usage = day => t('callsTokens', { calls: day.calls, input: formatTokens(day.input), cache: formatTokens(day.cacheRead + day.cacheWrite), output: formatTokens(day.output) })
-      const sum = (a, b) => ({ calls: a.calls + b.calls, input: a.input + b.input, output: a.output + b.output, cacheRead: a.cacheRead + b.cacheRead, cacheWrite: a.cacheWrite + b.cacheWrite, cost: displayCostOf(a, config) + b.cost, apiCost: displayCostOf(a, config) + b.cost })
-      const row = (label, day) => el('tr', { key: label }, el('td', null, label), el('td', { className: 'num' }, String(day.calls)), el('td', { className: 'num' }, formatTokens(day.input)), el('td', { className: 'num' }, formatTokens(day.cacheRead + day.cacheWrite)), el('td', { className: 'num' }, formatTokens(day.output)), el('td', { className: 'num' }, amount(day)))
-      const table = rows => el('div', { className: 'cm-scroll' }, el('table', { className: 'cm-table' }, el('thead', null, el('tr', null, el('th', null, t('colDate')), ...['colCalls', 'colInTok', 'colCacheTok', 'colOutTok', 'colCost'].map(k => el('th', { className: 'num' }, t(k))))), el('tbody', null, rows)))
-      return el('section', { className: 'cm-budget' },
-        el('h3', { className: 'cm-h' }, t('externalUsage')),
-        ext.stale ? el('p', { className: 'cm-note' }, t('externalStale')) : null,
-        el('div', { className: 'cm-cards' }, ['today', 'month', 'total'].map((key, i) => {
-          const combined = sum(state[key], ext.combined[key])
-          return el(Card, { key, title: t('combinedUsage') + ' · ' + t(['cardToday', 'cardMonth', 'cardTotal'][i]), value: amount(combined), sub: usage(combined) })
-        })),
-        ...ext.sources.map(source => el('details', { key: source.source },
-          el('summary', null, source.source + ' · ' + t('cardToday') + ' ' + amount(source.today) + ' · ' + t('cardMonth') + ' ' + amount(source.month) + ' · ' + usage(source.today)),
-          table(['today', 'month', 'total'].map((key, i) => row(t(['cardToday', 'cardMonth', 'cardTotal'][i]), source[key]))),
-          el('p', { className: 'cm-note' }, t('externalHistory')),
-          table(source.history.map(day => row(day.date, day))))))
-    }
-
     /** 折叠面板标题行:三角箭头 + 标题,aria-expanded 随 open 翻转(配合 .cm-collapse-h / .cm-caret 样式)。 */
     const collapseHeader = (open, onClick, title) => el('button', { type: 'button', className: 'cm-collapse-h', 'aria-expanded': String(open), onClick }, el('span', { className: 'cm-caret' + (open ? ' open' : '') }), el('h3', { className: 'cm-h' }, title))
 
@@ -1823,12 +1800,13 @@
             value: formatMoneyUsd(displayCostOf(state.total, config), config),
             sub: t('cardTotalSub', { calls: state.total.calls }),
           }))),
-        el(ExternalUsagePanel, { state, t }),
+        el(BillingStatistics, { state, t, api, load: api.loadPricing, mode: 'external', quiet: true, helpers: { Card, displayCostOf } }),
         // 快照时点与 tokens 口径脚注(用户实测对账疑问:官方 5.64 vs 本地 5.78):
         // 防抖落盘产生分钟级时差;reasoning 由 API 单列上报但不计费,token 合计
         // 天然对不齐,引导以金额对账。
         el('p', { className: 'cm-note', key: 'cards-footnote' }, t('cardsFootnote')),
         el(BillingAccuracyNote, { state }),
+        el(BillingStatistics, { state, api, load: api.loadPricing, mode: 'check', quiet: true, onPrices: () => { setTab('pricing'); setPricingView('tools') } }),
         // 宿主/浏览器时区错位提示(issue #74):宿主以非本地时区运行时,「今日」
         // 的日界与用户感知不同(本地午夜后的调用记前一日),避免误判为漏计。
         (() => {

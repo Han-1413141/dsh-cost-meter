@@ -594,6 +594,45 @@ window.__ModuleLoader__.load({
         el('p', { className: 'cm-note' }, text('适用于该渠道的所有模型，模型单独设置优先。修改后更新历史 API/Plan 归属，保留 Token 和 API 等值金额。额度查询开关单独控制。', 'Applies to all models on this channel; model overrides take priority. Changes update historical API/Plan classification while preserving tokens and API-equivalent amounts. Quota queries are controlled separately.')))
     }
 
+    function ExternalUsagePanel({ state, t, formatMoneyUsd, formatTokens, helpers }) {
+      const { Card, displayCostOf } = helpers
+      const ext = state.externalUsage
+      if (!ext) return null
+      const config = state.config
+      const amount = day => formatMoneyUsd(displayCostOf(day, config), config)
+      const usage = day => t('callsTokens', { calls: day.calls, input: formatTokens(day.input), cache: formatTokens(day.cacheRead + day.cacheWrite), output: formatTokens(day.output) })
+      const sum = (a, b) => ({ calls: a.calls + b.calls, input: a.input + b.input, output: a.output + b.output, cacheRead: a.cacheRead + b.cacheRead, cacheWrite: a.cacheWrite + b.cacheWrite, cost: displayCostOf(a, config) + b.cost, apiCost: displayCostOf(a, config) + b.cost })
+      const row = (label, day) => el('tr', { key: label }, el('td', null, label), el('td', { className: 'num' }, String(day.calls)), el('td', { className: 'num' }, formatTokens(day.input)), el('td', { className: 'num' }, formatTokens(day.cacheRead + day.cacheWrite)), el('td', { className: 'num' }, formatTokens(day.output)), el('td', { className: 'num' }, amount(day)))
+      const table = rows => el('div', { className: 'cm-scroll' }, el('table', { className: 'cm-table' }, el('thead', null, el('tr', null, el('th', null, t('colDate')), ...['colCalls', 'colInTok', 'colCacheTok', 'colOutTok', 'colCost'].map(k => el('th', { className: 'num' }, t(k))))), el('tbody', null, rows)))
+      return el('section', { className: 'cm-budget' },
+        el('h3', { className: 'cm-h' }, t('externalUsage')),
+        ext.stale ? el('p', { className: 'cm-note' }, t('externalStale')) : null,
+        el('div', { className: 'cm-cards' }, ['today', 'month', 'total'].map((key, i) => {
+          const combined = sum(state[key], ext.combined[key])
+          return el(Card, { key, title: t('combinedUsage') + ' · ' + t(['cardToday', 'cardMonth', 'cardTotal'][i]), value: amount(combined), sub: usage(combined) })
+        })),
+        ...ext.sources.map(source => el('details', { key: source.source },
+          el('summary', null, source.source + ' · ' + t('cardToday') + ' ' + amount(source.today) + ' · ' + t('cardMonth') + ' ' + amount(source.month) + ' · ' + usage(source.today)),
+          table(['today', 'month', 'total'].map((key, i) => row(t(['cardToday', 'cardMonth', 'cardTotal'][i]), source[key]))),
+          el('p', { className: 'cm-note' }, t('externalHistory')),
+          table(source.history.map(day => row(day.date, day))))))
+    }
+
+    function BillingCheck({ state, onPrices }) {
+      const config = state.config, en = (config.locale === 'auto' ? config.activeLocale : config.locale) === 'en'
+      const text = (zh, english) => en ? english : zh
+      const currency = config.prices?.currency === 'CNY' ? 'CNY' : 'USD'
+      const mismatch = config.currency === 'CNY' && currency === 'USD'
+      return el('details', { className: 'cm-note', 'data-billing-check': true, open: mismatch || undefined },
+        el('summary', null, text('计费核对', 'Check billing')),
+        el('p', null, text('当前 DeepSeek 价表：', 'Active DeepSeek price table: ') + currency + text('；显示币种：', '; display currency: ') + config.currency),
+        mismatch ? el('p', { 'data-billing-currency-mismatch': true }, text('当前金额由美元单价换算，美元价 × 汇率不等于官网人民币报价。按人民币账单核对时，请选择人民币官方价并同步；只切换显示币种不会更换价表。', 'Amounts currently convert USD rates. USD rates × exchange rate differ from official CNY prices. To compare with a CNY bill, select CNY official prices and sync them; changing the display currency does not change the price table.')) : null,
+        config.pricingCurrency !== currency ? el('p', null, text('所选同步币种尚未生效，当前仍使用 ', 'The selected sync currency is not active yet; billing still uses ') + currency) : null,
+        el('p', null, text('金额口径：', 'Cost basis: ') + text(config.showTotalWithPlan ? '含套餐 API 等值，不等于账户扣款。' : 'API 费用；套餐等值已排除。', config.showTotalWithPlan ? 'Includes subscription API-equivalent costs, not account deductions.' : 'API costs; subscription equivalents are excluded.')),
+        el('p', null, text('核对时使用同一账户、渠道和时段；费用明细可查看每次调用的缓存、输出、费率和搜索请求费。自定义价格、倍率与历史价表也会影响金额。', 'Compare the same account, provider and time range. Cost details show each call’s cache, output, rates and search request fees. Custom prices, multipliers and historical rates also affect totals.')),
+        onPrices ? el('button', { type: 'button', className: 'cm-btn small', onClick: onPrices }, text('查看并同步官方价表', 'Review and sync official prices')) : null)
+    }
+
     async function mount(ctx) {
       const unmount = await ctx.get('remote').$mount(CONTRIBUTION)
       ctx.effect(() => () => unmount(), 'cost-meter: pricing settings contribution')
@@ -670,7 +709,7 @@ window.__ModuleLoader__.load({
         '@media (max-width:1023px){.cm-custom-grid,.cm-effective-grid,.cm-rate-summary{grid-template-columns:1fr}.cm-model-toolbar,.cm-custom-head,.cm-catalog-toolbar{flex-wrap:wrap}.cm-repricing-history table{min-width:480px}.cm-model-matching .cm-match-row{padding:8px 10px}}body[data-dsh-pocket-layout="mobile"] .cm-custom-grid{grid-template-columns:1fr}body[data-dsh-pocket-layout="mobile"] .cm-rate-summary{grid-template-columns:1fr}',
       ].join('')
       ctx.effect(() => () => style.remove(), 'cost-meter: pricing settings styles')
-      return props => props.mode === 'peak-settings' ? el(PeakPanel, props) : props.mode === 'schedule' ? el(ProviderScheduleSettings, props) : props.mode === 'billing' ? el(ProviderBillingSettings, props) : props.mode === 'matching' ? el(Matching, props) : el(props.mode === 'catalog' ? Catalog : props.mode === 'restore' ? RestorePrices : History, { ...props, rpc })
+      return props => props.mode === 'external' ? el(ExternalUsagePanel, props) : props.mode === 'check' ? el(BillingCheck, props) : props.mode === 'peak-settings' ? el(PeakPanel, props) : props.mode === 'schedule' ? el(ProviderScheduleSettings, props) : props.mode === 'billing' ? el(ProviderBillingSettings, props) : props.mode === 'matching' ? el(Matching, props) : el(props.mode === 'catalog' ? Catalog : props.mode === 'restore' ? RestorePrices : History, { ...props, rpc })
     }
     return { mount, CONTRIBUTION }
   },

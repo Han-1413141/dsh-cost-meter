@@ -1,5 +1,14 @@
 # dsh-cost-meter 版本更新历史
 
+## v1.9.49(2026-11-02)—— 套餐圆环、搜索计费与费用核对
+
+- 套餐侧栏新增可选的开口圆环，多个额度窗口并排显示，保留刷新、重置提示及纯文本模式。感谢 [@Eancen](https://github.com/Eancen) 在 [#455](https://github.com/Han-1413141/dsh-cost-meter/issues/455) 提供需求和参考图。
+- 修复网络插件后加载并替换 fetch 时的原生搜索漏记，避免嵌套观察重复计费；新增可预览、可去重的搜索请求费手动补记命令。感谢 [@loxxa-carry](https://github.com/loxxa-carry) 在 [#456](https://github.com/Han-1413141/dsh-cost-meter/issues/456) 提供运行环境、诊断计数和补记建议。
+- 概览新增计费核对，区分实际价表币种、显示币种和套餐 API 等值，提供官方价格同步入口；记录缓存、峰谷、去重、历史汇率和并发写入检查结果。
+- Add optional plan quota gauges, reconnect native-search observation after transport replacement, support explicit idempotent request-fee corrections, and explain active billing currency and subscription cost basis.
+
+[更新说明](update-notes-1.9.49.md) · [计费检查](billing-review-2026-11-02.md)
+
 ## v1.9.48(2026-11-01)—— 模块注册兼容与 Codex 重置时间
 
 - 修复启用 dsh-loader 时的客户端重复注册及异步模块加载失败：为费用插件保留原生 `chunk` 与 `require.async`，继续使用按需加载和宿主热更新。感谢 [@3-yanyupingsheng](https://github.com/3-yanyupingsheng) 在 [#452](https://github.com/Han-1413141/dsh-cost-meter/issues/452) 提供桌面环境、错误日志、重启复现及跨版本对照。

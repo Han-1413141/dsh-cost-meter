@@ -79,6 +79,14 @@ const luminance = color => {
 const output = resolve('.tmp-pricing-theme-browser'); mkdirSync(output, { recursive: true })
 try {
   await page.goto(url); await page.waitForFunction(() => window.fixtureReady)
+  await page.locator('[data-billing-currency-mismatch]').waitFor()
+  assert.match(await page.locator('[data-billing-check]').innerText(), /USD[\s\S]*CNY/)
+  await page.locator('[data-billing-check]').screenshot({ path: join(output, 'billing-check.png') })
+  await page.getByRole('button', { name: '查看并同步官方价表', exact: true }).click()
+  assert.equal(await page.getByRole('tab', { name: '同步与规则', exact: true }).getAttribute('aria-selected'), 'true')
+  assert.equal(await page.evaluate(() => window.patches.length), 0, 'billing check only navigates; it cannot replace a price table')
+  // Start the model-only loading checks in a fresh page after visiting sync/history.
+  await page.goto(url); await page.waitForFunction(() => window.fixtureReady)
   await page.getByRole('tab', { name: '价格', exact: true }).click()
   await page.locator('.cm-match-row').first().waitFor()
   assert.equal(await page.locator('.cm-match-row').count(), 2)

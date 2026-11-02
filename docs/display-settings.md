@@ -59,3 +59,9 @@ Codex 额度的真实数据来自已启用并登录的 `dsh-codex-subscription`�
 1.9.45 起，在“设置 → 费用 → 显示 → 侧栏 → 调整组件 → 余额（或自定义余额）”中可以开启“点击名称快速隐藏余额”。默认关闭。开启后，点击余额名称隐藏或显示金额，点击金额继续刷新。隐藏时不显示进度条及悬停金额；四种侧栏布局、同行显示和收起样式共用隐藏状态。本机浏览器记住隐藏状态；关闭选项即恢复原有点击刷新方式。
 
 In Settings → Cost → Display → Sidebar → Balance (or Custom balance), enable **Click name to hide balance**. This is off by default. Click the label to hide/show the amount; click the amount to refresh. Hidden balances also hide progress bars and tooltip amounts across sidebar layouts. The browser remembers hidden state. Disabling this option restores the original click-to-refresh behavior.
+
+## 套餐额度圆环
+
+1.9.49 起，在“设置 → 费用 → 显示 → 侧栏 → 调整组件 → 套餐进度条”选择“套餐额度样式 → 开口圆环”，可将多个额度窗口并排显示。默认保留横向进度条；所有套餐共用样式选择，已用／剩余方向继续由原选项控制。鼠标悬停查看完整额度和重置时间，点击或按回车刷新。“隐藏进度条，仅显示紧凑文本”开启时优先显示文本，收起侧栏仍使用原有数字布局。
+
+In **Settings → Cost → Display → Sidebar → Plan quota style**, select **Open rings**. The choice applies to Coding Plan cards; used/remaining direction, reset tooltips and refresh remain available. Compact text takes precedence, and collapsed sidebars retain their numeric layout.

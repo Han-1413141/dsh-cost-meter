@@ -42,13 +42,29 @@ try {
   failure = boom
   await assert.rejects(search('failed'), error => error === boom)
   failure = undefined
+  // #456: a late host/network plugin replaces global fetch with a transport that
+  // emits no Undici diagnostics. Search must observe the new parsed response.
+  const replacement = function (...args) { return Reflect.apply(original, this, args) }
+  target.fetch = replacement
+  await search('late-transport')
+  assert.equal(accounts.length, 4)
+  const previous = target.fetch
+  target.fetch = function (...args) { return Reflect.apply(previous, this, args) }
+  await search('delegating-transport')
+  assert.equal(accounts.length, 5, 'a replacement delegating to our prior wrapper is billed once')
   // A child task retaining an old AsyncLocalStorage scope cannot bill future ordinary calls.
   let release, late
   await monitor.run(() => { late = new Promise(resolve => { release = resolve }).then(() => target.fetch(endpoint, options).then(r => r.json())) }, { id: 'closed' })
   release(); await late
-  assert.equal(accounts.length, 3)
-  assert.equal(counters.fetchRequest, 5)
+  assert.equal(accounts.length, 5)
+  assert.equal(counters.fetchRequest, 7)
+  // Unload preserves another plugin's latest wrapper, whose captured observer is inactive.
+  const latest = target.fetch
+  monitor.dispose()
+  assert.notEqual(target.fetch, latest)
+  await target.fetch(endpoint, options).then(r => r.json())
+  assert.equal(accounts.length, 5)
 } finally { monitor.dispose() }
-assert.equal(target.fetch, original)
+assert.notEqual(target.fetch, original, 'a later transport is not overwritten on unload')
 assert.equal(listeners.size, 0)
 console.log('[ok] parsed search response: transport fallback, concurrent sessions, exact-once accounting, unchanged promises/errors, scope/endpoint isolation and unload')

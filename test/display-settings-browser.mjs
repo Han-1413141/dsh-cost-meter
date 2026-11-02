@@ -15,6 +15,7 @@ import { checkTodayAndOrder } from './today-sidebar-order-checks.mjs'
 import { checkDisplayPreview } from './display-preview-checks.mjs'
 import { checkFeedbackSidebar } from './feedback-sidebar-checks.mjs'
 import { checkSidebarTextOnly } from './sidebar-text-only-checks.mjs'
+import { checkPlanGauges } from './plan-gauge-checks.mjs'
 import { checkBalanceQuickHide } from './balance-quick-hide-checks.mjs'
 
 const modules = resolve(process.env.DSH_TEST_UI_MODULES ?? '.tmp-pr240-host/node_modules')
@@ -93,7 +94,10 @@ await page.exposeFunction('saveConfig', patch => {
 })
 try {
   await page.goto(url)
-  if (process.argv.includes('--quick-hide-only')) {
+  if (process.argv.includes('--gauge-only')) {
+    console.log('[ok] plan gauges ' + JSON.stringify(await checkPlanGauges(page, output)))
+    assert.deepEqual(errors, []); assert.deepEqual(external, [])
+  } else if (process.argv.includes('--quick-hide-only')) {
     const result = await checkBalanceQuickHide(page, output)
     assert.deepEqual(errors, []); assert.deepEqual(external, [])
     console.log('[ok] balance quick hide ' + JSON.stringify(result))
@@ -135,6 +139,7 @@ try {
   await page.locator('.cm-display-general summary').click()
   await page.evaluate(() => window.scrollTo(0, 0))
   await page.screenshot({ path: join(output, 'display-compact-header.png') })
+  await checkPlanGauges(page, output)
   await checkInlineBalance(page, output)
   await checkSidebarTextOnly(page, output)
   await checkTodayAndOrder(page, output)
