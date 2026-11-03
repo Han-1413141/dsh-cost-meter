@@ -39,6 +39,7 @@ const config = sanitizeConfig({ peakEnabled: false, includeSubagentCost: true, p
 } }, planBilling: { models: { '127.0.0.1:summary': 'plan' } } })
 const ledgerPath = join(root, 'storages/cost-meter/ledger.json')
 let ledger, bridge, realUpstream = false, directSupported = false, upstreamVersion = '', retry = 0, producer, runtime, nativeRuntime
+let nativePrefillCovered = false
 const originalFetch = globalThis.fetch
 try {
   // Each supplied npm archive exercises its actual retry and summary helpers.
@@ -100,7 +101,8 @@ try {
     return sendJson(res, { choices: [{ message: { content: 'fixture' } }], usage: { prompt_tokens: 100, completion_tokens: 20, prompt_tokens_details: { cached_tokens: 40 } } })
   }))
   const guarded = (url, options) => {
-    assert.equal(new URL(url).hostname, '127.0.0.1', 'all requests remain in local synthetic fixtures')
+    const address = typeof url === 'string' || url instanceof URL ? url : url.url
+    assert.equal(new URL(address).hostname, '127.0.0.1', 'all requests remain in local synthetic fixtures')
     return originalFetch(url, { ...options, dispatcher: undefined })
   }
   globalThis.fetch = guarded
@@ -114,6 +116,7 @@ try {
       const chunks = []; for await (const chunk of req) chunks.push(chunk)
       probeRequest = { headers: req.headers, body: Buffer.concat(chunks).toString('utf8') }
       res.setHeader('x-dsh-cost-meter-group', req.headers['x-dsh-cost-meter-group'] ?? '')
+      res.setHeader('x-bili-pf-seq', '3')
       return sendJson(res, { native: true })
     }))
     try {
@@ -125,6 +128,23 @@ try {
       assert.equal(probeRequest.headers['x-dsh-cost-meter-group'], group)
       assert.equal(probeRequest.body, request.body)
       assert.deepEqual(acknowledgements, [{ id: group, ok: true }], 'the actual upstream native interceptor carries and acknowledges metering')
+      if (String(nativeRuntime.installNativeFetchIntercept).includes('pfLearnStamp')) {
+        const prefillRequest = {
+          ...options(),
+          headers: { ...options().headers, 'x-bili-plugin-conversation': 'native-prefill-fixture' },
+        }
+        const url = address + '/bili/' + upstream + '/v1/chat/completions'
+        const before = acknowledgements.length
+        await (await globalThis.fetch(url, prefillRequest)).json()
+        assert.equal(probeRequest.headers['x-bili-pf-count'], undefined, 'the first request has no learned prefill sequence')
+        await (await globalThis.fetch(new Request(url, prefillRequest))).json()
+        assert.equal(probeRequest.headers['x-bili-pf-count'], '3', 'the next Request carries the sequence learned from the proxy response')
+        assert.equal(probeRequest.headers['x-bili-plugin-conversation'], 'native-prefill-fixture')
+        assert.equal(probeRequest.headers['x-dsh-cost-meter-group'], group, 'prefill headers preserve cost correlation')
+        assert.equal(probeRequest.body, prefillRequest.body, 'prefill headers preserve the request body')
+        assert.deepEqual(acknowledgements.slice(before), [{ id: group, ok: true }, { id: group, ok: true }], 'both prefill requests receive cost acknowledgements')
+        nativePrefillCovered = true
+      }
       if (String(nativeRuntime.installNativeFetchIntercept).includes('prepareDirectSend')) {
         liveState.takeoverGate = async () => false
         liveState.prepareDirectSend = async () => ({ outcome: 'restored', body: options('restored').body })
@@ -298,7 +318,7 @@ try {
   assert.equal(normalizeBillionUsage('openai', { prompt_tokens: 5, completion_tokens: 1, prompt_tokens_details: { cached_tokens: 9 } }), null)
   assert.equal(normalizeBillionUsage('responses', { input_tokens: -1, output_tokens: 1 }), null)
   assert.ok((await billionRecordsFor(ledgerPath, 'root')).some(row => row.type.endsWith('replacement')))
-  console.log(JSON.stringify({ check: 'billion-context billing', actualPinnedUpstream: realUpstream, upstreamVersion, forceDirectCovered: directSupported, billedCalls: 8, totalUsd: before,
+  console.log(JSON.stringify({ check: 'billion-context billing', actualPinnedUpstream: realUpstream, upstreamVersion, forceDirectCovered: directSupported, nativePrefillCovered, billedCalls: 8, totalUsd: before,
     checks: 'four protocols, compression, retry attempts, actual cache buckets, API/Plan, parent/agents, replay equality, restart, atomic receipts, cancellation, unknown usage and privacy', externalRequests: 0 }))
 } finally {
   globalThis.fetch = originalFetch

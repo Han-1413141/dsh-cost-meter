@@ -1,8 +1,8 @@
 {
-  "recordedAt": "2026-11-01T13:10:32.058379Z",
+  "recordedAt": "2026-11-03T13:37:39.913Z",
   "plugins": {
     "billion-context": {
-      "version": "0.1.211",
+      "version": "0.1.212",
       "signature": {
         "main": "dist/index.js",
         "exports": {
@@ -31,12 +31,12 @@
           "handle": "0dd735ebb7179b0f6d4ebff338a6296d3b0db6c63be0bb85d23fa5242af0909a",
           "requestSummaryBody": "6af0543c5e140a10feb8552acbc1010680035e52c480b9130a9a966db6c70a13",
           "fetchWithRetry": "3dbdc1b29c2fa85771e39c5a242971ca836aae3b1e89ff97981a42ea1f45ffc1",
-          "installNativeFetchIntercept": "7d4d6bc881b0ed0aa59c5fff9dc3846d17b575621d9d0c8f8898d8d4aa592bc0"
+          "installNativeFetchIntercept": "02cb541218de6b82f8e63030a33e2bcdc31df666e7d1b38d18ee6b6e4df3e9e5"
         }
       },
-      "interfaceHash": "d12e6cccffc548edf9492e7042b9ce1cd82df3537c023d3225aadb6b866bf4eb",
-      "integrity": "sha512-Wup1pOPTCQm2t1RKJwGfL6neO83MU8jOEzEVkXXIS9Xf+xl8c09CyquzOL++TxY8UBGUJ/e1plIZpHr2CA50DA==",
-      "packageUrl": "https://registry.npmjs.org/billion-context/-/billion-context-0.1.211.tgz"
+      "interfaceHash": "dbbd783a48b16aa26c1fc9245e7fa0bfe0efa144d72a05b4c8f64a65532ea81f",
+      "integrity": "sha512-Bwjl4StlMNcE3JWe15iKLATwk5q8rgiNgR/isk5fCnOYfhtE8vsrtJPCqA5WGvsT2yJ9p/j3k4NUAkQER5qjjg==",
+      "packageUrl": "https://registry.npmjs.org/billion-context/-/billion-context-0.1.212.tgz"
     },
     "dsh-codex-subscription": {
       "version": "3.2.3",
