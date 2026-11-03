@@ -72,7 +72,7 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
     field(text('显示位置', 'Placement'), el('select', { className: 'cm-input', value: quotaPlacementValue(config.goQuota, config.quotaStrip, 'go'), onChange: e => nested('goQuota', quotaPlacementPatch(e.target.value)) }, ...quotaPlacementOptions(t).filter(option => option.props.value !== 'off'))), choice(text('主进度条', 'Primary window'), config.goQuota?.main ?? 'rolling', [['rolling', '5h'], ['weekly', text('周', 'Week')], ['monthly', text('月', 'Month')]], value => nested('goQuota', { main: value })),
     check(t('goDetailLabel'), config.goQuota?.detail !== false, value => nested('goQuota', { detail: value }), { 'data-display-option': 'go-detail' }), direction('go'),
     number(t('refreshIntervalLabel'), config.goQuota?.refreshMinutes ?? 15, value => nested('goQuota', { refreshMinutes: Math.floor(value) }), 1)]
-  if (selected === 'peak') controls = [el('div', { className: 'cm-peak-control' },
+  if (selected === 'peak') controls = [el(PeakTimeZoneControl, { config, locale: props.locale, onChange: value => set({ peakTimeZone: value }) }),el('div', { className: 'cm-peak-control' },
     el('div', { className: 'cm-peak-control-heading' }, text('样式', 'Style')),
     el('div', { className: 'cm-peak-style-choices', role: 'group', 'aria-label': text('峰谷条样式', 'Peak bar style') },
       ...[['progress', text('进度条', 'Progress'), text('时间进度 · 倒计时与切换时刻', 'Time progress, countdown and switch time')],
