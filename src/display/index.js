@@ -39,7 +39,7 @@ window.__ModuleLoader__.load({
       const previewData = React.useMemo(() => displayPreviewData(props.state, config, examples, selected, selectedPlan), [props.state, config, examples, selected, selectedPlan])
       const renderPreviewSidebar = React.useCallback(preview => renderSidebar(preview, previewData.state), [renderSidebar, previewData.state])
       const appearance = useDisplayAppearance()
-      const labels = { balance: text('官方余额', 'Official balance'), budget: text('侧栏预算', 'Sidebar budget'), today: text('今日用量', 'Today’s usage'), peak: text('峰谷时段', 'Peak / off-peak'), models: text('模型花费', 'Model costs'), go: text('Go 额度', 'Go quota'), plan: text('套餐进度条', 'Plan bars'), customBalance: text('自定义余额', 'Custom balance'), codex: text('Codex 额度', 'Codex quota'), badge: text('会话费用摘要', 'Session cost summary'), 'session-header': text('顶部费用明细', 'Header cost details'), 'session-dock': text('输入框下方费用明细', 'Composer cost details'), turn: text('每轮费用', 'Per-turn cost'), corner: text('右下角额度', 'Corner quota'), 'strip-budget': text('预算进度条', 'Budget strip'), 'strip-go': text('Go 进度条', 'Go strip'), 'strip-plans': text('套餐进度条', 'Plan strip') }
+      const labels = { balance: text('官方余额', 'Official balance'), budget: text('侧栏预算', 'Sidebar budget'), today: text('今日用量', 'Today’s usage'), peak: text('峰谷时段', 'Peak / off-peak'), models: text('模型花费', 'Model costs'), go: text('Go 额度', 'Go quota'), plan: text('套餐进度条', 'Plan bars'), customBalance: text('自定义余额', 'Custom balance'), codex: text('Codex 额度', 'Codex quota'), badge: text('会话费用摘要', 'Session cost summary'), 'session-header': text('顶部费用明细', 'Header cost details'), 'dock-cost': text('输入框下方费用入口', 'Composer cost entry'), turn: text('每轮费用', 'Per-turn cost'), corner: text('右下角额度', 'Corner quota'), 'strip-budget': text('预算进度条', 'Budget strip'), 'strip-go': text('Go 进度条', 'Go strip'), 'strip-plans': text('套餐进度条', 'Plan strip') }
       labels['strip-codex'] = text('Codex 额度', 'Codex quota')
       labels.sessionList = text('会话列表金额', 'Session list amounts')
       const registry = {}
@@ -114,6 +114,16 @@ window.__ModuleLoader__.load({
       const badge = position => item('badge', text('会话费用摘要', 'Session cost summary'), config.position === position, { position: config.position === position ? 'off' : position },
           el('span', { className: 'cm-root cm-session-cost' }, el('span', { className: 'cm-session-amount' }, t('sessionLineCompact', { amount: examples ? money(.32) : '—' })),
             inner('session-detail', config.sessionCostCompact !== true, el('span', { className: 'cm-session-detail' }, examples ? text(' · 输入 128K · 输出 4K', ' · In 128K · Out 4K') : text(' · 暂无会话缓存', ' · No cached session data')))))
+      const dockVisible = config.position === 'dock' && config.hideSessionCostDock !== true
+      // 合并后的输入区费用入口:与真实组件同结构的官方 pill(硬币图标 + 金额 · 费用明细)。
+      const dockCost = item('dock-cost', text('输入框下方费用入口', 'Composer cost entry'), dockVisible,
+        dockVisible ? { hideSessionCostDock: true } : { position: 'dock', hideSessionCostDock: false },
+        el('span', { className: 'cm-dp' },
+          el('svg', { viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1, 'aria-hidden': true, style: { width: 14, height: 14, flex: 'none' } },
+            el('circle', { cx: 8, cy: 8, r: 6.1 }),
+            el('path', { d: 'M5.7 4.9 8 7.5l2.3-2.6M8 7.5v4M6 8.9h4M6 10.9h4' })),
+          el('span', { className: 'cm-dl' }, t('sessionLineCompact', { amount: examples ? money(.32) : '—' }),
+            inner('session-action', config.sessionCostCompact !== true, el('span', { className: 'cm-ds', 'aria-hidden': true }, '·'), text('费用明细', 'Cost details')))))
       const cornerOn = config.corner?.enabled === true
       const native = (name, ...children) => el('div', { className: 'cm-native-' + name }, ...children)
       const icon = (name, size = 16) => el(Native[name], { size })
@@ -146,7 +156,7 @@ window.__ModuleLoader__.load({
               native('input-trailing', native('model', examples ? 'DeepSeek-V41-Flash' : text('当前模型', 'Current model'), icon('IconChevronDownOutlineRegular', 12)), icon('IconMicrophoneOutlineRegular', 20), native('input-primary', icon('IconSendOutlineRegular', 24))))),
           native('input-dock', el('span', { className: 'cm-native-dock-stat', 'aria-hidden': true }, icon('IconGaugeOutlineRegular', 14), examples ? text('2 轮 6 步 · 273 tok/s', '2 turns · 6 steps · 273 tok/s') : '—'),
             el('span', { className: 'cm-native-dock-stat', 'aria-hidden': true }, icon('IconDatabaseOutlineRegular', 14), examples ? text('128K tok · 缓存命中 98%', '128K tok · 98% cache') : '—'),
-            session('dock'), badge('dock'), corner, dockModel,
+            dockCost, corner, dockModel,
             el('span', { className: 'cm-native-dock-context', 'aria-hidden': true }, el('i', { className: 'cm-native-context-ring' }), examples ? '29%' : '—'))) :
         el('div', { className: 'cm-preview-conversation' },
           el('div', { className: 'cm-native-chat-header', style: appearance.header },

@@ -75,8 +75,13 @@ export async function checkDisplayPreview(page, output) {
     await choose('models')
     assert.equal(await page.locator('[data-display=models] .cm-model-top').count(), 1, 'composer has a real selectable model Top-1 chip')
     assert.equal(await page.locator('[data-model-field=tokens]').count(), 0, 'composer does not offer sidebar-only settings')
-    await choose('badge'); await page.getByRole('switch', { name: '仅显示金额', exact: true }).check()
-    await page.waitForFunction(() => document.querySelector('[data-display-part=session-detail]').dataset.previewHidden === 'true')
+    await choose('dock-cost')
+    assert.equal(await page.getByRole('switch', { name: '仅显示金额', exact: true }).count(), 1)
+    assert.equal(await page.locator('.cm-preview-scene [data-display=session-dock], .cm-preview-scene [data-display=badge]').count(), 0, 'the old separate composer cost entries are gone')
+    const composerOptions = await page.getByLabel('调整组件', { exact: true }).locator('option').evaluateAll(options => options.map(option => option.value))
+    assert.ok(composerOptions.includes('dock-cost') && !composerOptions.includes('session-dock') && !composerOptions.includes('badge'), 'composer lists only the merged entry: ' + composerOptions.join(','))
+    await page.getByRole('switch', { name: '仅显示金额', exact: true }).check()
+    await page.waitForFunction(() => document.querySelector('[data-display-part=session-action]').dataset.previewHidden === 'true')
     assert.equal(await page.locator('[data-display-part=session-id],[data-display-part=session-agents]').count(), 0)
 
     // Use the width of the settings content, independent of window size.
@@ -90,7 +95,7 @@ export async function checkDisplayPreview(page, output) {
         await page.locator('#root').evaluate((n, w) => n.style.width = w + 'px', width)
         for (const name of ['侧栏', '输入区', '会话内容']) {
           await region(name)
-          for (const key of name === '侧栏' ? ['balance', 'models', 'peak'] : name === '输入区' ? ['badge', 'corner', 'models'] : ['badge', 'turn']) {
+          for (const key of name === '侧栏' ? ['balance', 'models', 'peak'] : name === '输入区' ? ['dock-cost', 'corner', 'models'] : ['badge', 'turn']) {
             await choose(key)
             const geometry = await page.locator('.cm-preview-workspace').evaluate(n => {
               const scene = n.querySelector('.cm-preview-scene').getBoundingClientRect(), panel = n.querySelector('aside').getBoundingClientRect()
