@@ -1,5 +1,13 @@
 # dsh-cost-meter 版本更新历史
 
+## v1.9.54(2026-11-03)—— Codex Subscription 3.2.4 兼容
+
+- 验证 dsh-codex-subscription 3.2.4 的实际发布包，更新兼容基线和两个宿主的持续集成矩阵，处理 github-actions[bot] 在 [#465](https://github.com/Han-1413141/dsh-cost-meter/issues/465) 提供的接口变化报告。
+- 补充权限错误经 RPC 保留公开说明、登录完成后清理账号额度缓存，以及失败冷却结束后重新获取额度的回归检查。
+- Validate Codex Subscription 3.2.4 access-error messages, login cache invalidation and fresh quota after failure cooldown against its published package.
+
+[更新说明](update-notes-1.9.54.md)
+
 ## v1.9.53(2026-11-03)—— billion-context 0.1.212 兼容
 
 - 验证 billion-context 0.1.212 的实际发布包，更新兼容基线并加入持续集成，处理 github-actions[bot] 在 [#462](https://github.com/Han-1413141/dsh-cost-meter/issues/462) 报告的原生拦截函数变化。
