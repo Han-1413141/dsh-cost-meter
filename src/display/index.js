@@ -108,20 +108,22 @@ window.__ModuleLoader__.load({
           el('span', { className: 'cm-qchip' }, el('span', { className: 'cm-qlabel' }, label),
             el('span', { className: 'cm-qbar' }, el('span', { className: 'cm-qfill', style: { width: (pct ?? 0) + '%' } })), el('span', { className: 'cm-qtext' }, percentLabel(pct))))
       }
-      const sessionHeader = item('session-header', labels['session-header'], config.hideSessionCostHeader !== true,
+      const sessionHeader = region === 'conversation' ? item('session-header', labels['session-header'], config.hideSessionCostHeader !== true,
         { hideSessionCostHeader: config.hideSessionCostHeader !== true },
-        el('span', { className: 'cm-btn cm-stat-entry' }, text('费用明细', 'Cost details')))
+        el('span', { className: 'cm-btn cm-stat-entry' }, text('费用明细', 'Cost details'))) : null
       const dockVisible = config.hideSessionCostDock !== true
       // 输入区费用入口:官方 pill(当前货币符号 + 金额 + 命中/输入/缓存/输出分项 · 分隔,整行可点击)。
       const dockSymbol = config.symbol || '$'
       const dockAmountText = t('sessionLineCompact', { amount: examples ? money(.32) : '—' }).replaceAll(dockSymbol, '')
-      const dockDetail = text(' · 命中 60.0% · 输入 128K · 缓存 13M · 输出 4K', ' · Hit 60.0% · Input 128K · Cache 13M · Output 4K')
-      const dockCost = item('dock-cost', text('输入框下方费用入口', 'Composer cost entry'), dockVisible,
+      const dockDetail = examples
+        ? text(' · 命中 60.0% · 输入 128K · 缓存 13M · 输出 4K', ' · Hit 60.0% · Input 128K · Cache 13M · Output 4K')
+        : text(' · 暂无会话缓存', ' · No cached session data')
+      const dockCost = region === 'composer' ? item('dock-cost', labels['dock-cost'], dockVisible,
         dockVisible ? { hideSessionCostDock: true } : { hideSessionCostDock: false },
         el('span', { className: 'cm-dp' },
           el('span', { className: 'cm-dsym', 'aria-hidden': true }, dockSymbol),
           el('span', { className: 'cm-dl' }, dockAmountText,
-            inner('session-detail', config.sessionCostCompact !== true, dockDetail))))
+            inner('session-detail', config.sessionCostCompact !== true, dockDetail)))) : null
       const cornerOn = config.corner?.enabled === true
       const native = (name, ...children) => el('div', { className: 'cm-native-' + name }, ...children)
       const icon = (name, size = 16) => el(Native[name], { size })

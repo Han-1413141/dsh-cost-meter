@@ -135,7 +135,6 @@
       return {
         queryAccounts: v.queryAccounts && typeof v.queryAccounts === 'object' ? v.queryAccounts : {},
         locale: v.locale === 'zh' || v.locale === 'en' || v.locale === 'auto' ? v.locale : 'auto',
-        position: v.position === 'header' || v.position === 'off' ? v.position : 'dock',
         sidebar: v.sidebar !== false,
         // showSessionId 曾遗漏于本白名单:checkbox 能保存但读侧恒 undefined,
         // 会话列表附显 ID 自上线以来实际从未生效(v1.5.38 起一并修复)。
@@ -1618,20 +1617,17 @@
         el('path', { d: 'M8 2.8A1.3 1.3 0 1 0 8 5.4A1.3 1.3 0 1 0 8 2.8Z', fill: 'currentColor' }))
     }
 
-    // ── 输入区费用入口的前导符号直接使用配置里的当前货币符号(¥ / $ / €),不再自绘图标;
-    //    文本字形在 14px 下有字体 hinting,比缩小 SVG 更清晰。 ──
-
     function costDetailsLabel(en) {
       return en ? 'Conversation cost details' : '本会话费用明细'
     }
 
-    // ── 会话费用徽章(dock / header) ────────────────────────────────────────
+    // ── 会话费用状态/金额拆分与投影联动刷新 ──────────────────────────────
 
     // 投影联动刷新(今日费用实时化):costUsage 投影由宿主在每次 usage 入账时
     // 推送,是「本次调用已结束入账」的实时信号。据此触发一次 800ms 防抖的
     // getState,侧边栏「今日费用」从最坏 60s 轮询缩短到流结束后 ≈1s;60s 轮询
-    // 保留作兜底(跨会话/后台标签页场景)。挂在会话徽章(dock/header)与侧边栏
-    // 页脚三处,覆盖 position=off 等配置组合;投影不可用时静默退化。
+    // 保留作兜底(跨会话/后台标签页场景)。挂在输入区费用入口与侧边栏页脚两处;
+    // 投影不可用时静默退化。
     // hooks 规则:必须在组件早退 return 之前调用(与 useProjection 同位)。
     function useProjectionRefresh(props, usage) {
       const primedRef = useRef(false)
@@ -1781,9 +1777,10 @@
     }
 
     /**
-     * 输入区下方的会话费用入口:与官方 StatsPills(ActivityPill/UsagePill)同构——左侧货币符号、
-     * 金额与命中率/输入/缓存/输出分项用 · 分隔、整行可点击打开费用明细弹窗;悬停提示保留
-     * 完整分项与模型金额;「仅显示金额」开启时只保留金额段(与 master 的呈现一致)。
+     * 输入区下方的会话费用入口:与官方 StatsPills(ActivityPill/UsagePill)同构——左侧直接使用配置里的
+     * 当前货币符号(¥ / $ / €,文本字形在 14px 下有字体 hinting,比缩小 SVG 更清晰),金额与命中率/
+     * 输入/缓存/输出分项用 · 分隔、整行可点击打开费用明细弹窗;悬停提示保留完整分项与模型金额;
+     * 「仅显示金额」开启时只保留金额段(与 master 的呈现一致)。
      */
     function DockLine(props) {
       const snapshot = props.useCost?.(s => s), state = useSessionUsage(props), { usage, config } = state
@@ -1795,6 +1792,14 @@
       const en = resolveLocale(config) === 'en'
       const t = makeT(resolveLocale(config))
       const status = config ? sessionCostStatus(state) : snapshot?.error || (en ? 'Loading…' : '加载中…')
+      // 明细弹窗要完整的费用状态(store state),不是 useSessionUsage 的合并结果:
+      // 统计页会读取 state.meta/today/total 等字段,形状不符会在渲染时抛错并把整行卸载。
+      // 状态行也挂同一弹窗(open=false 不渲染),会话切换时旧弹窗随 open 一起关闭。
+      const dialog = el(CostDetailsDialog, { open, onClose: () => setOpenedId(null), sessionId: props.sessionId, state: snapshot?.state, error: snapshot?.error, api: props.api })
+      // 账本尚未就绪/无记录/不可用保持非交互状态行(与 master 一致,role=status 供读屏播报);
+      // 没有 store 状态的加载/错误仍保留可点击入口,以便弹窗内重试。
+      if (config && status) return el(Fragment, null,
+        el('span', { className: 'cm-dp-status', role: 'status', title: status }, status), dialog)
       const { cost, planPart } = usage ? sessionCostParts(usage, config) : { cost: 0, planPart: 0 }
       const values = {
         amount: formatMoneyUsd(cost, config),
@@ -1814,15 +1819,15 @@
       const amountLine = status || t('sessionLineCompact', values)
       const line = status ? '' : (compact ? t(planPart > 0 ? 'sessionLineSplitCompact' : 'sessionLineCompact', values) : fullLine)
       const labelText = (amountLine + line.slice(amountLine.length)).replaceAll(sym, '')
+      // 悬停/聚焦时预取统计页(并入 client 页缓存),避免首次点击弹窗先出现骨架屏。
+      const warm = () => warmPage(props.api?.loadStatistics, { state: snapshot?.state, sessionId: props.sessionId })
       // 悬停详情走宿主官方 Tooltip(与官方统计 pill 一致的黑色气泡),不再用浏览器原生 title。
       return el(Fragment, null,
         el(Tooltip, { portal: true, label: [fullLine, modelDetail].filter(Boolean).join('; '), side: 'top' },
-          el('button', { type: 'button', className: 'cm-dp', 'aria-label': label, 'aria-haspopup': 'dialog', 'aria-expanded': open, onClick: () => setOpenedId(props.sessionId) },
+          el('button', { type: 'button', className: 'cm-dp', 'aria-label': label, 'aria-haspopup': 'dialog', 'aria-expanded': open, onMouseEnter: warm, onFocus: warm, onClick: () => setOpenedId(props.sessionId) },
             el('span', { className: 'cm-dsym', 'aria-hidden': 'true' }, sym),
             el('span', { className: 'cm-dl' }, labelText))),
-        // 明细弹窗要完整的费用状态(store state),不是 useSessionUsage 的合并结果:
-        // 统计页会读取 state.meta/today/total 等字段,形状不符会在渲染时抛错并把整行卸载。
-        el(CostDetailsDialog, { open, onClose: () => setOpenedId(null), sessionId: props.sessionId, state: snapshot?.state, error: snapshot?.error, api: props.api }))
+        dialog)
     }
 
     // ── 侧边栏:余额行 + 预算图框/今日徽章(纵向堆叠,位于设置按钮上方) ──────

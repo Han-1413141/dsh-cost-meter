@@ -103,7 +103,7 @@ const btn = (tree, label) => nodes(tree).find(n => n.type === 'button' && textOf
 const withClass = (tree, cls) => nodes(tree).filter(n => n.props?.className?.split(' ').includes(cls))
 const input = (tree, label) => nodes(tree).find(n => n.type === 'input' && n.props['aria-label'] === label)
 const base = sanitizeConfig({ locale: 'en', currency: 'USD', symbol: '$', exchangeRate: 1, decimals: 2,
-  position: 'off', sidebar: false, hideTodayCost: true, hideOfficialBalance: true, goQuota: { enabled: false },
+  sidebar: false, hideTodayCost: true, hideOfficialBalance: true, goQuota: { enabled: false },
   budget: { enabled: false }, peakEnabled: false, corner: { enabled: false } })
 const e = environment(), t = e.ui.makeT('en')
 const unorderedWindows = { monthly: { percent: 18 }, weekly: { percent: 46 }, daily: { percent: 0 }, fiveHour: { percent: 14 } }

@@ -753,10 +753,10 @@ console.log('[ok] 今日记录:', JSON.stringify(reloaded.today(), null, 2))
 console.log('[ok] default 回退计费生效(unknown-model-x 用 default 价)')
 
 // 4) 配置补丁校验。
-const patchOk = applyConfigPatch(reloaded.config, { position: 'header', currency: 'USD', symbol: '$', exchangeRate: 1, decimals: 6 })
-console.log('[ok] 配置补丁:', patchOk.errors.length === 0 ? '通过' : patchOk.errors.join(';'), patchOk.config.position, patchOk.config.symbol)
-const patchBad = applyConfigPatch(reloaded.config, { position: 'nowhere' })
-console.log('[ok] 非法补丁被拒:', patchBad.errors.join(';'))
+const patchOk = applyConfigPatch(reloaded.config, { currency: 'USD', symbol: '$', exchangeRate: 1, decimals: 6 })
+console.log('[ok] 配置补丁:', patchOk.errors.length === 0 ? '通过' : patchOk.errors.join(';'), patchOk.config.symbol)
+const patchBad = applyConfigPatch(reloaded.config, { position: 'header' })
+console.log('[ok] 已移除的会话费用位置配置被拒:', patchBad.errors.join(';'))
 const patchBad2 = applyConfigPatch(reloaded.config, { unknownKey: 1 })
 console.log('[ok] 未知键被拒:', patchBad2.errors.join(';'))
 
@@ -1969,7 +1969,7 @@ console.log('[ok] 宽泛匹配与跨厂商兑底(路由 provider 费用为零修
 // 7) 兼容性回归:配置清洗 + state codec 漂移防护(「账本不可用」根治)。
 // 7.1 sanitizeConfig:历史/手改账本的非法配置值回落收敛。
 const dirty = sanitizeConfig({
-  locale: 'fr', position: 'nowhere', decimals: 'many', exchangeRate: -1,
+  locale: 'fr', decimals: 'many', exchangeRate: -1, position: 'nowhere',
   peakStyle: 'fancy', priceMatch: 'guess', peakWindows: [{ start: 'x', end: 1 }],
   priceOverrides: { 'deepseek:a': 1, ok: 'deepseek-v4-flash' },
   priceTableDisplay: { 'deepseek:x': 'x', 'anthropic:y': true },
@@ -1978,7 +1978,7 @@ const dirty = sanitizeConfig({
   corner: { enabled: 'x' },
 })
 assert.equal(dirty.locale, 'auto', '非法 locale 回落')
-assert.equal(dirty.position, 'dock', '非法 position 回落')
+assert.equal(Object.hasOwn(dirty, 'position'), false, '已移除的会话费用位置配置被丢弃')
 assert.equal(typeof dirty.decimals, 'number', '非法 decimals 回落为数字')
 assert.equal(dirty.exchangeRate, 7.2, '非法汇率回落默认')
 assert.equal(dirty.peakStyle, 'compact', '非法 peakStyle 回落')
@@ -4316,7 +4316,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(clientSrc.includes("function billingClassOfLocal"), '客户端分类镜像存在')
   assert.ok(clientSrc.includes("function moneyCostOf"), '真金白银口径辅助函数存在')
   assert.ok(clientSrc.includes("function usageSplit"), '会话投影拆分函数存在')
-  assert.ok(clientSrc.includes("sessionLineSplit") && clientSrc.includes("costChipPlan"), '会话徽章/dock 双轨文案接线')
+  assert.ok(clientSrc.includes("sessionLineSplit") && clientSrc.includes("sessionLineSplitCompact"), '会话费用行双轨文案接线')
   assert.ok(clientSrc.includes("function PlanStatsPanel"), 'PlanStatsPanel 组件存在')
   assert.ok(clientSrc.includes("el(PlanStatsPanel,"), '用量标签挂载 PlanStatsPanel')
   assert.ok(clientSrc.includes("planStatsBarTip") && clientSrc.includes("planStatsNote"), '曲线悬停与口径说明文案存在')

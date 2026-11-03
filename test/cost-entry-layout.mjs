@@ -27,7 +27,7 @@ const usage={input:1200000,cacheRead:13400000,cacheWrite:0,output:263000,cost:0.
 const props={sessionId:'synthetic',useProjection:()=>usage,useCost:()=>({state:{config,budgetUsed:0}}),api:{loadStatistics:async()=>()=>React.createElement('p',null,'Synthetic details')}};
 const title=locale==='zh'?'这是一段需要保留可读性的会话标题':'A conversation title that must remain readable';
 createRoot(document.getElementById('root')).render(React.createElement(React.Fragment,null,
-  React.createElement('header',null,React.createElement('span',{className:'title'},title),React.createElement(ui.SessionStatisticsButton,{...props,entryPosition:'header'})),
+  React.createElement('header',null,React.createElement('span',{className:'title'},title),React.createElement(ui.SessionStatisticsButton,{...props})),
   React.createElement('main',null,'Synthetic conversation'),
   React.createElement('footer',null,React.createElement('div',{'data-slot':'conversation.composer.dock'},
     React.createElement('div',{className:'native-stats'},

@@ -116,6 +116,8 @@ for (const locale of ['en', 'zh']) {
     useCost: pick => pick({ state: { config: local, meta: { now: 1 } } }), api: { getSessionCost: () => request.promise } }
   const dock = e.mount(e.ui.DockLine, p)
   assert.match(textOf(dock.tree), locale === 'en' ? /Loading session cost/ : /正在读取本会话费用/)
+  assert.ok(nodes(dock.tree).some(node => node.props.role === 'status'), 'loading state renders as a non-interactive status region')
+  assert.equal(nodes(dock.tree).some(node => node.type === 'button'), false, 'loading state is not clickable')
   assert.doesNotMatch(textOf(dock.tree), locale === 'en' ? /This session 5/ : /本会话 5/, 'projection is not briefly presented as a confirmed ledger amount')
   request.resolve(snapshot(usage(0, 0, 0), usage(0, 0, 0), false)); await e.flush()
   assert.ok(dock.tree, 'an empty ledger response must not remove the cost entry')

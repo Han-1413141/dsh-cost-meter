@@ -73,7 +73,7 @@
     function SessionStatisticsButton(props) {
       const snapshot = props.useCost?.(s => s), state = snapshot?.state
       const [openedId, setOpenedId] = useState(null)
-      const hidden = state?.config[props.entryPosition === 'header' ? 'hideSessionCostHeader' : 'hideSessionCostDock'] === true
+      const hidden = state?.config?.hideSessionCostHeader === true
       const open = !hidden && !!props.sessionId && openedId === props.sessionId
       useEffect(() => { setOpenedId(null) }, [props.sessionId, hidden])
       // Prefetch only on hover/focus. A mounted fee button must not replay logs.
@@ -82,7 +82,7 @@
       const label = costDetailsLabel(en)
       const hover = () => warmPage(props.api.loadStatistics, { state, sessionId: props.sessionId })
       return el(Fragment, null,
-        el('button', { type: 'button', className: 'cm-btn cm-stat-entry cm-stat-' + (props.entryPosition || 'dock'), title: label, 'aria-label': label, 'aria-haspopup': 'dialog', onMouseEnter: hover, onFocus: hover, onClick: () => setOpenedId(props.sessionId) }, en ? 'Cost details' : '费用明细'),
+        el('button', { type: 'button', className: 'cm-btn cm-stat-entry cm-stat-header', title: label, 'aria-label': label, 'aria-haspopup': 'dialog', onMouseEnter: hover, onFocus: hover, onClick: () => setOpenedId(props.sessionId) }, en ? 'Cost details' : '费用明细'),
         el(CostDetailsDialog, { open, onClose: () => setOpenedId(null), sessionId: props.sessionId, state, error: snapshot?.error, api: props.api }))
     }
 
@@ -2189,7 +2189,7 @@
         name: 'plugins.bundle.config', key: 'dsh-cost-meter', inject: injected,
       }, CostSection))
       // 标题栏费用明细入口;输入区下方入口由会话费用行(DockLine)自身承载,整行可点击,不重复注册。
-      slots.inject('conversation.session.header.actions', () => slots.register({ name: 'conversation.session.header.actions', id: 'cost-meter-statistics', order: 1, inject: () => ({ ...injected(), entryPosition: 'header' }) }, SessionStatisticsButton))
+      slots.inject('conversation.session.header.actions', () => slots.register({ name: 'conversation.session.header.actions', id: 'cost-meter-statistics', order: 1, inject: injected }, SessionStatisticsButton))
       slots.inject('conversation.chat.turnTail', () => slots.register({ name: 'conversation.chat.turnTail', id: 'cost-meter-turn', order: 10, select: e => e, inject: injected }, TurnCost))
       // 通用插槽注册去重:共享「失效旧注册→bump gen→注入→生成期护栏→记录 dispose→卸载清理」逻辑。
       const slotActive = () => ({ gen: 0, dispose: null })

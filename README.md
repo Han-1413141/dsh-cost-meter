@@ -285,11 +285,7 @@ Real captures from an actual DSH sidebar of the period strip and collapsed verti
 
 **Per-conversation cost** (one merged row in the composer footer; the session title bar keeps only its compact “Cost details” button):
 
-| Below the composer |
-|---|
-| ![Session dock](docs/screenshot-session-dock.png) |
-
-> This session ¥5.5939 · input 321K · cache 119M · output 235K (real session capture)
+The row leads with the current currency symbol, then the session amount and hit-rate/input/cache/output details; the whole row opens the details dialog, and “Amount only” condenses it to the amount segment.
 
 ![Session page](docs/screenshot-session.png)
 
