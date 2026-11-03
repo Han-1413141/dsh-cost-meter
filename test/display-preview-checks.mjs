@@ -79,11 +79,12 @@ export async function checkDisplayPreview(page, output) {
     assert.equal(await page.getByRole('switch', { name: '仅显示金额', exact: true }).count(), 1)
     assert.equal(await page.locator('[data-display=dock-cost] .cm-dsym').innerText(), '¥', 'preview leads with the configured currency symbol')
     assert.equal((await page.locator('[data-display=dock-cost] .cm-dl').innerText()).includes('¥'), false, 'preview amount does not repeat the currency symbol')
+    assert.match(await page.locator('[data-display=dock-cost] .cm-dl').innerText(), /命中/, 'preview restores the master token/hit detail text')
     assert.equal(await page.locator('.cm-preview-scene [data-display=session-dock], .cm-preview-scene [data-display=badge]').count(), 0, 'the old separate composer cost entries are gone')
     const composerOptions = await page.getByLabel('调整组件', { exact: true }).locator('option').evaluateAll(options => options.map(option => option.value))
     assert.ok(composerOptions.includes('dock-cost') && !composerOptions.includes('session-dock') && !composerOptions.includes('badge'), 'composer lists only the merged entry: ' + composerOptions.join(','))
     await page.getByRole('switch', { name: '仅显示金额', exact: true }).check()
-    await page.waitForFunction(() => document.querySelector('[data-display-part=session-action]').dataset.previewHidden === 'true')
+    await page.waitForFunction(() => document.querySelector('[data-display-part=session-detail]').dataset.previewHidden === 'true')
     assert.equal(await page.locator('[data-display-part=session-id],[data-display-part=session-agents]').count(), 0)
 
     // Use the width of the settings content, independent of window size.

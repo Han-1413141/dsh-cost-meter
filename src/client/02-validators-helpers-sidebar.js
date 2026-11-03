@@ -1781,9 +1781,9 @@
     }
 
     /**
-     * 输入区下方的会话费用入口:与官方 StatsPills(ActivityPill/UsagePill)同构——左侧图标、
-     * 两段用 · 分隔、整行可点击。悬停提示保留完整分项与模型金额,点击打开费用明细弹窗;
-     * 「输入区下方只显示金额」开启时只保留金额段。样式对齐官方 StatsPills.module.css。
+     * 输入区下方的会话费用入口:与官方 StatsPills(ActivityPill/UsagePill)同构——左侧货币符号、
+     * 金额与命中率/输入/缓存/输出分项用 · 分隔、整行可点击打开费用明细弹窗;悬停提示保留
+     * 完整分项与模型金额;「仅显示金额」开启时只保留金额段(与 master 的呈现一致)。
      */
     function DockLine(props) {
       const snapshot = props.useCost?.(s => s), state = useSessionUsage(props), { usage, config } = state
@@ -1796,7 +1796,6 @@
       const t = makeT(resolveLocale(config))
       const status = config ? sessionCostStatus(state) : snapshot?.error || (en ? 'Loading…' : '加载中…')
       const { cost, planPart } = usage ? sessionCostParts(usage, config) : { cost: 0, planPart: 0 }
-      // 完整命中/输入/缓存/输出分项与模型金额只进悬停提示,行内只保留金额,避免与宿主统计重复。
       const values = {
         amount: formatMoneyUsd(cost, config),
         planAmount: formatMoneyUsd(planPart, config),
@@ -1808,18 +1807,19 @@
       const fullLine = config ? t(planPart > 0 ? 'sessionLineSplit' : 'sessionLine', values) : status
       const modelDetail = config ? modelCostDetail(usage, config) : ''
       const label = costDetailsLabel(en)
-      const action = config?.sessionCostCompact === true ? null : en ? 'Cost details' : '费用明细'
-      // 前导图标用当前货币符号(跟随设置里的货币),行内金额去掉重复的符号;悬停提示仍保留完整金额。
+      // 前导槽位用当前货币符号(跟随设置里的货币);行内金额/分项去掉重复符号。
+      // 文字内容与 master 一致:金额 + 命中率/输入/缓存/输出;仅显示金额时只保留金额段。
       const sym = config?.symbol || '$'
-      const labelText = (status || t(planPart > 0 ? 'sessionLineSplitCompact' : 'sessionLineCompact', values)).replaceAll(sym, '')
+      const compact = config?.sessionCostCompact === true
+      const amountLine = status || t('sessionLineCompact', values)
+      const line = status ? '' : (compact ? t(planPart > 0 ? 'sessionLineSplitCompact' : 'sessionLineCompact', values) : fullLine)
+      const labelText = (amountLine + line.slice(amountLine.length)).replaceAll(sym, '')
       // 悬停详情走宿主官方 Tooltip(与官方统计 pill 一致的黑色气泡),不再用浏览器原生 title。
       return el(Fragment, null,
         el(Tooltip, { portal: true, label: [fullLine, modelDetail].filter(Boolean).join('; '), side: 'top' },
           el('button', { type: 'button', className: 'cm-dp', 'aria-label': label, 'aria-haspopup': 'dialog', 'aria-expanded': open, onClick: () => setOpenedId(props.sessionId) },
             el('span', { className: 'cm-dsym', 'aria-hidden': 'true' }, sym),
-            el('span', { className: 'cm-dl' },
-              labelText,
-              action === null ? null : el(Fragment, null, el('span', { className: 'cm-ds', 'aria-hidden': 'true' }, '·'), action)))),
+            el('span', { className: 'cm-dl' }, labelText))),
         // 明细弹窗要完整的费用状态(store state),不是 useSessionUsage 的合并结果:
         // 统计页会读取 state.meta/today/total 等字段,形状不符会在渲染时抛错并把整行卸载。
         el(CostDetailsDialog, { open, onClose: () => setOpenedId(null), sessionId: props.sessionId, state: snapshot?.state, error: snapshot?.error, api: props.api }))

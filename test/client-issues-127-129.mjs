@@ -244,7 +244,8 @@ for (const locale of ['en', 'zh']) {
   }
 }
 
-// #236: the row shows amount · details; compact keeps the amount only, full line stays on hover.
+// #236: the row shows amount + the master token/hit details; compact keeps the amount only,
+// and the full line stays on hover.
 for (const locale of ['en', 'zh']) {
   let dockConfig = { ...config, locale, sessionCostCompact: false }
   const row = { ...usage(20, 7, 4), cacheRead: 60, cacheWrite: 20, output: 900 }
@@ -253,7 +254,7 @@ for (const locale of ['en', 'zh']) {
   const dock = e.mount(e.ui.DockLine, p)
   const rowButton = () => nodes(dock.tree).find(node => node.type === 'button')
   const title = tipOf(dock.tree)
-  assert.equal(textOf(dock.tree), locale === 'en' ? '$This session 4 (API) · Plan equiv. 3·Cost details' : '$本会话 4(API)· Plan 等值 3·费用明细', 'currency symbol leads, amount and details action join in one official-style row')
+  assert.equal(textOf(dock.tree), locale === 'en' ? '$This session 4 (API) · Plan equiv. 3 · Hit 60.0% · Input 20 · Cache 80 · Output 900' : '$本会话 4(API)· Plan 等值 3 · 命中 60.0% · 输入 20 · 缓存 80 · 输出 900', 'currency symbol leads, amount and token details join in one official-style row')
   assert.equal(rowButton().props['aria-label'], locale === 'en' ? 'Conversation cost details' : '本会话费用明细')
   assert.match(title, /60\.0%/)
   assert.match(title, /custom:model \$7/)
@@ -268,7 +269,7 @@ for (const locale of ['en', 'zh']) {
   assert.doesNotMatch(tipOf(dock.tree), /Plan/)
   dockConfig = { ...dockConfig, sessionCostCompact: false }
   dock.render()
-  assert.equal(textOf(dock.tree), locale === 'en' ? '$This session 7·Cost details' : '$本会话 7·费用明细')
+  assert.equal(textOf(dock.tree), locale === 'en' ? '$This session 7 · Hit 60.0% · Input 20 · Cache 80 · Output 900' : '$本会话 7 · 命中 60.0% · 输入 20 · 缓存 80 · 输出 900')
   assert.match(tipOf(dock.tree), /60\.0%/, 'turning compact off immediately restores token details')
   dock.dispose()
 

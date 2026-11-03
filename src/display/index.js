@@ -112,15 +112,16 @@ window.__ModuleLoader__.load({
         { hideSessionCostHeader: config.hideSessionCostHeader !== true },
         el('span', { className: 'cm-btn cm-stat-entry' }, text('费用明细', 'Cost details')))
       const dockVisible = config.hideSessionCostDock !== true
-      // 合并后的输入区费用入口:与真实组件同结构的官方 pill(当前货币符号 + 金额 · 费用明细)。
+      // 输入区费用入口:官方 pill(当前货币符号 + 金额 + 命中/输入/缓存/输出分项 · 分隔,整行可点击)。
       const dockSymbol = config.symbol || '$'
       const dockAmountText = t('sessionLineCompact', { amount: examples ? money(.32) : '—' }).replaceAll(dockSymbol, '')
+      const dockDetail = text(' · 命中 60.0% · 输入 128K · 缓存 13M · 输出 4K', ' · Hit 60.0% · Input 128K · Cache 13M · Output 4K')
       const dockCost = item('dock-cost', text('输入框下方费用入口', 'Composer cost entry'), dockVisible,
         dockVisible ? { hideSessionCostDock: true } : { hideSessionCostDock: false },
         el('span', { className: 'cm-dp' },
           el('span', { className: 'cm-dsym', 'aria-hidden': true }, dockSymbol),
           el('span', { className: 'cm-dl' }, dockAmountText,
-            inner('session-action', config.sessionCostCompact !== true, el('span', { className: 'cm-ds', 'aria-hidden': true }, '·'), text('费用明细', 'Cost details')))))
+            inner('session-detail', config.sessionCostCompact !== true, dockDetail))))
       const cornerOn = config.corner?.enabled === true
       const native = (name, ...children) => el('div', { className: 'cm-native-' + name }, ...children)
       const icon = (name, size = 16) => el(Native[name], { size })
