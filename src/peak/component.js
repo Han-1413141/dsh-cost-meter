@@ -3,14 +3,18 @@
       if (!view) return null
       const { start, progress } = peakPeriodProgress(config, view, now)
       const locale = resolveLocale(config) === 'en' ? 'en' : 'zh-CN'
-      const time = at => new Intl.DateTimeFormat(locale, { timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at)
-      const day = at => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(at)
+      const timeZone = peakTimeZone(config)
+      const offset = at => new Intl.DateTimeFormat('en', { timeZone, timeZoneName: 'shortOffset' }).formatToParts(at).find(part => part.type === 'timeZoneName')?.value ?? ''
+      const crossesDst = offset(start) !== offset(view.nextAtMs)
+      const time = at => new Intl.DateTimeFormat(locale, { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(at)
+      const day = at => new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at)
       const label = at => {
-        if (day(at) === day(now)) return time(at)
-        const date = new Intl.DateTimeFormat(locale, { timeZone: 'Asia/Shanghai', ...(view.holiday || Math.abs(at - now) >= 7 * 86400000 ? { month: 'numeric', day: 'numeric' } : { weekday: 'short' }) }).format(at)
-        return date + ' ' + time(at)
+        const clock = time(at) + (crossesDst ? ' ' + offset(at) : '')
+        if (day(at) === day(now)) return clock
+        const date = new Intl.DateTimeFormat(locale, { timeZone, ...(view.holiday || Math.abs(at - now) >= 7 * 86400000 ? { month: 'numeric', day: 'numeric' } : { weekday: 'short' }) }).format(at)
+        return date + ' ' + clock
       }
-      return { ...view, start, progress, startText: label(start), switchTime: label(view.nextAtMs) }
+      return { ...view, start, progress, timeZone, startText: label(start), switchTime: label(view.nextAtMs) }
     }
     function PeakProgress({ config, t, now: fixedNow, rail = false }) {
       const now = usePeakClock(config, fixedNow), view = peakProgressData(config, now)
@@ -26,7 +30,7 @@
       const remaining = (en ? 'In ' : '剩余 ') + duration
       const change = view.switchTime + (en ? ' · ' : ' 转') + next
       const period = view.startText + ' — ' + view.switchTime
-      const detail = [t(keys.notice), (en ? 'Beijing time · ' : '北京时间 · ') + period, remaining + ' · ' + change,
+      const detail = [t(keys.notice), view.timeZone + ' · ' + period, remaining + ' · ' + change,
         (en ? 'Elapsed ' : '本时段已过 ') + view.progress.toFixed(1) + '%'].join('\n')
       const mode = config.peakTimeDisplay ?? 'both'
       const textOnly = config.sidebarTextOnly === true

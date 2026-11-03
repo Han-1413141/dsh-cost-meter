@@ -181,6 +181,7 @@
         peakAlertTarget: v.peakAlertTarget === 'peak' || v.peakAlertTarget === 'offpeak' ? v.peakAlertTarget : 'both',
         peakAlertPosition: v.peakAlertPosition === 'center' ? 'center' : 'corner',
         peakStyle: ['classic', 'progress'].includes(v.peakStyle) ? v.peakStyle : 'compact',
+        peakTimeZone: typeof v.peakTimeZone === 'string' ? v.peakTimeZone : 'auto',
         peakTimeDisplay: ['countdown', 'switch'].includes(v.peakTimeDisplay) ? v.peakTimeDisplay : 'both',
         priceMatch: v.priceMatch === 'exact' ? 'exact' : 'auto',
         priceOverrides: (() => {

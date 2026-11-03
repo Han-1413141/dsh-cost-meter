@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.9.51] - 2026-11-03
+
+- 峰谷开始、切换时间与设置摘要默认读取当前设备系统时区；新增手动 IANA 时区选择，支持即时预览、持久化、夏令时、跨日及非整小时偏移，保持计费与历史日期规则。感谢 [@jt-at-home](https://github.com/jt-at-home) 在 [#460](https://github.com/Han-1413141/dsh-cost-meter/issues/460) 提供问题报告和本地时区配置建议。
+- Display peak times in the system timezone by default, with a saved manual override and daylight-saving-aware labels; provider billing calendars remain unchanged.
+
+[更新说明 / Release notes](docs/update-notes-1.9.51.md)
+
 ## [1.9.50] - 2026-11-02
 
 - 修复 billion-context 无模型调用时的输入估计值误计，统一检查缓存、实时导入与归档记录，保留真实大上下文及有效宿主用量。感谢 [@191xhq](https://github.com/191xhq) 在 [#458](https://github.com/Han-1413141/dsh-cost-meter/issues/458) 提供回放对照、异常统计、原因定位和过滤建议。

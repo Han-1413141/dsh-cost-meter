@@ -37,7 +37,7 @@ import {createRoot} from ${literal(req.resolve('react-dom/client'))};
 import {createPortal} from ${literal(req.resolve('react-dom'))};
 window.__ModuleLoader__={load:mod=>{const value=mod.factory(name=>name==='react'?React:name==='react-dom'?{createPortal}:{Tooltip:({children})=>children});if(mod.chunk==='client.pricing.js')window.priceUI=value;else window.costUI=value}};
 ${client}
-${readSource('src/pricing/index.js').replace('/* PEAK_PANEL_SOURCE */', () => readSource('src/pricing/peak-panel.js'))}
+${readSource('lib/client.pricing.js')}
 const {CostSection,parseConfig}=window.costUI.preview;
 const state=${literal(initialState)};state.config=parseConfig(state.config,'config');
 if(new URLSearchParams(location.search).has('many'))state.today.byProviderModel=state.month.byProviderModel=Object.fromEntries(Array.from({length:500},(_,i)=>['channel:model-'+i,{calls:1,input:1,output:1,cost:0}]));
@@ -85,6 +85,12 @@ try {
   await page.getByRole('button', { name: '查看并同步官方价表', exact: true }).click()
   assert.equal(await page.getByRole('tab', { name: '同步与规则', exact: true }).getAttribute('aria-selected'), 'true')
   assert.equal(await page.evaluate(() => window.patches.length), 0, 'billing check only navigates; it cannot replace a price table')
+  const timezone = page.getByLabel('峰谷显示时区', { exact: true })
+  assert.equal(await timezone.inputValue(), 'auto')
+  await timezone.selectOption('Asia/Kolkata')
+  await page.waitForFunction(() => window.patches.some(patch => patch.peakTimeZone === 'Asia/Kolkata'))
+  assert.equal(await timezone.inputValue(), 'Asia/Kolkata')
+  assert.equal(await page.evaluate(() => window.reprices.length), 0, 'changing the display timezone does not reprice history')
   // Start the model-only loading checks in a fresh page after visiting sync/history.
   await page.goto(url); await page.waitForFunction(() => window.fixtureReady)
   await page.getByRole('tab', { name: '价格', exact: true }).click()

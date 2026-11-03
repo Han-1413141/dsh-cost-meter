@@ -8,12 +8,15 @@
       }
       // 预览与状态行用草稿值,切换开关/样式即时可见效果。
       const previewConfig = draft === null ? config : { ...config, ...draft }
+      const locale = resolveLocale(previewConfig) === 'en' ? 'en' : 'zh-CN'
+      const timeZone = peakTimeZone(previewConfig)
+      const dateText = value => Number.isFinite(Date.parse(value)) ? new Intl.DateTimeFormat(locale, { timeZone, dateStyle: 'medium', timeStyle: 'short' }).format(Date.parse(value)) : t('unknown')
       const peakStatusText = (() => {
         if (previewConfig.peakEnabled !== true) return t('peakOff')
         const eff = Date.parse(previewConfig.peakEffectiveAt || '')
         const now = Date.now()
         if (Number.isFinite(eff) && now < eff) {
-          return t('peakNotEffective', { time: new Date(eff).toLocaleString() })
+          return t('peakNotEffective', { time: dateText(previewConfig.peakEffectiveAt) })
         }
         const windows = previewConfig.peakWindows ?? []
         // 周末全谷价新规:处于周末区间时状态行显示「周末时段——全谷价」(与时段条一致)。
@@ -25,12 +28,14 @@
       })()
       const peakText = (previewConfig.peakWindows?.length ?? 0) > 0
         ? t('peakSummary', {
-          windows: previewConfig.peakWindows.map(w => w.start + ':00-' + w.end + ':00').join(resolveLocale(previewConfig) === 'zh' ? '、' : ', '),
-          time: previewConfig.peakEffectiveAt || t('unknown'),
+          windows: peakWindowText(previewConfig.peakWindows, previewConfig, locale, Date.now()),
+          zone: timeZone,
+          time: dateText(previewConfig.peakEffectiveAt),
           status: peakStatusText,
         })
         : t('noPeakWindows', { status: peakStatusText })
       return el('div', { className: 'cm-budget' },
+        el(PeakTimeZoneControl, { config: previewConfig, locale, onChange: value => setField('peakTimeZone', value) }),
         el('div', { className: 'cm-budget-head' },
           el('h3', { className: 'cm-h' }, t('peakPanelTitle')),
           el('label', { className: 'cm-check' },
