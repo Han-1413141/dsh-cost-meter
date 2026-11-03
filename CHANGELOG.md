@@ -7,6 +7,22 @@
 - 移除「会话费用显示位置」设置：合并后的费用入口固定显示在输入框下方，会话标题栏不再显示费用徽章、只保留紧凑的「费用明细」按钮；显示设置的组件面板与详细设置中不再出现该选项。客户端的 `position` 配置键、宿主端默认值/校验/错误文案与 typert 配置 schema 一并移除，旧配置里的该字段在 sanitize 时直接丢弃（不再保存、不再生效）。「会话内容」预览同步移除「会话费用摘要」组件。
 - Removed the “Session cost display position” setting: the merged cost entry now always lives below the composer, the session title bar no longer shows a cost badge and keeps only its compact “Cost details” button, and the option disappears from both the Display inspector and the detailed settings. The `position` config key, its host default/validation/error copy and typert config-schema entry are gone too; legacy `position` values are dropped by sanitize (no longer stored or honored). The Conversation preview no longer offers the “Session cost summary” component.
 
+## [1.9.54] - 2026-11-03
+
+- 验证 dsh-codex-subscription 3.2.4 的实际发布包，更新兼容基线和两个宿主的持续集成矩阵，处理 github-actions[bot] 在 [#465](https://github.com/Han-1413141/dsh-cost-meter/issues/465) 提供的接口变化报告。
+- 补充权限错误经 RPC 保留公开说明、登录完成后清理账号额度缓存，以及失败冷却结束后重新获取额度的回归检查。
+- Validate Codex Subscription 3.2.4 access-error messages, login cache invalidation and fresh quota after failure cooldown against its published package.
+
+[更新说明 / Release notes](docs/update-notes-1.9.54.md)
+
+## [1.9.53] - 2026-11-03
+
+- 验证 billion-context 0.1.212 的实际发布包，更新兼容基线并加入持续集成，处理 github-actions[bot] 在 [#462](https://github.com/Han-1413141/dsh-cost-meter/issues/462) 报告的原生拦截函数变化。
+- 新增连续原生请求验证，覆盖预填充进度学习、Request 输入、请求体保留及费用关联确认。
+- Validate billion-context 0.1.212 native prefill-progress headers, cost acknowledgements and stock automatic integration against the published package.
+
+[更新说明 / Release notes](docs/update-notes-1.9.53.md)
+
 ## [1.9.52] - 2026-11-03
 
 - 适配 DSH 0.2.2-alpha.3：使用新 Cordis 服务提供记录发现已加载的隔离 Web 服务，修复原生搜索漏计；保留旧宿主及卸载重载支持。

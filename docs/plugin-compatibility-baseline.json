@@ -1,8 +1,8 @@
 {
-  "recordedAt": "2026-11-01T13:10:32.058379Z",
+  "recordedAt": "2026-11-03T14:11:44.014Z",
   "plugins": {
     "billion-context": {
-      "version": "0.1.211",
+      "version": "0.1.212",
       "signature": {
         "main": "dist/index.js",
         "exports": {
@@ -31,15 +31,15 @@
           "handle": "0dd735ebb7179b0f6d4ebff338a6296d3b0db6c63be0bb85d23fa5242af0909a",
           "requestSummaryBody": "6af0543c5e140a10feb8552acbc1010680035e52c480b9130a9a966db6c70a13",
           "fetchWithRetry": "3dbdc1b29c2fa85771e39c5a242971ca836aae3b1e89ff97981a42ea1f45ffc1",
-          "installNativeFetchIntercept": "7d4d6bc881b0ed0aa59c5fff9dc3846d17b575621d9d0c8f8898d8d4aa592bc0"
+          "installNativeFetchIntercept": "02cb541218de6b82f8e63030a33e2bcdc31df666e7d1b38d18ee6b6e4df3e9e5"
         }
       },
-      "interfaceHash": "d12e6cccffc548edf9492e7042b9ce1cd82df3537c023d3225aadb6b866bf4eb",
-      "integrity": "sha512-Wup1pOPTCQm2t1RKJwGfL6neO83MU8jOEzEVkXXIS9Xf+xl8c09CyquzOL++TxY8UBGUJ/e1plIZpHr2CA50DA==",
-      "packageUrl": "https://registry.npmjs.org/billion-context/-/billion-context-0.1.211.tgz"
+      "interfaceHash": "dbbd783a48b16aa26c1fc9245e7fa0bfe0efa144d72a05b4c8f64a65532ea81f",
+      "integrity": "sha512-Bwjl4StlMNcE3JWe15iKLATwk5q8rgiNgR/isk5fCnOYfhtE8vsrtJPCqA5WGvsT2yJ9p/j3k4NUAkQER5qjjg==",
+      "packageUrl": "https://registry.npmjs.org/billion-context/-/billion-context-0.1.212.tgz"
     },
     "dsh-codex-subscription": {
-      "version": "3.2.3",
+      "version": "3.2.4",
       "signature": {
         "main": "./lib/index.js",
         "exports": {
@@ -79,13 +79,14 @@
         },
         "functions": {
           "registerSubscriptionTransport": "bc8cd28620c0c117e12eaf0e6e82bf2454951091a3a6beaa560acf0e363160d4",
-          "createSubscriptionRpcHandler": "3fbf1c2e6c3d110b3ab0572f7867927fbf2d5aba8d52188c61487d7e365f9b5d",
+          "createSubscriptionRpcHandler": "a36706f66108a7a8a7d0e19eb22093e3d3a664e41f9d3dfb99303ed4e87ae5bd",
           "parseCodexUsage": "5c72a7a920ed4edb5f9e5610e93bfd84a4ad76f4d72e33283370c8800781df0e",
-          "createCodexUsageReader": "4918e349e503c7764bc196138c7af3ea1255ef5c47a887c6616f047e82d81edf"
+          "createCodexUsageReader": "cf4c227e1670f5da9e1606e1795bb38d0654c00a2e644cd41c5af61494d7739d"
         }
       },
-      "interfaceHash": "9f75357db41643e48297677387b7090eddd6b1547dfea91dab3a0af71b06a7aa",
-      "integrity": "sha512-Vv0/VWjFM3mE0citw1f6TWfZtFfY7ON56i8nl6o/eMktgkmDKv3R1iq7zLuSI86kBit9LQ9w1+kgWVqiNGUGAg=="
+      "interfaceHash": "69b68525c81d89eae7fe4f077b3b1d825530f1fa6ff00a45d7fcf1c3ccbb1674",
+      "integrity": "sha512-5zlfPwCUYWdPfpSWUssB3hK3ahwO+zFAoXxCJVyux+j4JxWXR/ZydXKb1+9eT5wSIxA/hxRvwIePL3ZqFTAjBg==",
+      "packageUrl": "https://registry.npmjs.org/dsh-codex-subscription/-/dsh-codex-subscription-3.2.4.tgz"
     },
     "dsh-codex-connect": {
       "version": "0.2.0-alpha.10",
