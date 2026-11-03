@@ -39,13 +39,14 @@ const constant = name => {
   return 'const ' + source.slice(node.start, node.end) + ';'
 }
 const selected = ['version', 'http-failure', 'credit-expiry', 'quota-cadence', 'shared-request', 'usage', 'rpc-contract', 'subscription-transport'].map(region).join('\n')
+const hasAccessFailureMessages = selected.includes('isAccessFailureMessage')
 const requireHost = createRequire(join(resolve(process.env.DSH_TEST_NODE_MODULES), '__codex_published.cjs'))
 const { clientRequestSchema, HostConnectionService } = await import(pathToFileURL(requireHost.resolve('@deepseek-ai/dsh-client-connection')).href)
 let externalRequests = 0
 const unexpectedFetch = () => { externalRequests++; throw Error('unexpected external request') }
 const upstream = vm.runInNewContext(selected + '\n' + fn('readSubscriptionCredentials') + '\n' + constant('publicError') + '\n' + fn('createSubscriptionRpcHandler') +
   '\n({parseCodexUsage,createCodexUsageReader,createSubscriptionRpcHandler,registerSubscriptionTransport})',
-  { Response, Request, URL, clientRequestSchema, Error, Date, AbortSignal, AbortController, DOMException, structuredClone, fetch: unexpectedFetch })
+  { Response, Request, URL, TextDecoder, clientRequestSchema, Error, Date, AbortSignal, AbortController, DOMException, structuredClone, fetch: unexpectedFetch })
 
 const ownSource = readFileSync(new URL('../src/client/02-validators-helpers-sidebar.js', import.meta.url), 'utf8')
 const ownFunction = name => {
@@ -259,10 +260,41 @@ for (const status of [401, 403]) {
   const denied = makeReader({ fetch: async () => { calls++; return new Response('fixture-private-body', { status }) } })
   const deniedHandler = upstream.createSubscriptionRpcHandler({ usageReader: denied })
   const result = await deniedHandler('usage', {}, signal)
-  assert.equal(result.error.message, 'ChatGPT sign-in needs to be renewed')
+  const expected = status === 403 && hasAccessFailureMessages
+    ? 'ChatGPT denied this request (HTTP 403). Check account access or contact OpenAI Support; signing in again may not resolve it.'
+    : 'ChatGPT sign-in needs to be renewed'
+  assert.equal(result.error.message, expected)
   assert.doesNotMatch(JSON.stringify(result), /fixture-private-body|fixture-access/)
   await deniedHandler('usage', { force: true }, signal)
   assert.equal(calls, 1, 'force does not hammer an auth-failure cooldown')
+}
+if (hasAccessFailureMessages) {
+  for (const [status, message, expected] of [
+    [401, 'Device limit reached', 'ChatGPT does not allow this paid account on this device.'],
+    [403, 'Too many subscriptions associated with this card or device. We can’t complete this purchase.', 'ChatGPT blocked this purchase because too many subscriptions are associated with this card or device.'],
+  ]) {
+    const restricted = makeReader({ fetch: async () => Response.json({ error: { message, private: 'fixture-private-response' } }, { status }) })
+    const result = await upstream.createSubscriptionRpcHandler({ usageReader: restricted })('usage', {}, signal)
+    assert.equal(result.ok, false)
+    assert.ok(result.error.message.startsWith(expected), 'known access restrictions retain their public explanation through RPC')
+    assert.doesNotMatch(JSON.stringify(result), /fixture-private-response|fixture-access/)
+  }
+  let loginAuthenticated = false, accountCacheClears = 0, usageCacheClears = 0
+  const cleanupFailures = []
+  const loginHandler = upstream.createSubscriptionRpcHandler({
+    authHandler: async () => ({ ok: true, value: { authenticated: loginAuthenticated } }),
+    usageReader: { clearCache() { usageCacheClears++ } },
+    accountUsageReader: { clear() { accountCacheClears++ } },
+    resetCreditService: { clear() {} },
+    onCleanupFailure: () => cleanupFailures.push('failed'),
+  })
+  await loginHandler('login/status', {}, signal)
+  assert.equal(accountCacheClears, 0, 'an incomplete login preserves the account cache')
+  loginAuthenticated = true
+  assert.equal((await loginHandler('login/status', {}, signal)).ok, true)
+  assert.equal(accountCacheClears, 1, 'a completed login clears cached account usage')
+  assert.equal(usageCacheClears, 1)
+  assert.deepEqual(cleanupFailures, [])
 }
 // A 429 Retry-After is respected even for manual refresh, then expires.
 let limitedCalls = 0, limitedNow = NOW
@@ -277,6 +309,20 @@ assert.equal(limitedCalls, 1)
 limitedNow += 1_001
 assert.equal((await limited.read({ force: true })).rateLimits[0].windows[0].remainingPercent, 82)
 assert.equal(limitedCalls, 2)
+if (hasAccessFailureMessages) {
+  let recoveryCalls = 0, recoveryNow = NOW
+  const recovering = makeReader({ ttlMs: 60_000, now: () => recoveryNow, fetch: async () => {
+    recoveryCalls++
+    return recoveryCalls === 2
+      ? new Response('fixture-private-retry-body', { status: 429, headers: { 'retry-after': '1' } })
+      : Response.json(quota(recoveryCalls === 1 ? 10 : 60))
+  } })
+  assert.equal((await recovering.read()).rateLimits[0].windows[0].remainingPercent, 90)
+  await assert.rejects(recovering.read({ force: true }), /HTTP 429/)
+  recoveryNow += 1_001
+  assert.equal((await recovering.read()).rateLimits[0].windows[0].remainingPercent, 40, 'a failure cooldown expiring forces fresh quota even while the old cache is within its TTL')
+  assert.equal(recoveryCalls, 3)
+}
 // Refresh/auth and vault reads may straddle an account switch. Retry rather than
 // combining the prior account's bearer with the next account's id.
 let authReads = 0
@@ -367,4 +413,4 @@ assert.equal(externalRequests, 0)
 console.log(JSON.stringify({ check: 'published Codex subscription RPC, parser and usage lifecycle', version: pkg.version,
   weeklyOnly: true, dualWindow: true, forceRefresh: true, parserDefaults: true, missingExpiredAuth: true,
   credentialProjection: true, cacheAccountChange: true, configRoundtrip: true, transportRejection: true,
-  sharedCancellation, hostTransport, externalRequests }))
+  sharedCancellation, hostTransport, accessFailureRecovery: hasAccessFailureMessages, externalRequests }))
