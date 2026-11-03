@@ -57,22 +57,33 @@
      */
     const STAT_DIALOG_CLASS = 'cm-stat-dialog'
 
+    // 费用明细弹窗:标题栏入口与输入区下方入口共用。
+    function CostDetailsDialog(props) {
+      const dialog = React.useRef(null)
+      useEffect(() => { if (props.open) dialog.current?.showModal() }, [props.open])
+      if (!props.open) return null
+      const en = resolveLocale(props.state?.config) === 'en'
+      const label = costDetailsLabel(en)
+      const close = props.onClose
+      return el('dialog', { ref: dialog, role: 'dialog', className: STAT_DIALOG_CLASS, 'aria-label': label, onCancel: close },
+        el('header', { className: 'cm-stat-dialog-head' }, el('strong', null, label), el('button', { type: 'button', className: 'cm-btn', autoFocus: true, 'aria-label': en ? 'Close' : '关闭', onClick: close }, '×')),
+        el('div', { className: 'cm-stat-dialog-body' }, props.state ? el(BillingStatistics, { key: props.sessionId, state: props.state, api: props.api, sessionId: props.sessionId }) : el('p', { role: props.error ? 'alert' : 'status' }, props.error || (en ? 'Loading…' : '加载中…'), el('button', { type: 'button', className: 'cm-btn', onClick: () => props.api.reload() }, en ? 'Retry' : '重试'))))
+    }
+
     function SessionStatisticsButton(props) {
       const snapshot = props.useCost?.(s => s), state = snapshot?.state
-      const [openedId, setOpenedId] = useState(null), dialog = React.useRef(null)
+      const [openedId, setOpenedId] = useState(null)
       const hidden = state?.config[props.entryPosition === 'header' ? 'hideSessionCostHeader' : 'hideSessionCostDock'] === true
       const open = !hidden && !!props.sessionId && openedId === props.sessionId
-      useEffect(() => { if (open) dialog.current?.showModal() }, [open])
       useEffect(() => { setOpenedId(null) }, [props.sessionId, hidden])
       // Prefetch only on hover/focus. A mounted fee button must not replay logs.
       if (!props.sessionId || hidden) return null
       const en = resolveLocale(state?.config) === 'en'
-      const label = en ? 'Conversation cost details' : '本会话费用明细'
+      const label = costDetailsLabel(en)
+      const hover = () => warmPage(props.api.loadStatistics, { state, sessionId: props.sessionId })
       return el(Fragment, null,
-        el('button', { type: 'button', className: 'cm-btn cm-stat-entry cm-stat-' + (props.entryPosition || 'dock'), title: label, 'aria-label': label, 'aria-haspopup': 'dialog', onMouseEnter: () => warmPage(props.api.loadStatistics, { state, sessionId: props.sessionId }), onFocus: () => warmPage(props.api.loadStatistics, { state, sessionId: props.sessionId }), onClick: () => setOpenedId(props.sessionId) }, en ? 'Cost details' : '费用明细'),
-        open ? el('dialog', { ref: dialog, role: 'dialog', className: STAT_DIALOG_CLASS, 'aria-label': label, onCancel: () => setOpenedId(null) },
-          el('header', { className: 'cm-stat-dialog-head' }, el('strong', null, label), el('button', { type: 'button', className: 'cm-btn', autoFocus: true, 'aria-label': en ? 'Close' : '关闭', onClick: () => setOpenedId(null) }, '×')),
-          el('div', { className: 'cm-stat-dialog-body' }, state ? el(BillingStatistics, { key: props.sessionId, state, api: props.api, sessionId: props.sessionId }) : el('p', { role: snapshot?.error ? 'alert' : 'status' }, snapshot?.error || (en ? 'Loading…' : '加载中…'), el('button', { type: 'button', className: 'cm-btn', onClick: () => props.api.reload() }, en ? 'Retry' : '重试')))) : null)
+        el('button', { type: 'button', className: 'cm-btn cm-stat-entry cm-stat-' + (props.entryPosition || 'dock'), title: label, 'aria-label': label, 'aria-haspopup': 'dialog', onMouseEnter: hover, onFocus: hover, onClick: () => setOpenedId(props.sessionId) }, en ? 'Cost details' : '费用明细'),
+        el(CostDetailsDialog, { open, onClose: () => setOpenedId(null), sessionId: props.sessionId, state, error: snapshot?.error, api: props.api }))
     }
 
     /** 折叠面板标题行:三角箭头 + 标题,aria-expanded 随 open 翻转(配合 .cm-collapse-h / .cm-caret 样式)。 */
@@ -2177,7 +2188,8 @@
       slots.inject('plugins.bundle.config', () => slots.register({
         name: 'plugins.bundle.config', key: 'dsh-cost-meter', inject: injected,
       }, CostSection))
-      for (const [entryPosition, name] of [['header', 'conversation.session.header.actions'], ['dock', 'conversation.composer.dock']]) slots.inject(name, () => slots.register({ name, id: 'cost-meter-statistics', order: 1, inject: () => ({ ...injected(), entryPosition }) }, SessionStatisticsButton))
+      // 标题栏费用明细入口;输入区下方入口由会话费用行(DockLine)自身承载,整行可点击,不重复注册。
+      slots.inject('conversation.session.header.actions', () => slots.register({ name: 'conversation.session.header.actions', id: 'cost-meter-statistics', order: 1, inject: () => ({ ...injected(), entryPosition: 'header' }) }, SessionStatisticsButton))
       slots.inject('conversation.chat.turnTail', () => slots.register({ name: 'conversation.chat.turnTail', id: 'cost-meter-turn', order: 10, select: e => e, inject: injected }, TurnCost))
       // 通用插槽注册去重:共享「失效旧注册→bump gen→注入→生成期护栏→记录 dispose→卸载清理」逻辑。
       const slotActive = () => ({ gen: 0, dispose: null })

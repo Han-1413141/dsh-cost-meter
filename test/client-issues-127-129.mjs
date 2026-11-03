@@ -13,6 +13,7 @@ expose.push('QuotaStrip')
 expose.push('CONTRIBUTION', 'resetCodexQuota')
 const nodes = value => Array.isArray(value) ? value.flatMap(nodes) : value && typeof value === 'object' ? [value, ...nodes(value.children)] : []
 const textOf = value => Array.isArray(value) ? value.map(textOf).join('') : value && typeof value === 'object' ? textOf(value.children) : typeof value === 'string' || typeof value === 'number' ? String(value) : ''
+const tipOf = tree => nodes(tree).find(node => node.type === 'tooltip')?.props.label ?? ''
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no }); return { promise, resolve, reject } }
 
 // 每个实例拥有自己的 hook 槽位;effect 依赖变化先 cleanup,异步 setState 支持函数更新。
@@ -226,7 +227,7 @@ assert.ok(onlyChild.tree, '主会话无投影但子代理有费用时DockLine可
 assert.match(textOf(onlyChild.tree), /This session \$1 \(API\)/, '仅子代理场景按真实API费用展示')
 onlyChild.dispose()
 
-// #160: cache reads / (uncached input + cache reads + cache writes), before Input.
+// #160: cache reads / (uncached input + cache reads + cache writes), before Input, in the hover line.
 for (const locale of ['en', 'zh']) {
   const dockConfig = { ...config, locale }
   for (const [tokens, expected] of [
@@ -235,43 +236,48 @@ for (const locale of ['en', 'zh']) {
     [{ input: 0, cacheRead: 100, cacheWrite: 0 }, '100.0%'],
     [{ input: 0, cacheRead: 0, cacheWrite: 0, output: 10 }, '—'],
   ]) {
-    const card = e.mount(e.ui.DockLine, { useProjection: () => ({ ...usage(0, 1), ...tokens }), useCost: pick => pick({ state: { config: dockConfig } }) })
-    const text = textOf(card.tree)
-    assert.ok(text.includes(expected))
-    assert.ok(text.indexOf(expected) < text.indexOf(locale === 'en' ? 'Input' : '输入'))
+    const card = e.mount(e.ui.DockLine, { sessionId: 'dock-hit-rate', useProjection: () => ({ ...usage(0, 1), ...tokens }), useCost: pick => pick({ state: { config: dockConfig } }) })
+    const tip = tipOf(card.tree)
+    assert.ok(tip.includes(expected))
+    assert.ok(tip.indexOf(expected) < tip.indexOf(locale === 'en' ? 'Input' : '输入'))
     card.dispose()
   }
 }
 
-// #236: compact text retains the full line on hover and the header stays unchanged.
+// #236: the row shows amount · details; compact keeps the amount only, full line stays on hover.
 for (const locale of ['en', 'zh']) {
   let dockConfig = { ...config, locale, sessionCostCompact: false }
   const row = { ...usage(20, 7, 4), cacheRead: 60, cacheWrite: 20, output: 900 }
   const tokens = { ...row, byProviderModel: { 'custom:model': row } }
-  const p = { useProjection: () => tokens, useCost: pick => pick({ state: { config: dockConfig } }) }
+  const p = { sessionId: 'dock-compact', useProjection: () => tokens, useCost: pick => pick({ state: { config: dockConfig } }) }
   const dock = e.mount(e.ui.DockLine, p), header = e.mount(e.ui.SessionCost, p)
-  const full = textOf(dock.tree), headerText = textOf(header.tree), headerTitle = header.tree.props.label
-  assert.match(full, /60\.0%/)
+  const rowButton = () => nodes(dock.tree).find(node => node.type === 'button')
+  const title = tipOf(dock.tree), headerText = textOf(header.tree), headerTitle = header.tree.props.label
+  assert.equal(textOf(dock.tree), locale === 'en' ? 'This session $4 (API) · Plan equiv. $3·Cost details' : '本会话 $4(API)· Plan 等值 $3·费用明细', 'amount and details action join in one official-style row')
+  assert.equal(rowButton().props['aria-label'], locale === 'en' ? 'Conversation cost details' : '本会话费用明细')
+  assert.match(title, /60\.0%/)
+  assert.match(title, /custom:model \$7/)
   dockConfig = { ...dockConfig, sessionCostCompact: true }
   dock.render(); header.render()
   assert.equal(textOf(dock.tree), locale === 'en' ? 'This session $4 (API) · Plan equiv. $3' : '本会话 $4(API)· Plan 等值 $3')
-  assert.equal(dock.tree.props.title, full + '; custom:model $7', 'compact hover preserves full token/cache hit and model details')
+  assert.equal(tipOf(dock.tree), title, 'compact hover preserves full token/cache hit and model details')
   assert.equal(textOf(header.tree), headerText)
   assert.equal(header.tree.props.label, headerTitle)
   dockConfig = { ...dockConfig, showTotalWithPlan: true }
   dock.render()
   assert.equal(textOf(dock.tree), locale === 'en' ? 'This session $7' : '本会话 $7')
-  assert.match(dock.tree.props.title, /60\.0%/)
-  assert.doesNotMatch(dock.tree.props.title, /Plan/)
+  assert.match(tipOf(dock.tree), /60\.0%/)
+  assert.doesNotMatch(tipOf(dock.tree), /Plan/)
   dockConfig = { ...dockConfig, sessionCostCompact: false }
   dock.render()
-  assert.match(textOf(dock.tree), /60\.0%/, 'turning compact off immediately restores token details')
+  assert.equal(textOf(dock.tree), locale === 'en' ? 'This session $7·Cost details' : '本会话 $7·费用明细')
+  assert.match(tipOf(dock.tree), /60\.0%/, 'turning compact off immediately restores token details')
   dock.dispose(); header.dispose()
 
-  const outputOnly = e.mount(e.ui.DockLine, { useProjection: () => ({ ...usage(0, 1), output: 10 }),
+  const outputOnly = e.mount(e.ui.DockLine, { sessionId: 'dock-output', useProjection: () => ({ ...usage(0, 1), output: 10 }),
     useCost: pick => pick({ state: { config: { ...dockConfig, sessionCostCompact: true } } }) })
   assert.equal(textOf(outputOnly.tree), locale === 'en' ? 'This session $1' : '本会话 $1')
-  assert.match(outputOnly.tree.props.title, /—/, 'output-only sessions retain the unknown hit rate on hover')
+  assert.match(tipOf(outputOnly.tree), /—/, 'output-only sessions retain the unknown hit rate on hover')
   outputOnly.dispose()
 
   const childCost = e.mount(e.ui.DockLine, { sessionId: 'compact-child', useProjection: () => usage(999, 99),
@@ -279,8 +285,8 @@ for (const locale of ['en', 'zh']) {
     api: { getSessionCost: async () => snapshot(usage(80, 8, 8), usage(20, 2, 2)) } })
   await e.flush()
   assert.equal(textOf(childCost.tree), locale === 'en' ? 'This session $10' : '本会话 $10', 'compact uses retained ledger plus subagents, not stale projection')
-  assert.match(childCost.tree.props.title, /100/)
-  assert.doesNotMatch(childCost.tree.props.title, /999/)
+  assert.match(tipOf(childCost.tree), /100/)
+  assert.doesNotMatch(tipOf(childCost.tree), /999/)
   childCost.dispose()
 }
 

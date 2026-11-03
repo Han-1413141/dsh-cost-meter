@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- 输入框下方费用入口改为与宿主 StatsPills（轮数/Token 统计）同款的 pill：左侧硬币图标，费用金额与「费用明细」两段用 `·` 分隔，整行可点击打开费用明细；悬停与展开态使用官方交互背景，圆角、内边距、字号行高、14px 图标与分隔点颜色逐项对齐官方样式表，悬停详情改用宿主官方 Tooltip（与官方统计 pill 一致的黑色气泡，不再用浏览器原生 title）。移除独立的输入区「费用明细」按钮，行内不再重复 Token 分项（完整分项与模型金额保留在悬停提示和明细弹窗中）。“输入区下方只显示金额”开关开启时隐藏动作段、仅保留金额。
+- The composer dock cost entry now uses the same pill as the native StatsPills rows: a leading coin icon, the session amount and “Cost details” joined by `·`, and the whole row opens the details dialog. Hover and expanded states use the official interaction background, with the official radius, padding, font size/line height, 14px icon and separator colors; the hover details now use the host’s official Tooltip instead of the browser-native title. The separate composer details button is gone and the per-token breakdown no longer duplicates the native stats (it stays on hover and in the dialog); with the compact setting the row keeps only the amount.
+
 ## [1.9.52] - 2026-11-03
 
 - 适配 DSH 0.2.2-alpha.3：使用新 Cordis 服务提供记录发现已加载的隔离 Web 服务，修复原生搜索漏计；保留旧宿主及卸载重载支持。

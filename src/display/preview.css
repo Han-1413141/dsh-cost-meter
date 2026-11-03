@@ -126,3 +126,8 @@ body[data-dsh-pocket-layout=mobile] .cm-display-inspector.cm-inspector-unified{b
 .cm-display-preferences .cm-hint,.cm-display-preferences .cm-note{font-size:11px;line-height:1.6}
 .cm-sidebar-canvas{max-height:clamp(240px,calc(100dvh - 250px),520px)}
 @container cm-display (max-width:419px){.cm-display .cm-region-preview{padding:10px}.cm-display-preview-toolbar{gap:6px}.cm-display-preview-options{margin-left:auto}}
+/* 会话费用行样式原先由主客户端样式表提供;预览按相同呈现补齐,主 bundle 因此可省去未用规则。 */
+.cm-region-preview .cm-root{flex:0 1 auto;min-width:0;max-width:100%;text-align:center;font-size:12px;line-height:20px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cm-region-preview .cm-session-cost{display:grid;grid-template-columns:max-content minmax(0,1fr);min-width:min-content}
+.cm-region-preview .cm-session-amount{max-width:40vw;overflow:hidden;text-overflow:ellipsis}
+.cm-region-preview .cm-session-detail{min-width:0;overflow:hidden;text-overflow:ellipsis}

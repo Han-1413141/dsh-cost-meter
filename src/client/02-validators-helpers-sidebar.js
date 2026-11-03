@@ -1618,6 +1618,18 @@
         el('path', { d: 'M8 2.8A1.3 1.3 0 1 0 8 5.4A1.3 1.3 0 1 0 8 2.8Z', fill: 'currentColor' }))
     }
 
+    // ── 硬币图标:官方图标集没有货币图形,按官方线条规格(16 视窗、1px 描边、14px 渲染)补一枚 ──
+
+    function CoinIcon() {
+      return el('svg', { viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1, 'aria-hidden': 'true' },
+        el('circle', { cx: 8, cy: 8, r: 6.1 }),
+        el('path', { d: 'M5.7 4.9 8 7.5l2.3-2.6M8 7.5v4M6 8.9h4M6 10.9h4' }))
+    }
+
+    function costDetailsLabel(en) {
+      return en ? 'Conversation cost details' : '本会话费用明细'
+    }
+
     // ── 会话费用徽章(dock / header) ────────────────────────────────────────
 
     // 投影联动刷新(今日费用实时化):costUsage 投影由宿主在每次 usage 入账时
@@ -1801,36 +1813,46 @@
           : t('cost', { amount: formatMoneyUsd(cost, config) })))
     }
 
+    /**
+     * 输入区下方的会话费用入口:与官方 StatsPills(ActivityPill/UsagePill)同构——左侧图标、
+     * 两段用 · 分隔、整行可点击。悬停提示保留完整分项与模型金额,点击打开费用明细弹窗;
+     * 「输入区下方只显示金额」开启时只保留金额段。样式对齐官方 StatsPills.module.css。
+     */
     function DockLine(props) {
-      const state = useSessionUsage(props), { usage, config } = state
-      if (!config) return null
-      const status = sessionCostStatus(state)
-      if (status) return el('div', { className: 'cm-root', role: 'status', title: status }, status)
-      const input = usage.input ?? 0
-      const cache = (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0)
-      const output = usage.output ?? 0
+      const snapshot = props.useCost?.(s => s), state = useSessionUsage(props), { usage, config } = state
+      const [openedId, setOpenedId] = useState(null)
+      const hidden = config?.hideSessionCostDock === true
+      const open = !hidden && !!props.sessionId && openedId === props.sessionId
+      useEffect(() => { setOpenedId(null) }, [props.sessionId, hidden])
+      if (hidden || !props.sessionId) return null
+      const en = resolveLocale(config) === 'en'
       const t = makeT(resolveLocale(config))
-      const { cost, planPart } = sessionCostParts(usage, config)
-      // 缓存写入属于输入分母，但不是缓存命中；无输入时显示未知。
-      const hitRate = billedInput(usage) > 0 ? ((usage.cacheRead ?? 0) / billedInput(usage) * 100).toFixed(1) + '%' : '—'
+      const status = config ? sessionCostStatus(state) : snapshot?.error || (en ? 'Loading…' : '加载中…')
+      const { cost, planPart } = usage ? sessionCostParts(usage, config) : { cost: 0, planPart: 0 }
+      // 完整命中/输入/缓存/输出分项与模型金额只进悬停提示,行内只保留金额,避免与宿主统计重复。
       const values = {
         amount: formatMoneyUsd(cost, config),
         planAmount: formatMoneyUsd(planPart, config),
-        hitRate,
-        input: formatTokens(input),
-        cache: formatTokens(cache),
-        output: formatTokens(output),
+        hitRate: billedInput(usage) > 0 ? ((usage?.cacheRead ?? 0) / billedInput(usage) * 100).toFixed(1) + '%' : '—',
+        input: formatTokens(usage?.input ?? 0),
+        cache: formatTokens((usage?.cacheRead ?? 0) + (usage?.cacheWrite ?? 0)),
+        output: formatTokens(usage?.output ?? 0),
       }
-      const fullLine = t(planPart > 0 ? 'sessionLineSplit' : 'sessionLine', values)
-      const modelDetail = modelCostDetail(usage, config)
-      const compact = config.sessionCostCompact === true
-      // Keep the amount visible when native or peer-plugin statistics grow.
-      // Token and Plan details may truncate; the full line remains on hover.
-      const amount = t('sessionLineCompact', values)
-      const line = compact ? t(planPart > 0 ? 'sessionLineSplitCompact' : 'sessionLineCompact', values) : fullLine
-      return el('div', { className: 'cm-root cm-session-cost', title: [fullLine, modelDetail].filter(Boolean).join('; ') },
-        el('span', { className: 'cm-session-amount' }, amount),
-        el('span', { className: 'cm-session-detail' }, line.slice(amount.length)))
+      const fullLine = config ? t(planPart > 0 ? 'sessionLineSplit' : 'sessionLine', values) : status
+      const modelDetail = config ? modelCostDetail(usage, config) : ''
+      const label = costDetailsLabel(en)
+      const action = config?.sessionCostCompact === true ? null : en ? 'Cost details' : '费用明细'
+      // 悬停详情走宿主官方 Tooltip(与官方统计 pill 一致的黑色气泡),不再用浏览器原生 title。
+      return el(Fragment, null,
+        el(Tooltip, { portal: true, label: [fullLine, modelDetail].filter(Boolean).join('; '), side: 'top' },
+          el('button', { type: 'button', className: 'cm-dp', 'aria-label': label, 'aria-haspopup': 'dialog', 'aria-expanded': open, onClick: () => setOpenedId(props.sessionId) },
+            el(CoinIcon),
+            el('span', { className: 'cm-dl' },
+              status || t(planPart > 0 ? 'sessionLineSplitCompact' : 'sessionLineCompact', values),
+              action === null ? null : el(Fragment, null, el('span', { className: 'cm-ds', 'aria-hidden': 'true' }, '·'), action)))),
+        // 明细弹窗要完整的费用状态(store state),不是 useSessionUsage 的合并结果:
+        // 统计页会读取 state.meta/today/total 等字段,形状不符会在渲染时抛错并把整行卸载。
+        el(CostDetailsDialog, { open, onClose: () => setOpenedId(null), sessionId: props.sessionId, state: snapshot?.state, error: snapshot?.error, api: props.api }))
     }
 
     // ── 侧边栏:余额行 + 预算图框/今日徽章(纵向堆叠,位于设置按钮上方) ──────
