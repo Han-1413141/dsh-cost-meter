@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.9.53] - 2026-11-03
+
+- 验证 billion-context 0.1.212 的实际发布包，更新兼容基线并加入持续集成，处理 github-actions[bot] 在 [#462](https://github.com/Han-1413141/dsh-cost-meter/issues/462) 报告的原生拦截函数变化。
+- 新增连续原生请求验证，覆盖预填充进度学习、Request 输入、请求体保留及费用关联确认。
+- Validate billion-context 0.1.212 native prefill-progress headers, cost acknowledgements and stock automatic integration against the published package.
+
+[更新说明 / Release notes](docs/update-notes-1.9.53.md)
+
 ## [1.9.52] - 2026-11-03
 
 - 适配 DSH 0.2.2-alpha.3：使用新 Cordis 服务提供记录发现已加载的隔离 Web 服务，修复原生搜索漏计；保留旧宿主及卸载重载支持。

@@ -74,3 +74,11 @@ node test/codex-subscription-published.mjs
 ### 2026-11-01：billion-context 0.1.210 / 0.1.211
 
 响应 github-actions[bot] 的 [#451](https://github.com/Han-1413141/dsh-cost-meter/issues/451)。两个实际 npm 发布包通过代理／原生计费、四协议、压缩、重试、缓存、父子会话、API/Plan、历史回放、重启及原版 CLI 自动接入检查；仅使用合成数据与本机服务，外部模型请求为 0。无需修改运行时代码，基线更新至处理时的 0.1.211，CI 保留两版并继续验证旧版。
+
+### 2026-11-03 billion-context 0.1.212
+
+处理 github-actions[bot] 在 [#462](https://github.com/Han-1413141/dsh-cost-meter/issues/462) 报告的原生请求拦截变化。0.1.211 与 0.1.212 的实际发布包均通过 SHA-512 校验。新版原生拦截器在代理请求中添加预填充进度请求头，并从成功响应学习下一次请求所需的序号。
+
+实际发布包的原生及代理计费、四种协议、压缩、重试、缓存用量、父子会话、API/Plan、历史回放、重启和原版 CLI 自动接入检查通过。新增连续原生请求检查，验证成功响应中的 x-bili-pf-seq 被下一次 Request 输入转换为 x-bili-pf-count，同时保留请求体、会话标识、费用关联和两次费用确认。测试使用合成数据与本机服务器，外部请求数为 0。
+
+兼容基线更新为 0.1.212，并将该版本加入现有 CI 矩阵。
