@@ -8,7 +8,9 @@ import { apply } from '../lib/index.js'
 
 // 使用开发宿主依赖的真实 Cordis 事件过滤与隔离服务，不仿造瀑布分发规则。
 const require = createRequire(import.meta.url)
-const hostRequire = createRequire(require.resolve('@deepseek-ai/dsh-credentials'))
+const hostRequire = process.env.DSH_TEST_NODE_MODULES
+  ? createRequire(join(resolve(process.env.DSH_TEST_NODE_MODULES), '__scoped_billing.cjs'))
+  : createRequire(require.resolve('@deepseek-ai/dsh-credentials'))
 const { Context, Service } = await import(pathToFileURL(hostRequire.resolve('@deepseek-ai/cordis')).href)
 const root = mkdtempSync(join(tmpdir(), 'cm-scoped-billing-'))
 const previousHome = process.env.DSH_HOME

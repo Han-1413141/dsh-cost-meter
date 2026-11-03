@@ -1,10 +1,10 @@
 {
   "name": "dsh-cost-meter-test-host-next",
   "private": true,
-  "description": "Pinned DSH 0.2.1-rc.2 host (npm next) for compatibility, installation, RPC and context UI regression tests.",
+  "description": "Pinned DSH 0.2.2-alpha.3 host with the updated Cordis baseline for compatibility, installation, RPC and context UI regression tests.",
   "dependencies": {
-    "@deepseek-ai/dsh": "0.2.1-rc.2",
-    "@deepseek-ai/dsh-client-ui-slots": "0.2.1-rc.2",
+    "@deepseek-ai/dsh": "0.2.2-alpha.3",
+    "@deepseek-ai/dsh-client-ui-slots": "0.2.2-alpha.3",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "jsdom": "28.1.0",

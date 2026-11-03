@@ -1,6 +1,6 @@
 # 宿主兼容验证
 
-> **当前声明范围**：`engines.dsh` = `>=0.2.0-rc.1 <0.3.0-0`，`dsh.compatibility.dsh` 与 `dshhub.compatibility.dsh` 同值；本轮适配目标为 npm `next` 标签的 `0.2.1-rc.2`（此前的 `0.2.1-rc.1` 验证记录保留在下方）。**DSH 0.1.x 已不在支持范围内**：下文「历史验证：DSH 0.1」与 [1.7.14 兼容记录](host-compatibility-v1.7.14.md)中的 0.1.x 条目只作历史留存，不代表当前支持。声明理由见[兼容性说明](dsh-0.2.1-compatibility.md)。
+> **当前声明范围**：`engines.dsh` = `>=0.2.0-rc.1 <0.3.0-0`，`dsh.compatibility.dsh` 与 `dshhub.compatibility.dsh` 同值；当前适配目标为 `0.2.2-alpha.3`，见 [0.2.2 验证与修复记录](dsh-0.2.2-compatibility.md)；旧版本记录保留在下方。**DSH 0.1.x 已不在支持范围内**：下文「历史验证：DSH 0.1」与 [1.7.14 兼容记录](host-compatibility-v1.7.14.md)中的 0.1.x 条目只作历史留存，不代表当前支持。声明理由及当前 peer 范围见[兼容性说明](dsh-0.2.2-compatibility.md)。
 
 ## 2026-11-01：模块加载兼容（#452）
 

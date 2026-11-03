@@ -37,6 +37,10 @@ setGlobalDispatcher(dispatcher)
 try {
   ctx.provide('agents', { currentInitiator: () => ({ session }) })
   await ctx.plugin(Web); await ctx.plugin(SystemPrompt); await ctx.plugin(Tools)
+  // 0.2.2 delegates batch execution to an explicit native executor; old hosts
+  // execute a single invocation directly through the registry.
+  const batchTools = typeof ctx.tools.setExecutor === 'function'
+  if (batchTools) await ctx.plugin(await load('dsh-tool-executor-native'))
   const paid = ctx.web.registerFetchProvider({ id: 'fixture-paid', available: () => true, async fetch({ url }, signal) {
     const response = await fetch('https://api.deepseek.com/v1/tools/fetch', { method: 'POST', body: JSON.stringify({ url }), signal })
     const data = await response.json()
@@ -45,9 +49,20 @@ try {
   } })
   applyWebFetchTool(ctx, 30000, 200000)
   const plugin = ctx.plugin(c => installNativeSearchBilling(c, ledger)); await plugin.await()
-  const run = () => ctx.tools.execute({ callId: 'fetch-' + requests, name: 'web_fetch', arguments: { url: 'https://example.test/page' }, signal: new AbortController().signal })
+  const run = async () => {
+    const callId = 'fetch-' + requests, args = { url: 'https://example.test/page' }, signal = new AbortController().signal
+    if (!batchTools) return ctx.tools.execute({ callId, name: 'web_fetch', arguments: args, signal })
+    const agent = { session }
+    const toolSet = await ctx.tools.resolve({ agent, modelSelection: { provider: 'fixture', model: 'fixture' }, signal })
+    try {
+      const batch = await ctx.tools.execute({ agent, toolSet, calls: [{ type: 'tool-call', id: callId, name: 'web_fetch', arguments: JSON.stringify(args) }], signal })
+      assert.equal(batch.results.length, 1)
+      assert.equal(batch.results[0].callId, callId)
+      return batch.results[0].result
+    } finally { toolSet.dispose() }
+  }
   const response = await run()
-  assert.equal(response.isError, false)
+  assert.equal(response.isError, false, JSON.stringify(response))
   assert.match(JSON.stringify(response), /Synthetic fetched content/)
   assert.equal((await nativeSearchRecordsFor(ledger.path, session.id)).length, 1)
   assert.equal(ledger.sumDays().calls, 1)
