@@ -2207,13 +2207,9 @@
         })
       }
 
-      // 会话徽章按配置位置注册;配置变化时先撤销旧注册再重建。
-      const sessionActive = slotActive()
-      const registerSession = position => {
-        const slotName = position === 'header' ? 'conversation.session.header.actions' : 'conversation.composer.dock'
-        const options = position === 'header' ? { name: slotName, id: 'cost-meter', order: -5, inject: injected } : { name: slotName, id: 'cost-meter', order: 5, inject: injected }
-        registerSlot(sessionActive, slotName, options, position === 'header' ? SessionCost : DockLine, position !== 'off')
-      }
+      // 输入区下方会话费用入口:合并后的单行 pill,常驻注册;隐藏由 hideSessionCostDock 控制。
+      slots.inject('conversation.composer.dock', () => slots.register(
+        { name: 'conversation.composer.dock', id: 'cost-meter', order: 5, inject: injected }, DockLine))
       const footerActive = slotActive()
       const registerFooter = enabled => {
         registerSlot(footerActive, 'sidebar.footer.action', { name: 'sidebar.footer.action', id: 'cost-meter', order: 0, inject: injected }, SidebarFooter, enabled)
@@ -2273,7 +2269,6 @@
       const registerUsageSection = (enabled, locale) => {
         registerSlot(usageSectionActive, 'settings.section', { name: 'settings.section', id: 'cost-meter-usage', order: 31, label: locale === 'en' ? MESSAGES.en.usageSectionLabel : MESSAGES.zh.usageSectionLabel, inject: injected }, UsagePanel, enabled)
       }
-      let lastPosition = null
       let lastFooter = null
       let lastCorner = null
       let lastSectionLocale = null
@@ -2282,7 +2277,6 @@
       const sync = () => {
         const state = store.getSnapshot().state
         if (state?.config?.sessionListCosts) void loadPage('session-list').catch(() => {})
-        const position = state?.config?.position ?? 'dock'
         const showToday = state?.config?.sidebar !== false && state?.config?.hideTodayCost !== true
         const balanceDisplay = state?.config?.balance?.display ?? 'both'
         const showBalance = (balanceDisplay === 'sidebar' || balanceDisplay === 'both') && state?.config?.hideOfficialBalance !== true
@@ -2299,10 +2293,6 @@
         const cornerEnabled = state?.config?.corner?.enabled === true || state?.config?.sidebarModels?.dock === true
         const sectionLocale = resolveLocale(state?.config || { activeLocale: store.getSnapshot().locale })
         const usagePosition = state?.config?.usage?.position ?? 'cost'
-        if (position !== lastPosition) {
-          registerSession(position)
-          lastPosition = position
-        }
         if (footer !== lastFooter) {
           registerFooter(footer)
           lastFooter = footer

@@ -49,7 +49,6 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
     return check(kind === 'cost' ? t('sidebarTodayCost') : t('sidebarTodayTokens'), mode !== other, enabled => set({ sidebarTodayMetric: enabled ? mode === other ? 'both' : kind : other }), { 'data-display-option': 'today-' + kind, disabled: mode === kind })
   })
   const sessionControls = () => [
-    choice(t('positionLabel'), config.position === 'off' ? region === 'conversation' ? 'header' : 'dock' : config.position ?? 'dock', [['dock', t('positionDock')], ['header', t('positionHeader')]], value => set({ position: value })),
     check(t('sessionCostCompact'), config.sessionCostCompact === true, value => set({ sessionCostCompact: value })),
     el('p', { className: 'cm-inspector-note cm-inspector-help' }, text('悬停查看费用分项。', 'Hover to see the cost breakdown.')),
     check(text('会话列表附显会话 ID', 'Show session IDs in session lists'), config.showSessionId === true, value => set({ showSessionId: value })),
@@ -93,7 +92,7 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
       [['today', t('modelStatsToday')], ['history', t('modelStatsHistory')]], value => nested('sidebarModels', { period: value })),
       el('p', { className: 'cm-inspector-note' }, text('显示花费最高的模型。侧栏明细在“侧栏”页调整。', 'Shows the highest-cost model. Customize sidebar details in Sidebar.'))]
   }
-  if (selected === 'badge' || selected === 'dock-cost') controls = sessionControls()
+  if (selected === 'dock-cost') controls = sessionControls()
   if (selected === 'sessionList') controls = [choice(text('统计周期', 'Period'), config.sessionListCostPeriod ?? 'total',
     [['total', text('累计', 'Total')], ['today', text('今日', 'Today')]], value => set({ sessionListCostPeriod: value })),
     el('p', { className: 'cm-inspector-note' }, text('只读取可见会话的账本费用，沿用金额口径。窄栏不显示。', 'Reads ledger amounts for visible sessions using the current cost basis. Hidden in the narrow rail.'))]
@@ -139,7 +138,7 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
   const scope = region === 'sidebar' ? text('在侧栏显示', 'Show in sidebar') : region === 'composer' ? text('在输入区显示', 'Show in composer') : text('在会话内容显示', 'Show in conversation')
   return el('aside', { className: 'cm-display-inspector cm-inspector-unified', 'data-component': selected ?? '', 'aria-label': text('外观与组件设置', 'Appearance and component settings') },
     field(text('调整组件', 'Customize'), el('select', { className: 'cm-input', value: selected ?? '', onChange: event => select(event.target.value) },
-      ...(region === 'sidebar' ? ['sessionList','budget','balance','today','peak','models','go','plan','customBalance','codex'] : region === 'composer' ? ['strip-budget','strip-go','strip-plans','strip-codex','dock-cost','corner','models'] : ['session-header','badge','turn']).map(key => el('option', { key, value: key }, labels[key])))),
+      ...(region === 'sidebar' ? ['sessionList','budget','balance','today','peak','models','go','plan','customBalance','codex'] : region === 'composer' ? ['strip-budget','strip-go','strip-plans','strip-codex','dock-cost','corner','models'] : ['session-header','turn']).map(key => el('option', { key, value: key }, labels[key])))),
     selection ? el('div', { className: 'cm-inspector-visibility', title: scope }, check(text('显示此组件', 'Show this component'), selection.on, () => set(selection.patch), { 'data-display-toggle': selected })) : null,
     selected ? el('div', { className: 'cm-inspector-controls', key: selected, 'data-inspector': selected }, ...controls) : null,
     region === 'sidebar' ? check(text('今日消费与余额同行', 'Today and balance on one line'), config.sidebarTodayBalanceInline === true, value => set({ sidebarTodayBalanceInline: value, ...(value ? { sidebarTodayMetric: 'cost' } : {}) }), { 'data-display-option': 'today-balance-inline' }) : null,

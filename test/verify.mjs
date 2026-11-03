@@ -5304,7 +5304,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(idx11.includes('task.catch(() => {})'), 'serve-stale:后台任务拒绝被吞掉(无 unhandled rejection)')
   const client11 = readClientSource()
   assert.ok(client11.includes('function useProjectionRefresh(props, usage)'), '客户端投影联动刷新 hook 存在')
-  assert.ok((client11.match(/useProjectionRefresh\(props, /g) || []).length >= 3, '会话徽章(dock/header)与侧边栏页脚三处挂载(覆盖 position=off)')
+  assert.ok((client11.match(/useProjectionRefresh\(props, /g) || []).length >= 2, '输入区费用入口与侧边栏页脚两处挂载投影联动刷新')
   assert.ok(client11.includes("setTimeout(() => { props.api?.reload?.() }, 800)"), '800ms 防抖后触发 getState 重载(今日费用 ≈1s 更新)')
   console.log('[ok] 今日费用实时化接线哨兵(serve-stale/投影联动刷新)通过')
 }

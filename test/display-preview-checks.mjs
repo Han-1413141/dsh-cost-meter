@@ -97,7 +97,7 @@ export async function checkDisplayPreview(page, output) {
         await page.locator('#root').evaluate((n, w) => n.style.width = w + 'px', width)
         for (const name of ['侧栏', '输入区', '会话内容']) {
           await region(name)
-          for (const key of name === '侧栏' ? ['balance', 'models', 'peak'] : name === '输入区' ? ['dock-cost', 'corner', 'models'] : ['badge', 'turn']) {
+          for (const key of name === '侧栏' ? ['balance', 'models', 'peak'] : name === '输入区' ? ['dock-cost', 'corner', 'models'] : ['session-header', 'turn']) {
             await choose(key)
             const geometry = await page.locator('.cm-preview-workspace').evaluate(n => {
               const scene = n.querySelector('.cm-preview-scene').getBoundingClientRect(), panel = n.querySelector('aside').getBoundingClientRect()

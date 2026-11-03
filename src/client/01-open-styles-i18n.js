@@ -49,7 +49,6 @@ window.__ModuleLoader__.load({
       // 输入区下方费用入口:与官方 StatsPills(ActivityPill/UsagePill)同款 pill——左侧图标、
       // 两段用 · 分隔、整行点击;hover 与展开态用官方交互背景,圆角/内边距/字号/行高逐项对齐。
       '.cm-dp{box-sizing:border-box;min-width:0;font:inherit;font-size:calc(var(--dsh-content-font-size-secondary,13px) - 1px);line-height:calc(20px + var(--dsh-content-font-delta-secondary,0px));border-radius:var(--dsw-radius-sm);max-width:100%;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums;white-space:nowrap;background:0 0;border:none;align-items:center;gap:6px;padding:1px 8px;display:inline-flex;cursor:pointer}.cm-dp:hover,.cm-dp[aria-expanded=true]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary)}.cm-dsym{flex:none;width:14px;text-align:center;font-size:12px;font-weight:600;line-height:1}.cm-dl{text-overflow:ellipsis;min-width:0;overflow:hidden}.cm-ds{color:var(--dsw-alias-separator-primary);margin:0 6px}',
-      '.cm-chip{display:inline-flex;align-items:center;gap:4px;max-width:180px;padding:0 8px;height:22px;border-radius:6px;background:var(--dsw-alias-bg-layer-2);font-size:12px;line-height:22px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cm-foot{display:flex;align-items:center;gap:6px;height:32px;padding:0 8px;border-radius:8px;font-size:12px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden}',
       '.cm-foot:hover,.cm-foot-rail:hover,.cm-corner-chip:hover,.cm-qchip:hover,.cm-tab:hover,.cm-btn:hover{background:var(--dsw-alias-interactive-bg-hover)}',
       '.cm-foot-rail{width:100%;justify-content:center;padding:0;font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary)}',
@@ -422,11 +421,6 @@ window.__ModuleLoader__.load({
     /** 全部界面文案:zh / en。{var} 为插值占位。 */
     const MESSAGES = {
       zh: {
-        // 会话徽章
-        sessionCostTitle: '本会话费用(按每次调用实际时刻精确计费)',
-        sessionDetailTokens: '输入 {input} · 缓存 {cache} · 输出 {output}',
-        sessionDetailCache: '缓存:读 {read} · 写 {write}(写入按命中价计费)',
-        cost: '费用 {amount}',
         sessionLine: '本会话 {amount} · 命中 {hitRate} · 输入 {input} · 缓存 {cache} · 输出 {output}',
         sessionLineCompact: '本会话 {amount}',
         sessionCostCompact: '仅显示金额',
@@ -739,8 +733,6 @@ window.__ModuleLoader__.load({
         // Plan/API 双轨计费与 Token Plan 统计(issue #64)
         sessionLineSplit: '本会话 {amount}(API)· Plan 等值 {planAmount} · 命中 {hitRate} · 输入 {input} · 缓存 {cache} · 输出 {output}',
         sessionLineSplitCompact: '本会话 {amount}(API)· Plan 等值 {planAmount}',
-        costChipPlan: '费用 {amount}(+Plan)',
-        sessionDetailPlan: 'Plan 订阅额度消耗(等值){amount}',
         planStatsTitle: 'Token Plan 用量统计(每 1% 与满窗估算)',
         planStatsEmpty: '尚无 Coding Plan 额度数据；请在「额度」页开启并刷新厂商。',
         planStatsWindow: '窗口',
@@ -890,9 +882,6 @@ window.__ModuleLoader__.load({
         tabPricing: '价格',
         tabDisplay: '显示',
         historyDataTitle: '历史数据',
-        positionLabel: '会话费用显示位置',
-        positionDock: '输入区下方',
-        positionHeader: '会话标题栏',
         off: '关闭',
         quotaStripShowBudget: '横条含预算已用%',
         quotaStripShowGo: '横条含 Go 额度',
@@ -919,7 +908,6 @@ window.__ModuleLoader__.load({
         refreshIntervalLabel: '余额刷新间隔(分钟)',
         peakEnabledLabel: '启用 DeepSeek 峰谷时段价格',
         peakNoticeLabel: '峰时高价时段显著提示(侧边栏预算框/今日费用;设置页峰谷面板内预览)',
-        badgeNote: '会话按调用时价格计费(含峰谷与历史档位)。输入、输出、缓存读写分开统计;独立缓存写入价与长上下文档位按配置生效。',
         priceTableTitle: '已挂载的价格表',
         pricingCurrencyLabel: '官方价格币种',
         pricingCurrencyUsd: '美元(英文官方页)',
@@ -964,10 +952,6 @@ window.__ModuleLoader__.load({
         rpcBalanceFailed: '余额刷新调用失败',
       },
       en: {
-        sessionCostTitle: 'Cost of this session (billed exactly at each call time)',
-        sessionDetailTokens: 'Input {input} · Cache {cache} · Output {output}',
-        sessionDetailCache: 'Cache: read {read} · write {write} (writes billed at the hit price)',
-        cost: 'Cost {amount}',
         sessionLine: 'This session {amount} · Hit {hitRate} · Input {input} · Cache {cache} · Output {output}',
         sessionLineCompact: 'This session {amount}',
         sessionCostCompact: 'Show amount only',
@@ -1276,8 +1260,6 @@ window.__ModuleLoader__.load({
         // Plan/API dual-track billing & Token Plan stats (issue #64)
         sessionLineSplit: 'This session {amount} (API) · Plan equiv. {planAmount} · Hit {hitRate} · Input {input} · Cache {cache} · Output {output}',
         sessionLineSplitCompact: 'This session {amount} (API) · Plan equiv. {planAmount}',
-        costChipPlan: 'Cost {amount} (+Plan)',
-        sessionDetailPlan: 'Plan subscription quota usage (equiv.) {amount}',
         planStatsTitle: 'Token Plan usage stats (per-1% & full-window estimates)',
         planStatsEmpty: 'No Coding Plan quota data yet. Enable and refresh a provider under Quotas.',
         planStatsWindow: 'Window',
@@ -1423,9 +1405,6 @@ window.__ModuleLoader__.load({
         tabPricing: 'Pricing',
         tabDisplay: 'Display',
         historyDataTitle: 'History data',
-        positionLabel: 'Session cost display position',
-        positionDock: 'Below the composer',
-        positionHeader: 'Session title bar',
         off: 'Off',
         quotaStripShowBudget: 'Strip includes budget used %',
         quotaStripShowGo: 'Strip includes the Go quota',
@@ -1452,7 +1431,6 @@ window.__ModuleLoader__.load({
         refreshIntervalLabel: 'Balance refresh interval (minutes)',
         peakEnabledLabel: 'Use DeepSeek peak-hour prices',
         peakNoticeLabel: 'Prominent notice during peak hours (sidebar budget box, today\'s cost; previewed in the Settings peak panel)',
-        badgeNote: 'Session cost uses call-time prices, including peak and historical rates. Input, output, cache reads and writes are separate; configured cache-write and long-context rates apply.',
         priceTableTitle: 'Mounted price tables',
         pricingCurrencyLabel: 'Official price currency',
         pricingCurrencyUsd: 'USD (English official page)',

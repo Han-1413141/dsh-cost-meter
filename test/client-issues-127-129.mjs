@@ -6,7 +6,7 @@ import { DEFAULT_PROVIDER_PRICE_TABLE, normalizePrice, costOf } from '../lib/pri
 
 const sourceDir = new URL('../src/client/', import.meta.url)
 const source = readdirSync(sourceDir).filter(name => name.endsWith('.js')).sort().map(name => readFileSync(new URL(name, sourceDir), 'utf8')).join('')
-const expose = ['mergeSessionUsage', 'useSessionUsage', 'SessionCost', 'DockLine', 'fetchCodexQuota', 'useCodexQuota', 'codexQuotaCache', 'CodexPlanBox', 'SidebarFooter', 'GatewayQuotaBox', 'parsePrice', 'normalizeClientPrice', 'tierFor', 'costOfBuckets']
+const expose = ['mergeSessionUsage', 'useSessionUsage', 'DockLine', 'fetchCodexQuota', 'useCodexQuota', 'codexQuotaCache', 'CodexPlanBox', 'SidebarFooter', 'GatewayQuotaBox', 'parsePrice', 'normalizeClientPrice', 'tierFor', 'costOfBuckets']
 const element = (type, props, ...children) => ({ type, props: props ?? {}, children })
 expose.push('TurnCost')
 expose.push('QuotaStrip')
@@ -108,17 +108,17 @@ for (const locale of ['en', 'zh']) {
   assert.doesNotMatch(textOf(card.tree), /≈/, 'inherited history is not shown as a newly charged turn')
   card.dispose()
 }
-// The selected display position stays occupied while the authoritative ledger
-// loads, reports no record, or confirms an exact zero amount.
+// The composer entry stays occupied while the authoritative ledger loads, reports
+// no record, or confirms an exact zero amount.
 for (const locale of ['en', 'zh']) {
   const request = deferred(), local = { ...config, locale }
   const p = { sessionId: 'missing-ledger', useProjection: () => usage(100, 5, 5),
     useCost: pick => pick({ state: { config: local, meta: { now: 1 } } }), api: { getSessionCost: () => request.promise } }
-  const dock = e.mount(e.ui.DockLine, p), header = e.mount(e.ui.SessionCost, p)
+  const dock = e.mount(e.ui.DockLine, p)
   assert.match(textOf(dock.tree), locale === 'en' ? /Loading session cost/ : /正在读取本会话费用/)
   assert.doesNotMatch(textOf(dock.tree), locale === 'en' ? /This session 5/ : /本会话 5/, 'projection is not briefly presented as a confirmed ledger amount')
   request.resolve(snapshot(usage(0, 0, 0), usage(0, 0, 0), false)); await e.flush()
-  assert.ok(dock.tree && header.tree, 'an empty ledger response must not remove either cost entry')
+  assert.ok(dock.tree, 'an empty ledger response must not remove the cost entry')
   assert.match(textOf(dock.tree), locale === 'en' ? /no ledger records/ : /暂无账本记录/)
   assert.doesNotMatch(textOf(dock.tree), locale === 'en' ? /This session 0/ : /本会话 0/, 'missing records do not mean free usage')
   const zero = e.mount(e.ui.DockLine, { ...p, sessionId: 'confirmed-zero', api: { getSessionCost: async () => snapshot(usage(0, 0, 0)) } })
@@ -128,7 +128,7 @@ for (const locale of ['en', 'zh']) {
   const unavailable = e.mount(e.ui.DockLine, { ...p, sessionId: 'old-host', api: { getSessionCost: async () => { throw Error('unsupported') } } })
   await e.flush()
   assert.match(textOf(unavailable.tree), locale === 'en' ? /This session 5/ : /本会话 5/, 'a legacy host can still fall back to its projection')
-  dock.dispose(); header.dispose(); zero.dispose(); unavailable.dispose()
+  dock.dispose(); zero.dispose(); unavailable.dispose()
 }
 // #205: show exact bucket arithmetic, keep Plan separate and reject stale replies.
 {
@@ -250,19 +250,17 @@ for (const locale of ['en', 'zh']) {
   const row = { ...usage(20, 7, 4), cacheRead: 60, cacheWrite: 20, output: 900 }
   const tokens = { ...row, byProviderModel: { 'custom:model': row } }
   const p = { sessionId: 'dock-compact', useProjection: () => tokens, useCost: pick => pick({ state: { config: dockConfig } }) }
-  const dock = e.mount(e.ui.DockLine, p), header = e.mount(e.ui.SessionCost, p)
+  const dock = e.mount(e.ui.DockLine, p)
   const rowButton = () => nodes(dock.tree).find(node => node.type === 'button')
-  const title = tipOf(dock.tree), headerText = textOf(header.tree), headerTitle = header.tree.props.label
+  const title = tipOf(dock.tree)
   assert.equal(textOf(dock.tree), locale === 'en' ? '$This session 4 (API) · Plan equiv. 3·Cost details' : '$本会话 4(API)· Plan 等值 3·费用明细', 'currency symbol leads, amount and details action join in one official-style row')
   assert.equal(rowButton().props['aria-label'], locale === 'en' ? 'Conversation cost details' : '本会话费用明细')
   assert.match(title, /60\.0%/)
   assert.match(title, /custom:model \$7/)
   dockConfig = { ...dockConfig, sessionCostCompact: true }
-  dock.render(); header.render()
+  dock.render()
   assert.equal(textOf(dock.tree), locale === 'en' ? '$This session 4 (API) · Plan equiv. 3' : '$本会话 4(API)· Plan 等值 3')
   assert.equal(tipOf(dock.tree), title, 'compact hover preserves full token/cache hit and model details')
-  assert.equal(textOf(header.tree), headerText)
-  assert.equal(header.tree.props.label, headerTitle)
   dockConfig = { ...dockConfig, showTotalWithPlan: true }
   dock.render()
   assert.equal(textOf(dock.tree), locale === 'en' ? '$This session 7' : '$本会话 7')
@@ -272,7 +270,7 @@ for (const locale of ['en', 'zh']) {
   dock.render()
   assert.equal(textOf(dock.tree), locale === 'en' ? '$This session 7·Cost details' : '$本会话 7·费用明细')
   assert.match(tipOf(dock.tree), /60\.0%/, 'turning compact off immediately restores token details')
-  dock.dispose(); header.dispose()
+  dock.dispose()
 
   const outputOnly = e.mount(e.ui.DockLine, { sessionId: 'dock-output', useProjection: () => ({ ...usage(0, 1), output: 10 }),
     useCost: pick => pick({ state: { config: { ...dockConfig, sessionCostCompact: true } } }) })

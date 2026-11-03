@@ -39,7 +39,7 @@ window.__ModuleLoader__.load({
       const previewData = React.useMemo(() => displayPreviewData(props.state, config, examples, selected, selectedPlan), [props.state, config, examples, selected, selectedPlan])
       const renderPreviewSidebar = React.useCallback(preview => renderSidebar(preview, previewData.state), [renderSidebar, previewData.state])
       const appearance = useDisplayAppearance()
-      const labels = { balance: text('官方余额', 'Official balance'), budget: text('侧栏预算', 'Sidebar budget'), today: text('今日用量', 'Today’s usage'), peak: text('峰谷时段', 'Peak / off-peak'), models: text('模型花费', 'Model costs'), go: text('Go 额度', 'Go quota'), plan: text('套餐进度条', 'Plan bars'), customBalance: text('自定义余额', 'Custom balance'), codex: text('Codex 额度', 'Codex quota'), badge: text('会话费用摘要', 'Session cost summary'), 'session-header': text('顶部费用明细', 'Header cost details'), 'dock-cost': text('输入框下方费用入口', 'Composer cost entry'), turn: text('每轮费用', 'Per-turn cost'), corner: text('右下角额度', 'Corner quota'), 'strip-budget': text('预算进度条', 'Budget strip'), 'strip-go': text('Go 进度条', 'Go strip'), 'strip-plans': text('套餐进度条', 'Plan strip') }
+      const labels = { balance: text('官方余额', 'Official balance'), budget: text('侧栏预算', 'Sidebar budget'), today: text('今日用量', 'Today’s usage'), peak: text('峰谷时段', 'Peak / off-peak'), models: text('模型花费', 'Model costs'), go: text('Go 额度', 'Go quota'), plan: text('套餐进度条', 'Plan bars'), customBalance: text('自定义余额', 'Custom balance'), codex: text('Codex 额度', 'Codex quota'), 'session-header': text('顶部费用明细', 'Header cost details'), 'dock-cost': text('输入框下方费用入口', 'Composer cost entry'), turn: text('每轮费用', 'Per-turn cost'), corner: text('右下角额度', 'Corner quota'), 'strip-budget': text('预算进度条', 'Budget strip'), 'strip-go': text('Go 进度条', 'Go strip'), 'strip-plans': text('套餐进度条', 'Plan strip') }
       labels['strip-codex'] = text('Codex 额度', 'Codex quota')
       labels.sessionList = text('会话列表金额', 'Session list amounts')
       const registry = {}
@@ -108,18 +108,15 @@ window.__ModuleLoader__.load({
           el('span', { className: 'cm-qchip' }, el('span', { className: 'cm-qlabel' }, label),
             el('span', { className: 'cm-qbar' }, el('span', { className: 'cm-qfill', style: { width: (pct ?? 0) + '%' } })), el('span', { className: 'cm-qtext' }, percentLabel(pct))))
       }
-      const session = position => item('session-' + position, text(position === 'header' ? '顶部费用明细' : '输入框下方费用明细', position === 'header' ? 'Header cost details' : 'Composer cost details'), config[position === 'header' ? 'hideSessionCostHeader' : 'hideSessionCostDock'] !== true,
-        { [position === 'header' ? 'hideSessionCostHeader' : 'hideSessionCostDock']: config[position === 'header' ? 'hideSessionCostHeader' : 'hideSessionCostDock'] !== true },
+      const sessionHeader = item('session-header', labels['session-header'], config.hideSessionCostHeader !== true,
+        { hideSessionCostHeader: config.hideSessionCostHeader !== true },
         el('span', { className: 'cm-btn cm-stat-entry' }, text('费用明细', 'Cost details')))
-      const badge = position => item('badge', text('会话费用摘要', 'Session cost summary'), config.position === position, { position: config.position === position ? 'off' : position },
-          el('span', { className: 'cm-root cm-session-cost' }, el('span', { className: 'cm-session-amount' }, t('sessionLineCompact', { amount: examples ? money(.32) : '—' })),
-            inner('session-detail', config.sessionCostCompact !== true, el('span', { className: 'cm-session-detail' }, examples ? text(' · 输入 128K · 输出 4K', ' · In 128K · Out 4K') : text(' · 暂无会话缓存', ' · No cached session data')))))
-      const dockVisible = config.position === 'dock' && config.hideSessionCostDock !== true
+      const dockVisible = config.hideSessionCostDock !== true
       // 合并后的输入区费用入口:与真实组件同结构的官方 pill(当前货币符号 + 金额 · 费用明细)。
       const dockSymbol = config.symbol || '$'
       const dockAmountText = t('sessionLineCompact', { amount: examples ? money(.32) : '—' }).replaceAll(dockSymbol, '')
       const dockCost = item('dock-cost', text('输入框下方费用入口', 'Composer cost entry'), dockVisible,
-        dockVisible ? { hideSessionCostDock: true } : { position: 'dock', hideSessionCostDock: false },
+        dockVisible ? { hideSessionCostDock: true } : { hideSessionCostDock: false },
         el('span', { className: 'cm-dp' },
           el('span', { className: 'cm-dsym', 'aria-hidden': true }, dockSymbol),
           el('span', { className: 'cm-dl' }, dockAmountText,
@@ -135,7 +132,6 @@ window.__ModuleLoader__.load({
           React.cloneElement(inner('corner-' + key, config.corner?.[key] === true, cornerSample(key)), { 'data-placeholder': label + ' —' }))))
       const dockModel = region === 'composer' ? item('models', text('模型花费', 'Model costs'), config.sidebarModels?.dock === true,
         { sidebarModels: { ...config.sidebarModels, dock: config.sidebarModels?.dock !== true } }, cornerSample('model', true)) : null
-      registry.badge = { on: config.position === (region === 'conversation' ? 'header' : 'dock'), patch: { position: config.position === (region === 'conversation' ? 'header' : 'dock') ? 'off' : region === 'conversation' ? 'header' : 'dock' } }
       if (region === 'composer') registry.models = { on: config.sidebarModels?.dock === true, patch: { sidebarModels: { ...config.sidebarModels, dock: config.sidebarModels?.dock !== true } } }
       const regions = [['sidebar', text('侧栏', 'Sidebar')], ['composer', text('输入区', 'Composer')], ['conversation', text('会话内容', 'Conversation')]]
       const scene = region === 'sidebar' ?
@@ -160,7 +156,7 @@ window.__ModuleLoader__.load({
             el('span', { className: 'cm-native-dock-context', 'aria-hidden': true }, el('i', { className: 'cm-native-context-ring' }), examples ? '29%' : '—'))) :
         el('div', { className: 'cm-preview-conversation' },
           el('div', { className: 'cm-native-chat-header', style: appearance.header },
-            el('div', { className: 'cm-native-chat-titleRow' }, el('span', null, examples ? text('整理项目计划', 'Organize the project plan') : text('会话费用显示位置', 'Conversation cost placement')), session('header'), badge('header')),
+            el('div', { className: 'cm-native-chat-titleRow' }, el('span', null, examples ? text('整理项目计划', 'Organize the project plan') : text('会话费用入口', 'Conversation cost')), sessionHeader),
             el('div', { className: 'cm-native-chat-tabs', 'aria-hidden': true }, ...[text('对话', 'Chat'), text('轨迹', 'Trace'), text('上下文', 'Context')].map((label, i) => el('span', { key: label, className: i === 0 ? 'active' : '' }, label)))),
           el('div', { className: 'cm-preview-response' },
             el('p', { 'aria-hidden': true }, examples ? text('已整理好项目资料，接下来可以确认计划与时间安排。', 'The project materials are ready. Next, review the plan and schedule.') : text('当前会话数据暂不可用，可开启示例数据查看完整效果。', 'Enable example data to see the complete conversation preview.')),
@@ -245,16 +241,6 @@ window.__ModuleLoader__.load({
                     el('option', { value: 'general' }, text('通用设置', 'General settings')),
                     el('option', { value: 'section' }, text('独立分节(用量)', 'Own section (Usage)'))))
               : null,
-            el('div', { className: 'cm-field' },
-              el('label', null, t('positionLabel')),
-              el('select', {
-                className: 'cm-input',
-                value: draft?.position ?? 'dock',
-                onChange: event => setField('position', event.target.value),
-              },
-                el('option', { value: 'dock' }, t('positionDock')),
-                el('option', { value: 'header' }, t('positionHeader')),
-                el('option', { value: 'off' }, t('off')))),
             el('div', { className: 'cm-field' },
               el('label', null, t('sidebarLabel')),
               el('select', {

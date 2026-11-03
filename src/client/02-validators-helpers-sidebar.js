@@ -1780,34 +1780,6 @@
                 call.rows.map(rowView))))))
     }
 
-    function SessionCost(props) {
-      const state = useSessionUsage(props), { usage, config } = state
-      if (!config) return null
-      const status = sessionCostStatus(state)
-      if (status) return el('div', { className: 'cm-chip' }, status)
-      const t = makeT(resolveLocale(config))
-      const { cost, planPart } = sessionCostParts(usage, config)
-      const detail = [
-        t('sessionCostTitle'),
-        t('sessionDetailTokens', {
-          input: formatTokens(usage?.input ?? 0),
-          cache: formatTokens((usage?.cacheRead ?? 0) + (usage?.cacheWrite ?? 0)),
-          output: formatTokens(usage?.output ?? 0),
-        }),
-        t('sessionDetailCache', {
-          read: formatTokens(usage?.cacheRead ?? 0),
-          write: formatTokens(usage?.cacheWrite ?? 0),
-        }),
-        t('cost', { amount: formatMoneyUsd(cost, config) }),
-        ...(planPart > 0 ? [t('sessionDetailPlan', { amount: formatMoneyUsd(planPart, config) })] : []),
-        modelCostDetail(usage, config),
-      ].filter(Boolean).join('; ')
-      return el(Tooltip, { portal: true, label: detail, side: 'top', delayMs: 500 },
-        el('div', { className: 'cm-chip' }, planPart > 0
-          ? t('costChipPlan', { amount: formatMoneyUsd(cost, config) })
-          : t('cost', { amount: formatMoneyUsd(cost, config) })))
-    }
-
     /**
      * 输入区下方的会话费用入口:与官方 StatsPills(ActivityPill/UsagePill)同构——左侧图标、
      * 两段用 · 分隔、整行可点击。悬停提示保留完整分项与模型金额,点击打开费用明细弹窗;

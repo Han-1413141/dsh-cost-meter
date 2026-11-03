@@ -59,7 +59,7 @@ Community and feedback: [Join the WeChat group →](#community). The WeChat grou
 | OpenRouter model prices | Model picker / Settings → Cost → Prices | Hover a model for token rates and update time, or search the full catalog in Settings; automatic foreground refresh, price-change markers in the table and official model links. No API key or inference charges. [Guide](docs/openrouter-prices.md#english) |
 | Cost statistics | Below the conversation input / title bar / Settings → Cost → Cost statistics | Day, week, month, all retained and custom periods; API/Plan split, trends, model/conversation rankings and per-call costs. [Guide](docs/billing-statistics.md#english); statistics requires DSH’s asynchronous module loader |
 | Per-model cost card | Sidebar / composer dock (optional) | Disabled by default; inline Top-N, Other totals, shares and optional tokens, Today / Last 90 days, remembered expansion and a Top-1 chip. See the [guide](docs/model-cost-card.md#english) |
-| Per-conversation cost | Below the composer / session title bar | Live accumulated cost + input/cache/output tokens; the composer footer shows cache hit rate before Input (cache reads / all input, including cache writes); position configurable; Display settings can show only amounts below the composer, with the full line retained on hover |
+| Per-conversation cost | Composer footer (merged single row) | Live accumulated cost + input/cache/output tokens; the composer footer shows cache hit rate before Input (cache reads / all input, including cache writes); Display settings can show only amounts below the composer, with the full line retained on hover; the session title bar keeps only its compact “Cost details” button |
 | Official balance | Sidebar top / Settings page (configurable) | Total / granted / topped-up balance, auto-refresh + manual refresh; optional three-segment progress bar (blue/orange/gray), whose today segment only counts official-channel spend (coding plans / custom providers excluded) |
 | Custom provider balance | Sidebar / Settings page (configurable) | Configurable HTTP balance lookup (e.g. LiteLLM); bilingual labels, currency, extract rules (dot path / number / add / subtract / divide — use divide for NewApi-style quota endpoints, see [example](#custom-provider-balance-example-newapi-template)); collapsible panel alongside Coding Plan quotas |
 | OpenCode Go quota | Sidebar / Settings / bottom-right dock (configurable) | Rolling-5h / weekly / monthly usage percent and reset times, each window toggleable independently, budget used % can show alongside; key auto-discovered (dedicated ref / official Go route apiKeyEnv / env / opencode login) or entered manually |
@@ -283,13 +283,13 @@ Real captures from an actual DSH sidebar of the period strip and collapsed verti
 |---|---|
 | ![Corner chips](docs/screenshot-display-corner-v2.png) | ![Dock display settings](docs/dock-display-settings-en.png) |
 
-**Per-conversation cost** (two positions, switchable in Settings):
+**Per-conversation cost** (one merged row in the composer footer; the session title bar keeps only its compact “Cost details” button):
 
-| Below the composer | Session title bar |
-|---|---|
-| ![Session dock](docs/screenshot-session-dock.png) | ![Session header](docs/screenshot-session-header.png) |
+| Below the composer |
+|---|
+| ![Session dock](docs/screenshot-session-dock.png) |
 
-> Left: this session ¥5.5939 · input 321K · cache 119M · output 235K; right: title-bar badge “cost ¥6.1606” (real session captures)
+> This session ¥5.5939 · input 321K · cache 119M · output 235K (real session capture)
 
 ![Session page](docs/screenshot-session.png)
 
