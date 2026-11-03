@@ -1618,12 +1618,13 @@
         el('path', { d: 'M8 2.8A1.3 1.3 0 1 0 8 5.4A1.3 1.3 0 1 0 8 2.8Z', fill: 'currentColor' }))
     }
 
-    // ── 硬币图标:官方图标集没有货币图形,按官方线条规格(16 视窗、1px 描边、14px 渲染)补一枚 ──
+    // ── 硬币图标:官方图标集没有货币图形,按官方线条规格(14 视窗、1.2px 描边、14px 渲染)补一枚。
+    //    低像素下 ¥ 字容易糊成一团,改用「方孔圆钱」剪影:一圈 + 一个方孔,14px 仍能认出是硬币。 ──
 
     function CoinIcon() {
-      return el('svg', { viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1, 'aria-hidden': 'true' },
-        el('circle', { cx: 8, cy: 8, r: 6.1 }),
-        el('path', { d: 'M5.7 4.9 8 7.5l2.3-2.6M8 7.5v4M6 8.9h4M6 10.9h4' }))
+      return el('svg', { viewBox: '0 0 14 14', fill: 'none', stroke: 'currentColor', strokeWidth: 1.2, 'aria-hidden': 'true' },
+        el('circle', { cx: 7, cy: 7, r: 5.5 }),
+        el('rect', { x: 5.2, y: 5.2, width: 3.6, height: 3.6, rx: 0.4 }))
     }
 
     function costDetailsLabel(en) {

@@ -119,9 +119,9 @@ window.__ModuleLoader__.load({
       const dockCost = item('dock-cost', text('输入框下方费用入口', 'Composer cost entry'), dockVisible,
         dockVisible ? { hideSessionCostDock: true } : { position: 'dock', hideSessionCostDock: false },
         el('span', { className: 'cm-dp' },
-          el('svg', { viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor', strokeWidth: 1, 'aria-hidden': true, style: { width: 14, height: 14, flex: 'none' } },
-            el('circle', { cx: 8, cy: 8, r: 6.1 }),
-            el('path', { d: 'M5.7 4.9 8 7.5l2.3-2.6M8 7.5v4M6 8.9h4M6 10.9h4' })),
+          el('svg', { viewBox: '0 0 14 14', fill: 'none', stroke: 'currentColor', strokeWidth: 1.2, 'aria-hidden': true, style: { width: 14, height: 14, flex: 'none' } },
+            el('circle', { cx: 7, cy: 7, r: 5.5 }),
+            el('rect', { x: 5.2, y: 5.2, width: 3.6, height: 3.6, rx: 0.4 })),
           el('span', { className: 'cm-dl' }, t('sessionLineCompact', { amount: examples ? money(.32) : '—' }),
             inner('session-action', config.sessionCostCompact !== true, el('span', { className: 'cm-ds', 'aria-hidden': true }, '·'), text('费用明细', 'Cost details')))))
       const cornerOn = config.corner?.enabled === true
