@@ -1618,14 +1618,8 @@
         el('path', { d: 'M8 2.8A1.3 1.3 0 1 0 8 5.4A1.3 1.3 0 1 0 8 2.8Z', fill: 'currentColor' }))
     }
 
-    // ── 硬币图标:官方图标集没有货币图形,按官方线条规格(14 视窗、1.2px 描边、14px 渲染)补一枚。
-    //    低像素下 ¥ 字容易糊成一团,改用「方孔圆钱」剪影:一圈 + 一个方孔,14px 仍能认出是硬币。 ──
-
-    function CoinIcon() {
-      return el('svg', { viewBox: '0 0 14 14', fill: 'none', stroke: 'currentColor', strokeWidth: 1.2, 'aria-hidden': 'true' },
-        el('circle', { cx: 7, cy: 7, r: 5.5 }),
-        el('rect', { x: 5.2, y: 5.2, width: 3.6, height: 3.6, rx: 0.4 }))
-    }
+    // ── 输入区费用入口的前导符号直接使用配置里的当前货币符号(¥ / $ / €),不再自绘图标;
+    //    文本字形在 14px 下有字体 hinting,比缩小 SVG 更清晰。 ──
 
     function costDetailsLabel(en) {
       return en ? 'Conversation cost details' : '本会话费用明细'
@@ -1843,13 +1837,16 @@
       const modelDetail = config ? modelCostDetail(usage, config) : ''
       const label = costDetailsLabel(en)
       const action = config?.sessionCostCompact === true ? null : en ? 'Cost details' : '费用明细'
+      // 前导图标用当前货币符号(跟随设置里的货币),行内金额去掉重复的符号;悬停提示仍保留完整金额。
+      const sym = config?.symbol || '$'
+      const labelText = (status || t(planPart > 0 ? 'sessionLineSplitCompact' : 'sessionLineCompact', values)).replaceAll(sym, '')
       // 悬停详情走宿主官方 Tooltip(与官方统计 pill 一致的黑色气泡),不再用浏览器原生 title。
       return el(Fragment, null,
         el(Tooltip, { portal: true, label: [fullLine, modelDetail].filter(Boolean).join('; '), side: 'top' },
           el('button', { type: 'button', className: 'cm-dp', 'aria-label': label, 'aria-haspopup': 'dialog', 'aria-expanded': open, onClick: () => setOpenedId(props.sessionId) },
-            el(CoinIcon),
+            el('span', { className: 'cm-dsym', 'aria-hidden': 'true' }, sym),
             el('span', { className: 'cm-dl' },
-              status || t(planPart > 0 ? 'sessionLineSplitCompact' : 'sessionLineCompact', values),
+              labelText,
               action === null ? null : el(Fragment, null, el('span', { className: 'cm-ds', 'aria-hidden': 'true' }, '·'), action)))),
         // 明细弹窗要完整的费用状态(store state),不是 useSessionUsage 的合并结果:
         // 统计页会读取 state.meta/today/total 等字段,形状不符会在渲染时抛错并把整行卸载。

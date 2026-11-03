@@ -116,18 +116,18 @@ for (const locale of ['en', 'zh']) {
     useCost: pick => pick({ state: { config: local, meta: { now: 1 } } }), api: { getSessionCost: () => request.promise } }
   const dock = e.mount(e.ui.DockLine, p), header = e.mount(e.ui.SessionCost, p)
   assert.match(textOf(dock.tree), locale === 'en' ? /Loading session cost/ : /正在读取本会话费用/)
-  assert.doesNotMatch(textOf(dock.tree), /\$5/, 'projection is not briefly presented as a confirmed ledger amount')
+  assert.doesNotMatch(textOf(dock.tree), locale === 'en' ? /This session 5/ : /本会话 5/, 'projection is not briefly presented as a confirmed ledger amount')
   request.resolve(snapshot(usage(0, 0, 0), usage(0, 0, 0), false)); await e.flush()
   assert.ok(dock.tree && header.tree, 'an empty ledger response must not remove either cost entry')
   assert.match(textOf(dock.tree), locale === 'en' ? /no ledger records/ : /暂无账本记录/)
-  assert.doesNotMatch(textOf(dock.tree), /\$0/, 'missing records do not mean free usage')
+  assert.doesNotMatch(textOf(dock.tree), locale === 'en' ? /This session 0/ : /本会话 0/, 'missing records do not mean free usage')
   const zero = e.mount(e.ui.DockLine, { ...p, sessionId: 'confirmed-zero', api: { getSessionCost: async () => snapshot(usage(0, 0, 0)) } })
   await e.flush()
   assert.ok(zero.tree)
-  assert.match(textOf(zero.tree), /\$0/, 'a genuinely recorded zero amount stays visible')
+  assert.match(textOf(zero.tree), locale === 'en' ? /This session 0/ : /本会话 0/, 'a genuinely recorded zero amount stays visible')
   const unavailable = e.mount(e.ui.DockLine, { ...p, sessionId: 'old-host', api: { getSessionCost: async () => { throw Error('unsupported') } } })
   await e.flush()
-  assert.match(textOf(unavailable.tree), /\$5/, 'a legacy host can still fall back to its projection')
+  assert.match(textOf(unavailable.tree), locale === 'en' ? /This session 5/ : /本会话 5/, 'a legacy host can still fall back to its projection')
   dock.dispose(); header.dispose(); zero.dispose(); unavailable.dispose()
 }
 // #205: show exact bucket arithmetic, keep Plan separate and reject stale replies.
@@ -224,7 +224,7 @@ currentState = { config: { ...config, includeSubagentCost: true }, meta: { now: 
 const onlyChild = e.mount(e.ui.DockLine, { ...props('child-only'), api: { getSessionCost: async () => snapshot(usage(0, 0), child, false) } })
 await e.flush()
 assert.ok(onlyChild.tree, '主会话无投影但子代理有费用时DockLine可见')
-assert.match(textOf(onlyChild.tree), /This session \$1 \(API\)/, '仅子代理场景按真实API费用展示')
+assert.match(textOf(onlyChild.tree), /\$This session 1 \(API\)/, '仅子代理场景按真实API费用展示')
 onlyChild.dispose()
 
 // #160: cache reads / (uncached input + cache reads + cache writes), before Input, in the hover line.
@@ -253,30 +253,30 @@ for (const locale of ['en', 'zh']) {
   const dock = e.mount(e.ui.DockLine, p), header = e.mount(e.ui.SessionCost, p)
   const rowButton = () => nodes(dock.tree).find(node => node.type === 'button')
   const title = tipOf(dock.tree), headerText = textOf(header.tree), headerTitle = header.tree.props.label
-  assert.equal(textOf(dock.tree), locale === 'en' ? 'This session $4 (API) · Plan equiv. $3·Cost details' : '本会话 $4(API)· Plan 等值 $3·费用明细', 'amount and details action join in one official-style row')
+  assert.equal(textOf(dock.tree), locale === 'en' ? '$This session 4 (API) · Plan equiv. 3·Cost details' : '$本会话 4(API)· Plan 等值 3·费用明细', 'currency symbol leads, amount and details action join in one official-style row')
   assert.equal(rowButton().props['aria-label'], locale === 'en' ? 'Conversation cost details' : '本会话费用明细')
   assert.match(title, /60\.0%/)
   assert.match(title, /custom:model \$7/)
   dockConfig = { ...dockConfig, sessionCostCompact: true }
   dock.render(); header.render()
-  assert.equal(textOf(dock.tree), locale === 'en' ? 'This session $4 (API) · Plan equiv. $3' : '本会话 $4(API)· Plan 等值 $3')
+  assert.equal(textOf(dock.tree), locale === 'en' ? '$This session 4 (API) · Plan equiv. 3' : '$本会话 4(API)· Plan 等值 3')
   assert.equal(tipOf(dock.tree), title, 'compact hover preserves full token/cache hit and model details')
   assert.equal(textOf(header.tree), headerText)
   assert.equal(header.tree.props.label, headerTitle)
   dockConfig = { ...dockConfig, showTotalWithPlan: true }
   dock.render()
-  assert.equal(textOf(dock.tree), locale === 'en' ? 'This session $7' : '本会话 $7')
+  assert.equal(textOf(dock.tree), locale === 'en' ? '$This session 7' : '$本会话 7')
   assert.match(tipOf(dock.tree), /60\.0%/)
   assert.doesNotMatch(tipOf(dock.tree), /Plan/)
   dockConfig = { ...dockConfig, sessionCostCompact: false }
   dock.render()
-  assert.equal(textOf(dock.tree), locale === 'en' ? 'This session $7·Cost details' : '本会话 $7·费用明细')
+  assert.equal(textOf(dock.tree), locale === 'en' ? '$This session 7·Cost details' : '$本会话 7·费用明细')
   assert.match(tipOf(dock.tree), /60\.0%/, 'turning compact off immediately restores token details')
   dock.dispose(); header.dispose()
 
   const outputOnly = e.mount(e.ui.DockLine, { sessionId: 'dock-output', useProjection: () => ({ ...usage(0, 1), output: 10 }),
     useCost: pick => pick({ state: { config: { ...dockConfig, sessionCostCompact: true } } }) })
-  assert.equal(textOf(outputOnly.tree), locale === 'en' ? 'This session $1' : '本会话 $1')
+  assert.equal(textOf(outputOnly.tree), locale === 'en' ? '$This session 1' : '$本会话 1')
   assert.match(tipOf(outputOnly.tree), /—/, 'output-only sessions retain the unknown hit rate on hover')
   outputOnly.dispose()
 
@@ -284,7 +284,7 @@ for (const locale of ['en', 'zh']) {
     useCost: pick => pick({ state: { config: { ...dockConfig, sessionCostCompact: true, includeSubagentCost: true } } }),
     api: { getSessionCost: async () => snapshot(usage(80, 8, 8), usage(20, 2, 2)) } })
   await e.flush()
-  assert.equal(textOf(childCost.tree), locale === 'en' ? 'This session $10' : '本会话 $10', 'compact uses retained ledger plus subagents, not stale projection')
+  assert.equal(textOf(childCost.tree), locale === 'en' ? '$This session 10' : '$本会话 10', 'compact uses retained ledger plus subagents, not stale projection')
   assert.match(tipOf(childCost.tree), /100/)
   assert.doesNotMatch(tipOf(childCost.tree), /999/)
   childCost.dispose()

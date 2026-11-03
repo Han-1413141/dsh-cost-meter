@@ -115,14 +115,14 @@ window.__ModuleLoader__.load({
           el('span', { className: 'cm-root cm-session-cost' }, el('span', { className: 'cm-session-amount' }, t('sessionLineCompact', { amount: examples ? money(.32) : '—' })),
             inner('session-detail', config.sessionCostCompact !== true, el('span', { className: 'cm-session-detail' }, examples ? text(' · 输入 128K · 输出 4K', ' · In 128K · Out 4K') : text(' · 暂无会话缓存', ' · No cached session data')))))
       const dockVisible = config.position === 'dock' && config.hideSessionCostDock !== true
-      // 合并后的输入区费用入口:与真实组件同结构的官方 pill(硬币图标 + 金额 · 费用明细)。
+      // 合并后的输入区费用入口:与真实组件同结构的官方 pill(当前货币符号 + 金额 · 费用明细)。
+      const dockSymbol = config.symbol || '$'
+      const dockAmountText = t('sessionLineCompact', { amount: examples ? money(.32) : '—' }).replaceAll(dockSymbol, '')
       const dockCost = item('dock-cost', text('输入框下方费用入口', 'Composer cost entry'), dockVisible,
         dockVisible ? { hideSessionCostDock: true } : { position: 'dock', hideSessionCostDock: false },
         el('span', { className: 'cm-dp' },
-          el('svg', { viewBox: '0 0 14 14', fill: 'none', stroke: 'currentColor', strokeWidth: 1.2, 'aria-hidden': true, style: { width: 14, height: 14, flex: 'none' } },
-            el('circle', { cx: 7, cy: 7, r: 5.5 }),
-            el('rect', { x: 5.2, y: 5.2, width: 3.6, height: 3.6, rx: 0.4 })),
-          el('span', { className: 'cm-dl' }, t('sessionLineCompact', { amount: examples ? money(.32) : '—' }),
+          el('span', { className: 'cm-dsym', 'aria-hidden': true }, dockSymbol),
+          el('span', { className: 'cm-dl' }, dockAmountText,
             inner('session-action', config.sessionCostCompact !== true, el('span', { className: 'cm-ds', 'aria-hidden': true }, '·'), text('费用明细', 'Cost details')))))
       const cornerOn = config.corner?.enabled === true
       const native = (name, ...children) => el('div', { className: 'cm-native-' + name }, ...children)
