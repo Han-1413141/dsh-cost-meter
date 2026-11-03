@@ -38,7 +38,7 @@ function fixture(protocol = 'dsh-app://app') {
       run("window.__ModuleLoader__.load({id:'bundle-prefix-" + loads.length + "',factory:()=>({})})\n" + sources.get(file))
     },
   })
-  const install = () => shim.installClient({ window, dshVersion: '0.2.1-rc.3', effect: fn => effects.push(fn()) })
+  const install = () => shim.installClient({ window, dshVersion: process.env.DSH_TEST_HOST_VERSION ?? '0.2.1-rc.3', effect: fn => effects.push(fn()) })
   return { run, facade, system, loads, install, effects }
 }
 

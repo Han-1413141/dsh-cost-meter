@@ -9,7 +9,7 @@ import { dirname, join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 
-assert.ok(process.env.DSH_TEST_NODE_MODULES, 'set DSH_TEST_NODE_MODULES to the pinned 0.2.1-rc.2 host dependencies')
+assert.ok(process.env.DSH_TEST_NODE_MODULES, 'set DSH_TEST_NODE_MODULES to the pinned next host dependencies')
 const req = createRequire(join(resolve(process.env.DSH_TEST_NODE_MODULES), '__peer_test.cjs'))
 const { evaluatePluginCompatibility, getDshRuntimeVersion, loadProfileDirectory } = await import(pathToFileURL(req.resolve('@deepseek-ai/dsh-app-boot')).href)
 const hostVersion = JSON.parse(readFileSync(new URL('fixtures/next-host/package.json', import.meta.url), 'utf8')).dependencies['@deepseek-ai/dsh']
@@ -19,7 +19,7 @@ const peerNames = ['@deepseek-ai/dsh-credentials', '@deepseek-ai/dsh-home-paths'
 const semver = req('semver')
 
 // Every 0.2.x release the plugin claims, and nothing below the 0.2.0 floor.
-const admitted = ['0.2.0-rc.1', '0.2.0-rc.2', '0.2.0', '0.2.1-alpha.1', '0.2.1-alpha.5', '0.2.1-rc.1', '0.2.1-rc.2', hostVersion, '0.2.1']
+const admitted = ['0.2.0-rc.1', '0.2.0-rc.2', '0.2.0', '0.2.1-alpha.1', '0.2.1-alpha.5', '0.2.1-rc.1', '0.2.1-rc.2', hostVersion, '0.2.1', '0.2.2-alpha.3', '0.2.2-rc.1', '0.2.2']
 const rejected = ['0.1.0-rc.5', '0.1.5-alpha.1', '0.1.7-rc.2', '0.2.0-alpha.1', '0.2.0-rc.0', '0.3.0-alpha.1', '0.3.0', '1.0.0']
 for (const version of admitted) assert.equal(evaluatePluginCompatibility(pkg, {}, version), undefined, `declared requirements admit ${version}`)
 for (const version of rejected) assert.ok(evaluatePluginCompatibility(pkg, {}, version), `declared requirements exclude ${version}`)
@@ -80,10 +80,12 @@ for (const version of ['0.2.0-rc.1', '0.2.0-rc.2', '0.2.0', '0.2.1']) {
 }
 for (const name of peerNames) {
   const range = pkg.peerDependencies[name]
-  const [hostRange, npmRange] = range.split('||').map(part => part.trim())
+  const [hostRange, ...npmRanges] = range.split('||').map(part => part.trim())
+  const npmRange = npmRanges.join(' || ')
   assert.ok(npmRange, `${name} keeps the npm-default alternative next to the host range`)
   assert.equal(semver.satisfies(hostVersion, hostRange, { includePrerelease: true }), true, `${name} admits ${hostVersion} under the host semantics`)
   assert.equal(semver.satisfies(hostVersion, npmRange), true, `${name} admits ${hostVersion} under npm's default semantics`)
+  for (const version of admitted) assert.equal(semver.satisfies(version, range), true, `${name} admits ${version} under npm's default semantics`)
   assert.equal(semver.satisfies('0.1.5-alpha.1', range), false, `${name} excludes 0.1.5-alpha.1 under npm semantics`)
   assert.equal(semver.satisfies('0.3.0-alpha.1', range), false, `${name} excludes 0.3.0-alpha.1 under npm semantics`)
 }

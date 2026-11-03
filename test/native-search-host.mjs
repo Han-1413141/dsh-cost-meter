@@ -57,9 +57,12 @@ const mount = async scope => {
 try {
   const early = ctx.isolate('web')
   const earlyFiber = await mount(early)
+  const dependent = early.plugin({ inject: ['web'], apply(c) { assert.ok(c.web) } })
+  await dependent.await()
   await mount(ctx)
   const observer = ctx.plugin(c => installNativeSearchBilling(c, ledger))
   await observer.await()
+  await dependent.dispose() // An unrelated consumer must not own the provider's billing observer.
   const late = ctx.isolate('web')
   await mount(late)
   const scopes = [ctx, early, late]

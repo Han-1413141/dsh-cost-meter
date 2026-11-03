@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.9.52] - 2026-11-03
+
+- 适配 DSH 0.2.2-alpha.3：使用新 Cordis 服务提供记录发现已加载的隔离 Web 服务，修复原生搜索漏计；保留旧宿主及卸载重载支持。
+- 两个宿主 peer 显式接受 0.2.2 预发布版；next-host 与客户端加载器检查加入 alpha.3，并更新新版工具执行测试。
+- Adapt to the updated Cordis service-provision records and 0.2.2 prerelease dependency resolution; verify real host installation, billing, RPC and client loaders.
+
+[更新说明 / Release notes](docs/update-notes-1.9.52.md)
+
 ## [1.9.51] - 2026-11-03
 
 - 峰谷开始、切换时间与设置摘要默认读取当前设备系统时区；新增手动 IANA 时区选择，支持即时预览、持久化、夏令时、跨日及非整小时偏移，保持计费与历史日期规则。感谢 [@jt-at-home](https://github.com/jt-at-home) 在 [#460](https://github.com/Han-1413141/dsh-cost-meter/issues/460) 提供问题报告和本地时区配置建议。

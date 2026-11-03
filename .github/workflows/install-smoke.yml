@@ -12,8 +12,8 @@ permissions:
 env:
   # Single pin for every job that installs a DSH closure directly: the npm `latest` closure
   # (0.2.0-rc.2). The other two hosts live in their fixtures: test/fixtures/install-host
-  # (plugin install smoke, same closure) and test/fixtures/next-host (npm `next`, currently
-  # 0.2.1-rc.2; the next-host job exercises it end to end).
+  # (plugin install smoke, same closure) and test/fixtures/next-host
+  # (0.2.2-alpha.3 with the updated Cordis baseline, exercised end to end).
   DSH_PIN: 0.2.0-rc.2
 
 jobs:
@@ -30,7 +30,7 @@ jobs:
           mkdir -p .tmp-chunk-loaders/shim
           npm pack @dsh-plugin/dsh-loader@1.3.5 --ignore-scripts --pack-destination .tmp-chunk-loaders/shim
           tar -xzf .tmp-chunk-loaders/shim/dsh-plugin-dsh-loader-1.3.5.tgz -C .tmp-chunk-loaders/shim
-          for version in 0.2.0-rc.2 0.2.1-rc.3 0.2.1-rc.5; do
+          for version in 0.2.0-rc.2 0.2.1-rc.3 0.2.1-rc.5 0.2.2-alpha.3; do
             mkdir -p ".tmp-chunk-loaders/$version"
             npm pack "@deepseek-ai/dsh-client-modules@$version" --ignore-scripts --pack-destination ".tmp-chunk-loaders/$version"
             tar -xzf ".tmp-chunk-loaders/$version/deepseek-ai-dsh-client-modules-$version.tgz" -C ".tmp-chunk-loaders/$version"
@@ -39,8 +39,8 @@ jobs:
         run: |
           export DSH_TEST_UI_MODULES="$PWD/.tmp-chunk-host/node_modules"
           export DSH_TEST_DSH_LOADER="$PWD/.tmp-chunk-loaders/shim/package/lib/client.js"
-          for version in 0.2.0-rc.2 0.2.1-rc.3 0.2.1-rc.5; do
-            DSH_TEST_CLIENT_MODULES="$PWD/.tmp-chunk-loaders/$version/package/lib/client.js" node test/client-chunk-loader.mjs
+          for version in 0.2.0-rc.2 0.2.1-rc.3 0.2.1-rc.5 0.2.2-alpha.3; do
+            DSH_TEST_HOST_VERSION="$version" DSH_TEST_CLIENT_MODULES="$PWD/.tmp-chunk-loaders/$version/package/lib/client.js" node test/client-chunk-loader.mjs
           done
 
   billion-context-compatibility:
