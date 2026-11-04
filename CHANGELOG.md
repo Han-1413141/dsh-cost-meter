@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [1.9.56] - 2026-11-04
+
+- 修复费用查询提前触发账本保存的问题，让磁盘 revision 未变时的本地更新在原定两秒窗口内合并，减少重复快照、Worker 启动与磁盘写入。
+- 待写数据缺少计时器时安排保存，跨进程变更立即合并，显式提交与退出保存继续完成持久化。
+- Preserve the two-second ledger write window during fee reads, with bounded scheduling recovery and immediate reconciliation of sibling-process writes.
+
+感谢 [@XHPAN](https://github.com/XHPAN) 在 [#470](https://github.com/Han-1413141/dsh-cost-meter/issues/470) 提供定位、隔离复现、真实临时账本对照和修复建议。
+
+[更新说明 / Release notes](docs/update-notes-1.9.56.md)
+
 ## [1.9.55] - 2026-11-04
 
 - 合并输入区会话费用与明细入口，沿用官方 StatsPills 的间距、字号、悬停与展开样式，支持点击整行打开明细。感谢 [@yyc001](https://github.com/yyc001) 在 [#467](https://github.com/Han-1413141/dsh-cost-meter/issues/467) 提出需求并在 [#468](https://github.com/Han-1413141/dsh-cost-meter/pull/468) 提供实现。
