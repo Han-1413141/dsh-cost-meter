@@ -11,7 +11,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { sanitizeConfig, localDayKey } from '../lib/store.js'
-import { replaySessionRecords } from '../lib/backfill.js'
+import { replaySessionRecords, iterateSessionRecords } from '../lib/backfill.js'
 import {
   BETTER_SESSION_PACKAGE,
   SESSION_RDB_PACKAGE,
@@ -435,6 +435,22 @@ try {
   assert.equal(fileSourceRecords[0].id, 'file-1')
   assert.equal((await fileSource.readRecords('missing')), null)
   assert.deepEqual(await createSessionRecordSource(fakeCtx({}), join(jsonlRoot, 'missing'), TEST_DETECT).listSessions(), [])
+
+  const cancelled = new AbortController()
+  const cancellableSource = createSessionRecordSource(fakeCtx({}), jsonlRoot, { ...TEST_DETECT, signal: cancelled.signal })
+  cancelled.abort()
+  await assert.rejects(cancellableSource.listSessions(), { name: 'AbortError' })
+  await assert.rejects(cancellableSource.readRecords('file-1'), { name: 'AbortError' })
+  const cancelledFile = iterateSessionRecords(join(jsonlRoot, 'missing.jsonl'), { signal: cancelled.signal })
+  await assert.rejects(cancelledFile.next(), { name: 'AbortError' }, '取消后不再打开会话文件')
+
+  const scanAbort = new AbortController()
+  const scanFile = join(jsonlRoot, 'cancel-during-read.jsonl')
+  writeFileSync(scanFile, (JSON.stringify({ type: 'test', data: {} }) + '\n').repeat(5000))
+  const scanning = iterateSessionRecords(scanFile, { signal: scanAbort.signal })
+  assert.equal((await scanning.next()).done, false)
+  scanAbort.abort()
+  await assert.rejects(scanning.next(), { name: 'AbortError' }, '运行中的文件扫描响应取消并关闭句柄')
 
   /* ---------------- 7) sessionStorageStatus ---------------- */
   const rdbStatus = sessionStorageStatus(rdbCtx, TEST_DETECT)

@@ -1,5 +1,14 @@
 # dsh-cost-meter 版本更新历史
 
+## v1.9.57(2026-11-04)—— 桌面更新退出超时修复
+
+- 修复历史回填已经开始后仍阻止 Desktop Host 退出、导致客户端更新等待超时的问题。退出时取消扫描，等待读取结束和文件关闭，再保存账本。
+- 将取消信号传入 JSONL、zstd、SQLite 会话读取和搜索／Billion Context 历史；取消后不继续降级读取或扫描下一会话。
+- 被中断的历史导入和 fork 修复不写入完成标记，下次启动继续处理。
+- Cancel active startup history scans during shutdown, close readers before saving the ledger, and preserve interrupted imports for retry.
+
+[更新说明](update-notes-1.9.57.md)
+
 ## v1.9.56(2026-11-04)—— 账本读取与写入合并
 
 - 修复费用查询提前触发账本保存的问题，让磁盘 revision 未变时的本地更新在原定两秒窗口内合并，减少重复快照、Worker 启动与磁盘写入。
