@@ -243,6 +243,16 @@ assert.ok(rowSymbol && text(rowSymbol) === '$', 'the row starts with the configu
 assert.match(text(rowButton()), /·/, 'the amount and the details action are joined by ·')
 assert.equal(rowButton().props['aria-haspopup'], 'dialog')
 assert.equal(rowButton().props['aria-expanded'], false)
+for (const symbol of ['.', '1', '¥']) {
+  const currencySnapshot = { ...snapshot, state: { ...snapshot.state,
+    config: { ...config, currency: 'custom', symbol, exchangeRate: 1, decimals: 4 } } }
+  const currencyEntry = mount(dock.component, { sessionId: 'currency-' + symbol, useCost: () => currencySnapshot,
+    api: { ...injected.api, getSessionCost: async () => ({ ...ledger, own: { ...ledger.own, cost: 1.2345 } }) } })
+  await flush()
+  const label = nodes(currencyEntry.tree).find(node => node.props.className === 'cm-dl')
+  assert.match(text(label), /1\.2345/, 'custom currency symbols preserve every amount digit and the decimal point')
+  currencyEntry.dispose()
+}
 const headerSlot = registrations.get('conversation.session.header.actions:cost-meter-statistics')
 const headerEntry = mount(headerSlot.component, { ...headerSlot.options.inject(), sessionId: 'selected-conversation', useCost: () => snapshot })
 assert.match(nodes(headerEntry.tree).find(n => n.type === 'button').props.className, /cm-stat-header/)

@@ -30,9 +30,9 @@ createRoot(document.getElementById('root')).render(React.createElement(React.Fra
   React.createElement('header',null,React.createElement('span',{className:'title'},title),React.createElement(ui.SessionStatisticsButton,{...props})),
   React.createElement('main',null,'Synthetic conversation'),
   React.createElement('footer',null,React.createElement('div',{'data-slot':'conversation.composer.dock'},
-    React.createElement('div',{className:'native-stats'},
-      React.createElement('span',{className:'native-pill'},locale==='zh'?'◷ 2 轮 26 步 · 273 tok/s':'◷ 2 turns 26 steps · 273 tok/s'),
-      React.createElement('span',{className:'native-pill'},locale==='zh'?'▤ 1.4M tok · 缓存命中 98%':'▤ 1.4M tok · cache hit 98%')),
+    React.createElement('div',{className:'native-stats anchor'},
+      React.createElement('span',{className:'native-pill pill'},locale==='zh'?'◷ 2 轮 26 步 · 273 tok/s':'◷ 2 turns 26 steps · 273 tok/s'),
+      React.createElement('span',{className:'native-pill pill'},locale==='zh'?'▤ 1.4M tok · 缓存命中 98%':'▤ 1.4M tok · cache hit 98%')),
     React.createElement(ui.DockLine,props),
     React.createElement(ui.CornerChips,props)),React.createElement('span',{className:'context-meter'},'◌ 8%'))));`
 const bundle = await build({ stdin: { contents: entry, loader: 'js', resolveDir: root }, bundle: true, write: false,

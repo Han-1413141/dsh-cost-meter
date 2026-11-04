@@ -48,7 +48,7 @@ window.__ModuleLoader__.load({
       // 收窄宽度与面板排布由按需 chunk client.codex.js 自行注入(chunk 不计入本文件体积)。
       // 输入区下方费用入口:与官方 StatsPills(ActivityPill/UsagePill)同款 pill——
       // 左侧当前货币符号 + 金额/分项用 · 分隔、整行点击;hover 与展开态用官方交互背景。
-      '.cm-dp{box-sizing:border-box;min-width:0;font:inherit;font-size:calc(var(--dsh-content-font-size-secondary,13px) - 1px);line-height:calc(20px + var(--dsh-content-font-delta-secondary,0px));border-radius:var(--dsw-radius-sm);max-width:100%;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums;white-space:nowrap;background:0 0;border:none;align-items:center;gap:6px;padding:1px 8px;display:inline-flex;cursor:pointer}.cm-dp:hover,.cm-dp[aria-expanded=true]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary)}.cm-dsym{flex:none;width:14px;text-align:center;font-size:12px;font-weight:600;line-height:1}.cm-dl{text-overflow:ellipsis;min-width:0;overflow:hidden}.cm-dp-status{max-width:100%;font-size:12px;line-height:20px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      '.cm-dp{box-sizing:border-box;min-width:0;font:inherit;font-size:calc(var(--dsh-content-font-size-secondary,13px) - 1px);line-height:calc(20px + var(--dsh-content-font-delta-secondary,0px));border-radius:var(--dsw-radius-sm);max-width:100%;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums;white-space:nowrap;background:0 0;border:none;align-items:center;gap:6px;padding:1px 8px;display:inline-flex;cursor:pointer}.cm-dp:hover,.cm-dp[aria-expanded=true]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary)}.cm-dp-header{max-width:180px}.cm-dsym{flex:none;width:14px;text-align:center;font-size:12px;font-weight:600;line-height:1}.cm-dl{text-overflow:ellipsis;min-width:0;overflow:hidden}.cm-dp-status{max-width:100%;font-size:12px;line-height:20px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cm-foot{display:flex;align-items:center;gap:6px;height:32px;padding:0 8px;border-radius:8px;font-size:12px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden}',
       '.cm-foot:hover,.cm-foot-rail:hover,.cm-corner-chip:hover,.cm-qchip:hover,.cm-tab:hover,.cm-btn:hover{background:var(--dsw-alias-interactive-bg-hover)}',
       '.cm-foot-rail{width:100%;justify-content:center;padding:0;font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary)}',
@@ -396,7 +396,7 @@ window.__ModuleLoader__.load({
       '.cm-section,.cm-stat-dialog,.cm-qguide,.cm-peak-alert,.cm-footer-stack.simple{background:var(--cm-opaque-base,#fff);background:rgb(from var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-base,#fff)) r g b / 1)}',
       '.cm-today-values{display:inline-flex;flex-wrap:wrap;justify-content:flex-end;gap:2px 8px;min-width:0;max-width:100%}.cm-today-values>span{white-space:nowrap}.cm-today-values[data-both=true]>[data-cm-today=tokens]{font-size:11px;color:var(--dsw-alias-label-secondary)}',
       '.cm-simple-summary{background:var(--cm-opaque-base,#fff);background:rgb(from var(--dsw-alias-bg-layer-1,var(--dsw-alias-bg-base,#fff)) r g b / 1)}',
-      '.cm-plan-gauges{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(52px,1fr));gap:6px}.cm-plan-gauges .cm-mm-row{display:grid;grid-template-columns:1fr;gap:0;justify-items:center;margin:0;padding:0;color:var(--dsw-alias-state-business-primary,#4b7ff5)}.cm-plan-gauges svg{grid-area:1/1;width:100%;max-width:64px}.cm-plan-gauges .cm-bbox-pct{grid-area:1/1;align-self:center;transform:translateY(-3px);font-size:12px}.cm-plan-gauges .cm-bbox-label{grid-area:1/1;align-self:end;padding-bottom:8%;max-width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis}.cm-plan-gauges .cm-mm-row:not(:has(svg)){grid-column:1/-1;display:flex}.cm-plan-gauges .warn{color:var(--dsw-alias-state-warn-primary,#d97706)}.cm-plan-gauges .over{color:var(--dsw-alias-state-error-primary,#dc2626)}',
+      '.cm-plan-gauges{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(52px,1fr));gap:6px}.cm-plan-gauges .cm-mm-row{display:grid;grid-template-columns:1fr;gap:0;justify-items:center;margin:0;padding:0;color:var(--dsw-alias-state-business-primary,#4b7ff5)}.cm-plan-gauges svg{grid-area:1/1;width:100%;max-width:64px}.cm-plan-gauges .cm-bbox-pct{grid-area:1/1;align-self:center;text-align:center;transform:translateY(-3px);font-size:12px}.cm-plan-gauges .cm-bbox-label{grid-area:1/1;align-self:end;padding-bottom:8%;max-width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis}.cm-plan-gauges .cm-mm-row:not(:has(svg)){grid-column:1/-1;display:flex}.cm-plan-gauges .warn{color:var(--dsw-alias-state-warn-primary,#d97706)}.cm-plan-gauges .over{color:var(--dsw-alias-state-error-primary,#dc2626)}',
     ].join('\n')
     // 样式表注入。**按内容比对,不按 id 去重**:客户端插件热更新(DSH 的 client HMR,不刷新
     // 页面就换掉插件代码)时,页面上留着的是上一版的 <style>,旧写法只看 id 存不存在就跳过
@@ -882,6 +882,9 @@ window.__ModuleLoader__.load({
         tabPricing: '价格',
         tabDisplay: '显示',
         historyDataTitle: '历史数据',
+        positionLabel: '会话费用显示位置',
+        positionDock: '输入区下方',
+        positionHeader: '会话标题栏',
         off: '关闭',
         quotaStripShowBudget: '横条含预算已用%',
         quotaStripShowGo: '横条含 Go 额度',
@@ -1405,6 +1408,9 @@ window.__ModuleLoader__.load({
         tabPricing: 'Pricing',
         tabDisplay: 'Display',
         historyDataTitle: 'History data',
+        positionLabel: 'Session cost display position',
+        positionDock: 'Below the composer',
+        positionHeader: 'Session title bar',
         off: 'Off',
         quotaStripShowBudget: 'Strip includes budget used %',
         quotaStripShowGo: 'Strip includes the Go quota',

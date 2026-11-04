@@ -755,8 +755,14 @@ console.log('[ok] default 回退计费生效(unknown-model-x 用 default 价)')
 // 4) 配置补丁校验。
 const patchOk = applyConfigPatch(reloaded.config, { currency: 'USD', symbol: '$', exchangeRate: 1, decimals: 6 })
 console.log('[ok] 配置补丁:', patchOk.errors.length === 0 ? '通过' : patchOk.errors.join(';'), patchOk.config.symbol)
-const patchBad = applyConfigPatch(reloaded.config, { position: 'header' })
-console.log('[ok] 已移除的会话费用位置配置被拒:', patchBad.errors.join(';'))
+const patchBad = applyConfigPatch(reloaded.config, { position: 'nowhere' })
+assert.ok(patchBad.errors.length)
+for (const position of ['dock', 'header', 'off']) {
+  const result = applyConfigPatch(reloaded.config, { position })
+  assert.deepEqual(result.errors, [])
+  assert.equal(sanitizeConfig(result.config).position, position)
+}
+console.log('[ok] 会话费用位置配置兼容与校验通过')
 const patchBad2 = applyConfigPatch(reloaded.config, { unknownKey: 1 })
 console.log('[ok] 未知键被拒:', patchBad2.errors.join(';'))
 
@@ -1978,7 +1984,7 @@ const dirty = sanitizeConfig({
   corner: { enabled: 'x' },
 })
 assert.equal(dirty.locale, 'auto', '非法 locale 回落')
-assert.equal(Object.hasOwn(dirty, 'position'), false, '已移除的会话费用位置配置被丢弃')
+assert.equal(dirty.position, 'dock', '非法会话费用位置回落默认')
 assert.equal(typeof dirty.decimals, 'number', '非法 decimals 回落为数字')
 assert.equal(dirty.exchangeRate, 7.2, '非法汇率回落默认')
 assert.equal(dirty.peakStyle, 'compact', '非法 peakStyle 回落')

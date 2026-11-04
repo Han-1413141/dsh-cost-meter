@@ -40,6 +40,7 @@ window.__ModuleLoader__.load({
       const renderPreviewSidebar = React.useCallback(preview => renderSidebar(preview, previewData.state), [renderSidebar, previewData.state])
       const appearance = useDisplayAppearance()
       const labels = { balance: text('官方余额', 'Official balance'), budget: text('侧栏预算', 'Sidebar budget'), today: text('今日用量', 'Today’s usage'), peak: text('峰谷时段', 'Peak / off-peak'), models: text('模型花费', 'Model costs'), go: text('Go 额度', 'Go quota'), plan: text('套餐进度条', 'Plan bars'), customBalance: text('自定义余额', 'Custom balance'), codex: text('Codex 额度', 'Codex quota'), 'session-header': text('顶部费用明细', 'Header cost details'), 'dock-cost': text('输入框下方费用入口', 'Composer cost entry'), turn: text('每轮费用', 'Per-turn cost'), corner: text('右下角额度', 'Corner quota'), 'strip-budget': text('预算进度条', 'Budget strip'), 'strip-go': text('Go 进度条', 'Go strip'), 'strip-plans': text('套餐进度条', 'Plan strip') }
+      labels.badge = text('会话费用摘要', 'Session cost summary')
       labels['strip-codex'] = text('Codex 额度', 'Codex quota')
       labels.sessionList = text('会话列表金额', 'Session list amounts')
       const registry = {}
@@ -111,19 +112,22 @@ window.__ModuleLoader__.load({
       const sessionHeader = region === 'conversation' ? item('session-header', labels['session-header'], config.hideSessionCostHeader !== true,
         { hideSessionCostHeader: config.hideSessionCostHeader !== true },
         el('span', { className: 'cm-btn cm-stat-entry' }, text('费用明细', 'Cost details'))) : null
-      const dockVisible = config.hideSessionCostDock !== true
+      const dockVisible = config.position === 'dock' && config.hideSessionCostDock !== true
       // 输入区费用入口:官方 pill(当前货币符号 + 金额 + 命中/输入/缓存/输出分项 · 分隔,整行可点击)。
       const dockSymbol = config.symbol || '$'
-      const dockAmountText = t('sessionLineCompact', { amount: examples ? money(.32) : '—' }).replaceAll(dockSymbol, '')
+      const dockAmountText = t('sessionLineCompact', { amount: examples ? money(.32).slice(dockSymbol.length) : '—' })
       const dockDetail = examples
         ? text(' · 命中 60.0% · 输入 128K · 缓存 13M · 输出 4K', ' · Hit 60.0% · Input 128K · Cache 13M · Output 4K')
         : text(' · 暂无会话缓存', ' · No cached session data')
       const dockCost = region === 'composer' ? item('dock-cost', labels['dock-cost'], dockVisible,
-        dockVisible ? { hideSessionCostDock: true } : { hideSessionCostDock: false },
+        dockVisible ? { position: 'off', hideSessionCostDock: true } : { position: 'dock', hideSessionCostDock: false },
         el('span', { className: 'cm-dp' },
           el('span', { className: 'cm-dsym', 'aria-hidden': true }, dockSymbol),
           el('span', { className: 'cm-dl' }, dockAmountText,
             inner('session-detail', config.sessionCostCompact !== true, dockDetail)))) : null
+      const headerBadge = region === 'conversation' ? item('badge', labels.badge, config.position === 'header',
+        { position: config.position === 'header' ? 'off' : 'header' },
+        el('span', { className: 'cm-dp cm-dp-header' }, t('sessionLineCompact', { amount: examples ? money(.32) : '—' }))) : null
       const cornerOn = config.corner?.enabled === true
       const native = (name, ...children) => el('div', { className: 'cm-native-' + name }, ...children)
       const icon = (name, size = 16) => el(Native[name], { size })
@@ -159,7 +163,7 @@ window.__ModuleLoader__.load({
             el('span', { className: 'cm-native-dock-context', 'aria-hidden': true }, el('i', { className: 'cm-native-context-ring' }), examples ? '29%' : '—'))) :
         el('div', { className: 'cm-preview-conversation' },
           el('div', { className: 'cm-native-chat-header', style: appearance.header },
-            el('div', { className: 'cm-native-chat-titleRow' }, el('span', null, examples ? text('整理项目计划', 'Organize the project plan') : text('会话费用入口', 'Conversation cost')), sessionHeader),
+            el('div', { className: 'cm-native-chat-titleRow' }, el('span', null, examples ? text('整理项目计划', 'Organize the project plan') : text('会话费用入口', 'Conversation cost')), headerBadge, sessionHeader),
             el('div', { className: 'cm-native-chat-tabs', 'aria-hidden': true }, ...[text('对话', 'Chat'), text('轨迹', 'Trace'), text('上下文', 'Context')].map((label, i) => el('span', { key: label, className: i === 0 ? 'active' : '' }, label)))),
           el('div', { className: 'cm-preview-response' },
             el('p', { 'aria-hidden': true }, examples ? text('已整理好项目资料，接下来可以确认计划与时间安排。', 'The project materials are ready. Next, review the plan and schedule.') : text('当前会话数据暂不可用，可开启示例数据查看完整效果。', 'Enable example data to see the complete conversation preview.')),

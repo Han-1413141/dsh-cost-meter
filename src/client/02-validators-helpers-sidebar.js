@@ -135,6 +135,7 @@
       return {
         queryAccounts: v.queryAccounts && typeof v.queryAccounts === 'object' ? v.queryAccounts : {},
         locale: v.locale === 'zh' || v.locale === 'en' || v.locale === 'auto' ? v.locale : 'auto',
+        position: v.position === 'header' || v.position === 'off' ? v.position : 'dock',
         sidebar: v.sidebar !== false,
         // showSessionId 曾遗漏于本白名单:checkbox 能保存但读侧恒 undefined,
         // 会话列表附显 ID 自上线以来实际从未生效(v1.5.38 起一并修复)。
@@ -1785,7 +1786,7 @@
     function DockLine(props) {
       const snapshot = props.useCost?.(s => s), state = useSessionUsage(props), { usage, config } = state
       const [openedId, setOpenedId] = useState(null)
-      const hidden = config?.hideSessionCostDock === true
+      const hidden = props.entryPosition !== 'header' && config?.hideSessionCostDock === true
       const open = !hidden && !!props.sessionId && openedId === props.sessionId
       useEffect(() => { setOpenedId(null) }, [props.sessionId, hidden])
       if (hidden || !props.sessionId) return null
@@ -1815,16 +1816,18 @@
       // 前导槽位用当前货币符号(跟随设置里的货币);行内金额/分项去掉重复符号。
       // 文字内容与 master 一致:金额 + 命中率/输入/缓存/输出;仅显示金额时只保留金额段。
       const sym = config?.symbol || '$'
-      const compact = config?.sessionCostCompact === true
-      const amountLine = status || t('sessionLineCompact', values)
-      const line = status ? '' : (compact ? t(planPart > 0 ? 'sessionLineSplitCompact' : 'sessionLineCompact', values) : fullLine)
-      const labelText = (amountLine + line.slice(amountLine.length)).replaceAll(sym, '')
+      const compact = props.entryPosition === 'header' || config?.sessionCostCompact === true
+      const displayValues = { ...values, amount: values.amount.slice(sym.length), planAmount: values.planAmount.slice(sym.length) }
+      const lineKey = compact
+        ? (planPart > 0 ? 'sessionLineSplitCompact' : 'sessionLineCompact')
+        : (planPart > 0 ? 'sessionLineSplit' : 'sessionLine')
+      const labelText = status || t(lineKey, displayValues)
       // 悬停/聚焦时预取统计页(并入 client 页缓存),避免首次点击弹窗先出现骨架屏。
       const warm = () => warmPage(props.api?.loadStatistics, { state: snapshot?.state, sessionId: props.sessionId })
       // 悬停详情走宿主官方 Tooltip(与官方统计 pill 一致的黑色气泡),不再用浏览器原生 title。
       return el(Fragment, null,
         el(Tooltip, { portal: true, label: [fullLine, modelDetail].filter(Boolean).join('; '), side: 'top' },
-          el('button', { type: 'button', className: 'cm-dp', 'aria-label': label, 'aria-haspopup': 'dialog', 'aria-expanded': open, onMouseEnter: warm, onFocus: warm, onClick: () => setOpenedId(props.sessionId) },
+          el('button', { type: 'button', className: 'cm-dp' + (props.entryPosition === 'header' ? ' cm-dp-header' : ''), 'aria-label': label, 'aria-haspopup': 'dialog', 'aria-expanded': open, onMouseEnter: warm, onFocus: warm, onClick: () => setOpenedId(props.sessionId) },
             el('span', { className: 'cm-dsym', 'aria-hidden': 'true' }, sym),
             el('span', { className: 'cm-dl' }, labelText))),
         dialog)
