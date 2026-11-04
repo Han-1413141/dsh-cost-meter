@@ -6,7 +6,7 @@
 
 **DeepSeek Harness 会话费用统计插件(界面中英双语)**
 
-[![version](https://img.shields.io/badge/version-1.9.54-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
+[![version](https://img.shields.io/badge/version-1.9.55-4176E6)](https://github.com/Han-1413141/dsh-cost-meter)
 [![npm](https://img.shields.io/npm/v/dsh-cost-meter?label=npm)](https://www.npmjs.com/package/dsh-cost-meter)
 [![dshfind](https://dshfind.com/api/badge/Han-1413141/dsh-cost-meter?metric=downloads&lang=zh)](https://dshfind.com/zh/plugins/Han-1413141/dsh-cost-meter?ref=badge)
 [![license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -16,11 +16,11 @@
 
 </div>
 
-**v1.9.54** 验证 Codex Subscription 3.2.4，补充权限错误提示、失败冷却后的额度重读及登录完成后的账号缓存清理检查。
+**v1.9.55** 统一会话费用入口与官方统计样式，保留已有费用位置和自定义货币配置，修复套餐圆环的百分比居中。
 
 **宿主要求：DSH 0.2.0 起支持** · 适配目标 **0.2.2-alpha.3**。完整声明、历史记录与安装排障见下方展开项。
 
-更新说明：[v1.9.54](docs/update-notes-1.9.54.md#中文)。更新后完全重启 DSH。
+更新说明：[v1.9.55](docs/update-notes-1.9.55.md#中文)。更新后完全重启 DSH。
 
 ![宣传图](docs/promo.png)
 
@@ -59,7 +59,7 @@
 | OpenRouter 模型价格 | 模型选择菜单 / 设置 → 费用 → 价格 | 悬停模型查看单价与更新时间，也可在设置中搜索完整目录；前台自动刷新，价格表标记价格变动并提供官方模型链接。无需 API Key，不产生模型使用费用。[说明](docs/openrouter-prices.md#中文) |
 | 计费统计与明细 | 会话输入框下方 / 标题栏 / 设置 → 费用 → 计费统计 | 输入、输出、缓存、推理费用；按轮次、模型、搜索和压缩统计；日、周、月及全部记录。[说明](docs/billing-statistics.md#简体中文) |
 | 按模型花费卡片 | 侧栏 / 右下角 dock（可配） | 默认关闭；就地展开 Top-N、其它汇总、占比和可选 Token；支持今日 / 近 90 天、展开记忆及 Top-1 角标，见[使用说明](docs/model-cost-card.md) |
-| 本会话费用 | 输入区下方 / 会话标题栏 | 实时累计费用 + 输入/缓存/输出 token；输入区下方在“输入”前显示缓存命中率（缓存读取 / 含缓存写入的全部输入），位置可配；显示页可开启输入区下方只显示金额，完整费用行保留在悬停提示中 |
+| 本会话费用 | 输入区下方 / 会话标题栏 | 实时累计费用 + 输入/缓存/输出 token；输入区下方在“输入”前显示缓存命中率（缓存读取 / 含缓存写入的全部输入）；显示页可开启输入区下方只显示金额，完整费用行保留在悬停提示中；保留输入区／标题栏／关闭的位置设置，标题栏继续提供紧凑「费用明细」按钮 |
 | 官方余额 | 侧边栏顶部 / 设置页(可配) | 总余额 / 赠送 / 充值,自动刷新 + 手动刷新;可选三段进度条(蓝/橙/灰),当日段只统计官方渠道费用(不含 Coding Plan / 自定义 Provider) |
 | 自定义 Provider 余额 | 侧边栏 / 设置页(可配) | 可配置 HTTP 查询任意 Provider 余额(LiteLLM 等);中/英名称、币种、extract 规则(点路径 / 数字常量 / add / subtract / divide,divide 适配 NewApi 等 quota 端点,见下方[示例](#自定义-provider-余额配置示例newapi-模板));与 Coding Plan 同区可折叠配置 |
 | OpenCode Go 额度 | 侧边栏 / 设置页 / 右下角(dock,可配) | 滚动 5 小时 / 本周 / 本月用量百分比与重置时间,三档可分别开关,可同时显示预算已用%;Key 自动发现(专用引用 / 官方 Go 路由 apiKeyEnv / 环境变量 / opencode 登录态)或手动填写 |
@@ -283,13 +283,9 @@ CLIProxyAPI 网关来源卡片可勾选「只显示 Gemini 额度」，仅影响
 |---|---|
 | ![右下角 chips](docs/screenshot-display-corner-v2.png) | ![右下角显示设置](docs/dock-display-settings-zh.png) |
 
-**本会话费用**(两个位置,可在设置中切换):
+**本会话费用**(输入区下方单行合并;会话标题栏只保留紧凑「费用明细」按钮):
 
-| 输入区下方 | 会话标题栏 |
-|---|---|
-| ![会话 dock](docs/screenshot-session-dock.png) | ![会话标题栏](docs/screenshot-session-header.png) |
-
-> 上图:本会话 ¥5.5939 · 输入 321K · 缓存 119M · 输出 235K;右图:标题栏徽章「费用 ¥6.1606」(真实会话截图)
+费用行以当前货币符号开头，随后是会话金额与命中率/输入/缓存/输出分项；整行可点击打开明细，“仅显示金额”开启时只保留金额段。
 
 ![会话页](docs/screenshot-session.png)
 
@@ -356,22 +352,22 @@ Node.js 20 请改用 `npm install -g pnpm@10`。版本要求见 [pnpm 官方安�
 dsh plugin --profile web add dsh-cost-meter
 ```
 
-**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.9.54`**,建议先下载审阅再运行):
+**PowerShell 一键脚本**(复制整行粘贴回车;自动补齐 pnpm、自动探测 git,无需克隆仓库;安装链**固定到发布 tag `v1.9.55`**,建议先下载审阅再运行):
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.54/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.55/install.ps1 | iex
 ```
 
 **或直接命令行**(机器上需已有 pnpm 与 git;同样固定到 tag):
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.54
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.55
 ```
 
 没有 git 时可用 GitHub tag 打包直链:
 
 ```sh
-dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.9.54.tar.gz
+dsh plugin --profile web add https://github.com/Han-1413141/dsh-cost-meter/archive/refs/tags/v1.9.55.tar.gz
 ```
 
 安装后**重启** `dsh web`(插件行、Typert 清单与客户端 bundle 均在启动时扫描):
@@ -436,7 +432,7 @@ DSH **0.2.1-rc.1 / 0.2.1-rc.2** 宿主自带 pnpm **11.28.5**，默认启用内�
 
    ```yaml
    minimumReleaseAgeExclude:
-     - dsh-cost-meter@1.9.54
+     - dsh-cost-meter@1.9.55
    ```
 
 3. 仅本次操作用 CLI 透传 pnpm 参数：`dsh plugin --profile desktop remove dsh-cost-meter --config.minimum-release-age=0`；若只是 lockfile 校验阶段失败，可改用 `--trust-lockfile`。这两个参数已在本机 pnpm 11.28.5 临时 Profile 上实测可用。

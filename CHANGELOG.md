@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [1.9.55] - 2026-11-04
+
+- 合并输入区会话费用与明细入口，沿用官方 StatsPills 的间距、字号、悬停与展开样式，支持点击整行打开明细。感谢 [@yyc001](https://github.com/yyc001) 在 [#467](https://github.com/Han-1413141/dsh-cost-meter/issues/467) 提出需求并在 [#468](https://github.com/Han-1413141/dsh-cost-meter/pull/468) 提供实现。
+- 保留输入区／标题栏／关闭的位置设置和旧配置，修复自定义货币符号影响金额数字的问题，显示预览同步入口状态。
+- 修复套餐开口圆环的百分比文字偏移，覆盖明暗主题、四种布局和窄侧栏。感谢 [@Eancen](https://github.com/Eancen) 在 [#469](https://github.com/Han-1413141/dsh-cost-meter/issues/469) 提供环境、复现步骤与截图。
+- Unify the clickable session-cost pill with native statistics, preserve saved display positions and custom currency amounts, and center percentages in open-ring quota cards.
+
+[更新说明 / Release notes](docs/update-notes-1.9.55.md)
+
 ## [1.9.54] - 2026-11-03
 
 - 验证 dsh-codex-subscription 3.2.4 的实际发布包，更新兼容基线和两个宿主的持续集成矩阵，处理 github-actions[bot] 在 [#465](https://github.com/Han-1413141/dsh-cost-meter/issues/465) 提供的接口变化报告。

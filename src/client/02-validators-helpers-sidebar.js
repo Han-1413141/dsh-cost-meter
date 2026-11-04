@@ -1618,13 +1618,17 @@
         el('path', { d: 'M8 2.8A1.3 1.3 0 1 0 8 5.4A1.3 1.3 0 1 0 8 2.8Z', fill: 'currentColor' }))
     }
 
-    // ── 会话费用徽章(dock / header) ────────────────────────────────────────
+    function costDetailsLabel(en) {
+      return en ? 'Conversation cost details' : '本会话费用明细'
+    }
+
+    // ── 会话费用状态/金额拆分与投影联动刷新 ──────────────────────────────
 
     // 投影联动刷新(今日费用实时化):costUsage 投影由宿主在每次 usage 入账时
     // 推送,是「本次调用已结束入账」的实时信号。据此触发一次 800ms 防抖的
     // getState,侧边栏「今日费用」从最坏 60s 轮询缩短到流结束后 ≈1s;60s 轮询
-    // 保留作兜底(跨会话/后台标签页场景)。挂在会话徽章(dock/header)与侧边栏
-    // 页脚三处,覆盖 position=off 等配置组合;投影不可用时静默退化。
+    // 保留作兜底(跨会话/后台标签页场景)。挂在输入区费用入口与侧边栏页脚两处;
+    // 投影不可用时静默退化。
     // hooks 规则:必须在组件早退 return 之前调用(与 useProjection 同位)。
     function useProjectionRefresh(props, usage) {
       const primedRef = useRef(false)
@@ -1773,64 +1777,60 @@
                 call.rows.map(rowView))))))
     }
 
-    function SessionCost(props) {
-      const state = useSessionUsage(props), { usage, config } = state
-      if (!config) return null
-      const status = sessionCostStatus(state)
-      if (status) return el('div', { className: 'cm-chip' }, status)
-      const t = makeT(resolveLocale(config))
-      const { cost, planPart } = sessionCostParts(usage, config)
-      const detail = [
-        t('sessionCostTitle'),
-        t('sessionDetailTokens', {
-          input: formatTokens(usage?.input ?? 0),
-          cache: formatTokens((usage?.cacheRead ?? 0) + (usage?.cacheWrite ?? 0)),
-          output: formatTokens(usage?.output ?? 0),
-        }),
-        t('sessionDetailCache', {
-          read: formatTokens(usage?.cacheRead ?? 0),
-          write: formatTokens(usage?.cacheWrite ?? 0),
-        }),
-        t('cost', { amount: formatMoneyUsd(cost, config) }),
-        ...(planPart > 0 ? [t('sessionDetailPlan', { amount: formatMoneyUsd(planPart, config) })] : []),
-        modelCostDetail(usage, config),
-      ].filter(Boolean).join('; ')
-      return el(Tooltip, { portal: true, label: detail, side: 'top', delayMs: 500 },
-        el('div', { className: 'cm-chip' }, planPart > 0
-          ? t('costChipPlan', { amount: formatMoneyUsd(cost, config) })
-          : t('cost', { amount: formatMoneyUsd(cost, config) })))
-    }
-
+    /**
+     * 输入区下方的会话费用入口:与官方 StatsPills(ActivityPill/UsagePill)同构——左侧直接使用配置里的
+     * 当前货币符号(¥ / $ / €,文本字形在 14px 下有字体 hinting,比缩小 SVG 更清晰),金额与命中率/
+     * 输入/缓存/输出分项用 · 分隔、整行可点击打开费用明细弹窗;悬停提示保留完整分项与模型金额;
+     * 「仅显示金额」开启时只保留金额段(与 master 的呈现一致)。
+     */
     function DockLine(props) {
-      const state = useSessionUsage(props), { usage, config } = state
-      if (!config) return null
-      const status = sessionCostStatus(state)
-      if (status) return el('div', { className: 'cm-root', role: 'status', title: status }, status)
-      const input = usage.input ?? 0
-      const cache = (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0)
-      const output = usage.output ?? 0
+      const snapshot = props.useCost?.(s => s), state = useSessionUsage(props), { usage, config } = state
+      const [openedId, setOpenedId] = useState(null)
+      const hidden = props.entryPosition !== 'header' && config?.hideSessionCostDock === true
+      const open = !hidden && !!props.sessionId && openedId === props.sessionId
+      useEffect(() => { setOpenedId(null) }, [props.sessionId, hidden])
+      if (hidden || !props.sessionId) return null
+      const en = resolveLocale(config) === 'en'
       const t = makeT(resolveLocale(config))
-      const { cost, planPart } = sessionCostParts(usage, config)
-      // 缓存写入属于输入分母，但不是缓存命中；无输入时显示未知。
-      const hitRate = billedInput(usage) > 0 ? ((usage.cacheRead ?? 0) / billedInput(usage) * 100).toFixed(1) + '%' : '—'
+      const status = config ? sessionCostStatus(state) : snapshot?.error || (en ? 'Loading…' : '加载中…')
+      // 明细弹窗要完整的费用状态(store state),不是 useSessionUsage 的合并结果:
+      // 统计页会读取 state.meta/today/total 等字段,形状不符会在渲染时抛错并把整行卸载。
+      // 状态行也挂同一弹窗(open=false 不渲染),会话切换时旧弹窗随 open 一起关闭。
+      const dialog = el(CostDetailsDialog, { open, onClose: () => setOpenedId(null), sessionId: props.sessionId, state: snapshot?.state, error: snapshot?.error, api: props.api })
+      // 账本尚未就绪/无记录/不可用保持非交互状态行(与 master 一致,role=status 供读屏播报);
+      // 没有 store 状态的加载/错误仍保留可点击入口,以便弹窗内重试。
+      if (config && status) return el(Fragment, null,
+        el('span', { className: 'cm-dp-status', role: 'status', title: status }, status), dialog)
+      const { cost, planPart } = usage ? sessionCostParts(usage, config) : { cost: 0, planPart: 0 }
       const values = {
         amount: formatMoneyUsd(cost, config),
         planAmount: formatMoneyUsd(planPart, config),
-        hitRate,
-        input: formatTokens(input),
-        cache: formatTokens(cache),
-        output: formatTokens(output),
+        hitRate: billedInput(usage) > 0 ? ((usage?.cacheRead ?? 0) / billedInput(usage) * 100).toFixed(1) + '%' : '—',
+        input: formatTokens(usage?.input ?? 0),
+        cache: formatTokens((usage?.cacheRead ?? 0) + (usage?.cacheWrite ?? 0)),
+        output: formatTokens(usage?.output ?? 0),
       }
-      const fullLine = t(planPart > 0 ? 'sessionLineSplit' : 'sessionLine', values)
-      const modelDetail = modelCostDetail(usage, config)
-      const compact = config.sessionCostCompact === true
-      // Keep the amount visible when native or peer-plugin statistics grow.
-      // Token and Plan details may truncate; the full line remains on hover.
-      const amount = t('sessionLineCompact', values)
-      const line = compact ? t(planPart > 0 ? 'sessionLineSplitCompact' : 'sessionLineCompact', values) : fullLine
-      return el('div', { className: 'cm-root cm-session-cost', title: [fullLine, modelDetail].filter(Boolean).join('; ') },
-        el('span', { className: 'cm-session-amount' }, amount),
-        el('span', { className: 'cm-session-detail' }, line.slice(amount.length)))
+      const fullLine = config ? t(planPart > 0 ? 'sessionLineSplit' : 'sessionLine', values) : status
+      const modelDetail = config ? modelCostDetail(usage, config) : ''
+      const label = costDetailsLabel(en)
+      // 前导槽位用当前货币符号(跟随设置里的货币);行内金额/分项去掉重复符号。
+      // 文字内容与 master 一致:金额 + 命中率/输入/缓存/输出;仅显示金额时只保留金额段。
+      const sym = config?.symbol || '$'
+      const compact = props.entryPosition === 'header' || config?.sessionCostCompact === true
+      const displayValues = { ...values, amount: values.amount.slice(sym.length), planAmount: values.planAmount.slice(sym.length) }
+      const lineKey = compact
+        ? (planPart > 0 ? 'sessionLineSplitCompact' : 'sessionLineCompact')
+        : (planPart > 0 ? 'sessionLineSplit' : 'sessionLine')
+      const labelText = status || t(lineKey, displayValues)
+      // 悬停/聚焦时预取统计页(并入 client 页缓存),避免首次点击弹窗先出现骨架屏。
+      const warm = () => warmPage(props.api?.loadStatistics, { state: snapshot?.state, sessionId: props.sessionId })
+      // 悬停详情走宿主官方 Tooltip(与官方统计 pill 一致的黑色气泡),不再用浏览器原生 title。
+      return el(Fragment, null,
+        el(Tooltip, { portal: true, label: [fullLine, modelDetail].filter(Boolean).join('; '), side: 'top' },
+          el('button', { type: 'button', className: 'cm-dp' + (props.entryPosition === 'header' ? ' cm-dp-header' : ''), 'aria-label': label, 'aria-haspopup': 'dialog', 'aria-expanded': open, onMouseEnter: warm, onFocus: warm, onClick: () => setOpenedId(props.sessionId) },
+            el('span', { className: 'cm-dsym', 'aria-hidden': 'true' }, sym),
+            el('span', { className: 'cm-dl' }, labelText))),
+        dialog)
     }
 
     // ── 侧边栏:余额行 + 预算图框/今日徽章(纵向堆叠,位于设置按钮上方) ──────

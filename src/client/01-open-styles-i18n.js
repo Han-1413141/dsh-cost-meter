@@ -46,8 +46,9 @@ window.__ModuleLoader__.load({
       '.cm-stat-dialog{--cm-dialog-top:var(--dsh-frame-chrome-top,var(--dsh-frame-top-clearance,0px));inset:var(--cm-dialog-top) 0 0 0;margin:auto;width:min(1000px,94vw);max-width:calc(100vw - 32px);max-height:calc(100vh - var(--cm-dialog-top) - 32px);overflow:hidden;box-sizing:border-box;padding:0;border-radius:16px;border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-base,#fff))}.cm-stat-dialog[open]{display:flex;flex-direction:column}.cm-loading{padding:24px;min-height:160px;display:grid;gap:18px}.cm-loading i{height:18px;border-radius:5px;background:var(--dsw-alias-bg-layer-1,#f2f3f5)}.cm-loading i:first-child{width:35%}.cm-loading i:last-child{width:65%}.cm-stat-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 24px;border-bottom:1px solid var(--dsw-alias-border-l3);flex:none}.cm-stat-dialog-head strong{font-size:15px;font-weight:500}.cm-stat-dialog-body{overflow:auto;min-height:0;padding:20px 24px;overscroll-behavior:contain}.cm-stat-dialog::backdrop{inset:var(--dsh-frame-chrome-top,var(--dsh-frame-top-clearance,0px)) 0 0;background:#0005}',
       // Codex 订阅兼容(契约 E):弹窗几何/头部/正文复用 .cm-stat-dialog 系列类;
       // 收窄宽度与面板排布由按需 chunk client.codex.js 自行注入(chunk 不计入本文件体积)。
-      '.cm-root{flex:0 1 auto;min-width:0;max-width:100%;text-align:center;font-size:12px;line-height:20px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.cm-session-cost{display:grid;grid-template-columns:max-content minmax(0,1fr);min-width:min-content}.cm-session-amount{max-width:40vw;overflow:hidden;text-overflow:ellipsis}.cm-session-detail{min-width:0;overflow:hidden;text-overflow:ellipsis}',
-      '.cm-chip{display:inline-flex;align-items:center;gap:4px;max-width:180px;padding:0 8px;height:22px;border-radius:6px;background:var(--dsw-alias-bg-layer-2);font-size:12px;line-height:22px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+      // 输入区下方费用入口:与官方 StatsPills(ActivityPill/UsagePill)同款 pill——
+      // 左侧当前货币符号 + 金额/分项用 · 分隔、整行点击;hover 与展开态用官方交互背景。
+      '.cm-dp{box-sizing:border-box;min-width:0;font:inherit;font-size:calc(var(--dsh-content-font-size-secondary,13px) - 1px);line-height:calc(20px + var(--dsh-content-font-delta-secondary,0px));border-radius:var(--dsw-radius-sm);max-width:100%;color:var(--dsw-alias-label-tertiary);font-variant-numeric:tabular-nums;white-space:nowrap;background:0 0;border:none;align-items:center;gap:6px;padding:1px 8px;display:inline-flex;cursor:pointer}.cm-dp:hover,.cm-dp[aria-expanded=true]{background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-secondary)}.cm-dp-header{max-width:180px}.cm-dsym{flex:none;width:14px;text-align:center;font-size:12px;font-weight:600;line-height:1}.cm-dl{text-overflow:ellipsis;min-width:0;overflow:hidden}.cm-dp-status{max-width:100%;font-size:12px;line-height:20px;color:var(--dsw-alias-label-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cm-foot{display:flex;align-items:center;gap:6px;height:32px;padding:0 8px;border-radius:8px;font-size:12px;color:var(--dsw-alias-label-secondary);white-space:nowrap;overflow:hidden}',
       '.cm-foot:hover,.cm-foot-rail:hover,.cm-corner-chip:hover,.cm-qchip:hover,.cm-tab:hover,.cm-btn:hover{background:var(--dsw-alias-interactive-bg-hover)}',
       '.cm-foot-rail{width:100%;justify-content:center;padding:0;font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary)}',
@@ -165,7 +166,6 @@ window.__ModuleLoader__.load({
       '.cm-btn.primary:hover{opacity:0.88;background:var(--dsw-alias-state-business-primary)}',
       '.cm-btn.danger,.cm-msg.err,.cm-bal-line.err,.cm-bal-err{color:var(--dsw-alias-state-error-primary)}',
       '.cm-btn.small{padding:3px 10px;font-size:12px}',
-      'div:has(>[data-slot="conversation.composer.dock"] .cm-stat-entry){flex-wrap:nowrap;column-gap:6px}',
       '.cm-msg{font-size:12px;line-height:18px;padding:8px 12px;border-radius:8px;border:1px solid var(--dsw-alias-border-l1)}',
       '.cm-msg.ok{color:var(--dsw-alias-state-success-primary)}',
       '.cm-hint{font-size:12px;color:var(--dsw-alias-label-tertiary)}',
@@ -396,7 +396,7 @@ window.__ModuleLoader__.load({
       '.cm-section,.cm-stat-dialog,.cm-qguide,.cm-peak-alert,.cm-footer-stack.simple{background:var(--cm-opaque-base,#fff);background:rgb(from var(--dsw-alias-bg-layer-2,var(--dsw-alias-bg-base,#fff)) r g b / 1)}',
       '.cm-today-values{display:inline-flex;flex-wrap:wrap;justify-content:flex-end;gap:2px 8px;min-width:0;max-width:100%}.cm-today-values>span{white-space:nowrap}.cm-today-values[data-both=true]>[data-cm-today=tokens]{font-size:11px;color:var(--dsw-alias-label-secondary)}',
       '.cm-simple-summary{background:var(--cm-opaque-base,#fff);background:rgb(from var(--dsw-alias-bg-layer-1,var(--dsw-alias-bg-base,#fff)) r g b / 1)}',
-      '.cm-plan-gauges{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(52px,1fr));gap:6px}.cm-plan-gauges .cm-mm-row{display:grid;grid-template-columns:1fr;gap:0;justify-items:center;margin:0;padding:0;color:var(--dsw-alias-state-business-primary,#4b7ff5)}.cm-plan-gauges svg{grid-area:1/1;width:100%;max-width:64px}.cm-plan-gauges .cm-bbox-pct{grid-area:1/1;align-self:center;transform:translateY(-3px);font-size:12px}.cm-plan-gauges .cm-bbox-label{grid-area:1/1;align-self:end;padding-bottom:8%;max-width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis}.cm-plan-gauges .cm-mm-row:not(:has(svg)){grid-column:1/-1;display:flex}.cm-plan-gauges .warn{color:var(--dsw-alias-state-warn-primary,#d97706)}.cm-plan-gauges .over{color:var(--dsw-alias-state-error-primary,#dc2626)}',
+      '.cm-plan-gauges{grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(52px,1fr));gap:6px}.cm-plan-gauges .cm-mm-row{display:grid;grid-template-columns:1fr;gap:0;justify-items:center;margin:0;padding:0;color:var(--dsw-alias-state-business-primary,#4b7ff5)}.cm-plan-gauges svg{grid-area:1/1;width:100%;max-width:64px}.cm-plan-gauges .cm-bbox-pct{grid-area:1/1;align-self:center;text-align:center;transform:translateY(-3px);font-size:12px}.cm-plan-gauges .cm-bbox-label{grid-area:1/1;align-self:end;padding-bottom:8%;max-width:100%;text-align:center;overflow:hidden;text-overflow:ellipsis}.cm-plan-gauges .cm-mm-row:not(:has(svg)){grid-column:1/-1;display:flex}.cm-plan-gauges .warn{color:var(--dsw-alias-state-warn-primary,#d97706)}.cm-plan-gauges .over{color:var(--dsw-alias-state-error-primary,#dc2626)}',
     ].join('\n')
     // 样式表注入。**按内容比对,不按 id 去重**:客户端插件热更新(DSH 的 client HMR,不刷新
     // 页面就换掉插件代码)时,页面上留着的是上一版的 <style>,旧写法只看 id 存不存在就跳过
@@ -421,11 +421,6 @@ window.__ModuleLoader__.load({
     /** 全部界面文案:zh / en。{var} 为插值占位。 */
     const MESSAGES = {
       zh: {
-        // 会话徽章
-        sessionCostTitle: '本会话费用(按每次调用实际时刻精确计费)',
-        sessionDetailTokens: '输入 {input} · 缓存 {cache} · 输出 {output}',
-        sessionDetailCache: '缓存:读 {read} · 写 {write}(写入按命中价计费)',
-        cost: '费用 {amount}',
         sessionLine: '本会话 {amount} · 命中 {hitRate} · 输入 {input} · 缓存 {cache} · 输出 {output}',
         sessionLineCompact: '本会话 {amount}',
         sessionCostCompact: '仅显示金额',
@@ -738,8 +733,6 @@ window.__ModuleLoader__.load({
         // Plan/API 双轨计费与 Token Plan 统计(issue #64)
         sessionLineSplit: '本会话 {amount}(API)· Plan 等值 {planAmount} · 命中 {hitRate} · 输入 {input} · 缓存 {cache} · 输出 {output}',
         sessionLineSplitCompact: '本会话 {amount}(API)· Plan 等值 {planAmount}',
-        costChipPlan: '费用 {amount}(+Plan)',
-        sessionDetailPlan: 'Plan 订阅额度消耗(等值){amount}',
         planStatsTitle: 'Token Plan 用量统计(每 1% 与满窗估算)',
         planStatsEmpty: '尚无 Coding Plan 额度数据；请在「额度」页开启并刷新厂商。',
         planStatsWindow: '窗口',
@@ -918,7 +911,6 @@ window.__ModuleLoader__.load({
         refreshIntervalLabel: '余额刷新间隔(分钟)',
         peakEnabledLabel: '启用 DeepSeek 峰谷时段价格',
         peakNoticeLabel: '峰时高价时段显著提示(侧边栏预算框/今日费用;设置页峰谷面板内预览)',
-        badgeNote: '会话按调用时价格计费(含峰谷与历史档位)。输入、输出、缓存读写分开统计;独立缓存写入价与长上下文档位按配置生效。',
         priceTableTitle: '已挂载的价格表',
         pricingCurrencyLabel: '官方价格币种',
         pricingCurrencyUsd: '美元(英文官方页)',
@@ -963,10 +955,6 @@ window.__ModuleLoader__.load({
         rpcBalanceFailed: '余额刷新调用失败',
       },
       en: {
-        sessionCostTitle: 'Cost of this session (billed exactly at each call time)',
-        sessionDetailTokens: 'Input {input} · Cache {cache} · Output {output}',
-        sessionDetailCache: 'Cache: read {read} · write {write} (writes billed at the hit price)',
-        cost: 'Cost {amount}',
         sessionLine: 'This session {amount} · Hit {hitRate} · Input {input} · Cache {cache} · Output {output}',
         sessionLineCompact: 'This session {amount}',
         sessionCostCompact: 'Show amount only',
@@ -1275,8 +1263,6 @@ window.__ModuleLoader__.load({
         // Plan/API dual-track billing & Token Plan stats (issue #64)
         sessionLineSplit: 'This session {amount} (API) · Plan equiv. {planAmount} · Hit {hitRate} · Input {input} · Cache {cache} · Output {output}',
         sessionLineSplitCompact: 'This session {amount} (API) · Plan equiv. {planAmount}',
-        costChipPlan: 'Cost {amount} (+Plan)',
-        sessionDetailPlan: 'Plan subscription quota usage (equiv.) {amount}',
         planStatsTitle: 'Token Plan usage stats (per-1% & full-window estimates)',
         planStatsEmpty: 'No Coding Plan quota data yet. Enable and refresh a provider under Quotas.',
         planStatsWindow: 'Window',
@@ -1451,7 +1437,6 @@ window.__ModuleLoader__.load({
         refreshIntervalLabel: 'Balance refresh interval (minutes)',
         peakEnabledLabel: 'Use DeepSeek peak-hour prices',
         peakNoticeLabel: 'Prominent notice during peak hours (sidebar budget box, today\'s cost; previewed in the Settings peak panel)',
-        badgeNote: 'Session cost uses call-time prices, including peak and historical rates. Input, output, cache reads and writes are separate; configured cache-write and long-context rates apply.',
         priceTableTitle: 'Mounted price tables',
         pricingCurrencyLabel: 'Official price currency',
         pricingCurrencyUsd: 'USD (English official page)',

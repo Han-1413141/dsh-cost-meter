@@ -43,7 +43,7 @@ let loaded;const api={loadStatistics:()=>loaded??=(async()=>{
  await new Promise((yes,no)=>{const s=document.createElement('script');s.src='/statistics.js';s.onload=yes;s.onerror=no;document.head.append(s)});
  return window.stats.mount({get:n=>n==='remote'?{$mount:async()=>()=>{}}:n==='remote.costMeter'?remote:undefined,effect:()=>{}},state,()=> 'zh')
 })()};
-createRoot(document.getElementById('root')).render(React.createElement(window.main.preview.SessionStatisticsButton,{sessionId:'main',entryPosition:'dock',useCost:()=>({state}),api}));
+createRoot(document.getElementById('root')).render(React.createElement(window.main.preview.SessionStatisticsButton,{sessionId:'main',useCost:()=>({state}),api}));
 window.begin=()=>{window.timing={start:performance.now()};document.querySelector('.cm-stat-entry').click();const poll=()=>{
  const dialog=document.querySelector('dialog[open]');if(dialog&&!window.timing.dialog)window.timing.dialog=performance.now()-window.timing.start;
  const values=[...document.querySelectorAll('.cm-stat-metric .cm-stat-value')].map(n=>n.textContent);

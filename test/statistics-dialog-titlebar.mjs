@@ -106,7 +106,7 @@ const props={sessionId:'synthetic',useCost:()=>({state:{config}}),api:{loadStati
 // session-reset effect runs. Clicking at that point can have its open state reset.
 function App(){
   React.useEffect(()=>{window.fixtureReady=true},[]);
-  return React.createElement(ui.SessionStatisticsButton,{...props,entryPosition:'dock'});
+  return React.createElement(ui.SessionStatisticsButton,{...props});
 }
 createRoot(document.getElementById('root')).render(React.createElement(App));`
 

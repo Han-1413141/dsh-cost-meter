@@ -46,14 +46,14 @@ const StatisticsPage=props=>h(UI.SessionStatistics,{...props,contextIntegration:
 StatisticsPage.prefetch=props=>UI.prefetchStatistics(api,props);
 api.loadStatistics=async()=>StatisticsPage;
 const root=createRoot(document.getElementById('root'));
-window.renderSession=(id='current')=>root.render(h(window.mainUI.preview.SessionStatisticsButton,{sessionId:id,useCost:()=>({state}),api,entryPosition:'dock'}));
+window.renderSession=(id='current')=>root.render(h(window.mainUI.preview.SessionStatisticsButton,{sessionId:id,useCost:()=>({state}),api}));
 window.renderSession();window.fixtureReady=true;
 `
 const compiled = await build({ stdin: { contents: source, resolveDir: process.cwd(), loader: 'js' }, bundle: true, write: false, format: 'iife', platform: 'browser' })
 const html = `<!doctype html><html><head><meta charset="utf-8"><style>
 :root{--dsh-frame-chrome-top:40px;--dsw-alias-label-primary:#25262b;--dsw-alias-label-secondary:#737780;--dsw-alias-label-tertiary:#858a94;--dsw-alias-border-l1:#e5e7eb;--dsw-alias-border-l3:#e5e7eb;--dsw-alias-bg-base:#fff;--dsw-alias-bg-layer-1:#f7f8fa;--dsw-alias-bg-layer-2:#fff;--dsw-alias-state-business-primary:#4d6bfe;--dsw-alias-interactive-bg-hover:#f0f1f4;--ds-font-family-sans:system-ui}
 html[data-theme=dark]{color-scheme:dark;--dsw-alias-label-primary:#ececee;--dsw-alias-label-secondary:#a6a6ad;--dsw-alias-border-l1:#38383c;--dsw-alias-border-l3:#38383c;--dsw-alias-bg-base:#202022;--dsw-alias-bg-layer-1:#29292c;--dsw-alias-bg-layer-2:#29292c;--dsw-alias-state-business-primary:#6a83ff;--dsw-alias-interactive-bg-hover:#38383c}
-body{margin:0;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:13px/1.6 system-ui}header.fixture{height:40px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;background:var(--dsw-alias-bg-layer-1)}main{padding:32px}button{font:inherit}
+body{margin:0;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font:13px/1.6 system-ui}header.fixture{height:40px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;background:var(--dsw-alias-bg-layer-1)}main{padding:32px}button{font:inherit}.cm-stat-header{display:inline-flex!important}
 </style></head><body><header class="fixture"><span>DeepSeek Harness</span><span>—　□　×</span></header><main><h1>查询电脑显卡及 AI 算力</h1><p>本地界面验证 · 示例数据 · 不调用模型</p><div id="root"></div></main><script src="/app.js"></script></body></html>`
 const server = createServer((request, response) => {
   if (request.url === '/app.js') { response.setHeader('content-type', 'application/javascript'); response.end(compiled.outputFiles[0].contents) }

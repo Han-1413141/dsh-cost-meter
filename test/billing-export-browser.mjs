@@ -42,7 +42,7 @@ api.loadStatistics=async()=>{window.chunkLoads++;return Page};
 api.loadCommunity=async()=>()=>null;
 api.loadPricing=async()=>()=>null;
 const root=createRoot(document.getElementById('root'));
-window.render=mode=>root.render(h(React.Fragment,null,h('style',null,window.mainUI.testUI.css),mode==='session'?h(window.mainUI.testUI.SessionStatisticsButton,{key:mode,sessionId:'s0',useCost:()=>({state}),api,entryPosition:'dock'}):h(window.mainUI.testUI.CostSection,{key:mode,useCost:()=>({state}),api})));
+window.render=mode=>root.render(h(React.Fragment,null,h('style',null,window.mainUI.testUI.css),mode==='session'?h(window.mainUI.testUI.SessionStatisticsButton,{key:mode,sessionId:'s0',useCost:()=>({state}),api}):h(window.mainUI.testUI.CostSection,{key:mode,useCost:()=>({state}),api})));
 window.render('settings');`
 const compiled = await build({ stdin: { contents: code, resolveDir: process.cwd(), loader: 'js' }, bundle: true, write: false, format: 'iife', platform: 'browser' })
 const server = createServer((request, response) => {

@@ -41,6 +41,15 @@ export async function checkPlanGauges(page, output) {
       assert.equal(shapes.length, 3)
       assert.ok(shapes.every(r => r.w >= 45 && Math.abs(r.w - r.h) < 1), 'rings stay readable and square')
       assert.ok(shapes.every(r => Math.abs(r.y - shapes[0].y) < 1), 'three windows share a row')
+      const centers = await host.locator('.cm-plan-gauges .cm-mm-row').evaluateAll(rows => rows.map(row => {
+        const ring = row.querySelector('svg').getBoundingClientRect()
+        const range = document.createRange()
+        range.selectNodeContents(row.querySelector('.cm-bbox-pct'))
+        const text = range.getBoundingClientRect()
+        return { label: range.toString(), offset: text.x + text.width / 2 - ring.x - ring.width / 2 }
+      }))
+      if (centers.some(value => Math.abs(value.offset) > 1)) await host.screenshot({ path: join(output, 'plan-gauge-misaligned.png') })
+      assert.ok(centers.every(value => Math.abs(value.offset) <= 1), `quota text centers on its ring: ${JSON.stringify(centers)}`)
     }
     if (layout === 'standard') await host.screenshot({ path: join(output, `plan-gauge-${theme}.png`) })
   }

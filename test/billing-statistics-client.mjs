@@ -213,7 +213,7 @@ vm.runInNewContext(readFileSync(new URL('../lib/client.js', import.meta.url), 'u
 })
 let loadCount = 0
 const requireClient = id => id === 'react' ? React : {}
-const Page = () => null
+const Page = props => { assert.ok(props.state?.meta, 'the statistics page receives the full cost store state, not the merged usage view'); return null }
 requireClient.async = async path => { assert.equal(path, './client.statistics.js'); loadCount++; return { mount: async () => Page } }
 const main = mainFactory(requireClient)
 await main.apply({ remote: { $mount: async () => () => {} }, inject() {}, // No Connection service in this statistics-only fixture.
@@ -224,47 +224,71 @@ await main.apply({ remote: { $mount: async () => () => {} }, inject() {}, // No 
 })
 await flush()
 assert.equal(loadCount, 0, 'opening a conversation does not read its full usage log')
-const dock = registrations.get('conversation.composer.dock:cost-meter-statistics')
-assert.ok(dock, 'entry remains available below the composer independently of header chrome or cost badge settings')
-assert.equal(dock.options.order, 1, 'details follow native stats (order 0), before cost and quota chips')
-assert.ok(registrations.has('conversation.session.header.actions:cost-meter-statistics'))
+const dock = registrations.get('conversation.composer.dock:cost-meter')
+assert.ok(dock, 'the composer dock row owns the session-cost entry')
+assert.equal(dock.options.order, 5, 'the cost row follows native activity and usage stats')
+assert.equal(registrations.has('conversation.composer.dock:cost-meter-statistics'), false, 'no separate composer details button anymore')
+assert.ok(registrations.has('conversation.session.header.actions:cost-meter-statistics'), 'the header keeps its details entry')
 const injected = dock.options.inject()
 let snapshot = injected.hooks.cost.getSnapshot()
-const entry = mount(dock.component, { sessionId: 'selected-conversation', useCost: () => snapshot, api: injected.api })
+const ledger = { own: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, cost: 0 }, subagents: {}, found: true, subagentCount: 0 }
+const entry = mount(dock.component, { sessionId: 'selected-conversation', useCost: () => snapshot,
+  api: { ...injected.api, getSessionCost: async () => ledger } })
+await flush()
+const rowButton = () => nodes(entry.tree).find(n => n.type === 'button' && /cm-dp/.test(n.props.className || ''))
+const dialogSlot = () => nodes(entry.tree).find(n => typeof n.type === 'function' && n.props && 'open' in n.props)
+assert.ok(rowButton(), 'the composer row renders as one clickable entry')
+const rowSymbol = nodes(rowButton()).find(n => n.type === 'span' && n.props.className === 'cm-dsym')
+assert.ok(rowSymbol && text(rowSymbol) === '$', 'the row starts with the configured currency symbol')
+assert.match(text(rowButton()), /·/, 'the amount and the details action are joined by ·')
+assert.equal(rowButton().props['aria-haspopup'], 'dialog')
+assert.equal(rowButton().props['aria-expanded'], false)
+for (const symbol of ['.', '1', '¥']) {
+  const currencySnapshot = { ...snapshot, state: { ...snapshot.state,
+    config: { ...config, currency: 'custom', symbol, exchangeRate: 1, decimals: 4 } } }
+  const currencyEntry = mount(dock.component, { sessionId: 'currency-' + symbol, useCost: () => currencySnapshot,
+    api: { ...injected.api, getSessionCost: async () => ({ ...ledger, own: { ...ledger.own, cost: 1.2345 } }) } })
+  await flush()
+  const label = nodes(currencyEntry.tree).find(node => node.props.className === 'cm-dl')
+  assert.match(text(label), /1\.2345/, 'custom currency symbols preserve every amount digit and the decimal point')
+  currencyEntry.dispose()
+}
 const headerSlot = registrations.get('conversation.session.header.actions:cost-meter-statistics')
 const headerEntry = mount(headerSlot.component, { ...headerSlot.options.inject(), sessionId: 'selected-conversation', useCost: () => snapshot })
 assert.match(nodes(headerEntry.tree).find(n => n.type === 'button').props.className, /cm-stat-header/)
 snapshot = { ...snapshot, state: { ...snapshot.state, config: { ...config, hideSessionCostHeader: true } } }
 headerEntry.render(); entry.render()
 assert.equal(headerEntry.tree, null)
-assert.ok(entry.tree, 'header switch leaves composer entry available')
+assert.ok(entry.tree, 'header switch leaves the composer row available')
 snapshot.state.config = { ...config, hideSessionCostDock: true }
 headerEntry.render(); entry.render()
 assert.ok(headerEntry.tree)
 assert.equal(entry.tree, null)
 snapshot.state.config = config; entry.render()
-click(entry, '费用明细')
-assert.equal(entry.modalShown, true)
-let content = nodes(entry.tree).find(n => typeof n.type === 'function')
+rowButton().props.onClick(); entry.render()
+assert.equal(dialogSlot().props.open, true, 'clicking anywhere on the row opens the details dialog')
+assert.equal(dialogSlot().props.state, snapshot.state, 'the dialog receives the full cost store state, not the merged usage view')
+const dialogOwner = mount(dialogSlot().type, dialogSlot().props)
+assert.equal(nodes(dialogOwner.tree).some(n => n.type === 'dialog'), true, 'the shared dialog component renders the modal')
+let content = nodes(dialogOwner.tree).find(n => typeof n.type === 'function')
 assert.equal(content.props.sessionId, 'selected-conversation')
 const lazy = mount(content.type, content.props); await flush()
 assert.equal(loadCount, 1)
 assert.equal(lazy.tree.type, Page)
 assert.equal(lazy.tree.props.sessionId, 'selected-conversation')
+dialogSlot().props.onClose(); entry.render()
+assert.equal(dialogSlot().props.open, false, 'the close button dismisses the row dialog')
 entry.props = { ...entry.props, sessionId: 'different-conversation' }; entry.render()
-assert.equal(nodes(entry.tree).some(n => n.type === 'dialog'), false, 'switching sessions closes the old detail dialog')
-click(entry, '费用明细')
-assert.equal(nodes(entry.tree).find(n => typeof n.type === 'function').props.sessionId, 'different-conversation')
-nodes(entry.tree).find(n => n.type === 'dialog').props.onCancel(); entry.render()
-assert.equal(nodes(entry.tree).some(n => n.type === 'dialog'), false, 'Escape closes the modal')
+assert.equal(dialogSlot().props.open, false, 'switching sessions closes the old detail dialog')
 snapshot = { state: null, error: 'offline' }; entry.render()
-click(entry, '费用明细')
-assert.match(text(entry.tree), /offline/, 'failed initial RPC does not silently hide the entry')
-assert.ok(nodes(entry.tree).some(n => n.type === 'button' && text(n) === '重试'))
+assert.match(text(entry.tree), /offline/, 'failed initial RPC does not silently hide the row')
+rowButton().props.onClick(); entry.render()
+const errorDialog = mount(dialogSlot().type, dialogSlot().props)
+assert.ok(nodes(errorDialog.tree).some(n => n.type === 'button' && text(n) === '重试'))
 snapshot = { state: { config: { ...config, hideSessionCostDock: true } } }; entry.render()
 assert.equal(entry.tree, null, 'hiding an open entry closes its modal')
 snapshot.state.config = config; entry.render()
-assert.equal(nodes(entry.tree).some(n => n.type === 'dialog'), false, 're-enabling the entry does not reopen an old dialog')
+assert.equal(dialogSlot().props.open, false, 're-enabling the entry does not reopen an old dialog')
 let turnRequests = []
 snapshot.state.config = { ...config, hideTurnCost: true }
 const turnSlot = registrations.get('conversation.chat.turnTail:cost-meter-turn')
