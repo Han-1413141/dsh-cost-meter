@@ -65,7 +65,7 @@ The built-in read-only catalog is grouped by **vendor → model family**, contai
 | MiniMax | M3.1 Flash, M3, M2.7, M2.5 |
 | Xiaomi MiMo | V2.6 (Pro / Flash / Pro UltraSpeed), V2.5 (+Pro, officially marked as retiring soon) |
 | Tencent Hunyuan | Hy4 preview, Hy3 |
-| OpenRouter / Mistral / NVIDIA / Upstage | common models |
+| OpenRouter / Mistral / NVIDIA / Upstage | common models; Mistral also resells `zai-glm-5-3-flash` and `deepseek-v4-1-flash-1017` at Mistral's own rates |
 | **OpenCode Go (subscription)** | subscription reference prices, including Go-specific DeepSeek peak/off-peak tiers |
 
 Price sources: cross-checked against each direct vendor's official API prices and the **separate OpenCode Zen/Go route price lists** (route prices may differ); entries without a verified complete billing rule (e.g. direct API GPT-5.5 Pro) are marked `unpriced` — **prices are never invented**. A machine-readable copy is [`provider-pricing.json`](./provider-pricing.json) (auto-generated from code).
