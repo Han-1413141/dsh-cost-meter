@@ -179,7 +179,9 @@ try {
   await page.getByLabel('调整组件', { exact: true }).selectOption('codex')
   await page.getByRole('switch', { name: '显示此组件', exact: true }).check()
   await page.waitForFunction(() => window.current().config.codexQuotaEnabled === true && window.current().config.codexQuotaSidebar === true)
-  for (let retry = 0; retry < 30 && JSON.parse(readFileSync(join(dir, 'ledger.json'), 'utf8')).config.codexQuotaEnabled !== true; retry++) await new Promise(done => setTimeout(done, 50))
+  // Ledger writes are coalesced for two seconds; wait for persistence rather
+  // than racing it with the old 1.5-second deadline, including worker startup.
+  for (let retry = 0; retry < 200 && JSON.parse(readFileSync(join(dir, 'ledger.json'), 'utf8')).config.codexQuotaEnabled !== true; retry++) await new Promise(done => setTimeout(done, 50))
   assert.equal(JSON.parse(readFileSync(join(dir, 'ledger.json'), 'utf8')).config.codexQuotaEnabled, true, '#350 writes the master switch to the real ledger')
   await page.reload(); await display(); await page.getByLabel('调整组件', { exact: true }).selectOption('codex')
   assert.equal(await page.getByRole('switch', { name: '显示此组件', exact: true }).isChecked(), true, '#350 survives client reload')
