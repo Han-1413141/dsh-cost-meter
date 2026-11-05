@@ -1801,7 +1801,8 @@
       // 没有 store 状态的加载/错误仍保留可点击入口,以便弹窗内重试。
       if (config && status) return el(Fragment, null,
         el('span', { className: 'cm-dp-status', role: 'status', title: status }, status), dialog)
-      const { cost, planPart } = usage ? sessionCostParts(usage, config) : { cost: 0, planPart: 0 }
+      // 恢复会话时投影可能先于配置到达;此时只显示加载/错误提示，避免渲染异常使宿主停用入口。
+      const { cost, planPart } = usage && config ? sessionCostParts(usage, config) : { cost: 0, planPart: 0 }
       const values = {
         amount: formatMoneyUsd(cost, config),
         planAmount: formatMoneyUsd(planPart, config),

@@ -94,6 +94,23 @@ const config = sanitizeConfig({ locale: 'en', currency: 'USD', symbol: '$', exch
 const usage = (input, cost, apiCost) => ({ input, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, cost, ...(apiCost === undefined ? {} : { apiCost }) })
 const snapshot = (own, subagents = usage(0, 0, 0), found = true) => ({ own, subagents, found, subagentCount: subagents.input > 0 ? 1 : 0 })
 const e = environment()
+// A restored conversation can supply its projection before the first config RPC.
+// Crashing here makes the host retire this slot even after the config arrives.
+for (const frozen of [false, true]) {
+  let value = { state: null, error: null }
+  const p = { sessionId: 'restored', useProjection: () => ({ ...usage(100, 5, 3), ...(frozen ? { costCny: 35, apiCostCny: 21 } : {}) }),
+    useCost: pick => pick(value) }
+  const dock = e.mount(e.ui.DockLine, p)
+  assert.match(textOf(dock.tree), /Loading|加载中/)
+  assert.doesNotMatch(textOf(dock.tree), /This session 0|本会话 0/, 'a missing config must not display a fabricated zero')
+  value = { state: null, error: 'Configuration temporarily unavailable' }
+  dock.render()
+  assert.match(textOf(dock.tree), /Configuration temporarily unavailable/)
+  value = { state: { config, meta: { now: 1 } } }
+  dock.render()
+  assert.match(textOf(dock.tree), /This session 3/, 'the same mounted entry recovers once config is ready')
+  dock.dispose()
+}
 const inheritedTurn = { found: false, inherited: true, cost: 0, apiCost: 0, rows: [], calls: [] }
 const proxyMetering = { source: 'billion-context', requestId: 'id', attempt: 2, complete: false, status: 'cancelled', upstream: 'https://api.example.com' }
 const proxyCall = { kind: 'model', provider: 'fixture', model: 'm', atMs: 1, cost: 0, apiCost: 0, plan: false, priced: true, longContext: false, rows: [], metering: proxyMetering }

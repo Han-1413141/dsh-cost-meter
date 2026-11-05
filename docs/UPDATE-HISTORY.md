@@ -1,5 +1,14 @@
 # dsh-cost-meter 版本更新历史
 
+## v1.9.58(2026-11-05)—— 会话费用入口消失修复
+
+- 修复恢复会话或重新加载插件时，用量先于设置到达导致费用组件报错、输入框下方金额入口消失的问题。
+- 设置尚未就绪时保留加载或错误提示，设置到达后正常显示已记录的金额；标题栏入口同步修复，保留手动隐藏设置。
+- 增加配置延迟、失败后恢复、账本先返回、固定汇率金额及切换会话的回归验证，并在 DSH 0.2.2-alpha.3 的错误边界中检查实际 React 渲染。
+- Keep the session-cost entry mounted when usage arrives before configuration; recover the recorded amount after loading without changing explicit visibility preferences.
+
+[更新说明](update-notes-1.9.58.md)
+
 ## v1.9.57(2026-11-04)—— 桌面更新退出超时修复
 
 - 修复历史回填已经开始后仍阻止 Desktop Host 退出、导致客户端更新等待超时的问题。退出时取消扫描，等待读取结束和文件关闭，再保存账本。

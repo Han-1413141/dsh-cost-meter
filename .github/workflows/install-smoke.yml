@@ -356,6 +356,7 @@ jobs:
         run: |
           export DSH_TEST_NODE_MODULES="$PWD/.tmp-next-host/node_modules"
           export DSH_TEST_UI_MODULES="$DSH_TEST_NODE_MODULES"
+          node test/session-cost-startup.mjs
           export DSH_CONTEXT_068="$PWD/.tmp-context-068/package/lib/client.js"
           export CM_TEST_BROWSER=/usr/bin/google-chrome
           mkdir -p .tmp-context-068
