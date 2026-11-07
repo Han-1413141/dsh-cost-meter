@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- 修复切到会话时多个回合同时查询费用、每次都重扫该会话的代理计费目录与调用日志（单会话约 500ms，一次切换并发 3 条）导致的界面卡顿：live 会话的用量行按会话日志版本（session.seq）缓存，代理计费明细按会话记忆化并共享 in-flight 读取，日志推进或计费文件变化后自动失效。
+- Cache live session usage rows per session log revision (session.seq) and memoize per-session proxy billing records, sharing the in-flight read, so switching a conversation no longer rescans the billing directory once per turn card; both caches invalidate when session events or billing files change.
+
 ## [1.9.58] - 2026-11-05
 
 - 修复恢复会话或重新加载插件时，用量先于设置到达导致费用组件报错、输入框下方金额入口消失的问题。
