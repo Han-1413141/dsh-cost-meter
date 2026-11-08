@@ -75,7 +75,9 @@ See [features and screenshots](docs/features.en.md) for entry points and [model 
 | Cost trends and model ranking | Conversation cost distribution |
 |---|---|
 | [![Cost trends](docs/images/statistics.png)](docs/images/statistics.png) | [![Conversation treemap](docs/images/treemap.png)](docs/images/treemap.png) |
+
 | Subscription quotas and balances | Display settings and interactive preview |
+|---|---|
 | [![Quotas and balances](docs/images/quotas.png)](docs/images/quotas.png) | [![Display settings](docs/images/display.png)](docs/images/display.png) |
 
 Select an image for full resolution. [More views: call details, prices, history, dark themes and mobile](docs/features.en.md).

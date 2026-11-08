@@ -1,67 +1,50 @@
-# 架构、开发与已知限制
+# 架构与开发
 
-插件的文件结构、数据通道、本地调试与回归命令，以及已知的限制。
+[English](architecture.en.md) · [贡献指南](../CONTRIBUTING.md)
 
-## 架构
+## 文件结构
 
-![架构与数据流](diagram-architecture.zh.svg)
+| 路径 | 职责 |
+|---|---|
+| `lib/bootstrap.js`、`lib/index.js` | 插件入口、宿主服务、用量采集与查询 |
+| `lib/pricing.js`、`lib/provider-prices*.js` | 价格匹配、币种、倍率、峰谷与厂商目录 |
+| `lib/store.js`、`lib/ledger-writer-worker.js` | 配置、账本保存与写入任务 |
+| `lib/backfill.js`、会话存储适配模块 | 历史导入、JSONL / SQLite 会话读取 |
+| `src/client/` | 浏览器主界面源码 |
+| `src/statistics/`、`src/pricing/`、`src/display/` 等 | 按需加载的统计、价格、显示等页面 |
+| `lib/client*.js` | 构建后的浏览器模块 |
+| `lib/typert.host.js` | `costMeter` RPC 清单 |
+| `test/`、`.github/workflows/` | 模块回归、浏览器验证、安装与兼容性检查 |
 
-```
-dsh-cost-meter
-├── cordis.patch.yml        # bundle 补丁:向 web profile 插入 cost-meter 行
-├── install.ps1             # 一键安装/更新脚本(irm … | iex)
-├── .github/workflows/      # CI:install-smoke 一键安装冒烟验证
-├── package.json            # dsh.bundle 补丁声明 + dsh.client 浏览器声明
-└── lib/
-    ├── bootstrap.js        # Plugin entry and host initialization
-    ├── index.js            # 宿主插件:llm/stream 计费包裹、costUsage 会话投影、
-    │                       #   costMeter 服务(手写 typertRemote 绑定)、余额查询
-    ├── backfill.js         # 历史账本按模型回填:回放会话日志重建旧账本缺失的
-    │                       #   byProviderModel(拼接 zstd frame 扫描 + 逐帧解压)
-    ├── pricing.js          # 官方价格表、官方页面 HTML 解析、峰谷计费数学
-    ├── store.js            # 账本持久化与配置管理($DSH_HOME/storages/cost-meter)
-    ├── typert.host.js      # ./typert 导出:Typert 清单(typert-loader 自动注册)
-    └── client.js           # ./client 导出:浏览器单文件 bundle(徽章/图框/设置页)
-```
+## 数据流
 
-数据通道:
+宿主调用用量进入计费服务，按渠道、模型及调用时刻的价格规则写入账本。会话费用入口读取宿主用量和账本金额，调用详情使用保存的价格版本。API 金额和 Plan 等值分别统计，子代理保留独立归属。
 
-- **本会话费用**:宿主注册 `costUsage` 会话投影(纯 token 桶 + 按模型拆分),浏览器读取宿主用量与账本金额，明细按调用时刻的价格版本计价;
-- **全局账本 / 预算 / 余额 / 配置**:`costMeter/getState | updateConfig | fetchPrices | refreshBalance | resetHistory`,经 Typert 网关 RPC(`remote.costMeter.*`);
-- **余额**:调用官方 `GET {baseURL}/user/balance`,复用模型请求的同一把 API Key(凭证服务/环境变量),进程内缓存按 `refreshMinutes` 过期。
+浏览器通过 Typert RPC 读取状态、更新配置、查询额度及打开明细。主界面与统计、价格等页面分模块加载，构建脚本检查每个客户端文件的宿主体积限制。
 
-插件不导入 cordis/dsh 的 Service/Context 运行时类(仅 Node 内建模块、zod、dsh-home-paths、dsh-credentials 的纯函数),与宿主共享同一运行时实例,无重复依赖风险。
+官方余额优先使用专用余额凭据；账号登录模式可读取宿主钱包服务，其他情况按配置解析模型凭据。套餐和自定义余额各自读取已启用的数据源。凭据来源和优先级见[余额凭据说明](balance-credentials.md)。
 
-## 开发与验证
+## 本地开发
 
 ```sh
-corepack pnpm install --frozen-lockfile                                   # 依赖
-node --check lib/index.js && node --check lib/pricing.js \
-  && node --check lib/store.js && node --check lib/typert.host.js \
-  && node --check lib/client.js                         # 语法检查
+corepack pnpm install --frozen-lockfile
 npm run build
-node test/verify.mjs                                    # 纯模块验证(解析/计费/账本/配置)
-node test/mock-balance.mjs                              # (可选)本地余额接口模拟:3101
-dsh --profile web --dump-config                         # 组合树校验
-dsh --profile web --port 3099                           # 真机启动(观察启动日志与 UI)
+node test/verify.mjs
 ```
 
-## 已知限制
+在仓库父目录将插件链接到开发用 Profile：
 
-打开费用设置后若侧栏出现加载占位条与「No matching sessions」，请先查看
-[无损侧栏搜索恢复说明](session-sidebar-recovery.md)，检查宿主搜索内容，
-不要删除会话、账本或浏览器存储。
+```sh
+dsh plugin --profile web add link:./dsh-cost-meter
+dsh web
+```
 
-- 历史按模型回填依赖宿主会话日志仍在盘:日志已被清理的早期调用无法逐模型重建,只能以「未分模型」残差行计入当日合计;
-- 官方页面解析依赖当前页面结构;改版后「从官方文档同步价格」会报错,可手动编辑价格表;
-- 会话徽章在账本数据不可用时的回退估算按「当前时刻」的价格档位给该会话全部调用定价(含 Plan 类会话):跨峰谷时段的会话在峰时会高估其谷时部分,精确费用以账本为准(账本按每次调用的发起时刻逐笔计价);
-- 价格同步会覆盖官方页面列出的同名模型价格,自定义模型条目不受影响;
-- 余额查询需要可访问 api.deepseek.com 的网络与有效 API Key;**API Key 只会发往官方域名**(baseURL 指向非官方域名时余额查询拒绝请求,模型请求不受影响);
-- OpenCode Go 额度接口为 opencode.ai 官方端点(社区文档);接口结构变化时设置页会显示错误,可在显示设置中关闭该显示;
-- Token Plan 统计的「每 1% 额度/满窗」为估算值:各家额度接口只返回百分比且读数存在个位级量化(显示 1% 的真实值可能在 0.5%~1.5%),插件以连续可信段的首尾差分推算以压低量化误差(跨度不足 5 个百分点时标注「读数精度受限」,样本超 7 天回退当前用量折算,窗口边界按小时对齐);服务端百分比统计的是该账号全部用量——同一 Key 在其它机器/CLI 的消耗不在本地账本,估算偏低属预期,用于比较套餐用量;
-- Plan/API 双轨分类基于渠道与配置推断,混合订阅/按量使用同一厂商 Key 的场景(如 Kimi 订阅 + PAYG 混用)可在设置中按 provider:model 手动覆盖。
-- 安装/更新插件后需重启 `dsh web` 生效。
+修改 `src/` 后重新构建。宿主代码修改后重启 DSH；浏览器模块修改后刷新页面。浏览器及真实发布包回归所需环境变量见对应测试文件与 `.github/workflows/install-smoke.yml`。
 
-## English
+## 数据与接口条件
 
-见 [architecture.en.md](architecture.en.md)。
+- 历史重建依赖保留的会话日志；已清理的早期明细按现有汇总保留。
+- 套餐接口显示账号总用量，本地账本按收到的调用记录统计；额度百分比换算采用[套餐统计方法](token-plan-stats.md)。
+- 官方价格或额度接口发生变化时，界面报告查询错误并保留已有价格或结果。
+- 混用订阅和按量渠道时，可按渠道或模型设置计费归属。
+- 安装问题见[排障说明](install-troubleshooting.md)，侧栏搜索异常见[会话恢复](session-sidebar-recovery.md)。

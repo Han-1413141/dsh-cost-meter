@@ -72,13 +72,13 @@ DSH 的 `SlotOutlet` 会添加 `<div data-slot="sidebar.footer.action" style="di
 
 - 服务端使用纯 ESM；客户端源文件位于 `src/client/`，运行 `npm run build` 后生成单文件 `lib/client.js`，提交时须包含更新的产物，不直接编辑生成文件。客户端遵循现有手写 React(`el(...)`)+ CSS 变量(`--dsw-alias-*`)风格；
 - 注释跟随现有密度与语气,解释「为什么」而非复述代码;
-- 金额恒以美元存储,币种/汇率只在展示层换算。
+- 账本保存 USD 成本及调用发生时的 CNY/EUR 金额；更新汇率保留历史金额。
 
 ## 文档与翻译
 
-README / README.en 与 `docs/` 下的说明(适配文档、更新历史、release notes 等)都欢迎改进。中英请保持对应。
+README.md / README.zh-CN.md 与 `docs/` 下的说明(适配文档、更新历史、release notes 等)都欢迎改进。中英请保持对应。
 
-功能说明按语言拆在两个文件里：中文为 `docs/xxx.md`，英文为 `docs/xxx.en.md`；改功能或改截图时两份都要同步。README 只保留核心卖点、安装命令与文档索引，细节写进对应的 `docs/` 页面。
+功能说明按语言拆在两个文件里：中文为 `docs/xxx.md`，英文为 `docs/xxx.en.md`；改功能或改截图时两份都要同步。README 只保留主要功能、安装命令与文档索引，细节写进对应的 `docs/` 页面。
 
 ## 许可
 

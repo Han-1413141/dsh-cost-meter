@@ -1,8 +1,8 @@
 # Installation and updates
 
-> Requirements: Node.js ≥ 20 + DeepSeek Harness (a version with the `dsh plugin` command; `npm install -g @deepseek-ai/dsh`) + **pnpm on the DSH process's PATH**, including npm-name installs and Plugin Hub installs. Node.js ≥ 22.13 is recommended for the pinned pnpm 11 below; Node.js 20 users can use pnpm 10.
+> Requirements: Node.js ≥ 20 + DeepSeek Harness (a version with the `dsh plugin` command; `npm install -g @deepseek-ai/dsh`) + **pnpm on the DSH process's PATH**, including npm-name installs and Plugin Hub installs. The pinned pnpm 11 below requires Node.js ≥ 22.13; Node.js 20 users can use pnpm 10.
 
-### One-click install (recommended)
+## One-click install (recommended)
 
 **First-time setup on macOS / Linux:** install pnpm in the terminal you use to start DSH (the same commands also work on Windows):
 
@@ -43,23 +43,28 @@ After installing, **restart** `dsh web` (plugin rows, the Typert manifest and th
 dsh web
 ```
 
-### Update / Uninstall
+## Update / Uninstall
 
 ```sh
-# update: re-run the new release's install.ps1 (the pinned tag inside it moves with the release)
+# update to the latest npm release
+dsh plugin --profile web add dsh-cost-meter@latest
 dsh plugin --profile web remove dsh-cost-meter  # uninstall
 ```
 
 Installation errors and plugins still disabled after reinstall: see [troubleshooting](install-troubleshooting.md).
 
-### Local development
+## Local development
 
 ```sh
 git clone https://github.com/Han-1413141/dsh-cost-meter.git
 cd <parent directory of the clone>
-dsh plugin --profile web add link:./dsh-cost-meter  # symlink; edit lib/client.js, refresh the page, done
+dsh plugin --profile web add link:./dsh-cost-meter  # link the source directory
 ```
 
+
+Run `npm run build` after editing `src/`, then refresh the page. Restart DSH after host-code changes.
+
+The Windows installer installs pnpm 11 when pnpm is missing. On Node.js 20, install pnpm 10 before running the script.
 
 ## Desktop
 

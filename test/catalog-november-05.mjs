@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import {readFileSync} from 'node:fs'
+import {readFileSync,readdirSync} from 'node:fs'
+import vm from 'node:vm'
 import {DEFAULT_PROVIDER_PRICE_TABLE,providerPriceEntryFor,tierFor,buildPriceCatalog,upgradeProviderPriceCatalog20261105} from '../lib/pricing.js'
 import {VERIFIED_PROVIDER_PRICES,PROVIDER_PRICES_BEFORE_2026_11_05} from '../lib/provider-prices.js'
 import {defaultConfig} from '../lib/store.js'
@@ -94,4 +95,41 @@ assert.equal(quote('ollama-cloud',tagged,{},frozen).priced,false,'v1.9.16 matchi
 assert.equal(quote('ollama-cloud',tagged,{},frozen).entry,null)
 // A mistral-hosted route still gets Mistral's own rate for the same model family.
 assert.equal(quote('mistral-vibe','deepseek-v4-1-flash-1017',{mode:'auto'}).entry.cacheMiss,.3)
-console.log('[ok] November 5 catalog: Mistral-hosted GLM 5.3 Flash and DeepSeek V4.1 Flash 1017 rates, vendor-prefix and custom-route resolution, Ollama tag disambiguation, restore list and one-time migration')
+
+// 7. A date suffix must not disable established aliases from unrelated vendors.
+//    Exercise browser resolution as well as ledger resolution, using the actual source factory.
+const dir=new URL('../src/client/',import.meta.url)
+const source=readdirSync(dir).filter(n=>n.endsWith('.js')).sort().map(n=>readFileSync(new URL(n,dir),'utf8')).join('')
+let factory
+vm.runInNewContext(source.replace('exports.apply = apply','exports.catalogPricing = { resolveClientPrice, normalizeClientPrice }; exports.apply = apply'),{
+ window:{__ModuleLoader__:{load:value=>{factory=value.factory}},localStorage:{getItem:()=>null}},navigator:{language:'en'},
+})
+const client=factory(()=>({})).catalogPricing
+function checkBoth(provider,model,expected,mode='flat',prices=config.prices){
+ const host=quote(provider,model,{mode:'auto'},prices)
+ const front=client.resolveClientPrice(provider,model,{...config,prices})
+ assert.equal(host.priced,expected!==null,'host: '+provider+':'+model)
+ assert.equal(front.priced,host.priced,'browser priced: '+provider+':'+model)
+ assert.equal(host.billingMode,mode,'host mode: '+provider+':'+model)
+ assert.equal(front.billingMode,mode,'browser mode: '+provider+':'+model)
+ if(expected){
+  assert.deepEqual(rates(host),expected,'host rates: '+provider+':'+model)
+  assert.deepEqual(rates({entry:client.normalizeClientPrice(front.entry)}),expected,'browser rates: '+provider+':'+model)
+ }
+}
+for(const id of ['GPT-4-0613','gpt_4_0613','GPT-3.5-TURBO-0125','GROK-4.20-MULTI-AGENT-0309']){
+ const previous=quote('custom',id,{mode:'auto'},before)
+ assert.equal(previous.priced,true,'existing dated alias: '+id)
+ checkBoth('custom',id,rates(previous))
+}
+// Mistral route aliases and explicit vendor namespaces retain Mistral's flat rates.
+for(const provider of ['mistral-vibe','mistral-api']){
+ for(const model of ['deepseek-v4-1-flash-1017','DeepSeek-V4-1-Flash-1017','deepseek-v4.1-flash-1017']){
+  checkBoth(provider,model,[.3,.007,1.2])
+ }
+}
+checkBoth('custom','mistral/deepseek-v4-1-flash-1017',[.3,.007,1.2])
+checkBoth('custom','mistral:DeepSeek-V4-1-Flash-1017',[.3,.007,1.2])
+checkBoth('ollama-cloud',tagged,[.15,.003,.6],'deepseek-peak')
+checkBoth('ollama-cloud',tagged,null,'flat',frozen)
+console.log('[ok] November 5 catalog: Mistral rates and aliases, existing dated aliases, host/browser parity, Ollama tag disambiguation, restore list and one-time migration')

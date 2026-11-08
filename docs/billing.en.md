@@ -24,9 +24,9 @@ See [custom rates](custom-model-prices.md), [channel schedules](provider-peak-sc
 
 ## Currency, synchronization and history
 
-Base ledger amounts use USD; display currency follows the configured exchange rate. DeepSeek maintains separate official USD and CNY rates. For a CNY account, select CNY under Cost → Prices before synchronizing. See [currency and settlement](billing-currency.md#english).
+The ledger stores USD costs and the CNY/EUR amounts recorded at call time. Historical statistics use those saved amounts; updating today’s exchange rate does not reprice past calls. See [daily exchange rates and historical amounts](exchange-rates.md). DeepSeek maintains separate official USD and CNY rates. For a CNY account, select CNY under Cost → Prices before synchronizing. See [currency and settlement](billing-currency.md#english).
 
-DeepSeek prices are parsed from official pages; OpenRouter uses its public catalog. Parsing failures retain existing rates. A partial official table cannot change the table currency. Custom models and channel rules follow the [synchronization rules](official-price-sync-safety.md#english).
+DeepSeek prices are parsed from official pages; OpenRouter uses its public catalog. Parsing failures retain existing rates. Synchronization is rejected when a currency change would use an incomplete official table. Custom models and channel rules follow the [synchronization rules](official-price-sync-safety.md#english).
 
 Rate, multiplier and mapping changes apply to subsequent calls. [Explicit historical repricing](model-history-repricing.md) requires confirmation and retains a backup, original amounts and price versions; records with incomplete logs are skipped.
 
@@ -35,7 +35,7 @@ Rate, multiplier and mapping changes apply to subsequent calls. [Explicit histor
 - The ledger lives at `$DSH_HOME/storages/cost-meter/ledger.json`, using atomic writes and batched saves. See [retention and cleanup](pricing-history-storage.md).
 - Credentials are stored through DSH credentials, excluded from ledger files and browser state, and never echoed back by the input fields. See [credential sources](balance-credentials.md).
 - Configuration saves automatically. Balance and quota requests follow each source’s enable switch and refresh interval.
-- Tokens per 1% or full quota window are estimates based on quota readings and local usage. Usage from other tools on the same account affects the ratio. See [estimation details](token-plan-stats.md#english).
+- Tokens and equivalent costs per 1% of quota and for the full quota window are estimated from quota readings and local usage. Usage from other tools on the same account affects the ratio. See [estimation details](token-plan-stats.md#english).
 
 ## Price references
 

@@ -245,7 +245,9 @@ for (const [label, windows] of cases) {
   assert.match(railText, new RegExp(expectedRail.replace(' ', '\\s+')), label + ':收窄侧栏百分比')
 }
 
-// 没有任何可用窗口时不出卡(与 CodingPlanBox 的既有约定一致)。
-assert.equal(ui.CodingPlanBox({ id: 'clinepass', state: stateWith({}) }), null, '无窗口不出空卡')
+// 空响应保留卡片与重试入口，不伪造额度进度。
+const emptyCard = ui.CodingPlanBox({ id: 'clinepass', state: stateWith({}) })
+assert.match(textOf(emptyCard), /暂无额度数据/)
+assert.equal(rowsOf(emptyCard).length, 0, '无窗口不渲染额度进度')
 
 console.log('[ok] Cline Pass: adapter, partial windows, wiring and one-card rendering')

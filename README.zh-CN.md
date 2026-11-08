@@ -61,12 +61,12 @@ dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.59
 
 | 功能 | 说明 |
 |---|---|
-| 会话费用与调用明细 | 输入区、标题栏和每轮回复显示费用；展开查看单价、Token、输入内容及工具结果。支持父子代理费用归属。 |
-| 费用统计与导出 | 按日期、渠道和模型筛选，查看趋势、模型排行、缓存命中率与 Token 热图；导出单个或全部会话记录。 |
-| 套餐额度与账户余额 | 支持 Codex / ChatGPT、OpenCode Go、MiniMax、Claude、GLM、Kimi、千问、MiMo、OpenDesign 等；提供 CLIProxyAPI 多账号额度及自定义 HTTP 余额查询。 |
-| 多厂商价格管理 | 自动匹配模型价格，编辑单价、倍率及峰谷档位；同步 DeepSeek 官方价格和 OpenRouter 目录。API 与 Plan 分开统计。 |
-| 预算与峰谷提醒 | 按日、月、累计或自定义日期设预算；显示峰谷时段和倒计时，支持切换前弹窗与系统通知。 |
-| 显示与历史管理 | 自定义侧栏、输入区、额度横条和每轮费用；支持中英双语、深色主题和手机端。可导入历史、设置保留范围及管理存储。 |
+| 费用明细 | 输入区、标题栏和每轮回复显示费用；展开查看单价、Token、输入内容及工具结果。支持父子代理费用归属。 |
+| 费用统计 | 按日期、渠道和模型筛选，查看趋势、模型排行、缓存命中率与 Token 热图；导出单个或全部会话记录。 |
+| 套餐额度 | 支持 Codex / ChatGPT、OpenCode Go、MiniMax、Claude、GLM、Kimi、千问、MiMo、OpenDesign 等；提供 CLIProxyAPI 多账号额度及自定义 HTTP 余额查询。 |
+| 模型定价 | 自动匹配模型价格，编辑单价、倍率及峰谷档位；同步 DeepSeek 官方价格和 OpenRouter 目录。API 与 Plan 分开统计。 |
+| 预算提醒 | 按日、月、累计或自定义日期设预算；显示峰谷时段和倒计时，支持切换前弹窗与系统通知。 |
+| 显示与历史 | 自定义侧栏、输入区、额度横条和每轮费用；支持中英双语、深色主题和手机端。可导入历史、设置保留范围及管理存储。 |
 
 功能入口和配置见[功能与截图](docs/features.md)；厂商、模型及凭据要求见[适配说明](docs/model-and-plan-adaptation.md)。
 
@@ -75,7 +75,9 @@ dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.59
 | 费用趋势与模型排行 | 单个会话费用分布 |
 |---|---|
 | [![费用趋势与模型排行](docs/images/statistics.png)](docs/images/statistics.png) | [![会话费用矩形图](docs/images/treemap.png)](docs/images/treemap.png) |
+
 | 套餐额度与余额 | 显示设置与交互预览 |
+|---|---|
 | [![套餐额度与余额](docs/images/quotas.png)](docs/images/quotas.png) | [![显示设置与交互预览](docs/images/display.png)](docs/images/display.png) |
 
 点击图片查看大图。[更多界面：调用详情、价格、历史、深色与手机端](docs/features.md)

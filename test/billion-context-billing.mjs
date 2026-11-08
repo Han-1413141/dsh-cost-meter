@@ -39,7 +39,7 @@ const config = sanitizeConfig({ peakEnabled: false, includeSubagentCost: true, p
 } }, planBilling: { models: { '127.0.0.1:summary': 'plan' } } })
 const ledgerPath = join(root, 'storages/cost-meter/ledger.json')
 let ledger, bridge, realUpstream = false, directSupported = false, upstreamVersion = '', retry = 0, producer, runtime, nativeRuntime
-let nativePrefillCovered = false
+let nativePrefillCovered = false, nativeLocalRefusalsCovered = false
 const originalFetch = globalThis.fetch
 try {
   // Each supplied npm archive exercises its actual retry and summary helpers.
@@ -110,7 +110,7 @@ try {
   if (nativeRuntime) {
     const key = Symbol.for('dsh-cost-meter.billion-context.v1'), previousBridge = globalThis[key], descriptor = Object.getOwnPropertyDescriptor(globalThis, 'fetch')
     const group = '11111111-1111-4111-8111-111111111111', acknowledgements = []
-    let probeRequest
+    let probeRequest, nativeBegins = 0
     const address = await listen(createServer(async (req, res) => {
       if (req.url === '/__bili/health') { res.setHeader('x-dsh-cost-meter-protocol', '1'); return sendJson(res, { ok: true }) }
       const chunks = []; for await (const chunk of req) chunks.push(chunk)
@@ -120,7 +120,7 @@ try {
       return sendJson(res, { native: true })
     }))
     try {
-      globalThis[key] = { begin: () => group, ack: (id, ok) => acknowledgements.push({ id, ok }) }
+      globalThis[key] = { begin: () => { nativeBegins++; return group }, ack: (id, ok) => acknowledgements.push({ id, ok }) }
       const liveState = { origin: address, ready: Promise.resolve(address), headersFor: () => ({}) }
       assert.equal(nativeRuntime.installNativeFetchIntercept(liveState), true)
       const request = options(), response = await globalThis.fetch(address + '/bili/' + upstream + '/v1/chat/completions', request)
@@ -154,6 +154,36 @@ try {
         liveState.prepareDirectSend = async () => ({ outcome: 'unrestorable' })
         await assert.rejects(globalThis.fetch(address + '/bili/' + upstream + '/v1/chat/completions', request), /lane-specific/)
         assert.equal(acknowledgements.length, sent, 'locally refused requests do not create a billable receipt')
+      }
+      if (String(nativeRuntime.installNativeFetchIntercept).includes('silentDirectBodyCapBytes')) {
+        const stateKey = Symbol.for('billion-context.native-intercept-state'), previousCap = process.env.BILI_SILENT_DIRECT_MAX_MB
+        const before = { begins: nativeBegins, receipts: acknowledgements.length, requests: requests.length }
+        const refused = async (request, gate) => {
+          const response = await globalThis.fetch(upstream + '/v1/chat/completions', request)
+          assert.equal(response.status, 422)
+          assert.equal(response.headers.get('x-bili-gate'), gate)
+          await response.text()
+          assert.equal(nativeBegins, before.begins, 'local refusal never starts a metered request')
+          assert.equal(acknowledgements.length, before.receipts, 'local refusal never records a receipt')
+          assert.equal(requests.length, before.requests, 'local refusal never reaches the model endpoint')
+        }
+        try {
+          process.env.BILI_SILENT_DIRECT_MAX_MB = '0.0005'
+          liveState.takeoverGate = async () => false
+          liveState.prepareDirectSend = async () => ({ outcome: 'as-is' })
+          const oversized = { ...options(), body: JSON.stringify({ model: 'main', messages: [{ role: 'user', content: 'x'.repeat(1024) }] }) }
+          await refused(oversized, 'oversize-refusal-unattributed-bytes')
+          liveState.origin = undefined
+          liveState.ready = Promise.resolve(undefined)
+          await refused({ ...options(), body: JSON.stringify({ model: 'main', messages: [{ role: 'user', content: 'You are now acting as a compaction engine for this AI coding assistant' }] }) }, 'dsh-compaction-refused')
+          delete globalThis[stateKey]
+          await refused(oversized, 'oversize-refusal-no-live-state')
+          nativeLocalRefusalsCovered = true
+        } finally {
+          globalThis[stateKey] = liveState
+          if (previousCap === undefined) delete process.env.BILI_SILENT_DIRECT_MAX_MB
+          else process.env.BILI_SILENT_DIRECT_MAX_MB = previousCap
+        }
       }
     } finally {
       Object.defineProperty(globalThis, 'fetch', descriptor)
@@ -318,7 +348,7 @@ try {
   assert.equal(normalizeBillionUsage('openai', { prompt_tokens: 5, completion_tokens: 1, prompt_tokens_details: { cached_tokens: 9 } }), null)
   assert.equal(normalizeBillionUsage('responses', { input_tokens: -1, output_tokens: 1 }), null)
   assert.ok((await billionRecordsFor(ledgerPath, 'root')).some(row => row.type.endsWith('replacement')))
-  console.log(JSON.stringify({ check: 'billion-context billing', actualPinnedUpstream: realUpstream, upstreamVersion, forceDirectCovered: directSupported, nativePrefillCovered, billedCalls: 8, totalUsd: before,
+  console.log(JSON.stringify({ check: 'billion-context billing', actualPinnedUpstream: realUpstream, upstreamVersion, forceDirectCovered: directSupported, nativePrefillCovered, nativeLocalRefusalsCovered, billedCalls: 8, totalUsd: before,
     checks: 'four protocols, compression, retry attempts, actual cache buckets, API/Plan, parent/agents, replay equality, restart, atomic receipts, cancellation, unknown usage and privacy', externalRequests: 0 }))
 } finally {
   globalThis.fetch = originalFetch

@@ -1,13 +1,24 @@
 # Changelog
 
-## [Unreleased]
+## [1.9.59] - 2026-11-08
 
-- 补入 Mistral 转售的 `zai-glm-5-3-flash` 与 `deepseek-v4-1-flash-1017`：$0.15 / $0.03 / $0.50 与 $0.30 / $0.007 / $1.20，每百万 token。此前两个 ID 在 `mistral` 路由上未定价（费用记 0），自定义路由名则兜底命中 DeepSeek 自身价格按半价入账；现统一按 Mistral 公布价计费，已知厂商前缀判定与兜底顺序未改动。
-- Mistral 转售的日期样后缀模型 ID 仅在 Mistral 相关渠道按 Mistral 价格解析，其他渠道（如 Ollama 标签请求）继续使用原厂 DeepSeek 峰谷价。
-- 新条目通过一次性迁移加入旧账本，保留手动价格、主动取消挂载和历史金额。来源与规则见 [11 月 5 日更新](docs/catalog-2026-11-05.md)。
-- Add Mistral-hosted `zai-glm-5-3-flash` and `deepseek-v4-1-flash-1017` at Mistral's published rates, replacing an unpriced route and a half-price cross-vendor fallback; date-suffixed resold IDs resolve at Mistral prices only on Mistral-related routes, so other channels keep the origin vendor's pricing. The one-time migration preserves custom rates, deliberate unmounts and recorded charges.
-- 修复切到会话时多个回合同时查询费用、每次都重扫该会话的代理计费目录与调用日志（单会话约 500ms，一次切换并发 3 条）导致的界面卡顿：live 会话的用量行按会话日志版本（session.seq）缓存，代理计费明细按会话记忆化并共享 in-flight 读取，日志推进或计费文件变化后自动失效。
-- Cache live session usage rows per session log revision (session.seq) and memoize per-session proxy billing records, sharing the in-flight read, so switching a conversation no longer rescans the billing directory once per turn card; both caches invalidate when session events or billing files change.
+- 基础价、峰价、谷价提供独立倍率和统一倍率输入，同时显示实际单价。
+- 已启用的 MiniMax 与其他 Coding Plan 在缺凭据、查询失败或无窗口时保留卡片，显示原因并支持点击或键盘重试。
+- 会话切换复用同一版本的用量与代理计费记录，修复并发读取的取消隔离及归档变化后的缓存失效。
+- 补充 Mistral 托管 GLM 5.3 Flash 和 DeepSeek V4.1 Flash 1017 的价格，修复渠道别名匹配，保留 Ollama 和既有日期模型的计价。
+- 更新 billion-context 0.1.213、dsh-codex-subscription 3.2.7 兼容基线与 CI 覆盖。
+- 重整中英文 README 与专题文档，保留全部徽章、贡献者和 Star 记录，加入 23 张界面截图并修正旧说明。
+
+- Add separate and uniform multipliers for base, peak and off-peak rates, with effective-price previews.
+- Keep enabled Coding Plan cards visible when credentials or quota windows are missing, with query errors and retry actions.
+- Cache session billing reads while preserving cancellation isolation and archive invalidation.
+- Add Mistral-hosted GLM and DeepSeek rates and correct aliases without changing Ollama or existing dated-model pricing.
+- Verify billion-context 0.1.213 and dsh-codex-subscription 3.2.7; update compatibility baselines and CI.
+- Reorganize bilingual documentation with all badges, contributor and Star displays, and 23 interface screenshots.
+
+感谢 [@UNscientific-9](https://github.com/UNscientific-9) 在 [#408](https://github.com/Han-1413141/dsh-cost-meter/pull/408) 提供文档重组；[@tslotta](https://github.com/tslotta) 在 [#475](https://github.com/Han-1413141/dsh-cost-meter/pull/475) 补充 Mistral 定价；[@TLEWA](https://github.com/TLEWA) 在 [#478](https://github.com/Han-1413141/dsh-cost-meter/issues/478) 报告、定位会话卡顿并在 [#479](https://github.com/Han-1413141/dsh-cost-meter/pull/479) 提供缓存实现；[@AspirinEny](https://github.com/AspirinEny) 在 [#476](https://github.com/Han-1413141/dsh-cost-meter/issues/476) 提出倍率界面需求；[@parasolandyu](https://github.com/parasolandyu) 在 [#477](https://github.com/Han-1413141/dsh-cost-meter/issues/477) 提供额度卡片问题的复现和定位。
+
+[更新说明 / Release notes](docs/update-notes-1.9.59.md)
 
 ## [1.9.58] - 2026-11-05
 

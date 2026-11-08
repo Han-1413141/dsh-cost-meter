@@ -20,7 +20,7 @@ Composer, header and turn cost entries have independent switches. Open a convers
 
 ## Statistics, budgets and exports
 
-Filter costs by date, provider and model. Inspect API charges, Plan equivalents, cache hit rates, token composition and model rankings. Budgets cover today, the current month, all time or custom dates. Export one or all retained conversations as CSV, JSON or Markdown.
+Filter costs by date, provider and model. Inspect API charges, Plan equivalents, cache hit rates, token composition and model rankings. Budgets cover today, the current month, all time or custom dates and warn at configured thresholds. Export cost records for one or all retained conversations as CSV summaries, per-call CSV or JSON.
 
 [Statistics and exports](billing-statistics.md#english) · [Billing rules](billing.en.md)
 
@@ -48,7 +48,7 @@ Plan cards display usage windows, percentages and reset times. Enabled cards ret
 
 ## Model prices and pricing alerts
 
-The catalog groups models by provider, with automatic matching, manual mappings and custom rates. Base, peak and off-peak tiers have separate rates and multipliers; channels can set their own hours and holidays. Schedule bars show the current tier and countdown, with optional popup and system notifications. DeepSeek synchronization and OpenRouter catalog updates retain their respective price sources.
+The catalog groups models by provider, with automatic matching, manual mappings and custom rates. Base, peak and off-peak tiers have separate rates and multipliers; channels can set their own hours and holidays. Schedule bars show the current tier and countdown, with optional popup and system notifications before a price change. DeepSeek synchronization and OpenRouter catalog updates retain their respective price sources.
 
 [Custom prices](custom-model-prices.md) · [Channel schedules](provider-peak-schedules.md) · [Pricing alerts](peak-alert.en.md) · [OpenRouter catalog](openrouter-prices.md)
 
@@ -58,7 +58,7 @@ The catalog groups models by provider, with automatic matching, manual mappings 
 
 ## Historical usage and storage
 
-The usage page includes token heatmaps, daily history, model statistics and estimated tokens per 1% or full quota window. Import pre-installation conversations, configure retention and preview cleanup. JSONL and better-session SQLite backends are supported, together with read-only usage snapshots from external tools. Editing prices preserves historical amounts; explicit repricing requires confirmation and creates a backup.
+The usage page includes token heatmaps, daily history, model statistics and estimated tokens and equivalent costs per 1% of quota and for the full quota window. Import pre-installation conversations, configure retention and preview cleanup. JSONL and better-session SQLite backends are supported, together with read-only usage snapshots from external tools. Editing prices preserves historical amounts; explicit repricing requires confirmation and creates a backup.
 
 [Plan statistics](token-plan-stats.md#english) · [Retention](pricing-history-storage.md) · [Repricing](model-history-repricing.md) · [SQLite sessions](better-session.md) · [External usage](external-usage.md)
 
@@ -68,7 +68,7 @@ The usage page includes token heatmaps, daily history, model statistics and esti
 
 ## Display, themes and mobile
 
-The display page offers a clickable preview with drag ordering for the sidebar, composer, turn costs, quota strip and corner panel. Choose standard, merged, compact or simple layouts; control individual amount displays, currency, exchange rate and language. Light, dark and narrow mobile layouts are supported.
+The display page offers clickable previews for the sidebar, composer, turn costs, quota strip and corner panel. Sidebar components support drag ordering. Choose standard, merged, compact or simple layouts; control individual amount displays, currency, exchange rate and language. Light, dark and narrow mobile layouts are supported.
 
 [Display settings](display-settings.md) · [Sidebar layouts](sidebar-simple.md) · [Exchange rates](exchange-rates.md)
 

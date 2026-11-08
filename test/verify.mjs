@@ -7054,5 +7054,7 @@ await import('./peak-timezone.mjs')
 await import('./native-search-manual.mjs')
 await import('./billing-check.mjs')
 
+await import('./coding-plan-placeholder.mjs')
+
 // Drain any remaining async host disposers before the synchronous exit cleanup.
 await removeFixture(suiteRoot, { recursive: true, force: true })
