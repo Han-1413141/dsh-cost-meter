@@ -2226,7 +2226,7 @@
       // 组件内部按 quotaStrip.enabled 门控,无可用数据时整条隐藏。
       slots.inject('conversation.input.dock', () => {
         const dispose = slots.register(
-          { name: 'conversation.input.dock', id: 'cost-meter-qstrip', order: 5, inject: injected },
+          { name: 'conversation.input.dock', id: 'cost-meter-qstrip', order: 100, inject: injected },
           QuotaStrip,
         )
         return dispose
@@ -2287,7 +2287,7 @@
         const balanceDisplay = state?.config?.balance?.display ?? 'both'
         const showBalance = (balanceDisplay === 'sidebar' || balanceDisplay === 'both') && state?.config?.hideOfficialBalance !== true
         const side = entry => entry?.enabled === true && ['sidebar', 'both'].includes(entry.display)
-        const footer = showToday || showBalance || state?.config?.codexQuotaEnabled === true || state?.config?.sidebarModels?.enabled === true
+        const footer = showToday || showBalance || state?.config?.localSavings?.enabled === true || state?.config?.codexQuotaEnabled === true || state?.config?.sidebarModels?.enabled === true
           || (state?.config?.budget?.enabled === true && state?.config?.hideBudget !== true)
           || (state?.config?.goQuota?.enabled === true && ['sidebar', 'both'].includes(state.config.goQuota.display))
           || (state?.config?.peakEnabled === true && state.config.peakNotice !== false)

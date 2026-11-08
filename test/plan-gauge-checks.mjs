@@ -20,6 +20,8 @@ export async function checkPlanGauges(page, output) {
   const style = page.getByLabel('套餐额度样式', { exact: true })
   await style.selectOption('gauge')
   await page.waitForFunction(() => window.current().planQuotaStyle === 'gauge')
+  // Saving publishes state before React commits the corresponding sidebar DOM.
+  await plan.locator('svg').first().waitFor()
   assert.equal(await plan.locator('svg').count(), 3)
   assert.equal(await host.locator('[data-cm-plan=minimax] svg').count(), 2)
   assert.equal(await plan.locator('svg path:last-child').first().getAttribute('opacity'), '0', 'zero quota has no round-cap dot')
@@ -54,14 +56,17 @@ export async function checkPlanGauges(page, output) {
     if (layout === 'standard') await host.screenshot({ path: join(output, `plan-gauge-${theme}.png`) })
   }
   await page.evaluate(() => window.configure({ sidebarTextOnly: true }))
+  await plan.locator('svg').first().waitFor({ state: 'detached' })
   assert.equal(await plan.locator('svg').count(), 0, 'text-only mode takes precedence')
   await page.evaluate(() => window.configure({ sidebarTextOnly: false }))
+  await plan.locator('svg').first().waitFor()
   await page.evaluate(() => window.remount())
   await page.getByRole('tab', { name: '显示', exact: true }).click()
   await page.getByLabel('调整组件', { exact: true }).selectOption('plan')
   assert.equal(await style.inputValue(), 'gauge', 'saved choice survives remount')
   await style.selectOption('bars')
   await page.waitForFunction(() => window.current().planQuotaStyle === 'bars')
+  await plan.locator('.cm-bbox-bar').first().waitFor()
   assert.equal(await plan.locator('svg').count(), 0)
   assert.equal(await plan.locator('.cm-bbox-bar').count(), 3)
   await page.evaluate(async initial => {

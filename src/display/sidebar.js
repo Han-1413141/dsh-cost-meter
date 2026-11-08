@@ -65,7 +65,7 @@ function SidebarPreview({ renderSidebar, config, displayConfig = config, selecte
     el('div', { className: 'cm-preview-account', 'aria-hidden': true }, icon('IconUserOutlineRegular', 18), text('已登录 DeepSeek', 'Signed in to DeepSeek')),
     el('div', { className: 'cm-sidebar-unplaced' },
       el('p', null, text('未显示的组件', 'Components not shown')),
-      ...['balance', 'budget', 'today', 'peak', 'models', 'go', 'plan', 'customBalance', 'codex'].filter(key => !available.has(key)).map(key =>
+      ...['balance', 'budget', 'today', 'peak', 'models', 'go', 'plan', 'customBalance', 'codex', 'localSavings'].filter(key => !available.has(key)).map(key =>
         el('button', { key, type: 'button', 'data-display': key, 'aria-pressed': selected === key, onClick: () => select(key) }, labels[key])),
       ...parts.filter(part => !targets.some(target => target.part === part.part)).map(part =>
         el('button', { key: part.part, type: 'button', 'data-display-part': part.part, 'data-preview-hidden': true, onClick: () => focusPart(part) }, part.label, ' —'))))

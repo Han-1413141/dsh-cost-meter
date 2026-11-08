@@ -55,4 +55,17 @@ const nodes = node => Array.isArray(node) ? node.flatMap(nodes) : node && typeof
 const chips = nodes(tree).filter(node => node.props?.className?.startsWith('cm-qchip'))
 assert.equal(chips.length, 1, 'a single explicit placement shows only that vendor even when the default strip is disabled')
 assert.equal(nodes(tree).filter(node => node.props?.key === 'zai').length, 1)
+const textOf = node => Array.isArray(node) ? node.map(textOf).join('') : node && typeof node === 'object' ? textOf(node.children ?? []) : node == null ? '' : String(node)
+for (const locale of ['zh', 'en']) for (const direction of ['used', 'remaining']) {
+  const c = sanitizeConfig({ locale, currency: 'USD', symbol: '$', exchangeRate: 1,
+    budget: { enabled: true, amount: 100 }, goQuota: { enabled: true },
+    codingPlans: { zai: { enabled: true } }, quotaStrip: { enabled: true },
+    barDirections: { budget: direction, go: direction, plan: direction } })
+  const state = { config: c, budgetUsed: 25, goQuota: { status: 'ok', rolling: { percent: 30 } },
+    codingPlans: { zai: { status: 'ok', windows: { fiveHour: { percent: 40 } } } } }
+  const rendered = ui.QuotaStrip({ useCost: () => ({ state }) })
+  const labels = nodes(rendered).filter(node => node.props?.className === 'cm-qseg').map(textOf)
+  assert.equal(labels.length, 3)
+  assert.deepEqual(labels, [25, 30, 40].map(used => ui.makeT(locale)(direction === 'used' ? 'quotaUsed' : 'quotaRemaining', { pct: direction === 'used' ? used : 100 - used })), 'budget, Go and Plan explicitly label the preserved used/remaining direction')
+}
 console.log('[ok] quota placement: all location combinations, vendor isolation, wire/reload, legacy strip defaults, composer-only chips and optional balance source')

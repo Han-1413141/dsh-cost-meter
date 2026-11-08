@@ -1,3 +1,8 @@
+    let savingsPage
+    const loadLocalSavings = () => savingsPage ??= require.async('./client.local-savings.js')
+      .then(module => module.mount({ formatMoneyUsd, formatTokens, resolveLocale, Tooltip }))
+      .catch(error => { savingsPage = null; throw error })
+
     // 模型卡片只展示既有账本快照。展开偏好独立于额度区的临时展开状态。
     const MODEL_SIDEBAR_DEFAULTS = { enabled: false, period: 'today', topN: 5, summary: 'total', position: 'last', defaultOpen: false, remember: true, tokens: false, shares: true, refreshSeconds: 60, dock: false }
     const MODEL_OPEN_KEY = 'dsh-cost-meter:models-open'

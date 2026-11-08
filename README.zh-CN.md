@@ -3,15 +3,10 @@
 <p align="center">DeepSeek Harness 费用统计与订阅额度插件</p>
 
 <p align="center">
-  <a href="https://github.com/Han-1413141/dsh-cost-meter/releases/latest"><img src="https://img.shields.io/badge/version-1.9.59-4176E6?style=flat-square" alt="version"></a>
-  <a href="https://www.npmjs.com/package/dsh-cost-meter"><img src="https://img.shields.io/npm/v/dsh-cost-meter?label=npm&style=flat-square" alt="npm"></a>
+  <a href="https://github.com/Han-1413141/dsh-cost-meter/releases/latest"><img src="https://img.shields.io/badge/version-1.9.60-4176E6?style=flat-square" alt="version"></a>
   <a href="https://www.npmjs.com/package/dsh-cost-meter"><img src="https://img.shields.io/npm/dm/dsh-cost-meter?label=downloads&style=flat-square&color=4176E6" alt="npm monthly downloads"></a>
   <a href="https://github.com/Han-1413141/dsh-cost-meter/stargazers"><img src="https://img.shields.io/github/stars/Han-1413141/dsh-cost-meter?label=stars&style=flat-square&color=D9A400" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT license"></a>
-  <a href="https://github.com/deepseek-ai/deepseek-harness"><img src="https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6?style=flat-square" alt="DSH plugin"></a>
-  <a href="https://dshfind.com/zh/plugins/Han-1413141/dsh-cost-meter?ref=badge"><img src="https://dshfind.com/api/badge/Han-1413141/dsh-cost-meter?metric=downloads&amp;lang=zh" alt="dshfind"></a>
-  <a href="https://awesome-dsh-plugin.com"><img src="https://awesome-dsh-plugin.com/badge.svg" alt="awesome DSH plugin"></a>
-  <a href="https://whaleharness.com/audit-report.md"><img src="https://whaleharness.com/badge/Han-1413141/dsh-cost-meter/badge.svg" alt="WhaleHarness audit"></a>
 </p>
 
 <p align="center"><a href="README.md">English</a> | <b>简体中文</b></p>
@@ -19,12 +14,10 @@
 
 按会话、模型和调用查看费用与 Token 用量，集中显示账户余额、套餐额度和预算。支持 API 费用与 Plan 等值费用分开统计、多厂商定价、峰谷提醒，以及侧栏和输入区的独立显示设置。
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/conversation-dark.png">
-  <img src="docs/images/conversation-light.png" alt="会话费用、套餐额度与账户余额" width="1280">
-</picture>
-
-<p align="center"><sub>浅色与深色会话界面；文档截图使用示例数据。</sub></p>
+<p align="center">
+  <img src="docs/promo.png" alt="鲸鱼主题项目宣传图" width="1280">
+  <br><sub>项目宣传图</sub>
+</p>
 
 ## 安装
 
@@ -42,31 +35,29 @@ dsh plugin --profile web add dsh-cost-meter
 PowerShell 脚本自动检查 pnpm 和 Git，默认安装到 `web` Profile：
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.59/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.60/install.ps1 | iex
 ```
 
 固定 Git tag 安装：
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.59
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.60
 ```
 
 更新、卸载及无 Git 的安装方法见[安装说明](docs/install.md)。
 
 </details>
 
-当前版本 **v1.9.59**：[更新说明](docs/update-notes-1.9.59.md#中文) · [安装排障](docs/install-troubleshooting.md)
+当前版本 **v1.9.60**：[更新说明](docs/update-notes-1.9.60.md#中文) · [安装排障](docs/install-troubleshooting.md)
 
 ## 功能总览
 
-| 功能 | 说明 |
-|---|---|
-| 费用明细 | 输入区、标题栏和每轮回复显示费用；展开查看单价、Token、输入内容及工具结果。支持父子代理费用归属。 |
-| 费用统计 | 按日期、渠道和模型筛选，查看趋势、模型排行、缓存命中率与 Token 热图；导出单个或全部会话记录。 |
-| 套餐额度 | 支持 Codex / ChatGPT、OpenCode Go、MiniMax、Claude、GLM、Kimi、千问、MiMo、OpenDesign 等；提供 CLIProxyAPI 多账号额度及自定义 HTTP 余额查询。 |
-| 模型定价 | 自动匹配模型价格，编辑单价、倍率及峰谷档位；同步 DeepSeek 官方价格和 OpenRouter 目录。API 与 Plan 分开统计。 |
-| 预算提醒 | 按日、月、累计或自定义日期设预算；显示峰谷时段和倒计时，支持切换前弹窗与系统通知。 |
-| 显示与历史 | 自定义侧栏、输入区、额度横条和每轮费用；支持中英双语、深色主题和手机端。可导入历史、设置保留范围及管理存储。 |
+- **费用明细**：输入区、标题栏和每轮回复显示费用；展开查看单价、Token、输入内容及工具结果。支持父子代理费用归属。
+- **费用统计**：按日期、渠道和模型筛选，查看趋势、模型排行、缓存命中率与 Token 热图；导出单个或全部会话记录；单独查看本地模型的 API 等值费用。
+- **套餐额度**：支持 Codex / ChatGPT、OpenCode Go、MiniMax、Claude、GLM、Kimi、千问、MiMo、OpenDesign 等；提供 CLIProxyAPI 多账号额度及自定义 HTTP 余额查询。
+- **模型定价**：自动匹配模型价格，编辑单价、倍率及峰谷档位；同步 DeepSeek 官方价格和 OpenRouter 目录。API 与 Plan 分开统计。
+- **预算提醒**：按日、月、累计或自定义日期设预算；显示峰谷时段和倒计时，支持切换前弹窗与系统通知。
+- **显示与历史**：自定义侧栏、输入区、额度横条和每轮费用；支持中英双语、深色主题和手机端。可导入历史、设置保留范围及管理存储。
 
 功能入口和配置见[功能与截图](docs/features.md)；厂商、模型及凭据要求见[适配说明](docs/model-and-plan-adaptation.md)。
 

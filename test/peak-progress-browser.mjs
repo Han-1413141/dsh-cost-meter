@@ -68,6 +68,8 @@ try {
   await page.setViewportSize({width:390,height:850})
   const bars=page.locator('#bars .cm-peak-progress')
   await bars.first().waitFor()
+  assert.equal(await bars.evaluateAll(nodes=>nodes.some(node=>node.hasAttribute('title'))),false,'the custom Tooltip has no duplicate browser-native title')
+  assert.ok(await bars.evaluateAll(nodes=>nodes.every(node=>node.getAttribute('aria-label')?.includes('本时段已过'))),'period details remain available to assistive technology')
   const metrics=await bars.evaluateAll(ns=>ns.map(n=>({variant:n.dataset.variant,height:n.getBoundingClientRect().height,overflow:n.scrollWidth>n.clientWidth})))
   assert.ok(metrics[1].height<=42&&metrics[2].height<=22)
   assert.equal(metrics.some(n=>n.overflow),false)

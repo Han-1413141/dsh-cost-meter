@@ -68,6 +68,9 @@ export async function checkDisplayPreview(page, output) {
       assert.equal(await page.locator('.cm-sidebar-live [data-cm-display=' + key + ']').getAttribute('data-preview-hidden'), 'true', key + ' remains gray when hidden')
     }
     await region('输入区'); await choose('corner')
+    for (const kind of ['budget', 'go', 'plans']) {
+      assert.match(await page.locator('[data-display=strip-' + kind + '] .cm-qtext').innerText(), /已用 \d+(\.\d+)?%|剩余 \d+(\.\d+)?%|—/, 'quota preview labels its used/remaining direction')
+    }
     assert.equal(await page.locator('[data-display=corner] .cm-corner-chip').count(), 4, 'corner periods are individual real chips')
     assert.equal(await page.locator('[data-display=corner] .cm-preview-part[data-preview-hidden=true]').count(), 4)
     await page.locator('.cm-inspector-controls input').first().check()
@@ -77,8 +80,8 @@ export async function checkDisplayPreview(page, output) {
     assert.equal(await page.locator('[data-model-field=tokens]').count(), 0, 'composer does not offer sidebar-only settings')
     await choose('dock-cost')
     assert.equal(await page.getByRole('switch', { name: '仅显示金额', exact: true }).count(), 1)
-    assert.equal(await page.locator('[data-display=dock-cost] .cm-dsym').innerText(), '¥', 'preview leads with the configured currency symbol')
-    assert.equal((await page.locator('[data-display=dock-cost] .cm-dl').innerText()).includes('¥'), false, 'preview amount does not repeat the currency symbol')
+    assert.equal(await page.locator('[data-display=dock-cost] .cm-dsym').count(), 0, 'preview does not treat currency as a leading icon')
+    assert.match(await page.locator('[data-display=dock-cost] .cm-dl').innerText(), /^本会话 ¥/, 'preview currency immediately precedes the amount')
     assert.match(await page.locator('[data-display=dock-cost] .cm-dl').innerText(), /命中/, 'preview restores the master token/hit detail text')
     assert.equal(await page.locator('.cm-preview-scene [data-display=session-dock], .cm-preview-scene [data-display=badge]').count(), 0, 'the old separate composer cost entries are gone')
     const composerOptions = await page.getByLabel('调整组件', { exact: true }).locator('option').evaluateAll(options => options.map(option => option.value))

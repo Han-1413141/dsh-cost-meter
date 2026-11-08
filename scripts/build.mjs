@@ -194,7 +194,7 @@ console.log('✓ lib/client.js within DSH STORE per-file bound (262144)')
 
 // DSH 0.2.0-rc.2 package-local chunks use the host's require.async contract.
 // Each on-demand screen has readable source and a bounded runtime asset.
-for (const chunk of ['billing-storage', 'settings-overview', 'statistics', 'openrouter', 'community', 'pricing', 'display', 'codex', 'peak', 'session-list', 'sidebar-order', 'plan-settings', 'notices']) {
+for (const chunk of ['billing-storage', 'settings-overview', 'statistics', 'openrouter', 'community', 'pricing', 'display', 'codex', 'peak', 'session-list', 'sidebar-order', 'plan-settings', 'notices', 'local-savings']) {
   let source = readFileSync(resolve(projectRoot, `src/${chunk}/index.js`), 'utf8')
   if (['peak', 'display', 'pricing'].includes(chunk)) source = source.replace('factory: require => {', 'factory: require => {\n' + readFileSync(resolve(projectRoot, 'lib/peak-timezone.js'), 'utf8').replace(/^export /gm, '') + (chunk === 'peak' ? '' : readFileSync(resolve(projectRoot, 'src/peak/timezone-control.js'), 'utf8')))
   if (chunk === 'pricing') source = source.replace('/* PEAK_PANEL_SOURCE */', readFileSync(resolve(projectRoot, 'src/pricing/peak-panel.js'), 'utf8'))

@@ -3,6 +3,8 @@ import { readFileSync, readdirSync, mkdirSync, existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { createServer } from 'node:http'
 import { resolve, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import vm from 'node:vm'
 import { build } from 'esbuild'
 import { sanitizeConfig, applyConfigPatch, zeroDay } from '../lib/store.js'
 import { stateSchema } from '../lib/typert.host.js'
@@ -14,6 +16,31 @@ let saved = sanitizeConfig({ locale: 'zh', peakEnabled: false, codexQuotaEnabled
 const day = zeroDay()
 const source = readdirSync('src/client').filter(name => name.endsWith('.js')).sort().map(name => readFileSync('src/client/' + name, 'utf8')).join('')
   .replace('exports.apply = apply', 'exports.placementUI = { PlanQuotaCard, QuotaStrip, renderSidebarFooter, makeT, css }; exports.apply = apply')
+// Capture the plugin's actual registration and sort it with the published host.
+const hostReq = createRequire(resolve(process.env.DSH_TEST_NODE_MODULES ?? '.tmp-alpha3-host/node_modules', '__placement.cjs'))
+const { SlotCore } = await import(pathToFileURL(hostReq.resolve('@deepseek-ai/dsh-client-ui-slots')).href)
+let factory
+vm.runInNewContext(source, {
+  window: { __ModuleLoader__: { load: value => { factory = value.factory } } }, navigator: { language: 'zh-CN' },
+  document: { addEventListener() {}, removeEventListener() {} }, setInterval: () => 1, clearInterval() {}, setTimeout, clearTimeout,
+})
+const registrations = new Map(), cleanups = []
+const snapshot = { config: { ...saved, sessionListCosts: false, followSkinTransparency: false } }
+const services = {
+  'remote.costMeter': { getLocalState: async () => ({ ok: true, value: snapshot }), getState: async () => ({ ok: true, value: snapshot }) },
+  slots: { inject: (_, fn) => fn(), register: (options, component) => { registrations.set(options.id, { options, component }); return () => {} } },
+}
+await factory(() => ({})).apply({ remote: { $mount: async () => () => {} }, inject() {}, get: name => services[name],
+  on: () => () => {}, effect: fn => { const cleanup = fn(); if (cleanup) cleanups.push(cleanup) } })
+const stripSlot = registrations.get('cost-meter-qstrip')
+assert.ok(stripSlot, 'the actual plugin registers the quota strip')
+const slots = new SlotCore()
+slots.register({ name: 'root', children: { 'conversation.input.dock': { kind: 'list', scope: 'session' } } }, () => null)
+slots.register(stripSlot.options, stripSlot.component)
+for (const [id, order] of [['queue', 20], ['goal', 10], ['todo', 0]]) slots.register({ name: 'conversation.input.dock', id, order }, () => null)
+const dockOrder = slots.entriesOfSlot('conversation.input.dock').map(entry => entry.options.id)
+assert.deepEqual(dockOrder, ['todo', 'goal', 'queue', 'cost-meter-qstrip'], 'quota strip follows native agent content and stays next to the input card')
+for (const cleanup of cleanups.reverse()) cleanup()
 const code = `import React from ${literal(req.resolve('react'))};import{createRoot}from ${literal(req.resolve('react-dom/client'))};
 const h=React.createElement;const require=name=>name==='react'?React:{Tooltip:({children})=>children};require.async=async()=>window.planUI;
 window.__ModuleLoader__={load:mod=>window.mainUI=mod.factory(require)};
@@ -25,7 +52,8 @@ let state={config:window.initialConfig,today:${literal(day)},month:${literal(day
 const listeners=new Set();const publish=()=>{for(const fn of listeners)fn(state)};const setConfig=async next=>{const config=await window.persist(next);state={...state,config};publish()};window.current=()=>state.config;window.changeLocale=locale=>setConfig({...state.config,locale});window.refreshes=0;
 function useCost(){const[value,setValue]=React.useState(state);React.useEffect(()=>{listeners.add(setValue);return()=>listeners.delete(setValue)},[]);return{state:value,status:'ready'}}
 const api={refreshCodingPlan:async()=>{window.refreshes++;return{ok:true}}};
-function App(){const current=useCost().state,t=makeT(current.config.locale);return h(React.Fragment,null,h('style',null,css),h('section',{id:'controls'},h(PlanQuotaCard,{planId:'zai',labelKey:'vendor',state:current,draft:current.config,setDraft:setConfig,api,targeted:true,t:(key,args)=>key==='vendor'?'Z.ai / 智谱 GLM Coding Plan':t(key,args)})),h('section',{id:'sidebar'},renderSidebarFooter(current,true)),h('section',{id:'conversation'},h('h2',null,'探索未至之境'),h(QuotaStrip,{useCost,api}),h('textarea',{'aria-label':'输入消息',placeholder:'输入消息'})))}
+const dockOrder=${literal(dockOrder)};
+function App(){const current=useCost().state,t=makeT(current.config.locale);return h(React.Fragment,null,h('style',null,css),h('section',{id:'controls'},h(PlanQuotaCard,{planId:'zai',labelKey:'vendor',state:current,draft:current.config,setDraft:setConfig,api,targeted:true,t:(key,args)=>key==='vendor'?'Z.ai / 智谱 GLM Coding Plan':t(key,args)})),h('section',{id:'sidebar'},renderSidebarFooter(current,true)),h('section',{id:'conversation'},h('h2',null,'探索未至之境'),h('div',{id:'host-dock',style:{display:'flex',flexDirection:'column',gap:6}},dockOrder.map(id=>id==='cost-meter-qstrip'?h(QuotaStrip,{key:id,useCost,api}):h('div',{key:id,'data-native':id},({todo:'任务列表',goal:'Agent 目标',queue:'排队消息'})[id]))),h('textarea',{'aria-label':'输入消息',placeholder:'输入消息'})))}
 createRoot(document.getElementById('root')).render(h(App));`
 const compiled = await build({ stdin: { contents: code, resolveDir: process.cwd(), loader: 'js' }, bundle: true, write: false, format: 'iife', platform: 'browser' })
 const server = createServer((request, response) => {
@@ -60,6 +88,10 @@ try {
   }
   await page.getByRole('button', { name: '刷新', exact: true }).click()
   assert.equal(await page.evaluate(() => window.refreshes), 1, 'composer-only placement retains the refresh action')
+  assert.deepEqual(await page.locator('#host-dock > [data-native]').evaluateAll(nodes => nodes.map(node => node.dataset.native)), ['todo', 'goal', 'queue'])
+  assert.equal(await page.locator('#host-dock > :last-child').getAttribute('class'), 'cm-qstrip', 'the quota strip is the last item above the input card')
+  const stripBox = await page.locator('#host-dock .cm-qstrip').boundingBox(), inputBox = await page.locator('#conversation textarea').boundingBox()
+  assert.ok(stripBox.y + stripBox.height <= inputBox.y + 1 && inputBox.y - stripBox.y - stripBox.height <= 8, 'no agent panel separates the strip from the input card')
   await page.screenshot({ path: join(output, 'composer-placement-zh.png'), fullPage: true })
   await page.reload(); await select.waitFor()
   assert.equal(await select.inputValue(), 'composer', 'the actual dropdown restores its saved selection')
@@ -68,5 +100,5 @@ try {
   await page.getByRole('combobox', { name: 'Display position', exact: true }).waitFor()
   assert.equal(await page.getByRole('option', { name: 'Above the input box', exact: true }).count(), 1)
   assert.deepEqual(errors, []); assert.deepEqual(external, [])
-  console.log('[ok] real quota placement UI: all combinations, sidebar/composer isolation, composer-only refresh, saved reload and bilingual options; no external requests')
+  console.log('[ok] quota placement: actual apply + host SlotCore order, input adjacency, all locations, refresh, saved reload and bilingual options; no external requests')
 } finally { await browser.close(); await new Promise(done => server.close(done)) }

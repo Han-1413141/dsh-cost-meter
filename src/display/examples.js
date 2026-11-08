@@ -24,6 +24,9 @@ function displayPreviewData(state, config, examples, selected, planId = 'minimax
   return { config: previewConfig, state: {
     config: previewConfig, today, month: bucket(amount * .57, 160000, 24000, 640000, 72), total: bucket(amount * 1.4, 480000, 80000, 1920000, 220),
     budgetUsed: amount * .57 / rate, history: [{ date: dayKey, ...today }], meta: { dayKey },
+    localSavings: { status: 'ok', referenceModel: config.localSavings?.referenceModel ?? 'deepseek-flash', priceTier: config.localSavings?.priceTier ?? 'offPeak',
+      today: 1.74 / rate, week: 18.31 / rate, month: 182.24 / rate, total: 190.89 / rate, matchedModels: 1, retainedFrom: dayKey,
+      models: [{ key: (config.localSavings?.providerPrefix ?? 'local') + ':qwen', tokens: 26900000, cost: 190.89 / rate }] },
     balance: { status: 'ok', totalBalance: 68, grantedBalance: 8, toppedUpBalance: 60, currency: config.currency ?? 'CNY', fetchedAt: 0 },
     goQuota: { status: 'ok', rolling: { percent: 24 }, weekly: { percent: 18 }, monthly: { percent: 12 }, fetchedAt: 0 },
     codingPlans: { [planId]: { status: 'ok', windows: { '5h': { percent: 35 }, weekly: { percent: 62 } }, fetchedAt: 0 } },

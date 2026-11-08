@@ -10,6 +10,11 @@
 
 [计费统计与调用明细](billing-statistics.md#简体中文) · [上下文费用](context-costs-design.md)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/conversation-dark.png">
+  <img src="images/conversation-light.png" alt="会话费用、套餐额度与账户余额" width="1280">
+</picture>
+
 | 会话费用分布 | 父子代理费用归属 |
 | --- | --- |
 | [![会话费用分布](images/treemap.png)](images/treemap.png) | [![父子代理费用归属](images/agents.png)](images/agents.png) |
@@ -65,6 +70,10 @@
 | Token 热图与历史 | 套餐用量估算 |
 | --- | --- |
 | [![Token 热图与历史](images/usage.png)](images/usage.png) | [![套餐用量估算](images/plan-statistics.png)](images/plan-statistics.png) |
+
+## 本地模型费用折算
+
+可选“本地节省”卡片按渠道前缀筛选模型，用当前参考 API 单价展示今日、本周、本月和累计金额。展开可查看各模型的 Token 与折算金额；参考模型和价格档位在显示页设置。[配置说明](local-savings.md)
 
 ## 显示、主题与手机端
 
