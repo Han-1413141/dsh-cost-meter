@@ -1167,6 +1167,9 @@
           const models = table?.models ?? {}
           const h = priceModelHit(targetModel, models, prov, mode, prices)
           if (h === null) continue
+          // 与 pricing.js 同口径：只处理 Mistral 转售 ID 与 DeepSeek 日期标签的冲突。
+          if (prov === 'mistral' && h.startsWith('deepseek-') && h !== targetModel
+            && !targetProvider.includes('mistral') && !/^mistral[/:]/i.test(String(targetModel).trim())) continue
           const score = +(h === targetModel || canonModelIdLocal(h) === canonModelIdLocal(targetModel))
           if (score > bestLen) {
             bestEntry = models[h]; bestLen = score; ambiguous = false
@@ -1978,7 +1981,7 @@
     function clickRefreshTipLines(t, refresh) {
       const lines = [t('clickToRefresh')]
       if (refresh.busy) lines.push(t('refreshing'))
-      if (refresh.err) lines.push('⚠ ' + t('balanceRefreshFailed', { message: refresh.err }))
+      if (refresh.err) lines.push('⚠ ' + t('queryFailed') + ': ' + refresh.err)
       return lines
     }
 
@@ -2796,14 +2799,27 @@
           wide === false ? rail : body))
     }
 
+    function codingPlanPlaceholder(id, title, live, t, wide, refresh) {
+      const status = refresh.busy || live?.status === 'loading' ? t('refreshing')
+        : refresh.err || live?.status === 'error' ? t('queryFailed')
+        : live?.status === 'ok' ? t('gatewayQuotaEmpty') : t('codingPlanNotQueried')
+      const detail = [title, status, live?.message, ...clickRefreshTipLines(t, refresh)].filter(Boolean).join('\n')
+      return el(Tooltip, { portal: true, label: el('span', { style: { whiteSpace: 'pre-line' } }, detail), side: 'right', delayMs: 300 },
+        el('div', {
+          'data-cm-display': 'plan', 'data-cm-plan': id, 'aria-label': detail,
+          className: 'cm-bbox cm-mm clickable' + (wide === false ? ' rail' : '') + (refresh.busy ? ' busy' : ''),
+          ...clickableRefreshProps(refresh.busy, refresh.run),
+        }, wide === false ? el('div', { className: 'cm-bbox-rail' }, '—')
+          : el(Fragment, null, el('div', { className: 'cm-mm-title' }, title), el('span', { className: 'cm-hint' }, status))))
+    }
+
     function MiniMaxPlanBox(props) {
       const { state, wide, api } = props
       const live = state.codingPlans?.minimax
       const t = makeT(resolveLocale(state.config))
       const refresh = useClickRefresh(api ? () => api.refreshCodingPlan('minimax') : null)
-      if (!live || live.status !== 'ok') return null
-      const { five, seven } = miniMaxWindowsOf(live.windows)
-      if (five == null && seven == null) return null
+      const { five, seven } = miniMaxWindowsOf(live?.windows)
+      if (live?.status !== 'ok' || (five == null && seven == null)) return codingPlanPlaceholder('minimax', t('codingPlanMinimaxTitle'), live, t, wide, refresh)
       return el(MiniMaxPlanCard, { five, seven, fetchedAt: live.fetchedAt, t, wide, refresh, direction: barDirectionOf(state.config, 'plan'), gauge: wide !== false && state.config.planQuotaStyle === 'gauge' && !state.config.sidebarTextOnly })
     }
 
@@ -3043,10 +3059,10 @@
       const t = makeT(resolveLocale(state.config))
       const refresh = useClickRefresh(api ? () => api.refreshCodingPlan(id) : null)
       const rowDef = CODING_PLAN_ROWS.find(r => r.id === id)
-      if (!rowDef || !live || live.status !== 'ok') return null
-      const windows = live.windows !== null && typeof live.windows === 'object' ? live.windows : {}
+      if (!rowDef) return null
+      const windows = live?.windows !== null && typeof live?.windows === 'object' ? live.windows : {}
       const entries = codingPlanWindowEntries(windows, id)
-      if (entries.length === 0) return null
+      if (live?.status !== 'ok' || entries.length === 0) return codingPlanPlaceholder(id, t(rowDef.labelKey), live, t, wide, refresh)
       const pctOf = win => win !== null && typeof win === 'object' && typeof win.percent === 'number'
         ? Math.max(0, Math.min(100, Math.round(Number(win.percent) || 0))) : null
       // 条形方向(issue #67):Plan 卡默认已用方向,剩余方向时填充与标签显示剩余%。
@@ -3421,7 +3437,7 @@
           const tipLines = [c.tip]
           if (!busy && api) tipLines.push(t('clickToRefresh'))
           if (busy) tipLines.push(t('refreshing'))
-          if (err) tipLines.push('⚠ ' + t('balanceRefreshFailed', { message: err }))
+          if (err) tipLines.push('⚠ ' + t('queryFailed') + ': ' + err)
           return el(Tooltip, { portal: true, key: c.key, label: c.key === 'codex' ? el('span', { style: { whiteSpace: 'pre-line' } }, tipLines.join('\n')) : tipLines.join('; '), side: 'bottom', delayMs: 400 },
             el('span', {
               className: 'cm-qchip' + (api ? ' action' : '') + (c.level === 'ok' ? '' : ' ' + c.level),
@@ -3535,7 +3551,7 @@
       const goOk = (config.goQuota?.enabled !== false)
         && (config.goQuota?.display === 'sidebar' || config.goQuota?.display === 'both')
         && state.goQuota?.status === 'ok' && state.goQuota?.[goMainKey] !== null
-      // Coding Plan 侧边栏卡片(issue #31):每家按 display 门控(侧边栏/两者),启用且查询成功才展示;
+      // Coding Plan 按启用与显示位置展示；尚未查询或失败时保留原因和重试入口。
       // MiniMax 沿用专用 5h/7d 卡片(issue #57 起与通用卡片同为「已用」方向),其余厂商走通用 CodingPlanBox。
       const sidebarPlanIds = CODING_PLAN_ROWS
         .map(r => r.id)
@@ -3543,10 +3559,7 @@
           const entry = config.codingPlans?.[id]
           if (entry?.enabled !== true) return false
           if (entry.display !== 'sidebar' && entry.display !== 'both') return false
-          const live = state.codingPlans?.[id]
-          if (live?.status !== 'ok') return false
-          const wins = live.windows !== null && typeof live.windows === 'object' ? live.windows : {}
-          return Object.keys(wins).length > 0
+          return true
         })
       const plansOn = sidebarPlanIds.length > 0
       // 网关额度侧边栏卡片(issue #96):按来源 display 门控,卡片本体见 GatewayQuotaBox。

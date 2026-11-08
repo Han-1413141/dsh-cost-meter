@@ -26,15 +26,19 @@ export async function checkFeedbackSidebar(page, output) {
       balance: { status: 'ok', totalBalance: 122.22, grantedBalance: 0, toppedUpBalance: 122.22, currency: 'CNY', fetchedAt: Date.now() },
       codingPlans: { opendesign: { status: 'ok', windows: { fiveHour: { percent: 20 }, weekly: { percent: 40 }, balance: { text: '$1.5000' } } } },
     })
+    // Config patches merge plan entries; isolate this fixture from earlier enabled plans.
+    const codingPlans = Object.fromEntries(Object.keys(window.current().codingPlans).map(id => [id, { enabled: false }]))
+    codingPlans.opendesign = { enabled: true, display: 'sidebar' }
     await window.configure({ locale: 'zh', sidebar: true, hideTodayCost: false, hideOfficialBalance: false,
       sidebarStyle: 'compact', sidebarSimple: false, sidebarTodayMetric: 'both', sidebarTodayBalanceInline: true,
       followSkinTransparency: true, sidebarOrder: ['today', 'balance', 'plan:opendesign'],
       sidebarModels: { enabled: false }, budget: { enabled: false }, peakNotice: false, codexQuotaEnabled: false,
-      codingPlans: { opendesign: { enabled: true, display: 'sidebar' } }, goQuota: { enabled: false },
+      codingPlans, goQuota: { enabled: false },
       gatewayQuotas: { sources: [] }, customBalances: [], balance: { display: 'sidebar', showProgressBar: true, budgetCap: 200 } })
   })
   const host = page.locator('#feedback-sidebar')
   await host.locator('.cm-inline-ready').waitFor()
+  assert.deepEqual(await host.locator('[data-cm-plan]').evaluateAll(nodes => nodes.map(node => node.dataset.cmPlan)), ['opendesign'], 'this fixture displays only its OpenDesign plan')
   for (const simple of [false, true]) {
     await page.evaluate(simple => window.configure({ sidebarSimple: simple }), simple)
     const gap = await host.evaluate(node => node.querySelector('.feedback-user').getBoundingClientRect().top - node.querySelector('.cm-footer-stack').getBoundingClientRect().bottom)

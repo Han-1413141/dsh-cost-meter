@@ -6994,6 +6994,7 @@ await import('./ledger-frozen-fx.mjs')
 await import('./session-cost-display-fx.mjs')
 await import('./billion-context-billing.mjs')
 await import('./billion-context-compatibility.mjs')
+await import('./billion-context-history-cache.mjs')
 {
   // This fixture instruments fs/timers; keep it out of other tests' process.
   const peerTest = spawnSync(process.execPath, ['test/billion-context-peer.mjs'], { cwd: join(import.meta.dirname, '..'), encoding: 'utf8' })
@@ -7046,11 +7047,14 @@ await import('./display-onboarding.mjs')
 await import('./official-price-sync-currency.mjs')
 
 await import('./catalog-october-28.mjs')
+await import('./catalog-november-05.mjs')
 await import('./custom-balance-expressions.mjs')
 await import('./provider-peak-schedule.mjs')
 await import('./peak-timezone.mjs')
 await import('./native-search-manual.mjs')
 await import('./billing-check.mjs')
+
+await import('./coding-plan-placeholder.mjs')
 
 // Drain any remaining async host disposers before the synchronous exit cleanup.
 await removeFixture(suiteRoot, { recursive: true, force: true })

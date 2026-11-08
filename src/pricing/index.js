@@ -256,24 +256,84 @@ window.__ModuleLoader__.load({
         el('p', { className: 'cm-hint' }, en ? 'Hours use UTC; Beijing time is UTC + 8. Windows include the start and exclude the end. Empty hours mean all off-peak. Model settings override channel settings.' : '小时采用 UTC，北京时间减 8 小时后填写。包含起点、不含终点，时段留空表示全天谷价。模型设置优先于渠道设置。'))
     }
 
-    function PeakPriceEditor({ value, onChange, locale, defaults }) {
+    const rateFields = ['cacheMiss', 'cacheHit', 'output', 'cacheWrite', 'reasoning']
+    const rawRate = (row, field) => row?.[field] ?? (field === 'cacheMiss' ? row?.input : field === 'cacheHit' ? row?.cachedInput ?? row?.cacheRead ?? row?.cacheMiss ?? row?.input : undefined) ?? null
+    const withRateFactors = (entry, tier, fields, factor) => ({ ...entry, separateMultipliers: true,
+      multipliers: { ...(entry.separateMultipliers ? entry.multipliers : {}), ...Object.fromEntries(fields.map(field => [tier + '.' + field, factor])) } })
+
+    function MultiplierInput({ value, label, locale, rates, disabled = false, onCommit }) {
+      const formatted = value == null ? '' : String(value)
+      const [text, setText] = useState(formatted), [invalid, setInvalid] = useState(false), dirty = useRef(false)
+      useEffect(() => { if (!dirty.current) setText(formatted) }, [formatted])
+      const reset = () => { dirty.current = false; setInvalid(false); setText(formatted) }
+      const commit = () => {
+        if (!dirty.current) return
+        if (!text.trim()) { reset(); return }
+        const factor = Number(text)
+        if (!Number.isFinite(factor) || factor < 0 || rates.some(rate => rate != null && !Number.isFinite(rate * factor))) { setInvalid(true); return }
+        dirty.current = false; setInvalid(false); setText(String(factor)); onCommit(factor)
+      }
+      return el('input', { className: 'cm-input cm-factor-input', type: 'number', min: 0, step: 'any', value: text, disabled,
+        'aria-label': label, 'aria-invalid': invalid, placeholder: locale === 'en' ? 'Mixed' : '各项不同',
+        title: invalid ? (locale === 'en' ? 'Enter a finite, non-negative multiplier.' : '请输入有效的非负倍率。') : label,
+        onChange: event => { dirty.current = true; setInvalid(false); setText(event.target.value) }, onBlur: commit,
+        onKeyDown: event => { if (event.key === 'Enter') { event.preventDefault(); commit() } if (event.key === 'Escape') { event.stopPropagation(); reset() } } })
+    }
+
+    function TierMultiplier({ value, tier, title, locale, priceEditor, onChange }) {
+      const factors = rateFields.map(field => priceEditor.priceFactor(value, tier + '.' + field))
+      const factor = factors.every(number => number === factors[0]) ? factors[0] : null
+      const label = title + (locale === 'en' ? ' · Set all multipliers' : ' · 统一设置倍率')
+      const rates = [value, ...(value.rateHistory ?? [])].flatMap(row => rateFields.map(field => rawRate(tier === 'base' ? row : row[tier], field)))
+      return el('label', { className: 'cm-tier-multiplier' }, locale === 'en' ? 'Set all multipliers' : '统一设置倍率',
+        el(MultiplierInput, { value: factor, label, locale, rates, onCommit: number => onChange(withRateFactors(value, tier, rateFields, number)) }))
+    }
+
+    function RateField({ value, tier = 'base', field, title, label, locale, currency, priceEditor, t, onChange }) {
+      const row = tier === 'base' ? value : value[tier], number = rawRate(row, field), path = tier + '.' + field
+      const optional = field === 'cacheWrite' || field === 'reasoning', factor = priceEditor.priceFactor(value, path)
+      const commit = (number, factor) => {
+        const nextRow = { ...row }
+        if (number === null) delete nextRow[field]; else nextRow[field] = number
+        if (field === 'cacheMiss') delete nextRow.input
+        if (field === 'cacheHit') { delete nextRow.cachedInput; delete nextRow.cacheRead }
+        const next = tier === 'base' ? nextRow : { ...value, [tier]: nextRow }
+        onChange(factor === undefined ? next : withRateFactors(next, tier, [field], factor))
+      }
+      return el('div', { className: 'cm-rate-field' }, el('span', null, title),
+        el('div', { className: 'cm-rate-input' }, el('span', { className: 'cm-custom-amount' },
+          el('span', { 'aria-hidden': true }, currency === 'CNY' ? '¥' : '$'),
+          el(priceEditor.PriceInput, { value: number, entry: value, path, plain: true, t, label,
+            emptyMode: optional ? 'clear' : 'ignore',
+            placeholder: field === 'cacheWrite' ? (locale === 'en' ? 'Cached input rate' : '跟随缓存读取') : field === 'reasoning' ? (locale === 'en' ? 'Included in output' : '含在输出中') : '0', onCommit: commit })),
+          el('span', { className: 'cm-rate-times', 'aria-hidden': true }, '×'),
+          el(MultiplierInput, { value: factor, label: label + (locale === 'en' ? ' · Multiplier' : ' · 倍率'), locale, rates: [number], disabled: number == null,
+            onCommit: number => onChange(withRateFactors(value, tier, [field], number)) })))
+    }
+
+    function PeakPriceEditor({ value, onChange, locale, defaults, t, priceEditor, label = '', currency = value.currency }) {
       const en = locale === 'en', enabled = value.billingMode === 'deepseek-peak' || !!(value.peak || value.offPeak)
-      const base = { cacheMiss: value.cacheMiss ?? value.input ?? 0, cacheHit: value.cacheHit ?? value.cachedInput ?? value.input ?? 0, output: value.output ?? 0 }
+      const base = Object.fromEntries(rateFields.map((field, index) => [field, rawRate(value, field) ?? (index < 3 ? 0 : null)]).filter(([, number]) => number !== null))
       return el('details', { className: 'cm-custom-more' }, el('summary', null, en ? 'Peak / off-peak pricing' : '峰谷价格与时段'),
         el('label', { className: 'cm-check' }, el('input', { type: 'checkbox', checked: enabled, onChange: e => {
           const next = { ...value, billingMode: e.target.checked ? 'deepseek-peak' : 'flat' }
-          if (e.target.checked) { next.peak = value.peak ?? { ...base }; next.offPeak = value.offPeak ?? { ...base } }
+          if (e.target.checked) {
+            next.multipliers = { ...(value.separateMultipliers ? value.multipliers : {}) }; next.separateMultipliers = true
+            for (const tier of ['peak', 'offPeak']) if (!value[tier]) {
+              next[tier] = { ...base }
+              for (const field of rateFields) next.multipliers[tier + '.' + field] = priceEditor.priceFactor(value, 'base.' + field)
+            }
+          }
           else { delete next.peak; delete next.offPeak }
           onChange(next)
         } }), en ? 'Enable peak / off-peak prices' : '启用峰谷价格'),
-        enabled ? el(Fragment, null, ...['peak', 'offPeak'].map(tier => el('fieldset', { key: tier }, el('legend', null, tier === 'peak' ? (en ? 'Peak' : '峰价') : (en ? 'Off-peak' : '谷价')),
-          el('div', { className: 'cm-custom-grid' }, ...[['cacheMiss', '输入', 'Input'], ['cacheHit', '缓存读取', 'Cached input'], ['output', '输出', 'Output'], ['cacheWrite', '缓存写入', 'Cache write'], ['reasoning', '单独推理', 'Reasoning']].map(([key, zh, english]) => el('label', { key }, en ? english : zh,
-            el('input', { type: 'number', min: 0, step: 'any', className: 'cm-input', value: value[tier]?.[key] ?? '', onChange: e => {
-              const next = { ...value, [tier]: { ...base, ...value[tier] } }
-              if (e.target.value === '') { if (['cacheWrite', 'reasoning'].includes(key)) delete next[tier][key]; else return }
-              else if (Number.isFinite(e.target.valueAsNumber) && e.target.valueAsNumber >= 0) next[tier][key] = e.target.valueAsNumber; else return
-              onChange(next)
-            } })))))), el(PeakScheduleEditor, { value, onChange, locale, defaults })) : null)
+        enabled ? el(Fragment, null, ...['peak', 'offPeak'].map(tier => {
+          const title = tier === 'peak' ? (en ? 'Peak' : '峰价') : (en ? 'Off-peak' : '谷价')
+          return el('fieldset', { key: tier, 'data-price-tier': tier }, el('legend', null, title),
+            el(TierMultiplier, { value, tier, title: label + ' · ' + title, locale, priceEditor, onChange }),
+            el('div', { className: 'cm-custom-grid' }, ...[['cacheMiss', '输入', 'Input'], ['cacheHit', '缓存读取', 'Cached input'], ['output', '输出', 'Output'], ['cacheWrite', '缓存写入', 'Cache write'], ['reasoning', '单独推理', 'Reasoning']].map(([field, zh, english]) =>
+              el(RateField, { key: field, value, tier, field, title: en ? english : zh, label: label + ' · ' + title + ' · ' + (en ? english : zh), locale, currency, priceEditor, t, onChange }))))
+        }), el(PeakScheduleEditor, { value, onChange, locale, defaults })) : null)
     }
 
     function ProviderScheduleSettings({ state, draft, setDraft, locale }) {
@@ -291,30 +351,22 @@ window.__ModuleLoader__.load({
 
     function CustomPriceEditor({ value, label, locale, onChange, t, priceEditor }) {
       const en = locale === 'en'
-      const { PriceInput, priceFactor, setPriceFactor, multiplierOptions } = priceEditor
+      const { priceFactor } = priceEditor
       const fields = [['cacheMiss', en ? 'Input · cache miss' : '输入 · 未命中缓存'], ['cacheHit', en ? 'Cached input' : '缓存读取'], ['output', en ? 'Output' : '输出'], ['cacheWrite', en ? 'Cache write' : '缓存写入'], ['reasoning', en ? 'Separate reasoning' : '单独推理费用']]
-      const edit = (key, number, factor) => {
-        const next = { ...value }
-        if (number === null) delete next[key]; else next[key] = number
-        setPriceFactor(next, 'base.' + key, factor)
-        onChange(next)
-      }
-      const field = ([key, title]) => el('label', { key }, title, el('span', { className: 'cm-custom-amount' },
-        el('span', { 'aria-hidden': true }, value.currency === 'CNY' ? '¥' : '$'), el(PriceInput, { entry: value, value: value[key] ?? null, path: 'base.' + key, t,
-          emptyMode: ['cacheWrite', 'reasoning'].includes(key) ? 'clear' : 'ignore', label: label + ' · ' + title,
-          placeholder: key === 'cacheWrite' ? (en ? 'Same as cached input' : '跟随缓存读取') : key === 'reasoning' ? (en ? 'Included in output' : '含在输出中') : '0',
-          onCommit: (number, factor) => edit(key, number, factor) })))
+      const field = ([key, title]) => el(RateField, { key, value, field: key, title, label: label + ' · ' + title, locale, currency: value.currency, priceEditor, t, onChange })
+      const tiers = [['base', en ? 'Base' : '基础价'], ...(['peak', 'offPeak'].filter(tier => value[tier]).map(tier => [tier, tier === 'peak' ? (en ? 'Peak' : '峰价') : (en ? 'Off-peak' : '谷价')]))]
       return el('fieldset', { className: 'cm-custom-price', 'aria-label': label + (en ? ' · Custom price' : ' · 自定义价格') },
         el('legend', null, en ? 'Custom price · per 1M tokens' : '自定义价格 · 每百万 Token'),
         el('div', { className: 'cm-custom-head' }, el('span', null, en ? 'Only this channel and model' : '仅用于此渠道的这个模型'),
           el('label', null, en ? 'Currency' : '币种', el('select', { className: 'cm-input', value: value.currency, onChange: event => onChange({ ...value, currency: event.target.value }) },
             el('option', { value: 'USD' }, en ? 'USD · US dollar' : 'USD · 美元'), el('option', { value: 'CNY' }, en ? 'CNY · Yuan' : 'CNY · 人民币')))),
+        el(TierMultiplier, { value, tier: 'base', title: label + (en ? ' · Base' : ' · 基础价'), locale, priceEditor, onChange }),
         el('div', { className: 'cm-custom-grid' }, ...fields.slice(0, 3).map(field)),
-        multiplierOptions(value, t, separate => onChange({ ...value, separateMultipliers: separate, multipliers: {} })),
-        el(PeakPriceEditor, { value, onChange, locale, defaults: [{ start: 1, end: 4 }, { start: 6, end: 10 }] }),
+        el(PeakPriceEditor, { value, onChange, locale, t, priceEditor, label, defaults: [{ start: 1, end: 4 }, { start: 6, end: 10 }] }),
         el('div', { className: 'cm-custom-effective', role: 'status' },
           el('div', { className: 'cm-effective-heading' }, el('span', null, en ? 'Effective prices' : '实际单价'), el('small', null, en ? 'Price × multiplier / 1M tokens' : '单价 × 倍率 / 百万 Token')),
-          el('div', { className: 'cm-effective-grid' }, ...fields.slice(0, 3).map(([key, title]) => el('div', { key }, el('span', null, title), el('strong', null, (value.currency === 'CNY' ? '¥' : '$') + Number((value[key] * priceFactor(value, 'base.' + key)).toPrecision(8)).toLocaleString(en ? 'en-US' : 'zh-CN', { maximumFractionDigits: 8 })))))),
+          ...tiers.map(([tier, title]) => el('div', { key: tier, className: 'cm-effective-tier', 'data-effective-tier': tier }, tiers.length > 1 ? el('span', null, title) : null,
+            el('div', { className: 'cm-effective-grid' }, ...fields.slice(0, 3).map(([key, title]) => el('div', { key }, el('span', null, title), el('strong', null, (value.currency === 'CNY' ? '¥' : '$') + Number((rawRate(tier === 'base' ? value : value[tier], key) * priceFactor(value, tier + '.' + key)).toPrecision(8)).toLocaleString(en ? 'en-US' : 'zh-CN', { maximumFractionDigits: 8 })))))))),
         el('details', { className: 'cm-custom-more' }, el('summary', null, en ? 'More billing fields' : '更多计费项'),
           el('div', { className: 'cm-custom-grid' }, ...fields.slice(3).map(field)),
           el('p', { className: 'cm-hint' }, en ? 'Leave reasoning blank when it is included in output. Leave cache write blank to use the cached input rate.' : '推理已包含在输出中时无需另填。缓存写入留空则使用缓存读取价格。')),
@@ -512,7 +564,7 @@ window.__ModuleLoader__.load({
                     el('span', { className: 'cm-catalog-model-name' }, el('strong', null, name), variants ? el('small', null, variants) : null),
                     el(RateSummary, { entry, currency, priceEditor, locale }), el(Chevron, { className: 'cm-catalog-edit-caret', open: active })),
                   active ? el('div', { className: 'cm-catalog-editor' }, renderEditor(id, model, entry),
-                    el(PeakPriceEditor, { value: entry, locale, defaults: prices.providers?.[id]?.peakWindows ?? draft.peakWindows, onChange: value => {
+                    el(PeakPriceEditor, { value: entry, locale, t, priceEditor, label: name, currency, defaults: prices.providers?.[id]?.peakWindows ?? draft.peakWindows, onChange: value => {
                       const next = id === 'deepseek' ? { ...prices, ...(model === '__default__' ? { default: value } : { models: { ...prices.models, [model]: value } }) }
                         : { ...prices, providers: { ...prices.providers, [id]: { ...prices.providers[id], models: { ...prices.providers[id].models, [model]: value } } } }
                       setDraft({ ...draft, prices: next })
@@ -666,6 +718,7 @@ window.__ModuleLoader__.load({
         .cm-pricing-empty{margin:0;padding:32px 16px;text-align:center;color:var(--dsw-alias-label-tertiary);border:1px dashed var(--dsw-alias-border-l1);border-radius:12px;font-size:13px}
         .cm-model-matching .cm-custom-price{margin:0;padding:14px;background:var(--dsw-alias-bg-base);gap:12px;scroll-margin-block-start:12px}.cm-custom-head{flex-wrap:wrap}.cm-custom-head>span{flex:1;min-width:160px}.cm-custom-grid{grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr))}.cm-custom-price .cm-input{max-width:none;box-sizing:border-box;padding-top:8px;padding-bottom:8px}.cm-custom-price .cm-custom-amount input{padding-inline-start:28px}.cm-custom-price .cm-price-multiplier{align-items:center;gap:8px}.cm-custom-price .cm-price-multiplier label{display:inline-flex;align-items:center;gap:6px}.cm-custom-price .cm-price-multiplier input{width:auto;min-width:0}.cm-custom-price .cm-hint{font-size:11px;color:var(--dsw-alias-label-tertiary)}
         .cm-custom-effective{display:grid;gap:12px;padding:12px;background:var(--dsw-alias-bg-layer-1);border-radius:8px;font-size:12px;font-variant-numeric:tabular-nums}.cm-effective-heading{display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap}.cm-effective-heading>span{font-weight:500}.cm-effective-heading small,.cm-effective-grid span{color:var(--dsw-alias-label-tertiary);font-size:11px}.cm-effective-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.cm-effective-grid>div{display:grid;gap:5px;min-width:0}.cm-effective-grid strong{font-size:14px;font-weight:600;overflow-wrap:anywhere}
+        .cm-rate-field{display:grid;gap:7px;min-width:0;font-size:12px;color:var(--dsw-alias-label-secondary)}.cm-rate-input{display:grid;grid-template-columns:minmax(0,1fr) auto 84px;gap:7px;align-items:center;min-width:0}.cm-rate-input .cm-input{width:100%;min-width:0;max-width:none;box-sizing:border-box}.cm-rate-times{color:var(--dsw-alias-label-tertiary)}.cm-rate-input .cm-factor-input{padding-inline:8px}.cm-custom-price .cm-tier-multiplier,.cm-tier-multiplier{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--dsw-alias-label-secondary)}.cm-tier-multiplier .cm-factor-input{width:100px;min-width:0;box-sizing:border-box}.cm-factor-input[aria-invalid=true]{border-color:var(--dsw-alias-state-danger-primary,#cf4e4e)}.cm-rate-input .cm-factor-input:disabled{opacity:.5}.cm-effective-tier{display:grid;gap:8px}.cm-effective-tier>span{font-size:11px;color:var(--dsw-alias-label-secondary)}.cm-custom-price>.cm-custom-grid{grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr))}
         .cm-pricing-page .cm-price-card{min-width:0;container:cm-price-editor / inline-size}.cm-pricing-page .cm-price-row{min-width:0}.cm-pricing-page .cm-price-row input{max-width:none;font-variant-numeric:tabular-nums}.cm-pricing-catalog .cm-catalog-vendor{margin-top:8px}
         @media(max-width:480px){.cm-model-matching .cm-match-row{padding:8px 10px}.cm-model-matching .cm-custom-price{padding:10px}.cm-custom-more .cm-custom-grid{grid-template-columns:1fr}.cm-effective-grid{gap:8px}.cm-model-identity{flex-basis:100%}}
       `
