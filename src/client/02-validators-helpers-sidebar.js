@@ -147,6 +147,7 @@
         ...mapFields(v, ['hideSessionCostHeader', 'hideSessionCostDock', 'hideTurnCost', 'followSkinTransparency', 'sidebarTodayBalanceInline', 'sessionListCosts', 'hideBudget', 'sessionCostCompact', 'contextCostsEnabled', 'contextCostsPromptSeen', 'showTotalWithPlan', 'sidebarSimple', 'codexQuotaEnabled', 'codexCompatPromptDismissed', 'includeSubagentCost', 'peakEnabled', 'peakAlertWebNotify'], value => value === true),
         sidebarTodayMetric: ['tokens', 'both'].includes(v.sidebarTodayMetric) ? v.sidebarTodayMetric : 'cost',
         sidebarTextOnly: v.sidebarTextOnly === true,
+        localSavings: v.localSavings,
         ...(Object.hasOwn(v, 'sidebarOrder') ? { sidebarOrder: Array.isArray(v.sidebarOrder) ? v.sidebarOrder : [] } : {}),
         statisticsBasis: v.statisticsBasis,
         sidebarModels: Object.fromEntries(Object.entries(MODEL_SIDEBAR_DEFAULTS).map(([k, v0]) => [k, v.sidebarModels?.[k] ?? v0])),
@@ -454,6 +455,7 @@
         month: parseDay(v.month, path + '.month'),
         total: parseDay(v.total, path + '.total'),
         budgetUsed: typeof v.budgetUsed === 'number' && Number.isFinite(v.budgetUsed) ? v.budgetUsed : undefined,
+        localSavings: v.localSavings,
         balance: v.balance == null ? EMPTY_BAL : parseBalance(v.balance, path + '.balance'),
         goQuota: v.goQuota == null ? EMPTY_GO : parseGoQuota(v.goQuota, path + '.goQuota'),
         customBalance: v.customBalance == null ? emptyCustomSnapshot() : parseCustomBalance(v.customBalance, path + '.customBalance'),
@@ -1781,8 +1783,8 @@
     }
 
     /**
-     * 输入区下方的会话费用入口:与官方 StatsPills(ActivityPill/UsagePill)同构——左侧直接使用配置里的
-     * 当前货币符号(¥ / $ / €,文本字形在 14px 下有字体 hinting,比缩小 SVG 更清晰),金额与命中率/
+     * 输入区下方的会话费用入口:沿用官方 StatsPills 的按钮样式,货币符号紧随金额标签、位于数值前。
+     * 金额与命中率/
      * 输入/缓存/输出分项用 · 分隔、整行可点击打开费用明细弹窗;悬停提示保留完整分项与模型金额;
      * 「仅显示金额」开启时只保留金额段(与 master 的呈现一致)。
      */
@@ -1817,22 +1819,17 @@
       const fullLine = config ? t(planPart > 0 ? 'sessionLineSplit' : 'sessionLine', values) : status
       const modelDetail = config ? modelCostDetail(usage, config) : ''
       const label = costDetailsLabel(en)
-      // 前导槽位用当前货币符号(跟随设置里的货币);行内金额/分项去掉重复符号。
-      // 文字内容与 master 一致:金额 + 命中率/输入/缓存/输出;仅显示金额时只保留金额段。
-      const sym = config?.symbol || '$'
       const compact = props.entryPosition === 'header' || config?.sessionCostCompact === true
-      const displayValues = { ...values, amount: values.amount.slice(sym.length), planAmount: values.planAmount.slice(sym.length) }
       const lineKey = compact
         ? (planPart > 0 ? 'sessionLineSplitCompact' : 'sessionLineCompact')
         : (planPart > 0 ? 'sessionLineSplit' : 'sessionLine')
-      const labelText = status || t(lineKey, displayValues)
+      const labelText = status || t(lineKey, values)
       // 悬停/聚焦时预取统计页(并入 client 页缓存),避免首次点击弹窗先出现骨架屏。
       const warm = () => warmPage(props.api?.loadStatistics, { state: snapshot?.state, sessionId: props.sessionId })
       // 悬停详情走宿主官方 Tooltip(与官方统计 pill 一致的黑色气泡),不再用浏览器原生 title。
       return el(Fragment, null,
         el(Tooltip, { portal: true, label: [fullLine, modelDetail].filter(Boolean).join('; '), side: 'top' },
           el('button', { type: 'button', className: 'cm-dp' + (props.entryPosition === 'header' ? ' cm-dp-header' : ''), 'aria-label': label, 'aria-haspopup': 'dialog', 'aria-expanded': open, onMouseEnter: warm, onFocus: warm, onClick: () => setOpenedId(props.sessionId) },
-            el('span', { className: 'cm-dsym', 'aria-hidden': 'true' }, sym),
             el('span', { className: 'cm-dl' }, labelText))),
         dialog)
     }
@@ -3419,6 +3416,7 @@
         chips.map(c => {
           const busy = busyKey === c.key
           const err = errs[c.key]
+          const direction = c.key === 'codex' ? 'remaining' : barDirectionOf(config, c.key === 'budget' || c.key === 'go' ? c.key : 'plan')
           const kids = [el('span', { className: 'cm-qlabel', key: 'l' }, c.label)]
           if (busy) {
             kids.push(el('span', { className: 'cm-qtext', key: 'busy' }, t('refreshing')))
@@ -3430,7 +3428,7 @@
               } else {
                 kids.push(el('span', { className: 'cm-qseg', key: s.name },
                   el('span', { className: 'cm-qbar' }, el('span', { className: 'cm-qfill', style: { width: s.pct + '%' } })),
-                  el('span', null, c.key === 'codex' ? (c.segs.length > 1 ? (s.name === '5h' ? '5h' : t('goShortWeekly')) + ' ' : '') + quotaValueText(s.pct, 'remaining', t) : s.pct + '%')))
+                  el('span', null, (c.key === 'codex' && c.segs.length > 1 ? (s.name === '5h' ? '5h' : t('goShortWeekly')) + ' ' : '') + quotaValueText(s.pct, direction, t))))
               }
             })
           }
@@ -3570,7 +3568,7 @@
       const showToday = config.sidebar !== false && config.hideTodayCost !== true
       const peakOn = peakView(config, Date.now()) !== null
       const modelsOn = config.sidebarModels?.enabled === true
-      if (!modelsOn && !showBalance && !showCustomBalance && !goOk && !plansOn && !codexOn && !budgetOn && !showToday && !peakOn && gatewayNodes.length === 0) return null
+      if (!config.localSavings?.enabled && !modelsOn && !showBalance && !showCustomBalance && !goOk && !plansOn && !codexOn && !budgetOn && !showToday && !peakOn && gatewayNodes.length === 0) return null
       // 紧凑模式(侧边栏进度条样式):宽栏下各额度卡内部的时间段进度行排两列
       // (CSS 于 .cm-footer-stack.compact 生效);卡片本身与收起(rail)态维持原样。
       const simple = config.sidebarSimple === true
@@ -3595,6 +3593,7 @@
       if (peakOn) nodes.push(el(Fragment, { key: 'peak' }, wide ? peakNoticeEl(state, config.sidebarStyle === 'summary' && !config.sidebarSimple ? { ...config, peakProgressVariant: 'summary' } : config, t) : peakNoticeRailEl(state, config, t)))
       if (modelsOn) nodes.splice(config.sidebarModels.position === 'first' ? 0 : config.sidebarModels.position === 'afterBalance' ? afterBalance : nodes.length, 0,
         el(SidebarModelCosts, { key: 'models', state, wide, preview }))
+      if (config.localSavings?.enabled) nodes.push(el(BillingStatistics, { key: 'localSavings', state, wide, load: loadLocalSavings, quiet: true }))
       const order = config.sidebarOrder?.length ? config.sidebarOrder : config.sidebarStyle === 'summary' && !simple ? ['today', 'balance', 'peak'] : []
       if (order.length) {
         const rank = node => { const index = order.indexOf(node.key); return index < 0 ? 999 : index }

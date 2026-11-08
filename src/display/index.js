@@ -43,6 +43,7 @@ window.__ModuleLoader__.load({
       labels.badge = text('会话费用摘要', 'Session cost summary')
       labels['strip-codex'] = text('Codex 额度', 'Codex quota')
       labels.sessionList = text('会话列表金额', 'Session list amounts')
+      labels.localSavings = text('本地节省', 'Local savings')
       const registry = {}
       const id = React.useId(), dialogRef = React.useRef(null), expandButton = React.useRef(null)
       React.useEffect(() => {
@@ -56,7 +57,6 @@ window.__ModuleLoader__.load({
       const budgetPercent = percent(Number(previewData.state.budgetUsed) * (Number(config.exchangeRate) || 1), Number(previewData.config.budget?.amount))
       const goPercent = previewData.state.goQuota?.rolling?.percent ?? null
       const planPercent = Object.values(previewData.state.codingPlans ?? {}).flatMap(plan => Object.values(plan.windows ?? {})).find(win => Number.isFinite(win?.percent))?.percent ?? null
-      const percentLabel = value => value === null ? '—' : Number(value.toFixed(1)) + '%'
       const inner = (key, on, ...children) => el(key.startsWith('corner-') ? 'div' : 'span', { className: 'cm-preview-part', 'data-display-part': key, 'data-preview-hidden': !on }, ...children)
       const set = patch => setDraft(previous => ({ ...(previous ?? config), ...patch }))
 
@@ -90,6 +90,7 @@ window.__ModuleLoader__.load({
       registry.customBalance = { on: ['both', 'sidebar'].includes(config.customBalance?.display ?? 'both'), patch: { customBalance: { ...config.customBalance, display: ['both', 'sidebar'].includes(config.customBalance?.display ?? 'both') ? 'settings' : 'both' } } }
       registry.codex = { on: config.codexQuotaEnabled === true && config.codexQuotaSidebar !== false, patch: config.codexQuotaEnabled === true && config.codexQuotaSidebar !== false ? { codexQuotaSidebar: false } : { codexQuotaEnabled: true, codexQuotaSidebar: true } }
       registry.sessionList = { on: config.sessionListCosts === true, patch: { sessionListCosts: config.sessionListCosts !== true } }
+      registry.localSavings = { on: config.localSavings?.enabled === true, patch: { localSavings: { ...config.localSavings, enabled: config.localSavings?.enabled !== true } } }
       const strip = config.quotaStrip ?? {}
       const codex = previewData.state.displayPreviewCodex
       const codexPercentages = codex?.status === 'ok' ? Object.entries(codex.windows ?? {}).map(([key, win]) => ({ key, pct: Number.isFinite(win?.percent) ? Math.max(0, Math.min(100, 100 - win.percent)) : null })) : []
@@ -104,25 +105,24 @@ window.__ModuleLoader__.load({
         const on = strip.enabled === true && strip[key] !== false
         // Enabling one item from a disabled strip must not show its siblings unexpectedly.
         const next = strip.enabled ? { ...strip, [key]: !on } : { ...strip, budget: false, go: false, plans: false, [key]: true }
-        const pct = value === null ? null : (config.barDirections?.[kind] ?? 'used') === 'remaining' ? 100 - value : value
+        const remaining = config.barDirections?.[kind] === 'remaining'
+        const pct = value === null ? null : remaining ? 100 - value : value
         return item('strip-' + key, text('输入框上方 · ', 'Above composer · ') + label, on, { quotaStrip: { ...next, enabled: true, promptSeen: true }, ...(strip.enabled ? {} : { codexQuotaStrip: false }) },
           el('span', { className: 'cm-qchip' }, el('span', { className: 'cm-qlabel' }, label),
-            el('span', { className: 'cm-qbar' }, el('span', { className: 'cm-qfill', style: { width: (pct ?? 0) + '%' } })), el('span', { className: 'cm-qtext' }, percentLabel(pct))))
+            el('span', { className: 'cm-qbar' }, el('span', { className: 'cm-qfill', style: { width: (pct ?? 0) + '%' } })), el('span', { className: 'cm-qtext' }, pct === null ? '—' : t(remaining ? 'quotaRemaining' : 'quotaUsed', { pct: Number(pct.toFixed(1)) }))))
       }
       const sessionHeader = region === 'conversation' ? item('session-header', labels['session-header'], config.hideSessionCostHeader !== true,
         { hideSessionCostHeader: config.hideSessionCostHeader !== true },
         el('span', { className: 'cm-btn cm-stat-entry' }, text('费用明细', 'Cost details'))) : null
       const dockVisible = config.position === 'dock' && config.hideSessionCostDock !== true
-      // 输入区费用入口:官方 pill(当前货币符号 + 金额 + 命中/输入/缓存/输出分项 · 分隔,整行可点击)。
-      const dockSymbol = config.symbol || '$'
-      const dockAmountText = t('sessionLineCompact', { amount: examples ? money(.32).slice(dockSymbol.length) : '—' })
+      // 输入区费用入口与实际金额行使用相同的货币位置。
+      const dockAmountText = t('sessionLineCompact', { amount: examples ? money(.32) : '—' })
       const dockDetail = examples
         ? text(' · 命中 60.0% · 输入 128K · 缓存 13M · 输出 4K', ' · Hit 60.0% · Input 128K · Cache 13M · Output 4K')
         : text(' · 暂无会话缓存', ' · No cached session data')
       const dockCost = region === 'composer' ? item('dock-cost', labels['dock-cost'], dockVisible,
         dockVisible ? { position: 'off', hideSessionCostDock: true } : { position: 'dock', hideSessionCostDock: false },
         el('span', { className: 'cm-dp' },
-          el('span', { className: 'cm-dsym', 'aria-hidden': true }, dockSymbol),
           el('span', { className: 'cm-dl' }, dockAmountText,
             inner('session-detail', config.sessionCostCompact !== true, dockDetail)))) : null
       const headerBadge = region === 'conversation' ? item('badge', labels.badge, config.position === 'header',
@@ -144,7 +144,7 @@ window.__ModuleLoader__.load({
       const scene = region === 'sidebar' ?
         el(SidebarPreview, { renderSidebar: renderPreviewSidebar, config: previewData.config, selected, selectedPlan, select, labels,
           displayConfig: config, visibility: { balance: balanceOn, budget: registry.budget.on, today: todayOn,
-            go: registry.go.on, peak: registry.peak.on, models: registry.models.on, plan: planOn, customBalance: registry.customBalance.on, codex: registry.codex.on },
+            go: registry.go.on, peak: registry.peak.on, models: registry.models.on, plan: planOn, customBalance: registry.customBalance.on, codex: registry.codex.on, localSavings: registry.localSavings.on },
           onOrder: order => { if (Object.hasOwn(config, 'sidebarOrder')) set({ sidebarOrder: order }) },
           listPreview: item('sessionList', labels.sessionList, config.sessionListCosts === true, registry.sessionList.patch,
             el('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: 8 } }, el('span', { style: { flex: 1 } }, text('整理项目计划', 'Organize the project plan')),

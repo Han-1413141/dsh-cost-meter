@@ -56,5 +56,5 @@
             track,
             mode === 'both' ? el('div', { className: 'cm-peak-progress-meta' }, el('span', null, view.startText + (en ? ' start' : ' 开始')), el('span', null, change)) : null)
       return el(Tooltip, { portal: true, label: detail, side: 'right', delayMs: 300 },
-        el('div', { 'data-cm-display': 'peak', title: detail, className: 'cm-peak-progress ' + (view.inPeak ? 'peak' : 'off') + (rail ? ' rail' : ' variant-' + variant) + (textOnly ? ' text-only' : ''), 'data-variant': variant, 'data-progress': view.progress, 'data-switch-at': view.nextAtMs }, content))
+        el('div', { 'data-cm-display': 'peak', 'aria-label': detail, className: 'cm-peak-progress ' + (view.inPeak ? 'peak' : 'off') + (rail ? ' rail' : ' variant-' + variant) + (textOnly ? ' text-only' : ''), 'data-variant': variant, 'data-progress': view.progress, 'data-switch-at': view.nextAtMs }, content))
     }

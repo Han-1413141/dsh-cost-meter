@@ -10,6 +10,11 @@ Composer, header and turn cost entries have independent switches. Open a convers
 
 [Statistics and call details](billing-statistics.md#english) · [Context costs](context-costs-design.md)
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="images/conversation-dark.png">
+  <img src="images/conversation-light.png" alt="Conversation costs, plan quotas and account balance" width="1280">
+</picture>
+
 | Conversation distribution | Parent/subagent ownership |
 | --- | --- |
 | [![Conversation distribution](images/treemap.png)](images/treemap.png) | [![Parent/subagent ownership](images/agents.png)](images/agents.png) |
@@ -65,6 +70,10 @@ The usage page includes token heatmaps, daily history, model statistics and esti
 | Token heatmap and history | Plan usage estimates |
 | --- | --- |
 | [![Token heatmap and history](images/usage.png)](images/usage.png) | [![Plan usage estimates](images/plan-statistics.png)](images/plan-statistics.png) |
+
+## Local-model API-equivalent costs
+
+The optional Local savings card filters provider IDs by prefix and shows daily, weekly, monthly and retained-history amounts at a selected reference API rate. Expand it for per-model tokens and costs; choose the reference model and tier in Display settings. [Configuration](local-savings.md#english)
 
 ## Display, themes and mobile
 

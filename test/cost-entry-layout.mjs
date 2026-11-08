@@ -1,7 +1,8 @@
 // Browser regression for #214: the composer-dock cost entry must read like the
-// native stats beside it — leading icon, two parts joined by "·", one clickable row.
+// native stats beside it — two parts joined by "·", one clickable row, currency before amount.
 // Run with a node_modules path containing react, react-dom and playwright-core.
-import { readFileSync, readdirSync } from 'node:fs'
+import assert from 'node:assert/strict'
+import { readFileSync, readdirSync, mkdirSync, existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { createServer } from 'node:http'
 import { resolve } from 'node:path'
@@ -9,7 +10,7 @@ import { build } from 'esbuild'
 import { sanitizeConfig } from '../lib/store.js'
 
 const root = resolve(import.meta.dirname, '..')
-const peerCss = process.argv[3] ? readFileSync(resolve(process.argv[3]), 'utf8') : ''
+const peerCss = process.argv[3] && !process.argv[3].startsWith('--') ? readFileSync(resolve(process.argv[3]), 'utf8') : ''
 if (!process.argv[2]) throw new Error('Pass the node_modules directory containing react and react-dom')
 const modules = process.argv[2]
 const browserReq = createRequire(resolve(modules, '__cost_entry_layout.cjs'))
@@ -49,9 +50,9 @@ const dock=doc.querySelector('.cm-dp');
 const label=doc.querySelector('.cm-dl');
 const amountVisible=()=>!!label&&label.getBoundingClientRect().width>0&&label.getBoundingClientRect().right<=dock.getBoundingClientRect().right+1;
 check(!!dock,frame.title+' merged cost entry mounted');
-check(!!dock.querySelector('.cm-dsym'),frame.title+' leading currency symbol');
-check(dock.querySelector('.cm-dsym').textContent==='¥',frame.title+' symbol follows the configured currency');
-check(!dock.querySelector('.cm-dl').textContent.includes('¥'),frame.title+' visible amount omits the repeated symbol');
+check(!dock.querySelector('.cm-dsym'),frame.title+' currency is part of the amount, not a leading icon');
+check(['本会话 ¥','This session ¥'].some(prefix=>label.textContent.startsWith(prefix)),frame.title+' configured currency immediately precedes the amount');
+check(label.textContent.split('¥').length===2,frame.title+' ordinary amount shows its currency once');
 check(dock.textContent.includes('·'),frame.title+' the two parts are joined by ·');
 check(amountVisible(),frame.title+' session amount is readable beside native stats');
 doc.querySelectorAll('.native-pill').forEach((pill,i)=>{pill.textContent=i?'▤ 14.8M tok · cache hit 92%':'◷ 3 turns 175 steps · 51 tok/s';});
@@ -59,10 +60,9 @@ check(amountVisible(),frame.title+' async native stats do not squeeze session am
 check(!dock.title,frame.title+' hover details come from the host Tooltip, not a native title');
 check(dock.getAttribute('aria-label')==='本会话费用明细'||dock.getAttribute('aria-label')==='Conversation cost details',frame.title+' accessible name retained');
 check(dock.getBoundingClientRect().height<=24,frame.title+' compact typography');
-const dockStyle=win.getComputedStyle(dock), symbolStyle=win.getComputedStyle(dock.querySelector('.cm-dsym'));
+const dockStyle=win.getComputedStyle(dock);
 check(dockStyle.paddingLeft==='8px'&&dockStyle.paddingRight==='8px',frame.title+' official pill padding');
 check(dockStyle.borderRadius==='6px',frame.title+' official pill radius');
-check(symbolStyle.width==='14px'&&symbolStyle.fontSize==='12px',frame.title+' symbol uses the official 14px icon slot');
 const transparent = value => value === 'rgba(0, 0, 0, 0)' || value === 'transparent';
 check(transparent(dockStyle.backgroundColor),frame.title+' idle pill has no background');
 check(doc.documentElement.scrollWidth<=win.innerWidth,frame.title+' no horizontal page overflow');
@@ -88,4 +88,25 @@ const server = createServer((request, response) => {
 body{margin:0;font:14px system-ui;color:#222}header,footer{display:flex;align-items:center;gap:12px;box-sizing:border-box;max-width:100%}header{padding:12px}.title{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}main{padding:8px}footer{font-size:12px;justify-content:center;padding:4px 4px 0}[data-slot]{display:contents}.native-stats{display:flex;justify-content:center;gap:12px;min-width:0;max-width:100%;line-height:20px}.native-pill{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.context-meter{flex:none;white-space:nowrap;line-height:20px}button{font:inherit}dialog{box-sizing:border-box}
 </style><div id="root"></div><script src="/entry.js"></script>` : overview)
 })
-server.listen(0, '127.0.0.1', () => console.log('http://127.0.0.1:'+server.address().port))
+await new Promise(done => server.listen(0, '127.0.0.1', done))
+const url = 'http://127.0.0.1:' + server.address().port
+if (!process.argv.includes('--check')) console.log(url)
+else {
+  const executablePath = process.env.CM_TEST_BROWSER ?? ['C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe', '/usr/bin/google-chrome', '/usr/bin/chromium'].find(existsSync)
+  const browser = await chromium.launch({ executablePath, headless: true })
+  try {
+    const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } })
+    const errors = []
+    page.on('pageerror', error => errors.push(error.message))
+    await page.goto(url)
+    await page.waitForFunction(() => [...document.querySelectorAll('iframe')].every(frame => frame.contentDocument.querySelector('.cm-dp')))
+    await page.locator('#run').click()
+    await page.waitForFunction(() => /^(PASS|FAIL)/.test(document.querySelector('#result').textContent))
+    const result = await page.locator('#result').innerText()
+    mkdirSync('.tmp-cost-entry', { recursive: true })
+    await page.screenshot({ path: '.tmp-cost-entry/layout.png', fullPage: true })
+    assert.match(result, /^PASS/)
+    assert.deepEqual(errors, [])
+    console.log('[ok] composer currency and native stats layout: ' + result)
+  } finally { await browser.close(); await new Promise(done => server.close(done)) }
+}

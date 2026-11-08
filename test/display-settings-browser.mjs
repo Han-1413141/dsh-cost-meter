@@ -17,6 +17,7 @@ import { checkFeedbackSidebar } from './feedback-sidebar-checks.mjs'
 import { checkSidebarTextOnly } from './sidebar-text-only-checks.mjs'
 import { checkPlanGauges } from './plan-gauge-checks.mjs'
 import { checkBalanceQuickHide } from './balance-quick-hide-checks.mjs'
+import { checkLocalSavings } from './local-savings-browser-checks.mjs'
 
 const modules = resolve(process.env.DSH_TEST_UI_MODULES ?? '.tmp-pr240-host/node_modules')
 const req = createRequire(join(modules, '__display.cjs'))
@@ -33,11 +34,13 @@ const code = `
 import * as ReactDOMPortal from ${literal(req.resolve('react-dom'))};import React from ${literal(req.resolve('react'))};import{createRoot}from ${literal(req.resolve('react-dom/client'))};
 const h=React.createElement;
 const tooltipText=value=>Array.isArray(value)?value.map(tooltipText).join(' '):typeof value==='string'||typeof value==='number'?String(value):value?.props?tooltipText(value.props.children):'';
-const mainRequire=name=>name==='react'?React:{Tooltip:({children,label})=>React.cloneElement(children,{'data-test-tooltip':tooltipText(label)})};mainRequire.async=async()=>window.peakUI;
+const mainRequire=name=>name==='react'?React:{Tooltip:({children,label})=>React.cloneElement(children,{'data-test-tooltip':tooltipText(label)})};mainRequire.async=async path=>path==='./client.local-savings.js'?window.localSavingsUI:window.peakUI;
 window.__ModuleLoader__={load:mod=>window.mainUI=mod.factory(mainRequire)};
 ${client}
 window.__ModuleLoader__={load:mod=>window.peakUI=mod.factory(name=>name==='react-dom'?ReactDOMPortal:React)};
 ${readFileSync('lib/client.peak.js', 'utf8')}
+window.__ModuleLoader__={load:mod=>window.localSavingsUI=mod.factory(()=>React)};
+${readFileSync('lib/client.local-savings.js', 'utf8')}
 window.__ModuleLoader__={load:mod=>window.displayUI=mod.factory(()=>React)};
 ${readFileSync('lib/client.display.js', 'utf8')}
 window.__ModuleLoader__={load:mod=>window.orderUI=mod.factory(()=>React)};
@@ -94,7 +97,10 @@ await page.exposeFunction('saveConfig', patch => {
 })
 try {
   await page.goto(url)
-  if (process.argv.includes('--gauge-only')) {
+  if (process.argv.includes('--local-savings-only')) {
+    console.log('[ok] local savings ' + JSON.stringify(await checkLocalSavings(page, output)))
+    assert.deepEqual(errors, []); assert.deepEqual(external, [])
+  } else if (process.argv.includes('--gauge-only')) {
     console.log('[ok] plan gauges ' + JSON.stringify(await checkPlanGauges(page, output)))
     assert.deepEqual(errors, []); assert.deepEqual(external, [])
   } else if (process.argv.includes('--quick-hide-only')) {
@@ -145,6 +151,7 @@ try {
   await checkInlineBalance(page, output)
   await checkSidebarTextOnly(page, output)
   await checkTodayAndOrder(page, output)
+  await checkLocalSavings(page, output)
   const region=async name=>page.getByRole('tab',{name,exact:true}).click()
   const item=key=>page.locator('.cm-preview [data-display="'+key+'"]')
   const selectStyle=async label=>{if(['标准','紧凑','简洁'].includes(label)&&await page.locator('.cm-style-thumbnail').count()===0)await page.locator('.cm-inspector-layout').click();await page.getByRole('button',{name:label,exact:true}).click()}

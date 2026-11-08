@@ -61,6 +61,7 @@ export async function checkSidebarTextOnly(page, output, { reload = false } = {}
   assert.equal(await english.isChecked(), true)
   await english.uncheck()
   await page.waitForFunction(() => window.current().sidebarTextOnly === false)
+  await plan.locator('.cm-bbox-bar').first().waitFor()
   assert.equal(await plan.locator('.cm-bbox-bar:visible').count(), 3)
   await english.check()
   await page.waitForFunction(() => window.current().sidebarTextOnly === true)

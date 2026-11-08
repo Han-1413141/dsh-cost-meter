@@ -5,6 +5,7 @@ function sidebarPreviewConfig(config, selected) {
     goQuota: { ...config.goQuota, ...(selected === 'go' ? { detail: true } : {}) },
     budget: { ...config.budget, ...(selected === 'budget' ? { detail: true } : {}) },
     ...(selected === 'today' ? { sidebarTodayMetric: 'both' } : {}),
+    localSavings: { ...config.localSavings, enabled: selected === 'localSavings' || config.localSavings?.enabled === true },
     sidebarModels: { ...config.sidebarModels, ...(selected === 'models' ? { defaultOpen: true, remember: false, tokens: true, shares: true } : {}) },
     ...(selected === 'peak' && config.peakStyle === 'progress' ? { peakTimeDisplay: 'both' } : {}) }
   return next
@@ -37,5 +38,6 @@ function sidebarChildSample(config, selected) {
     balance: { ...config.balance, display: 'off' }, budget: { ...config.budget, enabled: selected === 'budget', detail: true },
     goQuota: { ...config.goQuota, enabled: selected === 'go', display: 'both', detail: true },
     sidebarModels: { ...config.sidebarModels, enabled: selected === 'models', defaultOpen: true, remember: false, tokens: true, shares: true },
+    localSavings: { ...config.localSavings, enabled: false },
     peakNotice: false, codexQuotaEnabled: false, codingPlans: {}, gatewayQuotas: { sources: [] }, customBalances: [], customBalance: { enabled: false } }
 }

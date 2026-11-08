@@ -3,15 +3,10 @@
 <p align="center">Cost tracking and subscription quotas for DeepSeek Harness</p>
 
 <p align="center">
-  <a href="https://github.com/Han-1413141/dsh-cost-meter/releases/latest"><img src="https://img.shields.io/badge/version-1.9.59-4176E6?style=flat-square" alt="version"></a>
-  <a href="https://www.npmjs.com/package/dsh-cost-meter"><img src="https://img.shields.io/npm/v/dsh-cost-meter?label=npm&style=flat-square" alt="npm"></a>
+  <a href="https://github.com/Han-1413141/dsh-cost-meter/releases/latest"><img src="https://img.shields.io/badge/version-1.9.60-4176E6?style=flat-square" alt="version"></a>
   <a href="https://www.npmjs.com/package/dsh-cost-meter"><img src="https://img.shields.io/npm/dm/dsh-cost-meter?label=downloads&style=flat-square&color=4176E6" alt="npm monthly downloads"></a>
   <a href="https://github.com/Han-1413141/dsh-cost-meter/stargazers"><img src="https://img.shields.io/github/stars/Han-1413141/dsh-cost-meter?label=stars&style=flat-square&color=D9A400" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT license"></a>
-  <a href="https://github.com/deepseek-ai/deepseek-harness"><img src="https://img.shields.io/badge/DeepSeek%20Harness-dsh--plugin-4176E6?style=flat-square" alt="DSH plugin"></a>
-  <a href="https://dshfind.com/zh/plugins/Han-1413141/dsh-cost-meter?ref=badge"><img src="https://dshfind.com/api/badge/Han-1413141/dsh-cost-meter?metric=downloads&amp;lang=zh" alt="dshfind"></a>
-  <a href="https://awesome-dsh-plugin.com"><img src="https://awesome-dsh-plugin.com/badge.svg" alt="awesome DSH plugin"></a>
-  <a href="https://whaleharness.com/audit-report.md"><img src="https://whaleharness.com/badge/Han-1413141/dsh-cost-meter/badge.svg" alt="WhaleHarness audit"></a>
 </p>
 
 <p align="center"><b>English</b> | <a href="README.zh-CN.md">简体中文</a></p>
@@ -19,12 +14,10 @@
 
 Track costs and tokens by conversation, model and call. View account balances, subscription quotas and budgets together, with separate API charges and Plan equivalents, multi-provider pricing, peak/off-peak alerts, and configurable sidebar and composer displays.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/conversation-dark.png">
-  <img src="docs/images/conversation-light.png" alt="Conversation costs, quotas and balances" width="1280">
-</picture>
-
-<p align="center"><sub>Light and dark conversation views. Documentation screenshots use sample data.</sub></p>
+<p align="center">
+  <img src="docs/promo.en.png" alt="Whale-themed project illustration" width="1280">
+  <br><sub>Project illustration</sub>
+</p>
 
 ## Installation
 
@@ -42,31 +35,29 @@ Restart `dsh web` after installation or updates. **Desktop** uses its bundled CL
 The PowerShell installer checks pnpm and Git and uses the `web` profile by default:
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.59/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.60/install.ps1 | iex
 ```
 
 Install a pinned Git tag:
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.59
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.60
 ```
 
 See [installation and updates](docs/install.en.md) for uninstalling or installing without Git.
 
 </details>
 
-Current release **v1.9.59**: [release notes](docs/update-notes-1.9.59.md#english) · [troubleshooting](docs/install-troubleshooting.md)
+Current release **v1.9.60**: [release notes](docs/update-notes-1.9.60.md#english) · [troubleshooting](docs/install-troubleshooting.md)
 
 ## Feature overview
 
-| Feature | What it provides |
-|---|---|
-| Conversation and call costs | Cost entries in the composer, header and each turn. Inspect rates, tokens, recorded inputs and tool results, including parent/subagent cost attribution. |
-| Statistics and exports | Filter by date, provider and model; inspect trends, rankings, cache hit rates and token heatmaps. Export one conversation or all retained conversations. |
-| Quotas and balances | Codex / ChatGPT, OpenCode Go, MiniMax, Claude, GLM, Kimi, Qianwen, MiMo, OpenDesign and other plans, plus CLIProxyAPI multi-account quotas and custom HTTP balance sources. |
-| Multi-provider pricing | Automatic model matching, editable rates and multipliers, and peak/off-peak tiers. Sync DeepSeek official prices and the OpenRouter catalog; separate API charges from Plan equivalents. |
-| Budgets and pricing alerts | Daily, monthly, cumulative or custom-date budgets. Peak/off-peak schedules and countdowns, with popup and system notifications before a change. |
-| Display and history | Configure sidebar cards, composer entries, quota strips and turn costs. Chinese/English UI, dark themes and mobile layouts; historical imports, retention and storage controls. |
+- **Conversation and call costs**: Cost entries in the composer, header and each turn. Inspect rates, tokens, recorded inputs and tool results, including parent/subagent cost attribution.
+- **Statistics and exports**: Filter by date, provider and model; inspect trends, rankings, cache hit rates and token heatmaps. Export one or all retained conversations, and view local-model API-equivalent costs separately.
+- **Quotas and balances**: Codex / ChatGPT, OpenCode Go, MiniMax, Claude, GLM, Kimi, Qianwen, MiMo, OpenDesign and other plans, plus CLIProxyAPI multi-account quotas and custom HTTP balance sources.
+- **Multi-provider pricing**: Automatic model matching, editable rates and multipliers, and peak/off-peak tiers. Sync DeepSeek official prices and the OpenRouter catalog; separate API charges from Plan equivalents.
+- **Budgets and pricing alerts**: Daily, monthly, cumulative or custom-date budgets. Peak/off-peak schedules and countdowns, with popup and system notifications before a change.
+- **Display and history**: Configure sidebar cards, composer entries, quota strips and turn costs. Chinese/English UI, dark themes and mobile layouts; historical imports, retention and storage controls.
 
 See [features and screenshots](docs/features.en.md) for entry points and [model and plan support](docs/model-and-plan-adaptation.en.md) for providers and credentials.
 

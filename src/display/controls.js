@@ -22,10 +22,11 @@ function SidebarStyleSample({ render, config, mode, data, examples }) {
 // Reuse the real footer renderer with only its peak component enabled. These
 // presentation-only configs never reach setDraft, RPC or account-query hooks.
 function PeakStyleSample({ render, config, data, style }) {
-  const preview = React.useMemo(() => ({ ...config, peakStyle: style, peakEnabled: true, peakNotice: true, peakEffectiveAt: '',
+  const preview = React.useMemo(() => ({ ...config, peakStyle: style, sidebarTextOnly: false, peakEnabled: true, peakNotice: true, peakEffectiveAt: '',
     sidebar: false, hideTodayCost: true, hideOfficialBalance: true, hideBudget: true, codexQuotaEnabled: false,
     budget: { ...config.budget, enabled: false }, balance: { ...config.balance, display: 'off' },
     goQuota: { ...config.goQuota, enabled: false }, sidebarModels: { ...config.sidebarModels, enabled: false },
+    localSavings: { ...config.localSavings, enabled: false },
     codingPlans: {}, gatewayQuotas: { sources: [] }, customBalances: [], customBalance: { enabled: false },
   }), [config, style])
   const sample = React.useMemo(() => render(preview, data), [render, preview, data])
@@ -59,6 +60,18 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
     config.budget?.enabled !== true && !examples ? el('p', { className: 'cm-inspector-note' }, text('先在“概览”中设置预算，启用后会在这里显示。', 'Set up a budget in Overview to show it here.')) : null,
     check(t('budgetDetailLabel'), config.budget?.detail !== false, value => nested('budget', { detail: value }), { 'data-display-option': 'budget-detail' }), direction('budget')]
   if (selected === 'today') controls = todayControls()
+  if (selected === 'localSavings') {
+    const cfg = { providerPrefix: 'local', referenceModel: 'deepseek-flash', priceTier: 'offPeak', ...config.localSavings }
+    const models = [...new Set([cfg.referenceModel, ...Object.keys(config.prices?.models ?? {})])].sort()
+    controls = [
+      field(text('渠道 ID 前缀', 'Provider ID prefix'), el('input', { className: 'cm-input', key: cfg.providerPrefix, defaultValue: cfg.providerPrefix, maxLength: 128,
+        onBlur: event => { const value = event.target.value.trim(); if (value && value !== cfg.providerPrefix) nested('localSavings', { providerPrefix: value }); else event.target.value = cfg.providerPrefix },
+        onKeyDown: event => { if (event.key === 'Enter') event.currentTarget.blur() } })),
+      choice(text('参考模型', 'Reference model'), cfg.referenceModel, models.map(id => [id, id]), value => nested('localSavings', { referenceModel: value })),
+      choice(text('参考档位', 'Reference tier'), cfg.priceTier, [['offPeak', text('谷时价', 'Off-peak')], ['peak', text('峰时价', 'Peak')], ['base', text('基础价', 'Base')]], value => nested('localSavings', { priceTier: value })),
+      el('p', { className: 'cm-inspector-note' }, text('按匹配渠道的 Token 用量折算 API 费用，默认匹配 local 开头的渠道。日、周、月和累计使用同一参考价；累计范围随历史保留设置。', 'Converts token usage from matching providers to API-equivalent costs; the default prefix is local. All periods use one reference rate. Total follows history retention.')),
+    ]
+  }
   const quickHide = () => check(text('点击名称快速隐藏余额', 'Click name to hide balance'), config.balance?.quickHide === true, value => nested('balance', { quickHide: value }), { 'data-display-option': 'balance-quick-hide', title: text('点击名称隐藏或显示，点击金额刷新。', 'Click the name to hide/show; click the amount to refresh.') })
   if (selected === 'balance') controls = [display('balance'), quickHide(),
     check(text('仅官方渠道显示', 'Show only on official channels'), config.balance?.officialChannelOnly === true, value => nested('balance', { officialChannelOnly: value }), { 'data-display-option': 'balance-official-only' }),
@@ -74,12 +87,13 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
     number(t('refreshIntervalLabel'), config.goQuota?.refreshMinutes ?? 15, value => nested('goQuota', { refreshMinutes: Math.floor(value) }), 1)]
   if (selected === 'peak') controls = [el(PeakTimeZoneControl, { config, locale: props.locale, onChange: value => set({ peakTimeZone: value }) }),el('div', { className: 'cm-peak-control' },
     el('div', { className: 'cm-peak-control-heading' }, text('样式', 'Style')),
+    config.sidebarTextOnly ? el('p', { className: 'cm-inspector-note' }, text('侧栏纯文字模式已隐藏进度条。选择下方样式可恢复侧栏进度条。', 'Sidebar text-only mode hides progress bars. Choose a style below to restore sidebar bars.')) : null,
     el('div', { className: 'cm-peak-style-choices', role: 'group', 'aria-label': text('峰谷条样式', 'Peak bar style') },
       ...[['progress', text('进度条', 'Progress'), text('时间进度 · 倒计时与切换时刻', 'Time progress, countdown and switch time')],
         ['compact', text('细条', 'Slim'), text('橙蓝细条 · 单行显示', 'Orange and blue strip in one line')],
         ['classic', text('分段', 'Segmented'), text('分段轨道 · 标记与胶囊提示', 'Segments, a marker and a status pill')]].map(([value, label, description]) => {
         const active = (config.peakStyle ?? 'compact') === value
-        return el('button', { key: value, type: 'button', className: 'cm-peak-style-choice', title: description, 'aria-label': label, 'aria-pressed': active, onClick: () => set({ peakStyle: value }) },
+        return el('button', { key: value, type: 'button', className: 'cm-peak-style-choice', title: description, 'aria-label': label, 'aria-pressed': active, onClick: () => set({ peakStyle: value, sidebarTextOnly: false }) },
           el('span', { className: 'cm-peak-choice-heading' }, el('strong', null, label),
             el('span', { className: 'cm-peak-choice-status', 'aria-hidden': true }, active ? text('已选', 'Selected') : el('i'))),
           el(PeakStyleSample, { render: props.renderSidebar, config: previewData.config, data: previewData.state, style: value }))
@@ -139,7 +153,7 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
   const scope = region === 'sidebar' ? text('在侧栏显示', 'Show in sidebar') : region === 'composer' ? text('在输入区显示', 'Show in composer') : text('在会话内容显示', 'Show in conversation')
   return el('aside', { className: 'cm-display-inspector cm-inspector-unified', 'data-component': selected ?? '', 'aria-label': text('外观与组件设置', 'Appearance and component settings') },
     field(text('调整组件', 'Customize'), el('select', { className: 'cm-input', value: selected ?? '', onChange: event => select(event.target.value) },
-      ...(region === 'sidebar' ? ['sessionList','budget','balance','today','peak','models','go','plan','customBalance','codex'] : region === 'composer' ? ['strip-budget','strip-go','strip-plans','strip-codex','dock-cost','corner','models'] : ['session-header','badge','turn']).map(key => el('option', { key, value: key }, labels[key])))),
+      ...(region === 'sidebar' ? ['sessionList','budget','balance','today','peak','models','go','plan','customBalance','codex','localSavings'] : region === 'composer' ? ['strip-budget','strip-go','strip-plans','strip-codex','dock-cost','corner','models'] : ['session-header','badge','turn']).map(key => el('option', { key, value: key }, labels[key])))),
     selection ? el('div', { className: 'cm-inspector-visibility', title: scope }, check(text('显示此组件', 'Show this component'), selection.on, () => set(selection.patch), { 'data-display-toggle': selected })) : null,
     selected ? el('div', { className: 'cm-inspector-controls', key: selected, 'data-inspector': selected }, ...controls) : null,
     region === 'sidebar' ? check(text('今日消费与余额同行', 'Today and balance on one line'), config.sidebarTodayBalanceInline === true, value => set({ sidebarTodayBalanceInline: value, ...(value ? { sidebarTodayMetric: 'cost' } : {}) }), { 'data-display-option': 'today-balance-inline' }) : null,
