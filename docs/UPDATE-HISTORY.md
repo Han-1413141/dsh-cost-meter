@@ -7,6 +7,7 @@
 - 会话切换复用同一版本的用量与代理计费记录，修复并发读取的取消隔离及归档变化后的缓存失效。
 - 补充 Mistral 托管 GLM 5.3 Flash 和 DeepSeek V4.1 Flash 1017 的价格，修复渠道别名匹配，保留 Ollama 和既有日期模型的计价。
 - 更新 billion-context 0.1.213、dsh-codex-subscription 3.2.7 兼容基线与 CI 覆盖。
+- 补充 Billion Context 与 NodeJS 诊断的共存配置，保留计费和其他诊断组件，仅关闭 Host fetch 抓包。
 - 重整中英文 README 与专题文档，保留全部徽章、贡献者和 Star 记录，加入 23 张界面截图并修正旧说明。
 
 [更新说明](update-notes-1.9.59.md)

@@ -8,12 +8,30 @@
 
 The adapter checks the installed proxy and native request interfaces when the local proxy starts. Compatible later releases are accepted without a version allowlist. A source fingerprint verifies that the process loads the inspected code; it does not restrict supported release numbers.
 
-- **0.1.180 or earlier:** a popup asks the user to update to **0.1.181 or later**.
-- **Changed required interfaces:** metering adaptation is skipped, ordinary DSH billing continues, and a popup offers **Community group** and **Open an issue**. The group link opens this project's existing WeChat group section.
+- **0.1.180 or earlier:** update to **0.1.181 or later** to enable internal request billing.
+- **Changed required interfaces:** internal metering is skipped while ordinary DSH billing continues.
 - **An older proxy is already running:** restart DSH and its local billion-context proxy. Reloading only the cost plugin cannot add observers to a process already started without them.
-- Closing a notice suppresses repeats for the same version and reason. New problems can prompt again; a transient connection error alone is not classified as a code change.
+- Incomplete usage or unavailable internal metering is described in **Cost → Overview**, without an automatic popup. A transient connection error alone is not classified as an interface change.
 
 The integration adds observers in memory when the verified local Node proxy starts. It does not rewrite billion-context's files, replace the installed plugin, set global `NODE_OPTIONS`, or change model routing. The original native interceptor remains in use. This integration requires Node 20.6 or later.
+
+<a id="inspector-en"></a>
+
+### Coexistence with NodeJS diagnostics
+
+If **Developer tools → NodeJS diagnostics** reports `inspector: globalThis.fetch is an accessor and cannot be observed safely`, its fetch capture conflicts with billion-context's native fetch accessor ([#483](https://github.com/Han-1413141/dsh-cost-meter/issues/483)). Keep Developer tools enabled and set `captureFetch: false` for the `experimental-inspector` component.
+
+In the current Profile's `cordis.patch.yml`, change the existing component's `config.captureFetch`, preserving its other fields and settings. If no override entry exists, add:
+
+```yaml
+- id: experimental-inspector
+  config:
+    captureFetch: false
+```
+
+The default path is `~/.dsh/profiles/web/cordis.patch.yml`; Desktop uses `desktop` in place of `web`. Use your configured `DSH_HOME` when it differs. Configuration objects replace earlier values, so retain existing options such as a custom port. If a global or startup override also supplies this component's `config`, include `captureFetch: false` in the final effective object, even when that override previously contained only other settings.
+
+Fully quit and restart the current Web or Desktop host. CDP/DevTools, the other Developer tools components and Billion Context billing remain available; **Host fetch traffic capture is disabled**. This setting belongs to the diagnostic component, not dsh-cost-meter.
 
 ### What it records
 
@@ -51,6 +69,24 @@ Checks use original npm packages, isolated local responses, both plugin loading 
 - 用量记录不完整或尚未接入内部计费时，在“费用 → 概览”以普通灰色文字说明统计可能存在偏差，不再自动弹窗。临时连接失败不会直接判定为接口变化。
 
 接入只在已验证的本地 Node 代理启动时加载内存中的计费观察器，不修改原版插件文件，不替换安装包，不设置全局 `NODE_OPTIONS`，不改变模型路由。继续使用原版的请求拦截功能。此接入需要 Node 20.6 或更新版本。
+
+<a id="inspector-zh"></a>
+
+### 与 NodeJS 诊断共存
+
+若“开发者工具 → NodeJS 诊断”显示 `inspector: globalThis.fetch is an accessor and cannot be observed safely`，说明诊断组件的抓包功能与 billion-context 的原生 fetch 访问器冲突（[#483](https://github.com/Han-1413141/dsh-cost-meter/issues/483)）。保留开发者工具开启，将 `experimental-inspector` 组件的 `captureFetch` 设为 `false`。
+
+在当前 Profile 的 `cordis.patch.yml` 中修改已有条目的 `config.captureFetch`，保留其他字段和配置。尚无该覆盖条目时，追加：
+
+```yaml
+- id: experimental-inspector
+  config:
+    captureFetch: false
+```
+
+默认路径为 `~/.dsh/profiles/web/cordis.patch.yml`；Desktop 将 `web` 换为 `desktop`，自定义 `DSH_HOME` 时使用对应目录。`config` 按整个对象替换，已有自定义端口等选项须保留。若全局配置或启动参数也为该组件提供 `config`，须在最后生效的对象中加入 `captureFetch: false`，即使原先只设置了端口等其他选项。
+
+完全退出并重启当前 Web 或 Desktop 宿主。CDP/DevTools、开发者工具的其他组件和 Billion Context 计费继续可用，**仅关闭 Host fetch 流量抓包**。该选项属于诊断组件，勿写入费用插件配置。
 
 ### 统计内容
 

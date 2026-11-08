@@ -25,7 +25,7 @@ DSH Desktop 0.2.0-rc.2 在 `pnpm add` 成功后，通过 `package.json` 的依�
 
 [#197](https://github.com/Han-1413141/dsh-cost-meter/issues/197) 只提供了 `plugin command failed; diagnostics: ...pnpm.log`，没有附上该文件内容。市场生成的「prepare/build failed」分类不能替代包管理器的原始错误；本插件没有 `prepare` 或 `prepack` 安装脚本，发布包已包含 `lib/` 产物。
 
-在 Windows / DSH 0.2.0-rc.1 中，Git URL 与 npm 包名安装均已通过隔离验证。Windows CI 的 `marketplace-git-install` 也覆盖市场使用的 `git+https://github.com/han-1413141/dsh-cost-meter.git` 地址。原报告缺少日志，尚不能确定该机器的失败原因，issue 保持未关闭。
+在 Windows / DSH 0.2.0-rc.1 中，Git URL 与 npm 包名安装均已通过隔离验证。Windows CI 的 `marketplace-git-install` 也覆盖市场使用的 `git+https://github.com/han-1413141/dsh-cost-meter.git` 地址。原报告缺少日志，未记录该机器的具体失败原因。
 
 发生同类问题时：
 
@@ -116,13 +116,19 @@ DSH 0.2.1-rc.1 / 0.2.1-rc.2 宿主自带 pnpm 11.28.5，默认启用内置 24 �
 
 若市场没有启用入口，可先备份当前 Profile 的 `cordis.patch.yml`，再将 `id: cost-meter` 对应的 `disabled: true` 改为 `disabled: false`。保留同一行的其他配置和其他插件的记录，随后重启宿主。不要删除整个 Profile 或账本。
 
+## NodeJS 诊断显示 fetch accessor 错误
+
+同时启用 Billion Context 与开发者工具时，若 NodeJS 诊断报 `globalThis.fetch is an accessor and cannot be observed safely`，将该组件的 `captureFetch` 设为 `false` 后重启宿主。保留其他诊断组件和计费，仅关闭 Host fetch 抓包。具体配置见[与 NodeJS 诊断共存](billion-context-billing.md#inspector-zh)。
+
 ## English
 
 For Desktop, launch the application once to initialize its profile, install its `dsh` command, reopen your terminal, then fully quit the application. Use the **Desktop-supplied CLI** to run `dsh plugin --profile desktop add dsh-cost-meter`, or pass `-Profile desktop` to the downloaded `install.ps1`. Desktop includes its own pnpm. If another CLI shadows it, use the full path to Desktop's `resources/runtime/cli/bin/dsh.cmd`. Restart Desktop and open **Settings → Cost**. In account-login mode a signed-in official account is read directly; save an Open Platform key in the balance panel only if the balance still reports HTTP 401.
 
 The installed Windows Desktop 0.2.0-rc.2 runtime passed isolated package installation, profile startup, shared dependencies, synthetic billing and balance credential save/query/clear checks. These checks used a temporary home and mocked balance responses, without changing the daily profile or exercising the Electron window.
 
-For installation failures, read the actual `pnpm.log` path printed by DSH and retain the first package-manager or Git error with surrounding lines. The Plugin Hub's generated classification alone does not identify the cause. Issue #197 remains open because its original log is unavailable; both documented installation routes and the Windows Git-route CI have passed. Remove credentials before sharing logs.
+For installation failures, read the actual `pnpm.log` path printed by DSH and retain the first package-manager or Git error with surrounding lines. The Plugin Hub's generated classification alone does not identify the cause. Issue #197 did not include the original log, so its machine-specific cause was not recorded; both documented installation routes and the Windows Git-route CI have passed. Remove credentials before sharing logs.
+
+If NodeJS diagnostics reports `globalThis.fetch is an accessor and cannot be observed safely` alongside Billion Context, set that component's `captureFetch` to `false` and restart the host. This disables Host fetch capture while retaining billing and the other diagnostic components. See [coexistence with NodeJS diagnostics](billion-context-billing.md#inspector-en).
 
 Reinstallation preserves a Profile's disabled state. Re-enable the plugin in the marketplace and restart the host. If no enable action is available, back up the current Profile's `cordis.patch.yml` and change only the `cost-meter` row's `disabled` flag to `false`. Web and Desktop use different Profile directories; keep other settings and the ledger.
 
