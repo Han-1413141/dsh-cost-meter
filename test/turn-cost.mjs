@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { sanitizeConfig } from '../lib/store.js'
-import { turnCostFromRecords, getTurnCost } from '../lib/turn-cost.js'
+import { turnCostFromRecords, getTurnCost, sessionUsageRecords } from '../lib/turn-cost.js'
 import { turnCostSchema } from '../lib/typert.host.js'
 import { NATIVE_SEARCH_USAGE_EVENT } from '../lib/native-search-events.js'
 import { recordNativeSearchUsage } from '../lib/native-search-history.js'
@@ -98,6 +98,23 @@ try {
   assert.equal((await getTurnCost(ledger, {}, 'turn-session', 1, 4)).rows[0].tokens, 20000, 'file changes invalidate cached records')
   const ctx = { get: key => key === 'sessions' ? { get: id => id === 'turn-session' ? { snapshotEvents: () => records } : undefined } : undefined }
   assert.deepEqual(await getTurnCost(ledger, ctx, 'turn-session', 1, 4), withSearch, 'live Session events take precedence over a not-yet-flushed file')
+  // 切会话时每个回合的费用小标签各查一次本会话用量;同一快照内应复用一次遍历,事件增长后才重算。
+  const liveEvents = [...records]
+  // 宿主每次 snapshotEvents() 都重新切片,所以缓存只能挂在日志版本(session.seq)上。
+  const liveCtx = { get: key => key === 'sessions' ? { get: id => id === 'turn-session' ? { get seq() { return liveEvents.length }, header: { createdAt: at }, snapshotEvents: () => [...liveEvents] } : undefined } : undefined }
+  const liveRows = await sessionUsageRecords(liveCtx, 'turn-session', ledger.path)
+  assert.equal(await sessionUsageRecords(liveCtx, 'turn-session', ledger.path), liveRows, 'live session rows are reused within one log revision')
+  const [liveA, liveB] = await Promise.all([sessionUsageRecords(liveCtx, 'turn-session', ledger.path), sessionUsageRecords(liveCtx, 'turn-session', ledger.path)])
+  assert.equal(liveA, liveRows, 'concurrent live queries share one traversal')
+  assert.equal(liveB, liveRows)
+  const bareCtx = { get: key => key === 'sessions' ? { get: id => id === 'turn-session' ? { snapshotEvents: () => [...liveEvents] } : undefined } : undefined }
+  assert.notEqual(await sessionUsageRecords(bareCtx, 'turn-session', ledger.path), await sessionUsageRecords(bareCtx, 'turn-session', ledger.path), 'a snapshot without a log revision is read every time')
+  const beforeCount = (await getTurnCost(ledger, liveCtx, 'turn-session', 1, 4)).rows.length
+  liveEvents.push({ type: 'turn/end', seq: 99, time: at + 99, data: { turn: 9 } })
+  const grownRows = await sessionUsageRecords(liveCtx, 'turn-session', ledger.path)
+  assert.notEqual(grownRows, liveRows, 'appended events invalidate live rows')
+  assert.ok(grownRows.length >= liveRows.length)
+  assert.equal((await getTurnCost(ledger, liveCtx, 'turn-session', 1, 4)).rows.length, beforeCount, 'an appended turn does not change an older turn cost')
   assert.equal((await getTurnCost(ledger, {}, '../missing', 1, 4)).found, false)
   await assert.rejects(getTurnCost(ledger, {}, 'turn-session', -1, 4), /invalid turn identity/)
 } finally {

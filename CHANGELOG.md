@@ -6,6 +6,8 @@
 - Mistral 转售的日期样后缀模型 ID 仅在 Mistral 相关渠道按 Mistral 价格解析，其他渠道（如 Ollama 标签请求）继续使用原厂 DeepSeek 峰谷价。
 - 新条目通过一次性迁移加入旧账本，保留手动价格、主动取消挂载和历史金额。来源与规则见 [11 月 5 日更新](docs/catalog-2026-11-05.md)。
 - Add Mistral-hosted `zai-glm-5-3-flash` and `deepseek-v4-1-flash-1017` at Mistral's published rates, replacing an unpriced route and a half-price cross-vendor fallback; date-suffixed resold IDs resolve at Mistral prices only on Mistral-related routes, so other channels keep the origin vendor's pricing. The one-time migration preserves custom rates, deliberate unmounts and recorded charges.
+- 修复切到会话时多个回合同时查询费用、每次都重扫该会话的代理计费目录与调用日志（单会话约 500ms，一次切换并发 3 条）导致的界面卡顿：live 会话的用量行按会话日志版本（session.seq）缓存，代理计费明细按会话记忆化并共享 in-flight 读取，日志推进或计费文件变化后自动失效。
+- Cache live session usage rows per session log revision (session.seq) and memoize per-session proxy billing records, sharing the in-flight read, so switching a conversation no longer rescans the billing directory once per turn card; both caches invalidate when session events or billing files change.
 
 ## [1.9.58] - 2026-11-05
 

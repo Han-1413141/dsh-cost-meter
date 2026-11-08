@@ -6994,6 +6994,7 @@ await import('./ledger-frozen-fx.mjs')
 await import('./session-cost-display-fx.mjs')
 await import('./billion-context-billing.mjs')
 await import('./billion-context-compatibility.mjs')
+await import('./billion-context-history-cache.mjs')
 {
   // This fixture instruments fs/timers; keep it out of other tests' process.
   const peerTest = spawnSync(process.execPath, ['test/billion-context-peer.mjs'], { cwd: join(import.meta.dirname, '..'), encoding: 'utf8' })
