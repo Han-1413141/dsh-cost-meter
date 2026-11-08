@@ -1162,11 +1162,26 @@
         let bestLen = -1
         let ambiguous = false
         let bestMode = 'flat'
+        let deepseekHit = false
         for (const [prov, table] of [['deepseek', { models: prices.models ?? {} }], ...Object.entries(prices.providers ?? {})]) {
           if (prov === targetProvider || SCOPED_PRICE_PROVIDERS.has(prov)) continue
           const models = table?.models ?? {}
           const h = priceModelHit(targetModel, models, prov, mode, prices)
           if (h === null) continue
+          if (prov === 'deepseek') deepseekHit = true
+          // 与 pricing.js 同口径:主表已命中时,跨厂商候选仅接受与请求 id 字面完全
+          // 相同的条目(主表行本身不受此限:带日期标签的请求命中主表时 h 是去掉标签的 id),
+          // 防止同 canon 的形近 id(如 Mistral 转售的
+          // deepseek-v4-1-flash-1017 与 Ollama 日期标签 deepseek-v4.1-flash:1017)
+          // 抢走 DeepSeek 主表的峰谷两档价;字面相同仍按更高分胜出。
+          if (prov !== 'deepseek' && deepseekHit && h !== targetModel) continue
+          // 与 pricing.js 同口径:日期样尾候选(如 Mistral 转售的
+          // deepseek-v4-1-flash-1017,结尾 -1017 形似 MMDD 日期)仅对字面相同或
+          // 同源渠道(请求渠道名含供应商名,如 mistral-vibe/mistral-api)开放,
+          // 避免 Ollama 标签请求被其他厂商的同形 id 抢走定价;纯大小写/标点变体不受影响。
+          // 主表行本身不受此限。
+          if (prov !== 'deepseek' && h !== targetModel && !targetProvider.includes(prov)
+            && /[-_./:@](?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])$/.test(h)) continue
           const score = +(h === targetModel || canonModelIdLocal(h) === canonModelIdLocal(targetModel))
           if (score > bestLen) {
             bestEntry = models[h]; bestLen = score; ambiguous = false

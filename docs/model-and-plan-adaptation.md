@@ -65,7 +65,7 @@
 | MiniMax | M3.1 Flash、M3、M2.7、M2.5 |
 | 小米 MiMo | V2.6(Pro / Flash / Pro UltraSpeed)、V2.5(+Pro,官方标注即将下线) |
 | 腾讯混元 | Hy4 preview、Hy3 |
-| OpenRouter / Mistral / NVIDIA / Upstage | 常用模型 |
+| OpenRouter / Mistral / NVIDIA / Upstage | 常用模型；Mistral 另含其转售的 `zai-glm-5-3-flash`、`deepseek-v4-1-flash-1017`（按 Mistral 价格计费） |
 | **OpenCode Go(订阅)** | 订阅模型的本渠道参考单价，含 Go 自己的 DeepSeek 峰谷档 |
 
 价格来源:以各厂直接 API 官方定价页与 **OpenCode Zen/Go 各自渠道价目** 分别核对（同名模型的渠道价可能不同）;无法确认完整计费规则的（如直接 API GPT-5.5 Pro）标 `unpriced`,**不编造价格**。机器可读副本见 [`provider-pricing.json`](./provider-pricing.json)(由代码自动生成)。

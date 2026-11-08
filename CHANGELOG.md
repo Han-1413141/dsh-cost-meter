@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- 补入 Mistral 转售的 `zai-glm-5-3-flash` 与 `deepseek-v4-1-flash-1017`：$0.15 / $0.03 / $0.50 与 $0.30 / $0.007 / $1.20，每百万 token。此前两个 ID 在 `mistral` 路由上未定价（费用记 0），自定义路由名则兜底命中 DeepSeek 自身价格按半价入账；现统一按 Mistral 公布价计费，已知厂商前缀判定与兜底顺序未改动。
+- Mistral 转售的日期样后缀模型 ID 仅在 Mistral 相关渠道按 Mistral 价格解析，其他渠道（如 Ollama 标签请求）继续使用原厂 DeepSeek 峰谷价。
+- 新条目通过一次性迁移加入旧账本，保留手动价格、主动取消挂载和历史金额。来源与规则见 [11 月 5 日更新](docs/catalog-2026-11-05.md)。
+- Add Mistral-hosted `zai-glm-5-3-flash` and `deepseek-v4-1-flash-1017` at Mistral's published rates, replacing an unpriced route and a half-price cross-vendor fallback; date-suffixed resold IDs resolve at Mistral prices only on Mistral-related routes, so other channels keep the origin vendor's pricing. The one-time migration preserves custom rates, deliberate unmounts and recorded charges.
+
 ## [1.9.58] - 2026-11-05
 
 - 修复恢复会话或重新加载插件时，用量先于设置到达导致费用组件报错、输入框下方金额入口消失的问题。

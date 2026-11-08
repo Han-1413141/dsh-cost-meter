@@ -31,7 +31,7 @@ for (const [provider, table] of Object.entries(VERIFIED_PROVIDER_PRICES)) {
     assert.ok(normalized, `${provider}:${id} has a valid catalog row`)
     assert.equal(providerPriceEntryFor(provider, id, config.prices, { mode: 'exact' }).priced, raw.unpriced !== true, `${provider}:${id} exact mounted price`)
     assert.match(raw.sourceUrl, /^https:\/\//)
-    assert.ok(['2026-10-03', '2026-10-15', '2026-10-16', '2026-10-28'].includes(raw.checkedAt))
+    assert.ok(['2026-10-03', '2026-10-15', '2026-10-16', '2026-10-28', '2026-11-05'].includes(raw.checkedAt))
     if (raw.unpriced !== true) for (const value of [normalized.cacheHit, normalized.cacheMiss, normalized.output]) assert.ok(Number.isFinite(value) && value >= 0)
   }
 }

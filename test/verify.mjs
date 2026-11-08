@@ -7046,6 +7046,7 @@ await import('./display-onboarding.mjs')
 await import('./official-price-sync-currency.mjs')
 
 await import('./catalog-october-28.mjs')
+await import('./catalog-november-05.mjs')
 await import('./custom-balance-expressions.mjs')
 await import('./provider-peak-schedule.mjs')
 await import('./peak-timezone.mjs')

@@ -8,7 +8,7 @@
 
 最新补充、套餐变更和来源见 [更新明细](catalog-2026-10-28.md)。当前 OpenCode 端点已按 10 月 28 日页面核对：Zen 83 个、Go 30 个；下文的 10 月 15 日数量和价格差异保留为当日记录。当前 Zen GPT-6.1 Sol 缓存读已为 $0.10，超过 272K 输入为 $0.20。
 
-此前针对 #224 补齐 GPT-6 Sol/Luna、GPT-6.1 Sol、Gemini 3.8 Flash、Claude Fable 5.1、Opus 5.5 等模型，并按公开价格页面扩充其他模型。内置第三方目录包含 358 个「厂商 / 模型」条目、223 个不同模型 ID（含官方别名和历史快照 ID）；其中 353 条有可执行价格，5 条明确未核价。DeepSeek 主表单独保留。OpenRouter 在启动及小时级定时检查时按跨重启的一小时冷却补充本渠道模型，失败或中断也保留冷却；手动同步仍可立即执行。静态目录的数量不是在线目录的上限。
+此前针对 #224 补齐 GPT-6 Sol/Luna、GPT-6.1 Sol、Gemini 3.8 Flash、Claude Fable 5.1、Opus 5.5 等模型，并按公开价格页面扩充其他模型。内置第三方目录包含 360 个「厂商 / 模型」条目、225 个不同模型 ID（含官方别名和历史快照 ID）；其中 355 条有可执行价格，5 条明确未核价。DeepSeek 主表单独保留。OpenRouter 在启动及小时级定时检查时按跨重启的一小时冷却补充本渠道模型，失败或中断也保留冷却；手动同步仍可立即执行。静态目录的数量不是在线目录的上限。
 
 ### 10 月 15 日更新
 
@@ -48,7 +48,7 @@ Haiku 5.5 按 100,000 输入 Token 分档，缓存读取和写入也计入阈值
 
 ## English
 
-The third-party catalog now contains 358 provider/model entries and 223 distinct model IDs, including official aliases and dated snapshots: 353 executable prices and 5 explicitly unpriced entries. The separate DeepSeek table remains intact. OpenRouter startup and hourly checks share a persistent one-hour cooldown, including after failures or interrupted downloads. Manual synchronization can refresh immediately.
+The third-party catalog now contains 360 provider/model entries and 225 distinct model IDs, including official aliases and dated snapshots: 355 executable prices and 5 explicitly unpriced entries. The separate DeepSeek table remains intact. OpenRouter startup and hourly checks share a persistent one-hour cooldown, including after failures or interrupted downloads. Manual synchronization can refresh immediately.
 
 Use direct vendor IDs for their own API prices, `opencode-zen` for all 83 currently published Zen PAYG endpoints, and `opencode-go` for all 30 currently published Go subscription-reference endpoints. Historical host IDs `zen` / `opencode` retain their Go meaning; manually entered prices and explicit mappings win. These are pricing keys, not newly registered inference providers. If a PAYG host uses a historical name, explicitly map its model to `opencode-zen:<model ID>` and set that host model’s Plan/API class to API. A model-level Plan/API override remains authoritative. Catalog growth does not infer new subscription usage from a bare model name.
 
