@@ -212,6 +212,10 @@ for (const chunk of ['billing-storage', 'settings-overview', 'statistics', 'open
     const styles = await transform(readFileSync(resolve(projectRoot, 'src/peak/style.css'), 'utf8'), { loader: 'css', minify: true })
     source = source.replace("'PEAK_STYLE_SOURCE'", () => javascriptLiteral(styles.code))
   }
+  let registration
+  runInNewContext(source, { window: { __ModuleLoader__: { load: value => { registration = value } } } })
+  assert.equal(registration?.id, 'dsh-cost-meter', `${chunk}: wrong client owner`)
+  assert.equal(registration?.chunk, `client.${chunk}.js`, `${chunk}: missing or incorrect chunk registration`)
   const result = await transform(withClientRegistration(source), { minify: true, target: 'es2022', charset: 'utf8', legalComments: 'none' })
   const code = ';' + result.code
   for (const [name, text] of [[`src/${chunk}/index.js`, source], [`lib/client.${chunk}.js`, code]]) {

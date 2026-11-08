@@ -1,5 +1,5 @@
 window.__ModuleLoader__.load({
-  id: 'dsh-cost-meter',
+  id: 'dsh-cost-meter', chunk: 'client.local-savings.js',
   factory: require => {
     const React = require('react'), el = React.createElement
     function mount({ formatMoneyUsd, formatTokens, resolveLocale, Tooltip }) {
