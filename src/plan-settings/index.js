@@ -87,6 +87,8 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
       const loginRequired = planId === 'qwen' && config.codingPlans?.qwen?.quotaSource === 'bailian'
         && cfgEntry.quotaSource === 'bailian' && live.quotaSource === 'bailian' && live.loginRequired === true
       const [busy, msg, doRefresh] = useQuotaRefresh(t, () => loginRequired ? api.loginCodingPlan(planId) : api.refreshCodingPlan(planId))
+      // OpenDesign 一键获取:独立的 busy/文案,避免与卡片头的「刷新」状态互相覆盖。
+      const [loginBusy, loginMsg, doLogin] = useQuotaRefresh(t, () => api.loginOpenDesign())
       const setPlan = (field, value) => {
         if (draft === null) return
         const base = draft.codingPlans ?? config.codingPlans ?? {}
@@ -158,6 +160,12 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
           el('label', null, t('opendesignWorkspace')),
           el('input', { className: 'cm-input', 'aria-label': t('opendesignWorkspace'), value: cfgEntry.workspaceId ?? '', onChange: e => setPlan('workspaceId', e.target.value) }),
           el('p', { className: 'cm-note' }, t('opendesignNote'))) : null,
+        // OpenDesign 一键获取(设备码授权):不依赖桌面端、不需要 F12 复制 Cookie。
+        // 授权页与验证码只写入宿主日志,这里只负责触发与展示结果。
+        planId === 'opendesign' ? el('div', { className: 'cm-field' },
+          el('button', { type: 'button', className: 'cm-btn small', 'data-cm-action': 'opendesign-login', disabled: loginBusy, onClick: doLogin },
+            loginBusy ? t('loggingIn') : t('opendesignLogin')),
+          loginMsg ? el('p', { className: 'cm-note' }, loginMsg.text) : null) : null,
         planId === 'factory' ? el(Fragment, null,
           el('div', { className: 'cm-field' },
             el('label', null, t('factoryPool')),

@@ -170,6 +170,7 @@ jobs:
           node test/codex-quota-browser.mjs
           node test/display-settings-browser.mjs
           node test/quota-placement-browser.mjs
+          node test/opendesign-login-browser.mjs
           node test/balance-gateway-browser.mjs
           node test/sidebar-guide-browser.mjs
           node test/peak-alert-browser.mjs

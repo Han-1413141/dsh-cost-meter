@@ -17,23 +17,39 @@ OpenDesign uses shared subscription allowances and can fall back to its wallet; 
 
 ### Quota queries
 
-The OpenDesign desktop app is not required. Version 1.9.45 accepts either a web **Cookie** or the existing **Control Key**. Inference API keys from the API Keys page cannot read account quota.
+The OpenDesign desktop app is not required. The card has a **Get quota credential** button that runs the same device authorization the official `vela login` uses; the old Cookie / Control Key paths remain.
+
+**One click (recommended)**
+
+1. Open **DSH Settings → Cost → Quotas → OpenDesign** and enable the card.
+2. Press **Get quota credential**. The plugin asks `amr-api` for a device authorization, opens the approval page in the browser and writes the 6-character code to the DSH host log (`[cost-meter] OpenDesign device authorization: …`).
+3. Approve the CLI sign-in in the browser. The plugin then polls until it receives the account's control key (`vela_ctrl_…`), stores it in the existing `OPENDESIGN_CONTROL_KEY` slot, reads the active workspace ID from `workspaces/current`, and refreshes the 5-hour and 7-day windows immediately.
+
+The device authorization is public but not documented; it was verified against the official Cloud web client and the `vela` CLI on 2026-11-07. Only the control key is stored — the runtime key (`sk-amr_…`) belongs to model calls and cannot read quota. Repeated clicks start a single authorization; changing the quota settings or unloading the plugin while it runs discards the result.
+
+**Manual fallback** (expired session, unavailable device authorization, or a different account)
 
 1. Sign in to the [OpenDesign Cloud dashboard](https://open-design.ai/cloud/dashboard).
 2. Open browser DevTools (**F12 → Network**), reload the dashboard, and select a `coding-plan-usage` or `wallet/balance` request to `amr-api.open-design.ai`. Under **Request Headers**, copy the full **Cookie** value (or the complete `Cookie: ...` line). Do not copy response `Set-Cookie` or run a script in the console.
 3. Open **DSH Settings → Cost → Quotas → OpenDesign**, edit **Cookie / Control Key**, paste and save. Leave workspace ID blank to read the website's current workspace, or copy the ID between `/workspaces/` and `/billing/` or `/wallet/` in that request URL.
-4. Enable the card, select its display location and refresh. If the Cookie expires, sign in on the website and copy it again.
+4. Refresh. If the Cookie expires, sign in on the website and copy it again.
+
+Inference API keys from the API Keys page cannot read account quota.
 
 Existing Control Keys still use the same editor and require an explicit workspace ID. The editor stores either credential in the existing DSH credential slot `OPENDESIGN_CONTROL_KEY` (named accounts use their own slots). Host environment aliases are checked in order: `OPENDESIGN_CONTROL_KEY`, `VELA_CONTROL_KEY`, `OPENDESIGN_COOKIE`. Clearing a saved credential does not remove environment values. The original editor mapping was reported and located by @unifilitence in [#317](https://github.com/Han-1413141/dsh-cost-meter/issues/317).
 
-Only these fixed official HTTPS GET endpoints are used:
+Only these fixed official HTTPS endpoints are used:
 
 ```text
-https://amr-api.open-design.ai/api/v1/workspaces/current                                  # Cookie, only if workspace ID is blank
+POST https://amr-api.open-design.ai/api/v1/cli/device-authorizations                       # one-click setup, no credential
+POST https://amr-api.open-design.ai/api/v1/cli/device-authorizations/{deviceId}/token     # one-click setup, polls for approval
+https://amr-api.open-design.ai/api/v1/workspaces/current                                  # Cookie, or the Control Key after one-click setup
 https://amr-api.open-design.ai/api/v1/workspaces/{workspaceId}/billing/coding-plan-usage    # Cookie
 https://amr-api.open-design.ai/api/v1/workspaces/{workspaceId}/billing/preflight            # Control Key
 https://amr-api.open-design.ai/api/v1/workspaces/{workspaceId}/wallet/balance               # same credential as quota, independent read
 ```
+
+The device authorization routes were verified on 2026-11-07: the pair returns `deviceId` / `userCode` / `deviceSecret` / `activationUrl`, a bogus path answers `404` while an unknown device secret answers `401`, and the `vela` CLI shipped with the desktop app embeds the same paths. They are public but undocumented, so the manual Cookie path stays.
 
 The Cookie routes, `activeWorkspaceId` field and API origin were checked against the official Cloud dashboard assets on 2026-10-29: `cloud-root-CUrPHDgS.js` and `pricing-refund-policy-Bamt0E9e.js`. Tests use synthetic credentials and responses; no authenticated real-account query was performed.
 
@@ -70,23 +86,39 @@ OpenDesign 的 API 与客户端共用套餐，套餐用尽后可以继续扣钱�
 
 ### 额度查询
 
-不需要安装 OpenDesign 桌面版。1.9.45 起支持网页 **Cookie** 和原有 **Control Key** 两种查询方式。API Keys 页面生成的推理密钥不能查询账户额度。
+不需要安装 OpenDesign 桌面版。卡片上有**一键获取额度凭据**按钮，走的是官方 `vela login` 同一套设备码授权；原有 Cookie / Control Key 方式保留。
+
+**一键获取（推荐）**
+
+1. 打开 **DSH 设置 → 费用 → 额度 → OpenDesign**，启用该卡片。
+2. 点击**一键获取额度凭据**。插件向 `amr-api` 申请设备码授权，在浏览器打开授权页，并把 6 位验证码写入 DSH 宿主日志（`[cost-meter] OpenDesign device authorization: …`）。
+3. 在浏览器里批准这次 CLI 登录。插件随后轮询拿到该账号的控制面密钥（`vela_ctrl_…`），写入 DSH 凭据库原有的 `OPENDESIGN_CONTROL_KEY` 槽位，从 `workspaces/current` 读取当前工作区 ID，并立刻刷新 5 小时与 7 天窗口。
+
+该设备码授权端点是公开但未文档化的契约，2026-11-07 已对照官方 Cloud 网页与 `vela` CLI 核实。只保存控制面密钥；运行时密钥（`sk-amr_…`）属于模型调用，不能查询额度。连续点击只发起一份授权；授权进行中修改额度设置或卸载插件会让结果作废。
+
+**手工兜底**（Cookie 过期、设备码授权不可用或换账号时）
 
 1. 登录 [OpenDesign Cloud 网页](https://open-design.ai/cloud/dashboard)。
 2. 按 **F12 → 网络（Network）**，刷新网页，选择发往 `amr-api.open-design.ai` 的 `coding-plan-usage` 或 `wallet/balance` 请求。在**请求标头（Request Headers）**中复制 **Cookie** 的完整值，也可连同 `Cookie:` 一起复制。不要复制响应的 `Set-Cookie`，不需要在控制台执行脚本。
 3. 打开 **DSH 设置 → 费用 → 额度 → OpenDesign**，编辑 **Cookie / Control Key**，粘贴并保存。工作区 ID 留空时读取网页当前工作区；也可从刚才请求 URL 中复制 `/workspaces/` 后、`/billing/` 或 `/wallet/` 前的 ID。
-4. 开启额度查询，选择显示位置并刷新。Cookie 失效后，重新登录网页并复制即可。
+4. 选择显示位置并刷新。Cookie 失效后，重新登录网页并复制即可。
+
+API Keys 页面生成的推理密钥不能查询账户额度。
 
 原有 Control Key 继续使用同一个凭据编辑器，需明确填写工作区 ID。两种凭据都保存在 DSH 凭据库原有的 `OPENDESIGN_CONTROL_KEY` 槽位，命名账号各自隔离。宿主环境变量依次支持 `OPENDESIGN_CONTROL_KEY`、`VELA_CONTROL_KEY`、`OPENDESIGN_COOKIE`。清除已保存凭据不会移除环境变量。原有凭据映射问题由 @unifilitence 在 [#317](https://github.com/Han-1413141/dsh-cost-meter/issues/317) 报告并定位。
 
-查询只访问以下固定官方 HTTPS GET 端点：
+查询只访问以下固定官方 HTTPS 端点：
 
 ```text
-https://amr-api.open-design.ai/api/v1/workspaces/current                                  # Cookie，工作区 ID 留空时读取
+POST https://amr-api.open-design.ai/api/v1/cli/device-authorizations                       # 一键获取，无需凭据
+POST https://amr-api.open-design.ai/api/v1/cli/device-authorizations/{deviceId}/token     # 一键获取，轮询批准结果
+https://amr-api.open-design.ai/api/v1/workspaces/current                                  # Cookie，或一键获取后的 Control Key
 https://amr-api.open-design.ai/api/v1/workspaces/{workspaceId}/billing/coding-plan-usage    # Cookie 查询套餐窗口
 https://amr-api.open-design.ai/api/v1/workspaces/{workspaceId}/billing/preflight            # Control Key 查询套餐窗口
 https://amr-api.open-design.ai/api/v1/workspaces/{workspaceId}/wallet/balance               # 使用同一查询凭据，独立读取钱包
 ```
+
+设备码授权端点于 2026-11-07 核实：该对端点返回 `deviceId` / `userCode` / `deviceSecret` / `activationUrl`，伪造路径回 `404`、错误的 `deviceSecret` 回 `401`，桌面版自带的 `vela` CLI 内嵌同一组路径。它公开但未文档化，因此手工 Cookie 方式保留为兜底。
 
 2026-10-29 已核对官方网页资源 `cloud-root-CUrPHDgS.js` 与 `pricing-refund-policy-Bamt0E9e.js` 中的 Cookie 路径、`activeWorkspaceId` 字段和 API 地址。回归使用模拟凭据与响应，未进行真实账户的登录查询。
 

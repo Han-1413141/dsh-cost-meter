@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.9.61] - 2026-11-09
+
+- OpenDesign 额度卡新增“一键获取额度凭据”，通过浏览器设备码授权取得控制面密钥，保存后读取工作区并刷新额度。
+- 授权绑定发起时的查询账号与工作区设置，修复多宿主切换账号、配置变更及手工保存或清除凭据时的并发写入问题。
+- 补充 OpenDesign 取消提示，以及中英文、浅深色和窄屏的按钮交互验证。
+- Add OpenDesign device authorization, workspace lookup and immediate quota refresh. Bind authorization to its starting account and workspace, and serialize credential writes so later manual saves or clears take effect in order.
+
+感谢 [@Lu2O3GaN](https://github.com/Lu2O3GaN) 在 [#485](https://github.com/Han-1413141/dsh-cost-meter/pull/485) 提供设备码授权流程、额度按钮、文档与初始回归测试。
+
+[更新说明 / Release notes](docs/update-notes-1.9.61.md)
+
 ## [1.9.60] - 2026-11-08
 
 - 新增可选“本地节省”卡片：按渠道 ID 前缀统计本地模型 Token，用选定的 DeepSeek 参考模型与固定价格档位折算今日、本周、本月和累计金额，展开查看各模型。默认关闭。
