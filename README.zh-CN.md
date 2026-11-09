@@ -63,6 +63,13 @@ dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.61
 
 ## 图文演示
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/conversation-dark.png">
+  <img src="docs/images/conversation-light.png" alt="完整会话界面，包含会话费用、套餐额度与账户余额" width="1280">
+</picture>
+
+<p align="center"><sub>完整会话界面，随主题切换浅色与深色。截图使用示例数据。</sub></p>
+
 | 费用趋势与模型排行 | 单个会话费用分布 |
 |---|---|
 | [![费用趋势与模型排行](docs/images/statistics.png)](docs/images/statistics.png) | [![会话费用矩形图](docs/images/treemap.png)](docs/images/treemap.png) |

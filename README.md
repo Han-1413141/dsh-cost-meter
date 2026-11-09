@@ -63,6 +63,13 @@ See [features and screenshots](docs/features.en.md) for entry points and [model 
 
 ## Screenshots & walkthrough
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/conversation-dark.png">
+  <img src="docs/images/conversation-light.png" alt="Full conversation view with costs, subscription quotas and account balance" width="1280">
+</picture>
+
+<p align="center"><sub>Full conversation view in light or dark mode to match your theme. Screenshots use example data.</sub></p>
+
 | Cost trends and model ranking | Conversation cost distribution |
 |---|---|
 | [![Cost trends](docs/images/statistics.png)](docs/images/statistics.png) | [![Conversation treemap](docs/images/treemap.png)](docs/images/treemap.png) |
