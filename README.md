@@ -19,6 +19,13 @@ Track costs and tokens by conversation, model and call. View account balances, s
   <br><sub>Project illustration</sub>
 </p>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/conversation-dark.png">
+  <img src="docs/images/conversation-light.png" alt="Full conversation view with costs, subscription quotas and account balance" width="1280">
+</picture>
+
+<p align="center"><sub>Full conversation view in light or dark mode to match your theme. Screenshots use example data.</sub></p>
+
 ## Installation
 
 Requires **Node.js ≥ 20, DSH 0.2.0 or later**, and pnpm available to DSH. See [host compatibility](docs/host-compatibility.md).
