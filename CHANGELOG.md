@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.9.62] - 2026-11-09
+
+- 修复合并卡片模式下峰谷进度条过薄、高光被裁切的问题，实际侧栏与显示预览完整呈现进度条。
+- Fix the thin peak-period track and clipped highlight in the merged sidebar card and its display preview.
+
+感谢 [@ansel-open](https://github.com/ansel-open) 在 [#487](https://github.com/Han-1413141/dsh-cost-meter/issues/487) 报告问题，并提供复现步骤及侧栏、显示预览截图。
+
+[更新说明 / Release notes](docs/update-notes-1.9.62.md)
+
 ## [1.9.61] - 2026-11-09
 
 - OpenDesign 额度卡新增“一键获取额度凭据”，通过浏览器设备码授权取得控制面密钥，保存后读取工作区并刷新额度。

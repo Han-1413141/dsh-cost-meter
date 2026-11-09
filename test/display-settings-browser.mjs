@@ -97,7 +97,10 @@ await page.exposeFunction('saveConfig', patch => {
 })
 try {
   await page.goto(url)
-  if (process.argv.includes('--local-savings-only')) {
+  if (process.argv.includes('--summary-only')) {
+    console.log('[ok] summary sidebar ' + JSON.stringify(await checkSidebarUpdates(page, output)))
+    assert.deepEqual(errors, []); assert.deepEqual(external, [])
+  } else if (process.argv.includes('--local-savings-only')) {
     console.log('[ok] local savings ' + JSON.stringify(await checkLocalSavings(page, output)))
     assert.deepEqual(errors, []); assert.deepEqual(external, [])
   } else if (process.argv.includes('--gauge-only')) {
