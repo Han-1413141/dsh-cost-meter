@@ -42,7 +42,9 @@ export async function checkSidebarUpdates(page, output) {
   assert.equal(await summary.locator('[data-cm-display=today]').count(), 1)
   assert.equal(await summary.locator('[data-cm-display=balance]').count(), 1)
   await summary.locator('.variant-summary').waitFor()
+  const originalTheme = await page.evaluate(() => document.documentElement.dataset.theme ?? 'light')
   for (const theme of ['light', 'dark']) {
+    await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, theme)
     const skin = await page.addStyleTag({ content: `#actual-sidebar{--dsw-alias-bg-layer-1:${theme === 'dark' ? '#222' : '#fafafa'};--dsw-alias-bg-layer-2:${theme === 'dark' ? '#303030' : '#fff'};--dsw-alias-label-secondary:${theme === 'dark' ? '#ddd' : '#555'}}` })
     for (const simple of [false, true]) {
       await page.evaluate(simple => window.configure({ sidebarSimple: simple }), simple)
@@ -54,6 +56,21 @@ export async function checkSidebarUpdates(page, output) {
           today: getComputedStyle(today).backgroundColor, surface: css.backgroundColor, balance: getComputedStyle(balance).backgroundColor,
           height: node.getBoundingClientRect().height, handles: node.querySelectorAll('.cm-order-handle,.cm-order-status').length }
       })
+      if (!simple) {
+        for (const scope of [card, page.locator('.cm-sidebar-live')]) {
+          const peak = scope.locator('.cm-peak-progress.variant-summary')
+          const track = await peak.locator('.cm-peak-progress-track').evaluate(node => {
+            const box = node.getBoundingClientRect(), parent = node.parentElement.getBoundingClientRect()
+            const fill = node.querySelector('.cm-peak-progress-fill'), highlight = getComputedStyle(fill, '::after')
+            const top = fill.getBoundingClientRect().top + parseFloat(highlight.top)
+            return { height: box.height, inside: box.top >= parent.top && box.bottom <= parent.bottom,
+              highlightInside: top >= box.top && top + parseFloat(highlight.height) <= box.bottom,
+              centered: Math.abs(top + parseFloat(highlight.height) / 2 - box.top - box.height / 2) < .5 }
+          })
+          assert.ok(track.inside && track.highlightInside && track.centered, 'merged peak bar and its highlight remain fully visible: ' + JSON.stringify(track))
+        }
+        await page.locator('.cm-sidebar-live').screenshot({ path: join(output, 'issue487-preview-' + theme + '.png') })
+      }
       assert.equal(geometry.scroll, false, 'three-row card has no inner scrollbar')
       assert.equal(geometry.handles, 0)
       if (!simple) {
@@ -66,6 +83,7 @@ export async function checkSidebarUpdates(page, output) {
     }
     await skin.evaluate(node => node.remove())
   }
+  await page.evaluate(theme => { document.documentElement.dataset.theme = theme }, originalTheme)
   await page.evaluate(() => window.configure({ sidebarSimple: false }))
   await page.locator('.cm-display-general summary').click()
   const preference = page.getByRole('switch', { name: '弹出 billion-context 计费兼容提醒', exact: true })

@@ -3,7 +3,7 @@
 <p align="center">Cost tracking and subscription quotas for DeepSeek Harness</p>
 
 <p align="center">
-  <a href="https://github.com/Han-1413141/dsh-cost-meter/releases/latest"><img src="https://img.shields.io/badge/version-1.9.61-4176E6?style=flat-square" alt="version"></a>
+  <a href="https://github.com/Han-1413141/dsh-cost-meter/releases/latest"><img src="https://img.shields.io/badge/version-1.9.62-4176E6?style=flat-square" alt="version"></a>
   <a href="https://www.npmjs.com/package/dsh-cost-meter"><img src="https://img.shields.io/npm/dm/dsh-cost-meter?label=downloads&style=flat-square&color=4176E6" alt="npm monthly downloads"></a>
   <a href="https://github.com/Han-1413141/dsh-cost-meter/stargazers"><img src="https://img.shields.io/github/stars/Han-1413141/dsh-cost-meter?label=stars&style=flat-square&color=D9A400" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT license"></a>
@@ -42,20 +42,20 @@ Restart `dsh web` after installation or updates. **Desktop** uses its bundled CL
 The PowerShell installer checks pnpm and Git and uses the `web` profile by default:
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.61/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.62/install.ps1 | iex
 ```
 
 Install a pinned Git tag:
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.61
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.62
 ```
 
 See [installation and updates](docs/install.en.md) for uninstalling or installing without Git.
 
 </details>
 
-Current release **v1.9.61**: [release notes](docs/update-notes-1.9.61.md#english) · [troubleshooting](docs/install-troubleshooting.md)
+Current release **v1.9.62**: [release notes](docs/update-notes-1.9.62.md#english) · [troubleshooting](docs/install-troubleshooting.md)
 
 ## Feature overview
 
