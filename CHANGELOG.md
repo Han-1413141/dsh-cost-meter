@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+- OpenDesign 额度新增「一键获取额度凭据」：走官方 `vela login` 同一套设备码授权，浏览器批准一次即自动取得控制面密钥，无需再按 F12 从 DevTools 复制 Cookie。
+- 授权成功后密钥写入 DSH 凭据库既有槽位 `OPENDESIGN_CONTROL_KEY`，并从 `workspaces/current` 回填当前工作区 ID，随后立即刷新 5 小时 / 7 天窗口。授权链接与验证码只写入宿主日志，不进入客户端快照、账本或历史；运行时密钥（`sk-amr_…`）不保存，推理 API Key 不能查询额度。
+- 手工 Cookie / Control Key 方式保留为兜底；连续点击只发起一份授权，授权进行中修改额度设置或卸载插件会让结果作废。
+- Add a one-click OpenDesign quota credential using the official `vela login` device authorization: approve once in the browser instead of copying a Cookie from DevTools. The control key is stored in the existing `OPENDESIGN_CONTROL_KEY` slot, the active workspace ID is read from `workspaces/current` and filled in, and the 5-hour / 7-day windows refresh immediately. The approval link and code only reach the host log — never the client snapshot, ledger or history — and the runtime key (`sk-amr_…`) is not stored. Manual Cookie / Control Key entry remains as a fallback.
+
 ## [1.9.60] - 2026-11-08
 
 - 新增可选“本地节省”卡片：按渠道 ID 前缀统计本地模型 Token，用选定的 DeepSeek 参考模型与固定价格档位折算今日、本周、本月和累计金额，展开查看各模型。默认关闭。

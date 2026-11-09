@@ -2162,6 +2162,8 @@
         refreshCustomBalance: async (index = null) => receive(index == null ? costMeter.refreshCustomBalance() : costMeter.refreshCustomBalance(index)),
         refreshCodingPlan: async provider => receive(costMeter.refreshCodingPlan(provider)),
         loginCodingPlan: async provider => receive(costMeter.loginCodingPlan(provider)),
+        // OpenDesign 设备码授权:一次点击 = 开授权页 + 轮询 + 写凭据库 + 立刻刷新额度。
+        loginOpenDesign: async () => receive(costMeter.loginOpenDesign()),
         // 密钥写入/清除(v1.6.8):值只沿此通道单向送入 DSH 凭据库,服务端永不回传明文。
         setCredential: async (target, value) => receive(costMeter.setCredential(target, value), 'rpcSyncFailed', true),
         clearCredential: async target => receive(costMeter.clearCredential(target), 'rpcSyncFailed', true),

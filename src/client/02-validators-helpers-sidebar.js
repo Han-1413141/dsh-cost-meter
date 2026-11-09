@@ -650,6 +650,10 @@
           parameters: [rpcParam('provider', 'CodingPlanProvider', providerCodec)],
           },
         {
+          // OpenDesign 一键获取:仅登录并刷新,无参数;结果与其它刷新同形(FetchPricesResult)。
+          method: 'loginOpenDesign',
+          },
+        {
           method: 'refreshGatewayQuota',
           parameters: [rpcParam('sourceId', 'GatewayQuotaSourceId', codecOf(v => {
             if (v === undefined || v === null) return undefined
