@@ -113,6 +113,17 @@ const transport = routes => {
   assert.equal((await waitOpenDesignDeviceAuthorization({ ...device, intervalMs: 1, expiresAt: Date.now() + 600000 }, 'en', {
     fetchImpl: async () => new Response('', { status: 401 }),
   }).catch(e => e)).code, OPEN_DESIGN_LOGIN_FAILURES.expired)
+  for (const status of [401, 404, 410]) {
+    const error = await waitOpenDesignDeviceAuthorization({ ...device, intervalMs: 1, expiresAt: Date.now() + 600000 }, 'en', {
+      fetchImpl: async () => Response.json({ controlKey: CONTROL, status: 'pending' }, { status }),
+    }).catch(error => error)
+    assert.equal(error.code, OPEN_DESIGN_LOGIN_FAILURES.expired, 'terminal HTTP status takes precedence over body fields')
+  }
+  let retries = 0
+  await waitOpenDesignDeviceAuthorization({ ...device, intervalMs: 1, expiresAt: Date.now() + 600000 }, 'en', {
+    fetchImpl: async () => Response.json({ controlKey: CONTROL }, { status: ++retries === 1 ? 503 : 200 }),
+  })
+  assert.equal(retries, 2, 'an HTTP error body cannot supply an accepted credential')
 }
 
 // 5. 到期与取消:本地时钟到点即失败,取消信号立即中断。
