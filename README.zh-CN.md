@@ -19,6 +19,13 @@
   <br><sub>项目宣传图</sub>
 </p>
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/conversation-dark.png">
+  <img src="docs/images/conversation-light.png" alt="完整会话界面，包含会话费用、套餐额度与账户余额" width="1280">
+</picture>
+
+<p align="center"><sub>完整会话界面，随主题切换浅色与深色。截图使用示例数据。</sub></p>
+
 ## 安装
 
 需要 **Node.js ≥ 20、DSH 0.2.0 或更新版本**，以及 DSH 可用的 pnpm。[宿主兼容记录](docs/host-compatibility.md)
@@ -62,13 +69,6 @@ dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.61
 功能入口和配置见[功能与截图](docs/features.md)；厂商、模型及凭据要求见[适配说明](docs/model-and-plan-adaptation.md)。
 
 ## 图文演示
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/images/conversation-dark.png">
-  <img src="docs/images/conversation-light.png" alt="完整会话界面，包含会话费用、套餐额度与账户余额" width="1280">
-</picture>
-
-<p align="center"><sub>完整会话界面，随主题切换浅色与深色。截图使用示例数据。</sub></p>
 
 | 费用趋势与模型排行 | 单个会话费用分布 |
 |---|---|
