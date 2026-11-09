@@ -1,11 +1,15 @@
 # Changelog
 
-## [Unreleased]
+## [1.9.61] - 2026-11-09
 
-- OpenDesign 额度新增「一键获取额度凭据」：走官方 `vela login` 同一套设备码授权，浏览器批准一次即自动取得控制面密钥，无需再按 F12 从 DevTools 复制 Cookie。
-- 授权成功后密钥写入 DSH 凭据库既有槽位 `OPENDESIGN_CONTROL_KEY`，并从 `workspaces/current` 回填当前工作区 ID，随后立即刷新 5 小时 / 7 天窗口。授权链接与验证码只写入宿主日志，不进入客户端快照、账本或历史；运行时密钥（`sk-amr_…`）不保存，推理 API Key 不能查询额度。
-- 手工 Cookie / Control Key 方式保留为兜底；连续点击只发起一份授权，授权进行中修改额度设置或卸载插件会让结果作废。
-- Add a one-click OpenDesign quota credential using the official `vela login` device authorization: approve once in the browser instead of copying a Cookie from DevTools. The control key is stored in the existing `OPENDESIGN_CONTROL_KEY` slot, the active workspace ID is read from `workspaces/current` and filled in, and the 5-hour / 7-day windows refresh immediately. The approval link and code only reach the host log — never the client snapshot, ledger or history — and the runtime key (`sk-amr_…`) is not stored. Manual Cookie / Control Key entry remains as a fallback.
+- OpenDesign 额度卡新增“一键获取额度凭据”，通过浏览器设备码授权取得控制面密钥，保存后读取工作区并刷新额度。
+- 授权绑定发起时的查询账号与工作区设置，修复多宿主切换账号、配置变更及手工保存或清除凭据时的并发写入问题。
+- 补充 OpenDesign 取消提示，以及中英文、浅深色和窄屏的按钮交互验证。
+- Add OpenDesign device authorization, workspace lookup and immediate quota refresh. Bind authorization to its starting account and workspace, and serialize credential writes so later manual saves or clears take effect in order.
+
+感谢 [@Lu2O3GaN](https://github.com/Lu2O3GaN) 在 [#485](https://github.com/Han-1413141/dsh-cost-meter/pull/485) 提供设备码授权流程、额度按钮、文档与初始回归测试。
+
+[更新说明 / Release notes](docs/update-notes-1.9.61.md)
 
 ## [1.9.60] - 2026-11-08
 
