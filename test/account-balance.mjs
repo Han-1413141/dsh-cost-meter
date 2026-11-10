@@ -126,13 +126,27 @@ try {
   assert.equal(signedOut.requests.at(-1).headers.authorization, 'Bearer ' + modelKey)
   assert.equal(result.state.balance.currency, 'USD', '回退路径沿用 balance_infos 口径')
 
-  // ④ 已登录但账号侧查询失败:报账号侧失败,不回退模型凭据、不显示为零余额。
+  // ④ 同时登录官方账号又配置了模型 API Key:付费账户是这个 Key 的账户,登录账号的钱包不得顶替。
+  useHome('account-plus-model-key')
+  const bothSources = mount({ account: () => ({ status: 'ready', value: [cnyMain], bonusWallets: [] }), section: { apiKeyEnv: 'DSH_DEEPSEEK_API_KEY' }, secrets: { DSH_DEEPSEEK_API_KEY: modelKey } })
+  result = await bothSources.service.refreshBalance()
+  assert.equal(result.ok, true, '模型 Key 存在时余额来自该 Key')
+  assert.equal(bothSources.requests.at(-1).headers.authorization, 'Bearer ' + modelKey, '请求使用模型渠道的 Key')
+  assert.equal(result.state.balance.totalBalance, 3, '显示模型 Key 账户的钱包,而不是登录账号的钱包')
+  assert.equal(bothSources.accountCalls.length, 0, '模型 Key 存在时不读取登录账号钱包')
+
+  // ⑤ 模型 Key 指向非官方端点(中转/代理):没有可读的官方钱包,不回退账号钱包冒名顶替。
+  useHome('model-key-nonofficial')
+  const relay = mount({ account: () => ({ status: 'ready', value: [cnyMain], bonusWallets: [] }), section: { apiKeyEnv: 'DSH_DEEPSEEK_API_KEY', baseURL: 'https://relay.example.com' }, secrets: { DSH_DEEPSEEK_API_KEY: modelKey } })
+  result = await relay.service.refreshBalance()
+  assert.equal(result.ok, false, '非官方端点不返回余额')
+  assert.equal(result.state.balance.status, 'off', '守卫失败按 off 呈现,不显示任何钱包')
+  assert.match(result.state.balance.message, /official endpoint/i, '提示端点不受支持')
+  assert.equal(relay.accountCalls.length, 0, '非官方端点不回退账号钱包')
+
+  // ⑥ 已登录、未配置模型 API Key,账号侧查询失败:报账号侧失败,不显示为零余额。
   useHome('account-failed')
-  const failed = mount({
-    account: () => ({ status: 'failed' }),
-    section: { apiKeyEnv: 'DSH_DEEPSEEK_API_KEY' },
-    secrets: { DSH_DEEPSEEK_API_KEY: modelKey },
-  })
+  const failed = mount({ account: () => ({ status: 'failed' }) })
   result = await failed.service.refreshBalance()
   assert.equal(result.ok, false, '账号侧失败不报成功')
   assert.equal(result.state.balance.status, 'error', '账号失败在自动轮询和设置面板保持可见')
@@ -140,39 +154,31 @@ try {
   assert.equal(failed.requests.length, 0, '账号侧失败不得改发开放平台请求')
   stateSchema.parse(result.state)
 
-  // ⑤ 账号服务抛错不得切换到模型 Key 的另一账户,原始诊断不外泄。
+  // ⑦ 账号服务抛错保留失败状态,原始诊断不外泄。
   useHome('account-throws')
-  const thrown = mount({
-    account: () => { throw new Error(sensitiveDetail) },
-    section: { apiKeyEnv: 'DSH_DEEPSEEK_API_KEY' },
-    secrets: { DSH_DEEPSEEK_API_KEY: modelKey },
-  })
+  const thrown = mount({ account: () => { throw new Error(sensitiveDetail) } })
   result = await thrown.service.refreshBalance()
   assert.equal(result.ok, false, '账号服务抛错保留失败状态')
   assert.equal(result.state.balance.status, 'error')
   assert.equal(thrown.requests.length, 0, '账号异常不回退模型凭据')
   assert.ok(!JSON.stringify(result).includes(sensitiveDetail), '原始账号诊断不下发客户端')
 
-  // ⑥ 无账号服务(web/CLI profile):来源与改动前一致。
+  // ⑧ 无账号服务(web/CLI profile):来源与改动前一致。
   useHome('no-account-service')
   const legacy = mount({ account: null, section: { apiKeyEnv: 'DSH_DEEPSEEK_API_KEY' }, secrets: { DSH_DEEPSEEK_API_KEY: modelKey } })
   result = await legacy.service.refreshBalance()
   assert.equal(result.ok, true, '无账号服务时行为不变')
   assert.equal(legacy.requests.length, 1)
 
-  // ⑦ ready 结果无有效钱包是协议失败,不得误认未登录或显示零余额。
+  // ⑨ ready 结果无有效钱包是协议失败,不得误认未登录或显示零余额。
   useHome('account-empty-wallets')
-  const empty = mount({
-    account: () => ({ status: 'ready', value: [], bonusWallets: [] }),
-    section: { apiKeyEnv: 'DSH_DEEPSEEK_API_KEY' },
-    secrets: { DSH_DEEPSEEK_API_KEY: modelKey },
-  })
+  const empty = mount({ account: () => ({ status: 'ready', value: [], bonusWallets: [] }) })
   result = await empty.service.refreshBalance()
   assert.equal(result.ok, false, '空钱包列表报账号查询失败')
   assert.equal(result.state.balance.status, 'error')
   assert.equal(empty.requests.length, 0)
 
-  // ⑧ 幂等与脱敏:重复刷新不重复请求账号服务之外的来源,快照不含凭据。
+  // ⑩ 幂等与脱敏:重复刷新不重复请求账号服务之外的来源,快照不含凭据。
   const state = (await ready.service.refreshBalance()).state
   assert.equal(ready.requests.length, 0, '账号渠道不会因为重复刷新而改发官方余额请求')
   assert.ok(!JSON.stringify(state).includes(dedicatedKey), '快照不含专用凭据')
@@ -207,7 +213,7 @@ try {
     sumOverflow: { status: 'ready', value: [{ currency: 'CNY', balance: '1e308' }, { currency: 'CNY', balance: '1e308' }], bonusWallets: [] },
   })) {
     useHome('malformed-' + tag)
-    const bad = mount({ account: () => details, secrets: { DSH_DEEPSEEK_API_KEY: modelKey }, section: { apiKeyEnv: 'DSH_DEEPSEEK_API_KEY' } })
+    const bad = mount({ account: () => details })
     const response = await bad.service.refreshBalance()
     assert.equal(response.ok, false)
     assert.equal(response.state.balance.status, 'error')
@@ -215,7 +221,7 @@ try {
     assert.ok(!JSON.stringify(response).includes(sensitiveDetail))
   }
   useHome('null-during-grant-change')
-  const changedNull = mount({ account: () => null, accountState: () => 'credential-stored', secrets: { DSH_DEEPSEEK_API_KEY: modelKey }, section: { apiKeyEnv: 'DSH_DEEPSEEK_API_KEY' } })
+  const changedNull = mount({ account: () => null, accountState: () => 'credential-stored' })
   assert.equal((await changedNull.service.refreshBalance()).ok, false, '仍有凭据时 null 不认作退出')
   assert.equal(changedNull.requests.length, 0)
 
@@ -262,7 +268,7 @@ try {
       started = true; await gate.promise
       if (late === 'throw') throw Error(sensitiveDetail)
       return late === 'null' ? null : { status: 'ready', value: [{ currency: 'CNY', balance: '100' }], bonusWallets: [] }
-    }, secrets: { DSH_DEEPSEEK_API_KEY: modelKey }, section: { apiKeyEnv: 'DSH_DEEPSEEK_API_KEY' } })
+    } })
     const old = pending.service.refreshBalance()
     for (let n = 0; n < 100 && !started; n++) await tick()
     assert.ok(started)
@@ -322,7 +328,7 @@ try {
     const replaced = mount({ proxyAccount: true, account: async () => {
       started = true; await gate.promise
       return late === 'null' ? null : { status: 'ready', value: [{ currency: 'CNY', balance: '100' }], bonusWallets: [] }
-    }, secrets: { DSH_DEEPSEEK_API_KEY: modelKey }, section: { apiKeyEnv: 'DSH_DEEPSEEK_API_KEY' } })
+    } })
     const previous = replaced.service.refreshBalance()
     for (let n = 0; n < 100 && !started; n++) await tick()
     assert.ok(started)
@@ -337,7 +343,7 @@ try {
   useHome('dispose-pending')
   const closingGate = deferred()
   let closingStarted = false
-  const closing = mount({ account: async () => { closingStarted = true; await closingGate.promise; return null }, secrets: { DSH_DEEPSEEK_API_KEY: modelKey }, section: { apiKeyEnv: 'DSH_DEEPSEEK_API_KEY' } })
+  const closing = mount({ account: async () => { closingStarted = true; await closingGate.promise; return null } })
   const closingRequest = closing.service.refreshBalance()
   for (let n = 0; n < 100 && !closingStarted; n++) await tick()
   assert.ok(closingStarted)
