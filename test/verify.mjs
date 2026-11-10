@@ -5803,32 +5803,25 @@ await import('./typert-codecs.mjs')
   const prevHome81 = process.env.DSH_HOME
   const root81 = join(tmpdir(), `cm-reconcile-currency-${Date.now()}`)
   mkdirSync(join(root81, 'storages', 'cost-meter'), { recursive: true })
-  // 预置:今日早间余额参考点(CNY 账户,总额 100)+ 今日本地费用 $3.99 → 同日晚间
-  // 拉取(总额 58,变动 ¥42)触发 drift。对账只在同日两次拉取间比对(跨天仅打基准)。
+  // 挂载后先以 CNY 余额 100 建立基准，再增加本地费用 $3.99。
+  // 第二次查询余额 58，验证 ¥42 变动与非零本地费用的币种显示。
   const todayKey81 = localDayKey(Date.now())
   writeFileSync(join(root81, 'storages', 'cost-meter', 'ledger.json'), JSON.stringify({
     version: 1,
     config: sanitizeConfig({ balance: { reconcile: true }, exchangeRate: 7.2 }),
     balanceRef: { date: todayKey81, total: 100, granted: 1, topped: 99, currency: 'CNY', at: Date.now() - 3600_000, ledgerCost: 0 },
-    days: {
-      [todayKey81]: {
-        date: todayKey81, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1,
-        cost: 3.99, apiCost: 3.99,
-        byProviderModel: { 'deepseek:deepseek-v4-flash': { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 3.99, apiCost: 3.99 } },
-        sessions: [],
-      },
-    },
+    days: {},
   }))
   process.env.DSH_HOME = root81
   const prevKey81 = process.env.DEEPSEEK_API_KEY
   process.env.DEEPSEEK_API_KEY = 'sk-test-81'
   try {
     const provided81 = {}
-    // 拦截官方余额查询:注入 CNY 账户(总额 58 → 当日变动 ¥42,与 $3.99 偏差巨大)。
+    let total81 = 100
     const origFetch81 = globalThis.fetch
     globalThis.fetch = async () => Response.json({
         is_available: true,
-        balance_infos: [{ currency: 'CNY', total_balance: '58', granted_balance: '1', topped_up_balance: '57' }],
+        balance_infos: [{ currency: 'CNY', total_balance: String(total81), granted_balance: '1', topped_up_balance: String(total81 - 1) }],
     })
     try {
       const { apply: apply81 } = await import('../lib/index.js')
@@ -5840,11 +5833,29 @@ await import('./typert-codecs.mjs')
         logger: console,
         get: key => (key === 'settings' ? { get: () => ({}) } : undefined),
       })
+      const baseline81 = await provided81.costMeter.refreshBalance()
+      assert.equal(baseline81.state.reconcile.message, '', '首次查询只建立当前来源基准')
+      const ledgerPath81 = join(root81, 'storages', 'cost-meter', 'ledger.json')
+      for (let attempt = 0; attempt < 100 && JSON.parse(readFileSync(ledgerPath81, 'utf8')).balanceRef?.total !== 100; attempt++) {
+        await new Promise(resolve => setTimeout(resolve, 50))
+      }
+      assert.equal(JSON.parse(readFileSync(ledgerPath81, 'utf8')).balanceRef?.total, 100, '基准已持久化')
+      const recorded81 = Ledger.open()
+      recorded81.days[todayKey81] = {
+        date: todayKey81, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1,
+        cost: 3.99, apiCost: 3.99,
+        byProviderModel: { 'deepseek:deepseek-v4-flash': { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0, calls: 1, cost: 3.99, apiCost: 3.99 } },
+        sessions: [],
+      }
+      recorded81.scheduleWrite()
+      await recorded81.close()
+      total81 = 58
       const state81 = await provided81.costMeter.refreshBalance()
       const msg81 = state81?.state?.reconcile?.message ?? ''
       assert.ok(typeof msg81 === 'string' && msg81.length > 0, 'CNY 账户触发 drift 警告:' + JSON.stringify(state81?.state?.reconcile))
       const hasYenCost = msg81.includes('¥') && /¥[\d.]+（≈\$/.test(msg81)
       assert.ok(hasYenCost, 'cost 侧为 ¥ 并附 ≈USD(不再恒 $):' + msg81)
+      assert.ok(msg81.includes('¥28.7280（≈$3.9900）'), '两次查询之间的 $3.99 按汇率折算为人民币:' + msg81)
       // delta 侧(CNY 账户)仍是 ¥ 原生 + ≈USD。
       assert.ok(/变动 ¥[\d.]+/.test(msg81), 'delta 侧保持 ¥ 原生币种:' + msg81)
     } finally {
@@ -5882,10 +5893,11 @@ await import('./typert-codecs.mjs')
   try {
     const provided302 = {}
     const origFetch302 = globalThis.fetch
+    let balance302 = { currency: 'CNY', total_balance: '827.2620', granted_balance: '38.4004', topped_up_balance: '788.8616' }
     // 当日主要使用第三方渠道:官方余额只在赠送桶减少,充值桶不变。
     globalThis.fetch = async () => Response.json({
         is_available: true,
-        balance_infos: [{ currency: 'CNY', total_balance: '821.7149', granted_balance: '32.8532', topped_up_balance: '788.8617' }],
+        balance_infos: [balance302],
     })
     try {
       const { apply: apply302 } = await import('../lib/index.js')
@@ -5897,6 +5909,9 @@ await import('./typert-codecs.mjs')
         logger: console,
         get: key => (key === 'settings' ? { get: () => ({}) } : undefined),
       })
+      const baseline302 = await provided302.costMeter.refreshBalance()
+      assert.equal(baseline302.state.reconcile.message, '', '首次查询建立赠送余额基准')
+      balance302 = { currency: 'CNY', total_balance: '821.7149', granted_balance: '32.8532', topped_up_balance: '788.8617' }
       const first302 = await provided302.costMeter.refreshBalance()
       const notice302 = first302?.state?.reconcile ?? {}
       const msg302 = notice302.message ?? ''
