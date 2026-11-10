@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { queryGatewayQuota, GATEWAY_MANAGEMENT_PATHS } from '../lib/gateway-quotas.js'
 
 const urls = [
-  'https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary',
   'https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary',
+  'https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary',
   'https://daily-cloudcode-pa.sandbox.googleapis.com/v1internal:retrieveUserQuotaSummary',
 ]
 const group = name => ({ displayName: name, buckets: [{ window: '5h', remainingFraction: .8 }, { window: 'weekly', remainingFraction: .6 }] })
@@ -31,13 +31,13 @@ const run = async (failed, onlyGemini = false, body = full) => {
 }
 
 let value = await run([])
-assert.deepEqual(value.requests, [urls[0]], 'the full production endpoint is first and success stops fallback')
+assert.deepEqual(value.requests, [urls[0]], 'the official consumer endpoint is first and success stops fallback')
 assert.equal(value.result.status, 'ok')
 assert.equal(value.result.accounts[0].windows.length, 4, 'Gemini and third-party quota windows remain visible')
 
 value = await run([403])
 assert.deepEqual(value.requests, urls.slice(0, 2))
-assert.equal(value.result.status, 'ok', 'a successful daily response is parsed after production fails')
+assert.equal(value.result.status, 'ok', 'a successful production response is parsed after daily fails')
 assert.equal(value.result.accounts[0].windows.length, 4)
 
 value = await run([403, 404])
@@ -56,4 +56,4 @@ value = await run([403, 404, 403])
 assert.deepEqual(value.requests, urls)
 assert.equal(value.result.status, 'error', 'all failed endpoints stay an error')
 assert.deepEqual(value.result.accounts[0].windows, [])
-console.log('[ok] Antigravity: production priority, daily/sandbox success, Gemini filtering, all-failed errors and unchanged gateway request metadata; no external requests')
+console.log('[ok] Antigravity: daily priority, production/sandbox fallback, Gemini filtering, all-failed errors and unchanged gateway request metadata; no external requests')
