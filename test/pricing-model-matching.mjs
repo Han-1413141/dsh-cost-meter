@@ -359,4 +359,87 @@ for (const [model, candidates, expected] of [
   assert.equal(client.matchModelIdLocal(model, candidates), expected)
 }
 
+// Official Magpie routes and published connector routes retain account-prefixed model IDs.
+const magpieProviders = ['magpie', 'magpie-responses', 'magpie-anthropic', 'dsh-magpie', 'dsh-magpie-connect', 'dsh-magpie-connector-codex', 'llm-dsh-magpie-connector-workbuddy-ai']
+for (const provider of magpieProviders) {
+  for (const [model, input] of [
+    ['codex/gpt-6.1-sol', 2],
+    ['claude/claude-opus-4-8', 5],
+    ['workbuddy-ai/deepseek-v4-flash', 0.15],
+    ['vercel/google/gemini-3.8-flash', 0.75],
+    ['copilot/gemini-3.8-flash', 0.75],
+    ['account-123/openai/gpt-6.1-sol', 2],
+    ['opencode-zen/gpt-6.1-sol', 1],
+    ['opencode-go/gemini-3.8-flash', 3],
+    ['openrouter/google/gemini-3.8-flash:free', 0],
+  ]) {
+    check(provider, model, { priced: true, input })
+    check(provider, model, { priced: false }, cfg('exact'))
+  }
+  for (const model of ['group/auto-gpt-6-astra', 'deepseek/unknown-model', 'opencode-zen/unknown-model', 'opencode-zen-free/gpt-6.1-sol', 'ollama/gpt-6-astra', 'account-123/ollama/gpt-6-astra', 'openrouter/google/gemini-3.8-flash:unknown']) {
+    check(provider, model, { priced: false })
+  }
+}
+for (const provider of ['custom-provider-id', 'llm-custom-provider-id']) {
+  check(provider, 'codex/gpt-6.1-sol', { priced: true, input: 2 })
+  check(provider, 'workbuddy-ai/deepseek-v4-flash', { priced: true, input: 0.15 })
+  check(provider, 'vercel/google/gemini-3.8-flash', { priced: true, input: 0.75 })
+  check(provider, 'unknown/gpt-6.1-sol', { priced: false })
+}
+check('openai', 'codex/gpt-6.1-sol', { priced: false })
+check('opencode-go', 'codex/gpt-6.1-sol', { priced: false })
+const magpieKey = 'magpie:codex/gpt-6.1-sol'
+check('magpie', 'codex/gpt-6.1-sol', { priced: true, input: 10 }, cfg('auto', { [magpieKey]: 'openai:gpt-6-astra' }))
+check('magpie', 'codex/gpt-6.1-sol', { priced: false }, cfg('auto', { [magpieKey]: '__local__' }))
+check('magpie', 'codex/gpt-6.1-sol', { priced: true, input: 2 }, cfg('auto', { 'openai:gpt-6.1-sol': 'openai:gpt-6-astra' }))
+const magpieCatalog = { ...prices, providers: { ...prices.providers, magpie: { models: { 'codex/gpt-6.1-sol': flat(77) } } } }
+check('magpie', 'codex/gpt-6.1-sol', { priced: true, input: 77 }, cfg('auto', {}, magpieCatalog))
+check('magpie', 'codex/gpt-6.1-sol', { priced: false }, cfg('auto', {}, { ...magpieCatalog, providers: { ...magpieCatalog.providers, magpie: { models: { 'codex/gpt-6.1-sol': { ...flat(77), unpriced: true } } } } }))
+
+// Real IDs shipped by the Magpie connector catalogs use the current built-in prices.
+const installedPrices = defaultConfig().prices
+for (const [model, provider, bare] of [
+  ['codex/gpt-5.6-terra', 'openai', 'gpt-5.6-terra'],
+  ['codex/gpt-5.6-luna', 'openai', 'gpt-5.6-luna'],
+  ['workbuddy-ai/deepseek-v4.1-flash', 'deepseek', 'deepseek-v4.1-flash'],
+  ['vercel/google/gemini-2.5-flash-lite', 'google', 'gemini-2.5-flash-lite'],
+  ['opencode-zen/mimo-v2.6-flash-free', 'opencode-zen', 'mimo-v2.6-flash-free'],
+  ['ollama-cloud/deepseek-v4.1-flash', 'ollama-cloud', 'deepseek-v4.1-flash'],
+]) {
+  const expected = providerPriceEntryFor(provider, bare, installedPrices)
+  assert.equal(expected.priced, true, 'reference catalog includes ' + model)
+  check('dsh-magpie-connect', model, { priced: true, input: normalizePrice(expected.entry).cacheMiss, currency: expected.currency, mode: expected.billingMode }, cfg('auto', {}, installedPrices))
+  const routed = providerPriceEntryFor('magpie', model, installedPrices)
+  assert.equal(routed.entry.peakSchedule, expected.entry.peakSchedule, 'upstream peak calendar is retained')
+}
+const switchedHome = mkdtempSync(join(tmpdir(), 'cm-magpie-switch-'))
+try {
+  const ledger = new Ledger(sanitizeConfig(cfg()), {}, join(switchedHome, 'ledger.json'))
+  for (const [model, expected] of [['codex/gpt-6.1-sol', 2], ['claude/claude-opus-4-8', 5], ['vercel/google/gemini-3.8-flash', 0.75]]) {
+    ledger.account({ input: 1000000, output: 0 }, model, 'magpie-session', Date.now(), 'dsh-magpie-connect')
+    assert.equal(ledger.today().byProviderModel['dsh-magpie-connect:' + model].cost, expected, 'switching models selects each rate without a manual assignment')
+  }
+  assert.deepEqual(ledger.config.priceOverrides, {}, 'automatic matching does not create manual assignments')
+  ledger.close()
+} finally { rmSync(switchedHome, { recursive: true, force: true }) }
+
+// Gateway decoding preserves the original local/free origin and missing-provider contracts.
+for (const provider of ['ollama', 'llm-ollama', 'lmstudio', 'local', 'vllm']) {
+  check(provider, 'codex/gpt-6.1-sol', { priced: false })
+  check(provider, 'codex/gpt-6.1-sol', { priced: true, input: 10 }, cfg('auto', { [provider.replace(/^llm-/, '') + ':codex/gpt-6.1-sol']: 'openai:gpt-6-astra' }))
+}
+for (const provider of ['our-free-model', 'our-free-model-region']) {
+  check(provider, 'codex/gpt-6.1-sol', { priced: false })
+  check(provider, 'codex/gpt-6.1-sol', { priced: true, input: 0 }, cfg('auto', { [provider + ':*']: '__free__' }))
+  check(provider, 'codex/gpt-6.1-sol', { priced: true, input: 10 }, cfg('auto', { [provider + ':codex/gpt-6.1-sol']: 'openai:gpt-6-astra' }))
+}
+for (const provider of [undefined, '', 'llm-']) check(provider, 'codex/gpt-6.1-sol', { priced: true, input: 0.15, mode: 'deepseek-peak' })
+check('magpie', 'deepseek/gpt-6.1-sol', { priced: false })
+for (const provider of ['opencode-go', 'openrouter', 'google']) {
+  const withoutSource = { ...prices, providers: { ...prices.providers } }
+  delete withoutSource.providers[provider]
+  const model = provider === 'google' ? 'gpt-6.1-sol' : 'google/gemini-3.8-flash'
+  check('magpie', provider + '/' + model, { priced: false }, cfg('auto', {}, withoutSource))
+}
+
 console.log(`[ok] pricing-model-matching: ${comparisons} backend/client cases, unique aliases, qualified IDs, scoped catalogs, OpenRouter variants, local origins`)

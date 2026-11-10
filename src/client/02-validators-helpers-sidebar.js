@@ -1191,7 +1191,41 @@
       // 与宿主计费口径保持一致,存量裸名配置自愈且不进未命中列表。
       return { entry: null, priced: false, billingMode: 'flat', matched: false }
     }
+    // Magpie keeps upstream/account prefixes in model IDs. Explicit assignments and full catalog IDs win.
+    function magpiePriceTarget(provider, modelId, prices, mode, overrides) {
+      const override = overrides?.[(provider || 'deepseek') + ':' + modelId]
+      if (!provider || mode === 'exact' || typeof modelId !== 'string'
+        || isLocalOriginClient(provider, modelId) || ['our-free-model', 'our-free-model-region'].includes(provider)
+        || typeof override === 'string' && override.length > 0
+        || Object.hasOwn(prices?.providers?.[provider]?.models ?? {}, modelId)) return null
+      const separator = modelId.indexOf('/')
+      if (separator <= 0 || separator === modelId.length - 1) return null
+      const route = modelId.slice(0, separator).toLowerCase()
+      const model = modelId.slice(separator + 1)
+      const aliases = { codex: 'openai', claude: 'anthropic', gemini: 'google', 'ollama-cloud': 'ollama-cloud', volcengine: 'volcengine', ark: 'ark' }
+      const magpie = /^(?:dsh-)?magpie(?:$|-)/.test(provider)
+      const knownRoute = Object.hasOwn(aliases, route) || SCOPED_PRICE_PROVIDERS.has(route)
+        || ['workbuddy', 'workbuddy-ai', 'qoder', 'qoder-cn', 'trae-cn', 'trae-global', 'zcode', 'mimo-app', 'commandcode-plan', 'cline', 'copilot', 'vercel'].includes(route)
+      if (!magpie && (!knownRoute || Object.hasOwn(MODEL_VENDOR_PREFIXES, provider) || SCOPED_PRICE_PROVIDERS.has(provider))) return null
+      // An unknown free-only route must not inherit a paid reference price.
+      if (/(?:^|-)free$/.test(route) && !Object.hasOwn(prices?.providers ?? {}, route)) return null
+      const upstream = aliases[route] ?? route
+      if (upstream === 'deepseek' && priceModelHit(model, prices?.models ?? {}, 'deepseek', 'auto', prices) === null) return null
+      return {
+        provider: Object.hasOwn(aliases, route) || SCOPED_PRICE_PROVIDERS.has(upstream)
+          || Object.hasOwn(MODEL_VENDOR_PREFIXES, upstream) || Object.hasOwn(prices?.providers ?? {}, upstream)
+          || isLocalOriginClient(upstream, model) ? upstream : provider,
+        model,
+      }
+    }
     function resolveClientPrice(provider, modelId, config) {
+      const source = String(provider ?? '').trim().toLowerCase().replace(/^llm-/, '') || 'deepseek'
+      const route = magpiePriceTarget(source, modelId, config?.prices, config?.priceMatch, config?.priceOverrides)
+      if (route) {
+        provider = route.provider
+        modelId = route.model
+        config = { ...config, priceOverrides: {} }
+      }
       let result = resolveClientPriceRaw(provider, modelId, config)
       const normalized = String(provider ?? '').trim().toLowerCase().replace(/^llm-/, '') || 'deepseek'
       if (!result.currency && !result.priced) {
