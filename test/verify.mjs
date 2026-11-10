@@ -6510,7 +6510,7 @@ function m_costOf85(entry, tokens) {
   assert.deepEqual(Object.keys(GATEWAY_PROVIDER_ADAPTERS).sort(), ['antigravity', 'claude', 'codex', 'kimi', 'workbuddy', 'xai'])
   for (const headers of [ANTIGRAVITY_REQUEST_HEADERS, CLAUDE_REQUEST_HEADERS, CODEX_REQUEST_HEADERS, KIMI_REQUEST_HEADERS, XAI_REQUEST_HEADERS]) assert.ok(Object.values(headers).includes('Bearer $TOKEN$'))
   assert.equal(ANTIGRAVITY_QUOTA_URLS.length, 3)
-  assert.equal(ANTIGRAVITY_QUOTA_URLS[0], 'https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary')
+  assert.equal(ANTIGRAVITY_QUOTA_URLS[0], 'https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary')
   assert.equal(GATEWAY_PROVIDER_ADAPTERS.antigravity.requests({ projectId: 'fake-project-id' }).length, 3)
   const adapterSource = readFileSync(new URL('../lib/gateway-quota-adapters.js', import.meta.url), 'utf8')
   assert.equal(adapterSource.includes('rate-limit-reset-credits/consume'), false)
