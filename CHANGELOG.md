@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.9.64] - 2026-11-10
+
+- 适配 Magpie 自带接入、dsh-magpie-connect、dsh-magpie-connector 和 @zhiqiangme/dsh-magpie，按模型 ID 中的来源前缀自动匹配价格。
+- 切换模型后使用对应单价，保留手动定价、渠道专属价格、免费模型及本地模型规则。
+- 同步前后端价格解析，补充实际连接插件目录和连续模型切换回归。
+
+- Match account-prefixed model IDs from Magpie and the dsh-magpie-connect, dsh-magpie-connector and @zhiqiangme/dsh-magpie integrations.
+- Select the corresponding price after model switches while preserving manual assignments, source-specific rates, free variants and local-model rules.
+- Keep host and client matching consistent and cover published connector catalogs and consecutive model switches.
+
+[更新说明 / Release notes](docs/update-notes-1.9.64.md)
+
 ## [1.9.63] - 2026-11-10
 
 - 优先读取 Antigravity 的 daily 端点，修复额度滞后，并补齐异常响应的回退处理。

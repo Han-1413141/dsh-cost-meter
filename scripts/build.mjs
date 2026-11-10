@@ -139,9 +139,9 @@ const compactCss = cssResult.code.trim()
 // Select repeated declarations, selectors and theme tokens by their actual UTF-8 savings.
 // Decode once at load time; the stylesheet is byte-for-byte identical to esbuild's output.
 const cssCounts = new Map()
-for (const pattern of [/[a-z-]+:[^;{}]+;?/g, /\.cm-[a-z-]+/g, /var\(--[a-z0-9-]+(?:,[^()]*)?\)/g]) {
+for (const pattern of [/[a-z-]+:[^;{}]+;?/g, /\.cm-[a-z-]+/g, /var\(--[a-z0-9-]+(?:,[^()]*)?\)/g, /[a-z-]+:/g, /\d+px (?:solid|dashed) /g]) {
   for (const [phrase] of compactCss.matchAll(pattern)) {
-    if (phrase.length > 7 && !phrase.includes('~')) cssCounts.set(phrase, (cssCounts.get(phrase) ?? 0) + 1)
+    if (phrase.length > 4 && !phrase.includes('~')) cssCounts.set(phrase, (cssCounts.get(phrase) ?? 0) + 1)
   }
 }
 for (const phrase of ['var(--dsw-alias-', '.cm-', 'background:', 'align-items:', 'border-radius:', 'font-size:', 'display:', 'padding:', 'justify-content:', 'margin:', 'gap:', 'font-weight:', 'line-height:', 'border:', 'min-width:', 'max-width:']) {
