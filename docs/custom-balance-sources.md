@@ -140,6 +140,8 @@ CLIProxyAPI 网关来源卡片可勾选「只显示 Gemini 额度」，仅影响
 
 算式支持 `+ - * / % **`、括号、数组下标，以及 `min`、`max`、`abs`、`round`、`floor`、`ceil`。不运行 JavaScript。字段缺失、非数值、除零和非有限结果会报告解析失败，不会显示为余额 0。
 
+`sum` 还支持可选的 `where` 对象：只有所有指定字段都与给定值精确相等的数组项才会参与求和，例如 `{"op":"sum","path":"data","where":{"provider":"workbuddy"},"value":{"expression":"windows[2].limit"}}`。`where` 最多 16 个字段，键名不能是 `__proto__` / `prototype` / `constructor`。
+
 ## 侧栏跳转链接
 
 在“费用 → 额度”展开任一自定义余额条目，填写“跳转链接（可选）”（`dashboardUrl`）。链接可指向中转站账户、充值或控制台页面，使用完整 HTTP(S) 地址，不能包含用户名或密码。保存后，侧栏余额行或进度卡的名称旁显示跳转箭头；点击箭头打开新标签页，不触发余额刷新。各条目独立设置，留空时不显示链接。余额接口 URL、请求头和凭据不会被用作跳转链接。
@@ -204,3 +206,33 @@ HTTPS 和本机回环 HTTP 继续可用。访问 `http://192.168.1.20:8790` 等�
 本轮验证包括真实本地 HTTP 服务的随机端口切换、配置往返和合成 WorkBuddy2API 响应；未连接用户的真实 WorkBuddy2API 账号。
 
 贡献来源：@Jav1es 在 [#311](https://github.com/Han-1413141/dsh-cost-meter/issues/311) 提供随机端口复现及相对路径建议；@snhun 在 [#309](https://github.com/Han-1413141/dsh-cost-meter/issues/309) 提出局域网 HTTP 需求，在 [#310](https://github.com/Han-1413141/dsh-cost-meter/issues/310) 提出 WorkBuddy2API 接入需求。
+
+## Magpie WorkBuddy 积分示例
+
+在 **费用 → 额度 → 自定义 Provider 余额** 点击「添加配置」，填入：
+
+```json
+{
+  "label": "Magpie WorkBuddy 积分",
+  "unit": "CREDITS",
+  "refreshMinutes": 5,
+  "request": {
+    "url": "http://127.0.0.1:3425/v1/magpie/quotas",
+    "method": "GET",
+    "headers": {}
+  },
+  "extract": {
+    "remaining": { "op": "sum", "path": "data", "where": { "provider": "workbuddy" }, "value": { "expression": "windows[2].limit * windows[2].remaining / 100" } },
+    "maxBudget": { "op": "sum", "path": "data", "where": { "provider": "workbuddy" }, "value": { "expression": "windows[2].limit" } },
+    "spend": { "op": "sum", "path": "data", "where": { "provider": "workbuddy" }, "value": { "expression": "windows[2].limit * windows[2].used / 100" } }
+  },
+  "allowedHosts": ["127.0.0.1:3425"],
+  "allowInsecureHttp": false
+}
+```
+
+Magpie 的 `/v1/magpie/quotas` 会返回多个 provider 和多个账号；`sum` 规则里的 `where` 按字段精确筛选，只汇总 `provider=workbuddy` 的账号，不会把 Trae、MiniMax 等其他账号的额度加进来。每个 WorkBuddy 账号的 `used` / `remaining` 是百分比（0–100），`limit` 是积分总量，因此示例用 `limit * percentage / 100` 换算成绝对积分，并取 `windows[2]`（`Total credits`，即基础额度 + 额外额度）作为总积分口径。若只想看基础月度额度，把三处 `windows[2]` 改为 `windows[0]`；只看额外积分改为 `windows[1]`。
+
+Magpie 在本机运行（默认 `127.0.0.1:3425`）时无需 API Key；若 Magpie 在其它主机或开启了鉴权，请把 URL 改成实际地址，在请求头加入 `Authorization: Bearer {{MAGPIE_API_KEY}}`，勾选「允许非回环 HTTP」并在白名单填写准确的 `主机:端口`，然后在凭据输入框保存该密钥。查询只读取 Magpie 已有统计，不发模型请求。
+
+该预设不依赖官方 WorkBuddy 桌面登录或 WorkBuddy 连接插件；已经安装 `dsh-magpie-quota` 的用户也可以继续使用那个插件，二者展示互不影响。

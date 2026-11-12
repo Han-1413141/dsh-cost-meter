@@ -12,6 +12,15 @@ assert.equal(extractByRule(data, { op: 'divide', args: [{ op: 'subtract', args: 
 assert.equal(extractByRule(data, { op: 'sum', path: 'data.subscriptions', value: { expression: 'total - used' } }), 100)
 assert.equal(extractByRule(data, { op: 'multiply', args: [2, { op: 'max', args: [10, 'data.subscriptions.0.total'] }] }), 160)
 assert.equal(extractByRule({ rows: [] }, { op: 'sum', path: 'rows', value: 'remaining' }), 0)
+const mixed = { data: [
+  { provider: 'workbuddy', windows: [{ limit: 500, remaining: 80 }, { limit: 1600, remaining: 100 }, { limit: 2100, remaining: 95 }] },
+  { provider: 'other', windows: [{ limit: 100, remaining: 10 }] },
+] }
+assert.equal(extractByRule(mixed, { op: 'sum', path: 'data', where: { provider: 'workbuddy' }, value: { expression: 'windows[2].limit * windows[2].remaining / 100' } }), 1995)
+assert.equal(extractByRule(mixed, { op: 'sum', path: 'data', where: { provider: 'workbuddy' }, value: { expression: 'windows[2].limit' } }), 2100)
+assert.equal(extractByRule(mixed, { op: 'sum', path: 'data', where: { provider: 'missing' }, value: 'windows.0.remaining' }), 0)
+assert.equal(extractByRule(mixed, { op: 'sum', path: 'data', where: [], value: 'remaining' }), null)
+assert.equal(extractByRule(mixed, { op: 'sum', path: 'data', where: { constructor: 'x' }, value: 'remaining' }), null)
 for (const expression of ['data.total / 0', 'data.missing + 1', 'null + 1', 'process.exit()', 'globalThis', 'data.constructor', 'data["__proto__"]', 'Math.max(1,2)', '1; 2', '1 + true', '1e999', '2 ** 10000', 'abs(1,2)', '1 /* ignored */ + 2']) assert.equal(balanceExpression(data, expression), null, expression)
 assert.equal(balanceExpression({ missing: false }, 'missing + 1'), null)
 assert.equal(extractByRule(data, { op: 'divide', args: [1, 0] }), null)
