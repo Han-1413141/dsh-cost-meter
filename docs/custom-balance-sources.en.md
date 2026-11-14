@@ -141,6 +141,8 @@ The array must contain the active subscriptions you intend to display. Existing 
 
 Expressions support `+ - * / % **`, parentheses, array indices, and `min`, `max`, `abs`, `round`, `floor` and `ceil`. They do not run JavaScript. Missing fields, non-numeric values, division by zero and non-finite results report a parsing failure instead of showing a zero balance.
 
+A `sum` rule also accepts an optional `where` object: only array items whose listed fields strictly equal the given values are summed, for example `{"op":"sum","path":"data","where":{"provider":"workbuddy"},"value":{"expression":"windows[2].limit"}}`. `where` allows at most 16 fields and rejects `__proto__` / `prototype` / `constructor` keys.
+
 ## Dashboard links and local services
 
 Each custom balance entry has an optional **Dashboard link** (`dashboardUrl`) under **Cost → Quotas**. Use a complete HTTP(S) account or billing URL without embedded credentials. The sidebar row and progress card show an arrow next to that entry's name; it opens a new tab without refreshing the balance. Leave it blank to omit the link. Query URLs, headers and credentials are never used to construct navigation links.
@@ -148,3 +150,33 @@ Each custom balance entry has an optional **Dashboard link** (`dashboardUrl`) un
 Root-relative URLs such as `/plugins/dsh-workbuddy-connect/status` follow the running DSH web server's actual port. Independent WorkBuddy2API deployments use an absolute URL. Non-loopback HTTP requires both `allowInsecureHttp: true` and an exact `host:port` in `allowedHosts`; this explicitly permits plaintext transport. Redirects remain blocked.
 
 The **+ WorkBuddy2API credits** preset reads `GET /api/credits/expiry?package_limit=1` with an admin `X-Admin-Token` stored as `WORKBUDDY2API_ADMIN_TOKEN` in DSH credentials. Set the real server address and matching allowlist, update expired admin tokens, then enable the card. The displayed `summary.available_remaining` is the active account pool's available credits, not currency, a single model API key's allowance, or the incomplete expiry snapshot total. No model request or upstream credit-refresh task is triggered. Authentication was tested with synthetic responses, not a live account.
+
+## Magpie WorkBuddy credits example
+
+Under **Cost → Quotas → Custom provider balance**, choose **Add entry** and fill in:
+
+```json
+{
+  "label": "Magpie WorkBuddy credits",
+  "unit": "CREDITS",
+  "refreshMinutes": 5,
+  "request": {
+    "url": "http://127.0.0.1:3425/v1/magpie/quotas",
+    "method": "GET",
+    "headers": {}
+  },
+  "extract": {
+    "remaining": { "op": "sum", "path": "data", "where": { "provider": "workbuddy" }, "value": { "expression": "windows[2].limit * windows[2].remaining / 100" } },
+    "maxBudget": { "op": "sum", "path": "data", "where": { "provider": "workbuddy" }, "value": { "expression": "windows[2].limit" } },
+    "spend": { "op": "sum", "path": "data", "where": { "provider": "workbuddy" }, "value": { "expression": "windows[2].limit * windows[2].used / 100" } }
+  },
+  "allowedHosts": ["127.0.0.1:3425"],
+  "allowInsecureHttp": false
+}
+```
+
+Magpie's `/v1/magpie/quotas` returns multiple providers and accounts. The `where` clause on a `sum` rule matches fields exactly, so only `provider=workbuddy` accounts are summed; Trae, MiniMax and other providers are excluded. WorkBuddy's `used` / `remaining` values are percentages (0–100) and `limit` is the credit capacity, so the example converts them to absolute credits with `limit * percentage / 100`. It uses `windows[2]` (`Total credits`, base plus extra credits) as the total. Change all three `windows[2]` references to `windows[0]` to show only the base monthly credits, or `windows[1]` for extra credits only.
+
+No API key is needed when Magpie runs locally on the default `127.0.0.1:3425`. If Magpie runs on another host or enables authentication, edit the URL, add `Authorization: Bearer {{MAGPIE_API_KEY}}` to the request headers, enable **Allow non-loopback HTTP**, add the exact `host:port` to the allowlist and save the key in the credential field. The query only reads Magpie's existing statistics and makes no model requests.
+
+This preset does not depend on the official WorkBuddy desktop login or a WorkBuddy connector. Users who already run `dsh-magpie-quota` can keep using it; the two displays are independent.
