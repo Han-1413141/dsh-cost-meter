@@ -155,6 +155,7 @@ jobs:
           node test/billing-export-browser.mjs
           node test/query-accounts-browser.mjs
           node test/display-settings-browser.mjs --quick-hide-only
+          node test/display-settings-browser.mjs --plan-amounts-only
           node test/session-costs-performance-browser.mjs
           node test/statistics-cache.mjs
           node --expose-gc test/statistics-memory.mjs
@@ -382,6 +383,8 @@ jobs:
           DSH_TEST_CODEX_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-subscription-3.2.4.tgz" node test/codex-subscription-published.mjs
           DSH_TEST_CODEX_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-subscription-3.2.7.tgz" node test/codex-subscription-published.mjs
           DSH_TEST_CODEX_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-subscription-3.2.9.tgz" node test/codex-subscription-published.mjs
+          npm pack dsh-codex-subscription@3.2.16 --ignore-scripts --pack-destination .tmp-billion-matrix
+          DSH_TEST_CODEX_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-subscription-3.2.16.tgz" node test/codex-subscription-published.mjs
           DSH_TEST_CONNECT_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-connect-0.2.0-alpha.10.tgz" node test/codex-connect-published.mjs
           node test/context-costs.mjs --host
           node test/context-costs-regression-browser.mjs

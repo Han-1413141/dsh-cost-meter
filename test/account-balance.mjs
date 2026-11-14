@@ -62,8 +62,8 @@ function mount({ account = null, accountState, describe, proxyAccount = false, s
     effect: (fn, label) => {
       const cleanup = fn()
       // Wallet fixtures use isolated homes and fetch mocks. Background history and
-      // public price refreshes belong to separate tests and must not cross fixtures.
-      if (label === 'cost-meter: backfill timer' || label === 'cost-meter: openrouter refresh timer') cleanup?.()
+      // public price / exchange-rate refreshes belong to separate tests and must not cross fixtures.
+      if (label === 'cost-meter: backfill timer' || label === 'cost-meter: openrouter refresh timer' || label === 'cost-meter: daily exchange rates') cleanup?.()
       else if (typeof cleanup === 'function') cleanups.push(cleanup)
     }, logger: { info() {}, warn() {}, error() {} },
   })
