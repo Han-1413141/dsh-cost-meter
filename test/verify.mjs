@@ -1388,7 +1388,7 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
 // 双端声明与接线(conversation.input.dock 横条 + 常驻插槽引导卡)。
 {
   const base = sanitizeConfig({})
-  assert.deepEqual(base.quotaStrip, { enabled: false, budget: true, go: true, plans: true, promptSeen: false }, 'quotaStrip 默认值(关 + 全内容开 + 未引导)')
+  assert.deepEqual(base.quotaStrip, { enabled: false, budget: true, go: true, plans: true, planAmounts: true, promptSeen: false }, 'quotaStrip 默认值(关 + 全内容开 + 未引导)')
   const patched = applyConfigPatch(base, { quotaStrip: { enabled: true, promptSeen: true } })
   assert.equal(patched.errors.length, 0, '部分字段补丁通过(mergeDeep 补全其余字段)')
   assert.equal(patched.config.quotaStrip.enabled, true, '横条可开启')

@@ -97,7 +97,31 @@ await page.exposeFunction('saveConfig', patch => {
 })
 try {
   await page.goto(url)
-  if (process.argv.includes('--summary-only')) {
+  if (process.argv.includes('--plan-amounts-only')) {
+    const open = async () => {
+      await page.getByRole('tab', { name: '显示', exact: true }).click()
+      await page.getByRole('tab', { name: '输入区', exact: true }).click()
+      await page.getByLabel('调整组件', { exact: true }).selectOption('strip-plans')
+    }
+    await open()
+    const toggle = page.getByRole('switch', { name: '显示套餐余额', exact: true })
+    assert.equal(await toggle.isChecked(), true)
+    assert.match(await page.locator('.cm-preview-strip').innerText(), /\$1\.0000/)
+    await page.locator('.cm-display').screenshot({ path: join(output, 'plan-amounts-on.png') })
+    await toggle.click()
+    await page.waitForFunction(() => window.current().quotaStrip.planAmounts === false)
+    assert.doesNotMatch(await page.locator('.cm-preview-strip').innerText(), /\$1\.0000/)
+    assert.ok(await page.locator('.cm-preview-strip .cm-qbar').count())
+    await page.locator('.cm-display').screenshot({ path: join(output, 'plan-amounts-off.png') })
+    await page.waitForFunction(() => window.patches.some(patch => patch.quotaStrip?.planAmounts === false))
+    await page.reload(); await open()
+    assert.equal(await toggle.isChecked(), false, 'amount setting persists across reopening')
+    await toggle.click()
+    await page.waitForFunction(() => window.current().quotaStrip.planAmounts === true)
+    assert.match(await page.locator('.cm-preview-strip').innerText(), /\$1\.0000/)
+    assert.deepEqual(errors, []); assert.deepEqual(external, [])
+    console.log('[ok] composer plan amount toggle: live preview, autosave and reopening')
+  } else if (process.argv.includes('--summary-only')) {
     console.log('[ok] summary sidebar ' + JSON.stringify(await checkSidebarUpdates(page, output)))
     assert.deepEqual(errors, []); assert.deepEqual(external, [])
   } else if (process.argv.includes('--local-savings-only')) {

@@ -1,5 +1,7 @@
 # 显示设置预览
 
+在“费用 → 显示 → 输入区 → 套餐进度条”关闭“显示套餐余额”，输入框上方只保留套餐进度条与百分比，隐藏余额等文本段。默认开启，悬浮详情保留完整信息；该开关不会修改侧栏或账户查询。设置预览同步显示开关效果，保存后重启仍生效。
+
 在“费用 → 显示 → 侧栏”打开“隐藏进度条，仅显示紧凑文本”，可去掉峰谷时段、套餐额度、余额、预算和模型占比的图形条。额度保留窗口名与百分比，峰谷保留当前时段、倒计时和切换时间；悬停详情、点击刷新与超额警告仍可使用。偏好会保存，重启后保留。此选项只影响侧栏和侧栏预览，不改变用量查询、账本、计价、输入区额度条或原有布局/条形方向；关闭后恢复原样式。在峰谷组件里仍可选择只显示倒计时或切换时间。
 
 **Compact text:** In **Cost → Display → Sidebar**, enable **Hide progress bars, show compact text** to hide sidebar pricing-period, quota, balance, budget and model-share bars. Window labels, percentages, period times, hover details, refresh actions and warnings remain available. The preference survives restart, applies to the sidebar preview, and never changes billing, account queries, composer bars or the saved graphical style. Disable it to restore the existing bars.

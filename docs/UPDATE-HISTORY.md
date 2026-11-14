@@ -1,5 +1,15 @@
 # dsh-cost-meter 版本更新历史
 
+## v1.9.65(2026-11-14)—— 套餐金额开关与账号余额、历史价格修复
+
+- 输入区套餐进度条新增“显示套餐余额”开关，默认开启。关闭后保留进度条，余额可在悬浮提示中查看，预览和保存状态同步。
+- 修复没有模型 API Key 时，模型设置读取失败阻断官方账号钱包查询的问题；手动刷新可重新读取失败的模型路由。
+- 历史价格差分共用已清洗的不可变价表分支，减少重复遍历和序列化，保留全部价格版本与时间点。
+- 自定义余额 `sum` 支持 `where` 精确过滤，可按 Magpie provider 汇总 WorkBuddy 积分。
+- 核对 dsh-codex-subscription 3.2.16 发布包与既有接入函数，将兼容基线更新至 3.2.16。
+
+[更新说明 / Release notes](update-notes-1.9.65.md)
+
 ## v1.9.64(2026-11-10)—— Magpie 模型价格自动匹配
 
 - 适配 Magpie 自带接入、dsh-magpie-connect、dsh-magpie-connector 和 @zhiqiangme/dsh-magpie，按模型 ID 中的来源前缀自动匹配价格。

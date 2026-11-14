@@ -233,6 +233,6 @@ HTTPS 和本机回环 HTTP 继续可用。访问 `http://192.168.1.20:8790` 等�
 
 Magpie 的 `/v1/magpie/quotas` 会返回多个 provider 和多个账号；`sum` 规则里的 `where` 按字段精确筛选，只汇总 `provider=workbuddy` 的账号，不会把 Trae、MiniMax 等其他账号的额度加进来。每个 WorkBuddy 账号的 `used` / `remaining` 是百分比（0–100），`limit` 是积分总量，因此示例用 `limit * percentage / 100` 换算成绝对积分，并取 `windows[2]`（`Total credits`，即基础额度 + 额外额度）作为总积分口径。若只想看基础月度额度，把三处 `windows[2]` 改为 `windows[0]`；只看额外积分改为 `windows[1]`。
 
-Magpie 在本机运行（默认 `127.0.0.1:3425`）时无需 API Key；若 Magpie 在其它主机或开启了鉴权，请把 URL 改成实际地址，在请求头加入 `Authorization: Bearer {{MAGPIE_API_KEY}}`，勾选「允许非回环 HTTP」并在白名单填写准确的 `主机:端口`，然后在凭据输入框保存该密钥。查询只读取 Magpie 已有统计，不发模型请求。
+Magpie 在本机运行（默认 `127.0.0.1:3425`）时无需 API Key；若 Magpie 在其它主机或开启了鉴权，请把 URL 改成实际地址，在请求头加入 `Authorization: Bearer {{MAGPIE_API_KEY}}`，在白名单填写准确的 `主机:端口`，然后在凭据输入框保存该密钥。优先使用 HTTPS；只有访问非回环 HTTP 地址时才勾选「允许非回环 HTTP」。查询只读取 Magpie 已有统计，不发模型请求。
 
 该预设不依赖官方 WorkBuddy 桌面登录或 WorkBuddy 连接插件；已经安装 `dsh-magpie-quota` 的用户也可以继续使用那个插件，二者展示互不影响。
