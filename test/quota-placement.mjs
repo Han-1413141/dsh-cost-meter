@@ -56,6 +56,17 @@ const chips = nodes(tree).filter(node => node.props?.className?.startsWith('cm-q
 assert.equal(chips.length, 1, 'a single explicit placement shows only that vendor even when the default strip is disabled')
 assert.equal(nodes(tree).filter(node => node.props?.key === 'zai').length, 1)
 const textOf = node => Array.isArray(node) ? node.map(textOf).join('') : node && typeof node === 'object' ? textOf(node.children ?? []) : node == null ? '' : String(node)
+for (const planAmounts of [true, false]) {
+  const config = sanitizeConfig({ codingPlans: { opendesign: { enabled: true, showInComposer: true } }, quotaStrip: { planAmounts } })
+  assert.equal(stateSchema.shape.config.parse(config).quotaStrip.planAmounts, planAmounts)
+  assert.equal(ui.parseConfig(config, 'config').quotaStrip.planAmounts, planAmounts)
+  const state = { config, codingPlans: { opendesign: { status: 'ok', windows: { weekly: { percent: 36 }, balance: { text: '$1.0000' } } } } }
+  const tree = ui.QuotaStrip({ useCost: () => ({ state }) })
+  assert.equal(textOf(tree).includes('$1.0000'), planAmounts, 'amount switch changes visible text')
+  assert.ok(nodes(tree).some(node => node.props?.className === 'cm-qseg'), 'progress remains visible')
+  assert.ok(nodes(tree).some(node => String(node.props?.label ?? '').includes('$1.0000')), 'full balance remains in the tooltip')
+}
+assert.equal(sanitizeConfig({}).quotaStrip.planAmounts, true, 'older configurations keep amounts visible')
 for (const locale of ['zh', 'en']) for (const direction of ['used', 'remaining']) {
   const c = sanitizeConfig({ locale, currency: 'USD', symbol: '$', exchangeRate: 1,
     budget: { enabled: true, amount: 100 }, goQuota: { enabled: true },

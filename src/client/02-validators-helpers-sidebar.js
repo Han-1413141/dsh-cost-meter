@@ -308,6 +308,7 @@
           budget: v.quotaStrip?.budget !== false,
           go: v.quotaStrip?.go !== false,
           plans: v.quotaStrip?.plans !== false,
+          planAmounts: v.quotaStrip?.planAmounts !== false,
           ...(Object.hasOwn(v.quotaStrip ?? {}, 'promptSeen') ? { promptSeen: v.quotaStrip?.promptSeen === true } : {}),
         },
         usage: {
@@ -3389,7 +3390,7 @@
               + (pct === null ? (typeof win?.text === 'string' ? win.text : '—') : pct + '%') + reset)
             if (pct === null) {
               // 文本窗口(余额等无百分比的量):以文本段展示,不占进度条名额。
-              segs.push({ name, pct: null, text: typeof win?.text === 'string' ? win.text : '—' })
+              if (strip.planAmounts !== false) segs.push({ name, pct: null, text: typeof win?.text === 'string' ? win.text : '—' })
               continue
             }
             if (shown >= (rowDef.id === 'factory' ? 3 : 2)) continue

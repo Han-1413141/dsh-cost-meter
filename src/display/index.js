@@ -92,6 +92,7 @@ window.__ModuleLoader__.load({
       registry.sessionList = { on: config.sessionListCosts === true, patch: { sessionListCosts: config.sessionListCosts !== true } }
       registry.localSavings = { on: config.localSavings?.enabled === true, patch: { localSavings: { ...config.localSavings, enabled: config.localSavings?.enabled !== true } } }
       const strip = config.quotaStrip ?? {}
+      const planAmount = examples ? '$1.0000' : Object.values(previewData.state.codingPlans ?? {}).flatMap(plan => Object.values(plan.windows ?? {})).find(win => win?.percent == null && typeof win?.text === 'string')?.text
       const codex = previewData.state.displayPreviewCodex
       const codexPercentages = codex?.status === 'ok' ? Object.entries(codex.windows ?? {}).map(([key, win]) => ({ key, pct: Number.isFinite(win?.percent) ? Math.max(0, Math.min(100, 100 - win.percent)) : null })) : []
       const codexStrip = item('strip-codex', text('输入框上方 · Codex 额度', 'Above composer · Codex quota'),
@@ -109,7 +110,8 @@ window.__ModuleLoader__.load({
         const pct = value === null ? null : remaining ? 100 - value : value
         return item('strip-' + key, text('输入框上方 · ', 'Above composer · ') + label, on, { quotaStrip: { ...next, enabled: true, promptSeen: true }, ...(strip.enabled ? {} : { codexQuotaStrip: false }) },
           el('span', { className: 'cm-qchip' }, el('span', { className: 'cm-qlabel' }, label),
-            el('span', { className: 'cm-qbar' }, el('span', { className: 'cm-qfill', style: { width: (pct ?? 0) + '%' } })), el('span', { className: 'cm-qtext' }, pct === null ? '—' : t(remaining ? 'quotaRemaining' : 'quotaUsed', { pct: Number(pct.toFixed(1)) }))))
+            el('span', { className: 'cm-qbar' }, el('span', { className: 'cm-qfill', style: { width: (pct ?? 0) + '%' } })), el('span', { className: 'cm-qtext' }, pct === null ? '—' : t(remaining ? 'quotaRemaining' : 'quotaUsed', { pct: Number(pct.toFixed(1)) })),
+            key === 'plans' && strip.planAmounts !== false && planAmount ? el('span', { className: 'cm-qtext' }, planAmount) : null))
       }
       const sessionHeader = region === 'conversation' ? item('session-header', labels['session-header'], config.hideSessionCostHeader !== true,
         { hideSessionCostHeader: config.hideSessionCostHeader !== true },

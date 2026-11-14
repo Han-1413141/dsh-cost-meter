@@ -31,6 +31,10 @@ const inspect = selected => Inspector({ props: {
   set, select() {}, labels: {}, registry: { plan: { on: true, patch: { codingPlans: { ...config.codingPlans, [selectedPlan]: { ...config.codingPlans[selectedPlan], display: 'settings' } } } } },
   text: (_, en) => en, region: 'sidebar', examples: true })
 const control = (tree, label) => nodes(tree).find(node => node.props['aria-label'] === label)
+for (const checked of [false, true]) {
+  control(inspect('strip-plans'), 'Show plan balance').props.onChange({ target: { checked } })
+  assert.equal(config.quotaStrip.planAmounts, checked, 'composer amount switch survives host schema and config validation')
+}
 config.balance.showProgressBar = true
 const balanceControls = nodes(inspect('balance')).find(node => node.props['data-inspector'] === 'balance').children
 const capIndex = balanceControls.findIndex(node => nodes(node).some(child => child.props['aria-label'] === 'balanceBudgetCapLabel'))

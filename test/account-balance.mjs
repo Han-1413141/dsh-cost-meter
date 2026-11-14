@@ -62,8 +62,8 @@ function mount({ account = null, accountState, describe, proxyAccount = false, s
     effect: (fn, label) => {
       const cleanup = fn()
       // Wallet fixtures use isolated homes and fetch mocks. Background history and
-      // public price refreshes belong to separate tests and must not cross fixtures.
-      if (label === 'cost-meter: backfill timer' || label === 'cost-meter: openrouter refresh timer') cleanup?.()
+      // public price / exchange-rate refreshes belong to separate tests and must not cross fixtures.
+      if (label === 'cost-meter: backfill timer' || label === 'cost-meter: openrouter refresh timer' || label === 'cost-meter: daily exchange rates') cleanup?.()
       else if (typeof cleanup === 'function') cleanups.push(cleanup)
     }, logger: { info() {}, warn() {}, error() {} },
   })
@@ -330,6 +330,19 @@ try {
   settingsFailure.emit('settings/document-updated', 'llm-deepseek', 1)
   assert.equal((await settingsFailure.service.getState()).balance.status, 'ok')
   await settingsFailure.dispose()
+
+  // #500: account-only profiles remain usable while the model settings service fails.
+  useHome('account-with-unavailable-route')
+  let routeReady = false
+  const accountWithoutRoute = mount({
+    account: () => ({ status: 'ready', value: [cnyMain], bonusWallets: [] }),
+    settingsService: { describe: () => { if (!routeReady) throw Error(sensitiveDetail); return [{ ns: 'llm-deepseek', value: {} }] } },
+  })
+  assert.equal((await accountWithoutRoute.service.refreshBalance()).state.balance.totalBalance, Number(cnyMain.balance))
+  assert.equal(accountWithoutRoute.requests.length, 0)
+  routeReady = true
+  assert.equal((await accountWithoutRoute.service.refreshBalance()).ok, true, 'manual refresh recovers without a settings event')
+  await accountWithoutRoute.dispose()
 
   // Selected accounts and the dedicated Key remain independent of model-route changes.
   for (const selected of ['default', 'wallet001']) {

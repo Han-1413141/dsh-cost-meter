@@ -52,7 +52,7 @@ export async function checkDisplayPreview(page, output) {
     await page.locator('.cm-display').screenshot({ path: join(output, 'nested-models.png') })
     await page.locator('[data-model-field=defaultOpen] input').uncheck(); await gray('models-expanded')
     await page.getByRole('switch', { name: '显示此组件', exact: true }).uncheck()
-    await page.waitForFunction(() => window.current().sidebarModels.enabled === false)
+    await page.waitForFunction(() => window.current().sidebarModels.enabled === false && !document.querySelector('#actual-sidebar [data-cm-display=models]'))
     assert.equal(await page.locator('#actual-sidebar [data-cm-display=models]').count(), 0, 'sidebar master controls the real card, independently of the composer chip')
     assert.equal(await page.locator('.cm-sidebar-live [data-cm-display=models]').getAttribute('data-preview-hidden'), 'true')
     await page.getByRole('tab', { name: '概览', exact: true }).click()
@@ -65,11 +65,12 @@ export async function checkDisplayPreview(page, output) {
     for (const key of ['codex', 'customBalance']) {
       await choose(key)
       await page.getByRole('switch', { name: '显示此组件', exact: true }).uncheck()
+      await page.waitForFunction(key => document.querySelector('.cm-sidebar-live [data-cm-display=' + key + ']')?.dataset.previewHidden === 'true', key)
       assert.equal(await page.locator('.cm-sidebar-live [data-cm-display=' + key + ']').getAttribute('data-preview-hidden'), 'true', key + ' remains gray when hidden')
     }
     await region('输入区'); await choose('corner')
     for (const kind of ['budget', 'go', 'plans']) {
-      assert.match(await page.locator('[data-display=strip-' + kind + '] .cm-qtext').innerText(), /已用 \d+(\.\d+)?%|剩余 \d+(\.\d+)?%|—/, 'quota preview labels its used/remaining direction')
+      assert.match(await page.locator('[data-display=strip-' + kind + '] .cm-qtext').first().innerText(), /已用 \d+(\.\d+)?%|剩余 \d+(\.\d+)?%|—/, 'quota preview labels its used/remaining direction')
     }
     assert.equal(await page.locator('[data-display=corner] .cm-corner-chip').count(), 4, 'corner periods are individual real chips')
     assert.equal(await page.locator('[data-display=corner] .cm-preview-part[data-preview-hidden=true]').count(), 4)

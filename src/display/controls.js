@@ -114,6 +114,7 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
   if (selected === 'corner') controls = [['goRolling', 'cornerGoRolling'], ['goWeekly', 'cornerGoWeekly'], ['goMonthly', 'cornerGoMonthly'], ['budget', 'cornerBudget']]
     .map(([key, label]) => check(t(label), config.corner?.[key] !== false, value => nested('corner', { [key]: value })))
   if (selected?.startsWith('strip-')) controls = [direction(selected === 'strip-plans' ? 'plan' : selected.slice(6))]
+  if (selected === 'strip-plans') controls.push(check(text('显示套餐余额', 'Show plan balance'), config.quotaStrip?.planAmounts !== false, value => nested('quotaStrip', { planAmounts: value }), { 'data-display-option': 'plan-amounts' }))
   if (selected === 'customBalance') controls = [display('customBalance'), quickHide(), number(t('customBalanceRefreshInterval'), config.customBalance?.refreshMinutes ?? 15, value => nested('customBalance', { refreshMinutes: Math.floor(value) }), 1),
     check(text('余额进度条（与官方余额共用）', 'Progress bar (shared with official balance)'), config.balance?.showProgressBar === true, value => nested('balance', { showProgressBar: value }), { 'data-display-option': 'balance-progress' }), direction('balance')]
   if (selected === 'plan') {

@@ -19,7 +19,7 @@ Desktop 使用相同的费用设置页与宿主凭据接口。更新时使用 De
 1. 手动选择了其他余额账号时，只使用所选账号的 Key 请求 `https://api.deepseek.com/user/balance`。Key 缺失或查询失败时直接显示错误。
 2. 使用默认余额账号且配置了专用 Key 时，只使用该 Key 请求官方余额，与模型的 `baseURL`、`apiKeyEnv` 及账号登录状态无关。
 3. 未配置专用 Key，但配置了模型 API Key 时，用模型 Key 查询余额。支持 DeepSeek 官方 HTTPS 根地址、版本路径以及 `/anthropic`、`/anthropic/v1`；实际余额请求始终发往 `/user/balance`。中转或代理地址不受支持，不发送请求，也不改查登录账号的钱包。
-4. 没有模型 API Key 时，经宿主账号服务读取账号钱包。账号服务缺席或明确退出时，该来源不可用；已登录但查询失败时显示账号侧错误，自动查询按刷新间隔重试。
+4. 没有模型 API Key 时，经宿主账号服务读取账号钱包，即使模型设置暂时不可读。手动刷新会重新读取失败的模型设置。账号服务缺席或明确退出时，该来源不可用；已登录但查询失败时显示账号侧错误，自动查询按刷新间隔重试。
 5. 专用 Key 返回 401 时显示认证失败及配置方法，不改用其他账户重试。自动查询遵守刷新间隔，手动刷新可立即重试。
 6. 保存或清除专用 Key 会作废旧余额、取消在途请求并重新建立对账基准；不修改模型凭据。清除后按上面的顺序重新选择来源。
 
@@ -42,3 +42,5 @@ Alternatively, since 1.7.46, enter an Open Platform key in **Settings → Cost �
 Query priority is **manually selected balance account → dedicated Key → model Key → signed-in account**. A manually selected account or dedicated Key uses the fixed official HTTPS balance endpoint. A missing or invalid selected Key produces an error. Model settings support the official root, version paths, `/anthropic`, and `/anthropic/v1`. Balance requests use `https://api.deepseek.com/user/balance`. A relay or proxy `baseURL` produces an unsupported-endpoint error without sending the Key or querying the signed-in wallet. Account-query failures remain visible, and automatic retries follow the refresh interval. Saving or clearing the dedicated Key leaves model credentials intact. Account-login inference tokens cannot query the Open Platform balance endpoint directly.
 
 Changes to the active balance credential or its model route (`apiKeyEnv` or `baseURL`) invalidate cached and in-flight balances and clear reconciliation baselines. Unrelated model changes leave manually selected accounts and dedicated Keys unchanged. Account sign-out, expiry, and account-service replacement also clear old state. The plugin reads public configuration descriptions and lifecycle events. Every balance source establishes a new reconciliation baseline when the plugin mounts again.
+
+When no model API key is resolved, an unavailable model settings service does not block the signed-in account wallet. Manual refresh retries an unavailable route; a resolved model Key still requires a verified official endpoint.

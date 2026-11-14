@@ -48,6 +48,9 @@ try {
     while (versions[cursor].base) { cursor = versions[cursor].base; assert.ok(++depth <= 24, 'periodic checkpoints bound replay') }
   }
   const restored = normalizePricingHistory(disk, config)
+  const ids = Object.keys(restored.versions)
+  assert.equal(restored.versions[ids[0]].prices.models, restored.versions[ids[1]].prices.models,
+    'unchanged model catalogs share one sanitized immutable tree across delta versions')
   assert.deepEqual(restored, history, 'all versions, timelines, FX and original/recalculated amounts round-trip')
   const bound = bindPricingHistory({ ...config }, restored)
   for (let i = 0; i < expected.length; i++) {

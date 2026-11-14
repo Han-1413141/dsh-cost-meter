@@ -19,6 +19,12 @@ node lib/compact-pricing-history-cli.js --ledger /path/to/ledger.json --apply
 
 回归使用 152 个实际不同的合成价表，逐一验证原单价、时间点、重算原金额、完整快照间隔和差分还原，同时覆盖并发价格修改、用量更新、原样备份、损坏差分与锁重试。性能数字只代表本地合成账本，不能替代报告者设备上的事件循环复测。
 
+## v1.9.65 加载优化
+
+根据 [@lshan99q 的 #501](https://github.com/Han-1413141/dsh-cost-meter/issues/501)，差分解码现在共用已清洗的不可变价表分支，小差分不再为比较长度而序列化整份价表。每次加载使用独立缓存，未改动的分支只清洗一次；可变的当前配置不进入该缓存。全部版本、时点和精确历史费率仍保留。数量随实际价格变化增长，尚未实施版本数量上限或惰性解码。
+
+使用 448 个不同价格版本的本地合成账本，v1.9.64 与此版解码分别为 918 ms 和 91 ms，堆内存增量分别为 77.0 MiB 和 41.3 MiB，并逐一验证历史费率。以上为同一机器同一进程依次测量，不是报告者账本的结果。长期使用 1.8.x 的用户应升级至 1.9.65 或更新版本，并保留自动生成的旧账本备份。
+
 ## English
 
 Historical catalogs use lossless deltas with a full checkpoint after at most 24 delta levels. Every version, timestamp, exchange rate and original/recalculated amount remains available. No daily pruning or automatic repricing is performed. Storage still grows with real price changes; completely different catalogs may require full snapshots.
