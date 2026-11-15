@@ -361,6 +361,11 @@ try {
   assert.ok(multipleState.balanceAccounts.every(row => row.totalBalance === 12))
   assert.ok(!JSON.stringify(multipleState.balanceAccounts).includes('TEST-MULTI'))
   stateSchema.parse(multipleState)
+  const beforeRename = multiple.requests.length
+  multipleState = await multiple.service.updateConfig({ queryAccounts: { balance: { ...multiGroup, accounts: multiGroup.accounts.map(row => ({ ...row, label: row.id === 'account-a1' ? 'Work renamed' : row.label })) } } })
+  assert.equal(multipleState.balanceAccounts.find(row => row.id === 'account-a1').label, 'Work renamed')
+  assert.equal(multipleState.balanceAccounts.length, 2, 'renaming keeps the displayed balances')
+  assert.equal(multiple.requests.length, beforeRename, 'renaming does not query unchanged credentials')
   multiSecrets[bRef] = 'TEST-MULTI-ERROR'
   multiple.emit('credentials/reference-updated', bRef)
   multipleState = (await multiple.service.refreshBalance()).state
