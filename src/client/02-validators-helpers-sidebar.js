@@ -252,6 +252,7 @@
           detail: v.budget?.detail !== false,
         },
         balance: {
+          source: v.balance?.source === 'account' ? 'account' : 'auto',
           display: oneOf(v.balance?.display, ['sidebar', 'settings', 'off'], 'both'),
           refreshMinutes: typeof v.balance?.refreshMinutes === 'number' && Number.isFinite(v.balance.refreshMinutes) ? v.balance.refreshMinutes : 5,
           showProgressBar: v.balance?.showProgressBar === true,

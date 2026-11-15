@@ -344,6 +344,57 @@ try {
   assert.equal((await accountWithoutRoute.service.refreshBalance()).ok, true, 'manual refresh recovers without a settings event')
   await accountWithoutRoute.dispose()
 
+  // Users can explicitly choose the signed-in wallet when a model key is rejected.
+  useHome('model-401-wallet-choice')
+  const rejectedModel = mount({ secrets: { DEEPSEEK_API_KEY: modelKey }, fetchBalance: async () => new Response('', { status: 401 }),
+    account: () => ({ status: 'ready', value: [cnyMain], bonusWallets: [] }) })
+  assert.equal((await rejectedModel.service.refreshBalance()).state.balance.status, 'error')
+  assert.equal(rejectedModel.accountCalls.length, 0, 'auto mode does not fall back after model-key 401')
+  await rejectedModel.service.updateConfig({ balance: { source: 'account' } })
+  assert.equal((await rejectedModel.service.refreshBalance()).state.balance.totalBalance, Number(cnyMain.balance))
+  assert.equal(rejectedModel.requests.length, 1, 'wallet choice stops using the rejected model key')
+  await rejectedModel.dispose()
+
+  useHome('explicit-account', {}, null, {}, { balance: { display: 'both', source: 'account' } })
+  const explicit = mount({ section: { baseURL: 'https://relay.example.com' }, secrets: { DEEPSEEK_API_KEY: modelKey },
+    account: () => ({ status: 'ready', value: [cnyMain], bonusWallets: [] }) })
+  assert.equal((await explicit.service.refreshBalance()).state.balance.currency, 'CNY', 'explicit wallet bypasses an existing model key and its route')
+  assert.equal(explicit.requests.length, 0)
+  const walletCalls = explicit.accountCalls.length
+  explicit.emit('credentials/reference-updated', 'DEEPSEEK_API_KEY')
+  await explicit.service.getState()
+  assert.equal(explicit.accountCalls.length, walletCalls, 'model key updates do not invalidate the chosen wallet')
+  await explicit.service.updateConfig({ balance: { source: 'auto' } })
+  assert.equal((await explicit.service.refreshBalance()).state.balance.status, 'off', 'switching back restores the model endpoint guard')
+  await explicit.service.updateConfig({ balance: { source: 'account' } })
+  assert.equal((await explicit.service.refreshBalance()).state.balance.totalBalance, Number(cnyMain.balance))
+  const explicitPath = join(process.env.DSH_HOME, 'storages/cost-meter/ledger.json')
+  await explicit.dispose()
+  assert.equal(JSON.parse(readFileSync(explicitPath, 'utf8')).config.balance.source, 'account', 'wallet choice survives disk persistence')
+  for (const [label, account] of [['absent', null], ['signed-out', () => null], ['failed', () => ({ status: 'failed' })]]) {
+    useHome('explicit-' + label, {}, null, {}, { balance: { display: 'both', source: 'account' } })
+    const unavailable = mount({ account, accountState: () => 'signed-out', secrets: { DEEPSEEK_API_KEY: modelKey } })
+    const missingWallet = await unavailable.service.refreshBalance()
+    assert.equal(missingWallet.ok, false)
+    assert.equal(missingWallet.state.balance.status, 'error', 'explicit wallet errors remain visible in the balance panel')
+    assert.equal(unavailable.requests.length, 0, 'explicit wallet failure never tries a model key')
+    await unavailable.dispose()
+  }
+
+  // A source switch cancels a pending model request and drops its late response.
+  useHome('switch-pending-wallet')
+  const sourceGate = deferred(), sourceEntered = deferred()
+  let sourceSignal
+  const switching = mount({ secrets: { DEEPSEEK_API_KEY: modelKey }, account: () => ({ status: 'ready', value: [cnyMain], bonusWallets: [] }),
+    fetchBalance: async (_, init) => { sourceSignal = init.signal; sourceEntered.resolve(); await sourceGate.promise; return balanceResponse(999) } })
+  const priorSource = switching.service.refreshBalance()
+  await startedWithin(sourceEntered.promise)
+  await switching.service.updateConfig({ balance: { source: 'account' } })
+  assert.equal(sourceSignal.aborted, true)
+  sourceGate.resolve(); await priorSource
+  assert.equal((await switching.service.refreshBalance()).state.balance.totalBalance, Number(cnyMain.balance))
+  await switching.dispose()
+
   // Selected accounts and the dedicated Key remain independent of model-route changes.
   for (const selected of ['default', 'wallet001']) {
     const selectedRef = selected === 'default' ? 'DEEPSEEK_BALANCE_API_KEY' : 'DSH_COST_METER_ACCOUNT_BALANCE_WALLET001'
@@ -369,6 +420,16 @@ try {
     assert.equal(selectedBalance.requests.length, 2, 'missing selected keys do not use a different wallet')
     assert.equal(selectedBalance.accountCalls.length, 0)
     await selectedBalance.dispose()
+  }
+
+  for (const selected of ['default', 'wallet001']) {
+    const ref = selected === 'default' ? 'DEEPSEEK_BALANCE_API_KEY' : 'DSH_COST_METER_ACCOUNT_BALANCE_WALLET001'
+    useHome('account-mode-key-' + selected, {}, null, {}, { balance: { display: 'both', source: 'account' }, queryAccounts: { balance: { selected, accounts: [{ id: 'wallet001', label: 'Other wallet' }] } } })
+    const pinned = mount({ secrets: { [ref]: dedicatedKey }, account: () => ({ status: 'ready', value: [cnyMain], bonusWallets: [] }) })
+    assert.equal((await pinned.service.refreshBalance()).state.balance.currency, 'USD')
+    assert.equal(pinned.requests.at(-1).headers.authorization, 'Bearer ' + dedicatedKey)
+    assert.equal(pinned.accountCalls.length, 0, 'explicit keys retain precedence in account mode')
+    await pinned.dispose()
   }
 
   for (const change of ['key', 'apiKeyEnv', 'baseURL']) {

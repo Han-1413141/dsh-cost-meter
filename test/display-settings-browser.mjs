@@ -97,7 +97,19 @@ await page.exposeFunction('saveConfig', patch => {
 })
 try {
   await page.goto(url)
-  if (process.argv.includes('--plan-amounts-only')) {
+  if (process.argv.includes('--balance-source-only')) {
+    const source = page.getByLabel('余额来源', { exact: true })
+    assert.equal(await source.inputValue(), 'auto')
+    await source.selectOption('account')
+    await page.waitForFunction(() => window.current().balance.source === 'account' && window.patches.some(p => p.balance?.source === 'account'))
+    await page.reload()
+    assert.equal(await source.inputValue(), 'account', 'wallet preference survives reopening')
+    await page.screenshot({ path: join(output, 'balance-source.png'), fullPage: true })
+    await source.selectOption('auto')
+    await page.waitForFunction(() => window.current().balance.source === 'auto')
+    assert.deepEqual(errors, []); assert.deepEqual(external, [])
+    console.log('[ok] balance source: selection, autosave, reopening and restoring auto')
+  } else if (process.argv.includes('--plan-amounts-only')) {
     const open = async () => {
       await page.getByRole('tab', { name: '显示', exact: true }).click()
       await page.getByRole('tab', { name: '输入区', exact: true }).click()
