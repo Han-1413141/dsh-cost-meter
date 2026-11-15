@@ -981,7 +981,6 @@
         el('p', { className: 'cm-hint' }, t('balanceSourceHint')),
         el('label', null, t('balanceApiKey')),
         el(AccountCredentialLauncher, { state, draft, setDraft, target: 'balance', configured: balance.keyConfigured, source: balance.keySource, t, api, placeholder: 'sk-…' }),
-        el('p', { className: 'cm-hint' }, t('balanceKeyHint')),
         reconcile !== undefined && reconcile.ok === false ? el('div', { className: 'cm-bal-line warn' }, '⚠ ' + reconcile.message) : null,
         el('label', { className: 'cm-check' },
           el('input', { type: 'checkbox', checked: reconcileOn, onChange: toggleReconcile }),

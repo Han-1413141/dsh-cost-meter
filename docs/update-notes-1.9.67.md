@@ -3,7 +3,7 @@
 ## 中文
 
 - 显示币种扩展至 26 种，切换币种保留小数位设置。官方与自定义余额可选择原币种、跟随显示币种或目录中的指定币种。
-- 「设置 → 费用 → 概览 → 官方账户余额 → 余额来源」新增“当前 DSH 登录账号钱包”。默认仍为“自动（模型 Key 优先）”；手选账号和专用余额 Key 始终优先。切换后保存选择、取消旧请求并重建对账基准。
+- 「设置 → 费用 → 概览 → 官方账户余额 → 余额来源」新增“DSH 登录钱包”。默认仍为“自动（模型 Key 优先）”；手选账号和专用余额 Key 始终优先。切换后保存选择、取消旧请求并重建对账基准。
 - 修复调整余额币种、官方渠道过滤、隐藏或对账开关后，余额行暂时消失的问题。
 - 修正凭据说明：已验证的 DSH 0.2.2-rc.1 / rc.3 优先读取凭据文件，再读取环境变量。
 
@@ -12,7 +12,7 @@
 ## English
 
 - Support 26 display currencies and an independent currency choice for official and custom balances, preserving the decimal setting when switching currencies.
-- Add **Settings → Cost → Overview → Account balance → Balance source → Signed-in DSH account wallet**. Auto still prefers the model key; selected accounts and dedicated balance keys retain priority. Changing the source saves the preference, cancels pending requests and resets reconciliation.
+- Add **Settings → Cost → Overview → Account balance → Balance source → DSH account wallet**. Auto still prefers the model key; selected accounts and dedicated balance keys retain priority. Changing the source saves the preference, cancels pending requests and resets reconciliation.
 - Keep the balance snapshot when changing currency, official-channel filtering, hiding or reconciliation settings.
 - Correct the credential documentation to reflect file-first resolution in the verified DSH 0.2.2-rc.1 and rc.3 providers.
 

@@ -8,7 +8,7 @@ DSH 的账号登录模式使用推理令牌，它与开放平台 API Key 是不�
 
 模型 Key 与登录账号可以属于不同账户。自动模式下，未选择其他余额账号、也未配置专用 Key 时，模型 Key 优先于登录账号钱包。
 
-从 1.9.67 起，可在「设置 → 费用 → 概览 → 官方账户余额 → 余额来源」选择“自动（模型 Key 优先）”或“当前 DSH 登录账号钱包”。默认仍为自动；选择登录钱包后，未配置专用 Key 且未手选其他余额账号时，只读取宿主登录钱包，忽略模型 Key。未登录或钱包读取失败时显示错误，不改查模型 Key。手选账号和专用余额 Key 始终优先。选择会保存到配置，重启后保留；切换时取消旧请求并重建余额对账基准。登录钱包可能与模型实际计费账户不同。
+从 1.9.67 起，可在「设置 → 费用 → 概览 → 官方账户余额 → 余额来源」选择“自动（模型 Key 优先）”或“DSH 登录钱包”。默认仍为自动；选择登录钱包后，未配置专用 Key 且未手选其他余额账号时，只读取宿主登录钱包，忽略模型 Key。未登录或钱包读取失败时显示错误，不改查模型 Key。手选账号和专用余额 Key 始终优先。选择会保存到配置，重启后保留；切换时取消旧请求并重建余额对账基准。登录钱包可能与模型实际计费账户不同。
 
 ## 余额专用 API Key
 
@@ -47,7 +47,7 @@ DSH account login uses an inference token, which is not an Open Platform API key
 
 The model Key and the signed-in account can belong to different accounts. In Auto mode, when no other balance account is selected and no dedicated key is configured, a model key takes priority over the signed-in account’s wallet.
 
-Since 1.9.67, **Settings → Cost → Overview → Account balance → Balance source** offers **Auto (model key first)** and **Signed-in DSH account wallet**. Auto remains the default. The wallet choice bypasses model credentials and never falls back to them when the wallet is unavailable. Selected balance accounts and dedicated keys still take priority. The preference survives restart; changing it cancels pending requests and resets reconciliation. The signed-in wallet may belong to a different account from the model key.
+Since 1.9.67, **Settings → Cost → Overview → Account balance → Balance source** offers **Auto (model key first)** and **DSH account wallet**. Auto remains the default. The wallet choice bypasses model credentials and never falls back to them when the wallet is unavailable. Selected balance accounts and dedicated keys still take priority. The preference survives restart; changing it cancels pending requests and resets reconciliation. The signed-in wallet may belong to a different account from the model key.
 
 Alternatively, since 1.7.46, enter an Open Platform key in **Settings → Cost → Account balance → Balance API key**, save it, then refresh the balance. DSH stores it as `DEEPSEEK_BALANCE_API_KEY`; the plugin never stores it in its config or ledger, or returns it to the browser. The same environment variable is supported under the host's normal credential priority rules.
 
