@@ -81,7 +81,7 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
       value => nested('balance', { currency: value })),
     { 'data-inspector-wide': true }),
     check(text('仅官方渠道显示', 'Show only on official channels'), config.balance?.officialChannelOnly === true, value => nested('balance', { officialChannelOnly: value }), { 'data-display-option': 'balance-official-only' }),
-    el('p', { className: 'cm-inspector-note' }, text('按当前会话渠道显示；无会话渠道时参考今日官方调用。设置页与预览始终保留。', 'Uses the current session channel, or today’s official calls if unavailable. Settings and previews remain visible.')),
+    el('p', { className: 'cm-inspector-note' }, text('仅影响侧栏余额。', 'Applies to sidebar balances.')),
     check(text('显示余额来源（DeepSeek）', 'Show balance source (DeepSeek)'), config.balance?.showSource === true, value => nested('balance', { showSource: value }), { 'data-display-option': 'balance-source' }),
     check(text('余额进度条 (蓝=余额,橙=当日,灰=已用)', 'Balance progress bar (blue=balance, orange=today, gray=spent)'), config.balance?.showProgressBar === true, value => nested('balance', { showProgressBar: value }), { 'data-display-option': 'balance-progress' }),
     config.balance?.showProgressBar === true ? number(t('balanceBudgetCapLabel'), config.balance?.budgetCap ?? '', value => nested('balance', { budgetCap: value || null }), 0, 1e12) : null,

@@ -110,10 +110,12 @@ try {
   } finally { pending.resolve(); await inflight }
   assert.equal(stateCheck(await api.getState()).balance.totalBalance, 22, 'late old request cannot replace selected account')
   assert.equal(values.get(secretRefOf('balance')), 'KEY-DEFAULT')
-  const count = requests.length
+  const count = requests.filter(row => row.key === 'KEY-B' && row.url === 'https://api.deepseek.com/user/balance').length
   await api.clearCredential('balance@' + b)
   state = stateCheck((await api.refreshBalance()).state)
-  assert.equal(state.balance.keyConfigured, false); assert.equal(requests.length, count, 'empty named slot never falls back to default key')
+  assert.equal(state.balance.keyConfigured, false)
+  assert.equal(state.balance.status, 'off', 'empty selected slot never falls back to another account')
+  assert.equal(requests.filter(row => row.key === 'KEY-B' && row.url === 'https://api.deepseek.com/user/balance').length, count, 'cleared credentials are not queried')
   assert.equal((await api.setCredential('balance@missing1', 'WRONG')).ok, false)
   assert.equal((await api.clearCredential('balance@missing1')).ok, false)
   await api.updateConfig({ queryAccounts: { balance: group('default'), 'codingPlans.openrouter': group(b) } })

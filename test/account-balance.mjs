@@ -344,6 +344,50 @@ try {
   assert.equal((await accountWithoutRoute.service.refreshBalance()).ok, true, 'manual refresh recovers without a settings event')
   await accountWithoutRoute.dispose()
 
+  // Named accounts: empty slots and repeated keys never create a second balance.
+  const multiGroup = { selected: 'account-a1', accounts: [{ id: 'account-a1', label: 'Work' }, { id: 'account-b2', label: 'Personal' }, { id: 'account-c3', label: 'Empty' }] }
+  const aRef = 'DSH_COST_METER_ACCOUNT_BALANCE_ACCOUNT_A1', bRef = 'DSH_COST_METER_ACCOUNT_BALANCE_ACCOUNT_B2'
+  const multiSecrets = { [aRef]: 'TEST-MULTI-A', [bRef]: 'TEST-MULTI-A', DEEPSEEK_BALANCE_API_KEY: 'TEST-MULTI-A' }
+  useHome('multiple-accounts', {}, null, {}, { queryAccounts: { balance: multiGroup } })
+  const multiple = mount({ secrets: multiSecrets, fetchBalance: async (_, init) => init.headers.authorization.endsWith('TEST-MULTI-ERROR') ? new Response('', { status: 401 }) : balanceResponse(12) })
+  let multipleState = (await multiple.service.refreshBalance()).state
+  assert.equal(multipleState.balanceAccounts.length, 1, 'default and named aliases of the same key show one account')
+  assert.equal(multipleState.balanceAccounts[0].id, 'account-a1', 'selected name wins when deduplicating')
+  assert.equal(multiple.requests.length, 1, 'aliases do not repeat the selected balance request')
+  multiSecrets[bRef] = 'TEST-MULTI-B'
+  multiple.emit('credentials/reference-updated', bRef)
+  multipleState = (await multiple.service.refreshBalance()).state
+  assert.equal(multipleState.balanceAccounts.length, 2, 'distinct keys remain separate even with identical balances')
+  assert.ok(multipleState.balanceAccounts.every(row => row.totalBalance === 12))
+  assert.ok(!JSON.stringify(multipleState.balanceAccounts).includes('TEST-MULTI'))
+  stateSchema.parse(multipleState)
+  multiSecrets[bRef] = 'TEST-MULTI-ERROR'
+  multiple.emit('credentials/reference-updated', bRef)
+  multipleState = (await multiple.service.refreshBalance()).state
+  assert.equal(multipleState.balanceAccounts.find(row => row.id === 'account-b2').status, 'error')
+  assert.equal(multipleState.balanceAccounts.find(row => row.id === 'account-a1').status, 'ok')
+  delete multiSecrets[bRef]
+  multiple.emit('credentials/reference-updated', bRef)
+  multipleState = (await multiple.service.refreshBalance()).state
+  assert.equal(multipleState.balanceAccounts.length, 1, 'cleared account disappears from balance rows')
+  await multiple.service.updateConfig({ queryAccounts: { balance: { ...multiGroup, accounts: [multiGroup.accounts[0]] } } })
+  multipleState = (await multiple.service.refreshBalance()).state
+  assert.equal(multipleState.balanceAccounts.length, 1)
+  assert.equal(multipleState.balance.totalBalance, 12)
+  await multiple.dispose()
+
+  useHome('slow-secondary-account', {}, null, {}, { queryAccounts: { balance: multiGroup } })
+  const secondaryGate = deferred(), secondaryEntered = deferred()
+  const slowSecondary = mount({ secrets: { [aRef]: 'TEST-MULTI-A', [bRef]: 'TEST-MULTI-B' },
+    fetchBalance: async (_, init) => { if (init.headers.authorization.endsWith('TEST-MULTI-B')) { secondaryEntered.resolve(); await secondaryGate.promise } return balanceResponse(12) } })
+  try {
+    const reading = slowSecondary.service.getState()
+    await startedWithin(reading)
+    const state = await reading
+    assert.equal(state.balance.status, 'ok')
+    await startedWithin(secondaryEntered.promise)
+  } finally { secondaryGate.resolve(); await slowSecondary.dispose() }
+
   // Users can explicitly choose the signed-in wallet when a model key is rejected.
   useHome('model-401-wallet-choice')
   const rejectedModel = mount({ secrets: { DEEPSEEK_API_KEY: modelKey }, fetchBalance: async () => new Response('', { status: 401 }),
@@ -409,15 +453,15 @@ try {
     selectedBalance.emit('settings/document-updated', 'llm-deepseek', 1)
     if (selected !== 'default') selectedBalance.emit('credentials/reference-updated', 'DEEPSEEK_BALANCE_API_KEY')
     await selectedBalance.service.getState()
-    assert.equal(selectedBalance.requests.length, 1, 'model changes do not invalidate an explicit balance source')
+    assert.equal(selectedBalance.requests.filter(row => row.headers.authorization === 'Bearer TEST_SELECTED_KEY').length, 1, 'model changes do not invalidate the selected balance source')
     secrets[selectedRef] = 'TEST_SELECTED_KEY_REPLACED'
     selectedBalance.emit('credentials/reference-updated', selectedRef)
     assert.equal((await selectedBalance.service.getState()).balance.status, 'ok')
-    assert.equal(selectedBalance.requests.at(-1).headers.authorization, 'Bearer TEST_SELECTED_KEY_REPLACED')
+    assert.ok(selectedBalance.requests.some(row => row.headers.authorization === 'Bearer TEST_SELECTED_KEY_REPLACED'))
     delete secrets[selectedRef]
     selectedBalance.emit('credentials/reference-updated', selectedRef)
     assert.equal((await selectedBalance.service.getState()).balance.status, 'off')
-    assert.equal(selectedBalance.requests.length, 2, 'missing selected keys do not use a different wallet')
+    assert.equal(selectedBalance.requests.filter(row => row.headers.authorization.startsWith('Bearer TEST_SELECTED_KEY')).length, 2, 'cleared selected keys are not queried again')
     assert.equal(selectedBalance.accountCalls.length, 0)
     await selectedBalance.dispose()
   }

@@ -460,6 +460,7 @@
         budgetUsed: typeof v.budgetUsed === 'number' && Number.isFinite(v.budgetUsed) ? v.budgetUsed : undefined,
         localSavings: v.localSavings,
         balance: v.balance == null ? EMPTY_BAL : parseBalance(v.balance, path + '.balance'),
+        balanceAccounts: Array.isArray(v.balanceAccounts) ? v.balanceAccounts.slice(0, 11).map(row => ({ ...parseBalance(row, path + '.balanceAccounts'), id: needStr(row.id, path), label: needStr(row.label, path) })) : [],
         goQuota: v.goQuota == null ? EMPTY_GO : parseGoQuota(v.goQuota, path + '.goQuota'),
         customBalance: v.customBalance == null ? emptyCustomSnapshot() : parseCustomBalance(v.customBalance, path + '.customBalance'),
         // 多配置形态(v1.7.0,issue #79):全部条目快照;缺失/畸形回落空数组
@@ -2101,17 +2102,18 @@
       const balance = state.balance
       const t = makeT(resolveLocale(state.config))
       const refresh = useClickRefresh(api ? () => api.refreshBalance() : null)
-      const privacy = useBalancePrivacy(state.config, 'official', t)
+      const privacy = useBalancePrivacy(state.config, props.accountId ?? 'official', t)
+      const caption = props.label ?? balanceLabel(t, state.config)
       if (!balance || balance.status === 'off') return null
       if (balance.status === 'error') {
         return el(Tooltip, { portal: true, label: [t('balanceQueryFailed', { message: balance.message || t('unknownError') }), ...clickRefreshTipLines(t, refresh)].join('; '), side: 'right', delayMs: 300 },
           el('div', { 'data-cm-display': 'balance', className: 'cm-foot clickable' + (wide ? '' : ' cm-foot-rail') + ' cm-bal-err' + (refresh.busy ? ' busy' : ''), ...clickableRefreshProps(refresh.busy, refresh.run) },
-            wide ? el(Fragment, null, balanceLabel(t, state.config), ' ', el('span', { className: 'cm-num' }, t('queryFailed'))) : '⚠'))
+            wide ? el(Fragment, null, caption, ' ', el('span', { className: 'cm-num' }, t('queryFailed'))) : '⚠'))
       }
       const detail = privacy.hidden ? privacy.tip : officialBalanceTooltip(t, balance, state.config, state.reconcile, refresh)
-      return el(Tooltip, { portal: true, label: detail, side: 'right', delayMs: 300 },
+      return el(Tooltip, { portal: true, label: props.label ? el(Fragment, null, el('strong', null, props.label), detail) : detail, side: 'right', delayMs: 300 },
         el('div', { 'data-cm-display': 'balance', className: 'cm-foot clickable' + (wide ? '' : ' cm-foot-rail') + (refresh.busy ? ' busy' : ''), ...clickableRefreshProps(refresh.busy, refresh.run) },
-          wide ? el(Fragment, null, el('span', { className: 'cm-balance-name' }, privacy.label(balanceLabel(t, state.config)), rechargeLinkEl(t)), el('span', { className: 'cm-num cm-bal-amt' }, privacy.hidden ? '••••' : formatBalanceMoney(balance.totalBalance, state.config, balance.currency)), state.reconcile?.ok === false ? ' ⚠' : '') : el(WalletIcon, { size: 16 })))
+          wide ? el(Fragment, null, el('span', { className: 'cm-balance-name' }, privacy.label(caption), rechargeLinkEl(t)), el('span', { className: 'cm-num cm-bal-amt' }, privacy.hidden ? '••••' : formatBalanceMoney(balance.totalBalance, state.config, balance.currency)), state.reconcile?.ok === false ? ' ⚠' : '') : el(WalletIcon, { size: 16 })))
     }
 
     function officialBalanceVisible(state, provider, preview) {
@@ -3645,7 +3647,9 @@
       const nodes = []
       if (simple && wide && showToday && !config.sidebarTodayBalanceInline) nodes.push(el('div', { key: 'today', 'data-cm-display': 'today', className: 'cm-simple-summary' },
         el('span', null, t('today')), el('span', { className: 'cm-num' }, sidebarTodayValue(state.today, config, t))))
-      if (showBalanceBar) nodes.push(el(BalanceBox, { key: 'balance', state, wide, api: api }))
+      if (showBalance && state.balanceAccounts?.length > 1) nodes.push(el(Fragment, { key: 'balance' }, ...state.balanceAccounts.map(row => el(BalanceRowContent, { key: row.id, accountId: 'official-' + row.id, label: row.label, state: { ...state, balance: row, reconcile: undefined }, wide, api }))))
+      else if (showBalance && state.balance?.status === 'off' && state.balanceAccounts?.length === 1) nodes.push(el(BalanceRowContent, { key: 'balance', state: { ...state, balance: state.balanceAccounts[0], reconcile: undefined }, wide, api }))
+      else if (showBalanceBar) nodes.push(el(BalanceBox, { key: 'balance', state, wide, api: api }))
       else if (showBalance) nodes.push(el(BalanceRowContent, { key: 'balance', state, wide, api: api }))
       if (showCustomBalanceBar) nodes.push(el(CustomBalanceBox, { key: 'customBalance', state, wide, api: api }))
       else if (showCustomBalance) nodes.push(el(CustomBalanceRowContent, { key: 'customBalance', state, wide, api: api }))

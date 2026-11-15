@@ -16,6 +16,7 @@
 - Render the long-text selectors in the settings inspector (balance currency, language, currency) on their own full-width row.
 - Show a currency symbol on the balance row in every combination, and make each symbol identify exactly one currency: dollar currencies use HK$/A$/C$/NZ$/MX$/S$, the yen uses JP¥ to stay distinct from the yuan's ¥, and the Nordic kroner split into kr/NKr/Dkr.
 
+- 多账号余额列表支持切换、改名和删除，侧栏同时显示各账号余额；空凭据不计数，相同 Key 合并显示，单账号保留原样。
 - 官方余额新增“余额来源”选择，可手动查询当前 DSH 登录账号钱包；默认保持模型 Key 优先，手选账号和专用 Key 始终优先。
 - 修正凭据文档：已验证的 DSH 0.2.2-rc.1 / rc.3 优先读取凭据文件，再读取环境变量。
 - Add an explicit signed-in wallet choice for official balances. Auto still prefers the model key; selected accounts and dedicated keys retain priority.

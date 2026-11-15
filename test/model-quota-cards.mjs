@@ -482,7 +482,7 @@ for (const locale of ['zh', 'en']) {
     clearCredential: async target => { calls.push(['clear', target]); return { ok: true, message: 'cleared' } },
   }
   const panel = env.mount(env.ui.BalancePanel, { state: { balance, config: sanitizeConfig({}) }, api, t })
-  assert.ok(textOf(panel.tree).includes(t('balanceKeyHint')))
+  assert.ok(textOf(panel.tree).includes(t('balanceSourceHint')))
   const launcher = nodes(panel.tree).find(node => node.type === env.ui.AccountCredentialLauncher)
   const input = nodes(env.mount(env.ui.AccountCredentialLauncher, launcher.props).tree).find(node => node.type === env.ui.CredentialField)
   assert.equal(input.props.target, 'balance')
