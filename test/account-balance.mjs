@@ -560,6 +560,22 @@ try {
   assert.equal(accountResult.state.reconcile.ok, true, '账号用量与官方余额变动接近时不再误报：¥10.08 对 ¥10，而非 ¥0.072 对 ¥10')
   assert.ok(Math.abs(accountResult.state.today.cost - 4.4) < 1e-12, '对账筛选不修改完整账本及第三方费用')
   stateSchema.parse(accountResult.state)
+  // 换余额显示币种只是展示设置:必须保留已取回的余额快照,否则余额行会消失到下次刷新。
+  const accountCallsBefore = reconciled.accountCalls.length
+  const revalued = await reconciled.service.updateConfig({ balance: { currency: 'GBP' } })
+  assert.equal(revalued.config.balance.currency, 'GBP')
+  assert.equal(revalued.balance.status, 'ok', '切换余额显示币种保留已取回的余额')
+  assert.equal(revalued.balance.totalBalance, 90)
+  await new Promise(done => setImmediate(done))
+  assert.equal(reconciled.accountCalls.length, accountCallsBefore, '切换余额显示币种不触发重新查询余额')
+  // 同类的展示/核对开关(官方渠道过滤、点击隐藏、对账)也不改变查询内容,不能清空快照。
+  for (const [patch, label] of [[{ officialChannelOnly: true }, '官方渠道过滤'], [{ quickHide: true }, '点击隐藏'], [{ reconcile: false }, '对账开关']]) {
+    const toggled = await reconciled.service.updateConfig({ balance: patch })
+    assert.equal(toggled.balance.status, 'ok', `${label}保留已取回的余额`)
+    assert.equal(toggled.balance.totalBalance, 90)
+    await new Promise(done => setImmediate(done))
+    assert.equal(reconciled.accountCalls.length, accountCallsBefore, `${label}不触发重新查询余额`)
+  }
   await reconciled.dispose()
 
   // Execute the actual client components against a failed RPC snapshot in both languages.

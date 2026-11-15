@@ -259,6 +259,7 @@
           officialChannelOnly: v.balance?.officialChannelOnly === true,
           quickHide: v.balance?.quickHide === true,
           budgetCap: typeof v.balance?.budgetCap === 'number' && Number.isFinite(v.balance.budgetCap) && v.balance.budgetCap > 0 ? v.balance.budgetCap : null,
+          currency: v.balance?.currency ?? 'native',
           ...(Object.hasOwn(v.balance ?? {}, 'clickHintSeen') ? { clickHintSeen: v.balance?.clickHintSeen === true } : {}),
         },
         goQuota: {
@@ -681,7 +682,7 @@
         },
         {
           id: 'dsh-cost-meter#costMeter/getTurnCost', service: 'costMeter', namespace: 'costMeter', method: 'getTurnCost', invocation: { kind: 'direct' },
-          parameters: [rpcParam('sessionId', 'SessionId', codecOf(v => needStr(v, 'sessionId'))), ...['startSeq', 'endSeq'].map(name => rpcParam(name, 'TurnSeq', codecOf(v => { if (!Number.isSafeInteger(v) || v < 0) fail(name, 'nonnegative integer'); return v }))), { ...rpcParam('displayCurrency', 'DisplayCurrency', codecOf(v => { if (v !== undefined && !['USD', 'CNY', 'EUR'].includes(v)) fail('displayCurrency', 'currency'); return v })), acceptsUndefined: true }],
+          parameters: [rpcParam('sessionId', 'SessionId', codecOf(v => needStr(v, 'sessionId'))), ...['startSeq', 'endSeq'].map(name => rpcParam(name, 'TurnSeq', codecOf(v => { if (!Number.isSafeInteger(v) || v < 0) fail(name, 'nonnegative integer'); return v }))), { ...rpcParam('displayCurrency', 'DisplayCurrency', codecOf(v => { if (v !== undefined && !/^[A-Z]{3}$/.test(v)) fail('displayCurrency', 'currency'); return v })), acceptsUndefined: true }],
           result: strictCodec('TurnCost', codecOf(v => ({ ...parseFrozenMoney(v), found: needBool(v.found, 'found'), ...(v.inherited === undefined ? {} : { inherited: needBool(v.inherited, 'inherited') }), cost: needNum(v.cost, 'cost'), apiCost: needNum(v.apiCost, 'apiCost'), rows: parseTurnRows(v.rows),
             calls: (Array.isArray(v.calls) ? v.calls : fail('calls', 'array')).map(c => ({ kind: needStr(c.kind, 'kind'), provider: needStr(c.provider, 'provider'), model: needStr(c.model, 'model'), atMs: needNum(c.atMs, 'atMs'), cost: needNum(c.cost, 'cost'), apiCost: needNum(c.apiCost, 'apiCost'), plan: needBool(c.plan, 'plan'), priced: needBool(c.priced, 'priced'), longContext: needBool(c.longContext, 'longContext'), rows: parseTurnRows(c.rows), ...(c.metering ? { metering: parseMetering(c.metering) } : {}) })) }))),
         },
@@ -1875,16 +1876,40 @@
 
     // ── 侧边栏:余额行 + 预算图框/今日徽章(纵向堆叠,位于设置按钮上方) ──────
 
-    /** 记账币种代码 → 符号(官方/自定义余额金额不经汇率换算,符号必须与数值同币种)。 */
-    const BALANCE_CURRENCY_SYMBOLS = { USD: '$', CNY: '¥', EUR: '€' }
+    /**
+     * 记账币种代码 → 符号。符号必须能唯一指认币种:美元系用 HK$/A$/C$/NZ$/MX$/S$,
+     * 日元用 JP¥ 与人民币 ¥ 区分,北欧克朗拆成 kr/NKr/Dkr。与 lib/currency-catalog.js
+     * 同一张表(test/currency-catalog.mjs 断言两边一致),bundle 无法导入宿主模块。
+     */
+    const BALANCE_CURRENCY_SYMBOLS = {
+      CNY: '¥', USD: '$', EUR: '€', GBP: '£', JPY: 'JP¥', KRW: '₩', INR: '₹', HKD: 'HK$', SGD: 'S$', AUD: 'A$',
+      CAD: 'C$', CHF: 'CHF', NZD: 'NZ$', BRL: 'R$', MXN: 'MX$', ZAR: 'R', TRY: '₺', SEK: 'kr', NOK: 'NKr',
+      DKK: 'Dkr', PLN: 'zł', THB: '฿', IDR: 'Rp', MYR: 'RM', PHP: '₱', ILS: '₪',
+    }
+    function balanceSymbolOf(config, code) {
+      const fallback = config?.symbol || '$'
+      return !code || code === config?.currency ? fallback : BALANCE_CURRENCY_SYMBOLS[code] ?? code + ' '
+    }
+
+    /**
+     * 余额展示:native(原币种)/ display(显示币种)/ 指定目录代码,按当前参考汇率换算。
+     * 'native' 和未知选择没有汇率条目,与缺汇率一样保留源币种——否则会再现
+     * 「¥53 渲染成 $53」的符号错位。
+     */
+    function balanceShown(value, config, source) {
+      const choice = config?.balance?.currency
+      const target = (choice === 'display' ? config?.currency : choice) ?? source
+      const rates = config?.fxRates
+      return target !== source && rates?.[source] > 0 && rates?.[target] > 0
+        ? [value / rates[source] * rates[target], target]
+        : [value, source]
+    }
 
     function formatBalanceMoney(value, config, currency) {
-      // 余额是官方接口返回的记账币种金额(如 CNY),不经过汇率换算;
-      // 此前恒用显示币种符号(¥53 渲染成 $53),数值未换算而符号错位近汇率倍。
-      const code = typeof currency === 'string' ? currency.toUpperCase() : ''
-      const fallbackSymbol = typeof config?.symbol === 'string' && config.symbol.length > 0 ? config.symbol : '$'
-      return formatMoneyValue(value, {
-        symbol: BALANCE_CURRENCY_SYMBOLS[code] ?? fallbackSymbol,
+      const source = typeof currency === 'string' ? currency.toUpperCase() : ''
+      const [amount, code] = balanceShown(value, config, source)
+      return formatMoneyValue(amount, {
+        symbol: balanceSymbolOf(config, code),
         decimals: Math.max(2, Math.min(10, Math.floor(Number(config?.decimals) || 2))),
       })
     }
@@ -1925,7 +1950,9 @@
       if (unit === 'USD') return usd
       // 积分不能由美元花费换算。
       if (unit === 'CREDITS') return 0
-      const rate = Number(config?.exchangeRate)
+      // 今日用量要落在余额的记账币种上,与 remaining/cap 同单位;fxRates 缺省时
+      // 才退回旧的展示汇率(旧配置/部分快照),否则进度比例会错。
+      const rate = Number(config?.fxRates?.[unit] ?? config?.exchangeRate)
       return usd * (Number.isFinite(rate) && rate > 0 ? rate : 1)
     }
 
@@ -2144,16 +2171,18 @@
       const unit = customBalanceUnitOf(config, custom, entryCfg)
       const value = Number(amount)
       if (!Number.isFinite(value)) return '—'
-      // 仅在显示层换算，快照、预算单位和进度比例始终保留源币种。
+      const decimals = Math.max(2, Math.min(6, Math.floor(Number(config?.decimals) || 4)))
+      // 仅显示层换算:快照、预算单位和进度比例始终保留源币种。积分没有汇率。
+      if (unit === 'CREDITS') return fixedAmount(value, decimals) + ' Credits'
+      // 旧单条开关(仅 USD):全局「余额显示币种」为原币种时沿用旧折算与配置精度。
       const rate = config?.currency === 'USD' ? 1 : Number(config?.exchangeRate)
-      if ((entryCfg ?? config?.customBalance)?.convertToDisplayCurrency === true && unit === 'USD' && Number.isFinite(rate) && rate > 0) {
+      const legacy = (entryCfg ?? config?.customBalance)?.convertToDisplayCurrency === true && unit === 'USD' && (config?.balance?.currency ?? 'native') === 'native'
+      if (legacy && rate > 0 && Number.isFinite(rate)) {
         const converted = value * rate
         return Number.isFinite(converted) ? formatMoneyValue(converted, config) : '—'
       }
-      const credits = unit === 'CREDITS'
-      const decimals = Math.max(2, Math.min(6, Math.floor(Number(config?.decimals) || 4)))
-      const symbol = credits ? '' : unit === 'CNY' ? '¥' : unit === 'EUR' ? '€' : '$'
-      return symbol + fixedAmount(value, decimals) + (credits ? ' Credits' : '')
+      const [shown, code] = balanceShown(value, config, unit)
+      return Number.isFinite(shown) ? formatMoneyValue(shown, { symbol: balanceSymbolOf(config, code), decimals }) : '—'
     }
 
     // 多配置形态(v1.7.0,issue #79):以下四个渲染助手按「单条快照 + 单条配置」

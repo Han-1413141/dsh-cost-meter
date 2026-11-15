@@ -62,7 +62,12 @@ try {
   const zero = await queryCodingPlan('workbuddy', key, 'en', t)
   assert.equal(zero.windows.balance.text, '0', 'use selected account total, including zero, rather than unrelated pool fields')
   assert.equal(JSON.stringify(zero).includes('DO_NOT_COPY'), false)
-  assert.deepEqual(requestLog.map(row => row.path), ['/plugins/dsh-connect-workbuddy/account-credits?region=cn', '/plugins/dsh-connect-workbuddy/account-credits?region=global', '/plugins/dsh-xdpool/status?region=cn', '/plugins/dsh-xdpool/status?region=global', '/plugins/dsh-workbuddy-connect/status', '/plugins/dsh-workbuddy-connect/ai/status', cn])
+  // 两个来源的两个区域是并发读取(见 lib/workbuddy-accounts.js 的 Promise.all),
+  // 到达顺序由连接竞速决定,只固定集合;其后的顺序读取仍然固定。
+  const requestPaths = requestLog.map(row => row.path)
+  assert.deepEqual(requestPaths.slice(0, 4).sort(), ['/plugins/dsh-connect-workbuddy/account-credits?region=cn', '/plugins/dsh-connect-workbuddy/account-credits?region=global',
+    '/plugins/dsh-xdpool/status?region=cn', '/plugins/dsh-xdpool/status?region=global'].sort())
+  assert.deepEqual(requestPaths.slice(4), ['/plugins/dsh-workbuddy-connect/status', '/plugins/dsh-workbuddy-connect/ai/status', cn])
   assert.ok(requestLog.every(row => row.method === 'GET' && row.authorization === undefined))
   connectRoutes.set(cn, { status: 'signed-out', accounts: [], selectionExplicit: false })
   connectRoutes.set(global, { status: 'signed-in', region: 'global', credits: { total: 700, nearestExpiryMs: Date.parse('2030-01-01T00:00:00Z') } })

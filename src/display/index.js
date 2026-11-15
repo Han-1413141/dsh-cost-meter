@@ -5,6 +5,49 @@ window.__ModuleLoader__.load({
     const React = require('react')
     const { createElement: el, useState } = React
     const Fragment = React.Fragment
+    // 展示币种目录:与 lib/currency-catalog.js 同一张表,test/currency-catalog.mjs
+    // 断言两边一致。[代码, 符号, 兜底汇率],顺序即选择器顺序;小数位属于用户的
+    // 显示精度偏好,切换币种时保持不变,所以不在目录里。
+    const CURRENCY_CATALOG = [
+      ['CNY', '¥', 7.2], ['USD', '$', 1], ['EUR', '€', 0.92], ['GBP', '£', 0.75605],
+      ['JPY', 'JP¥', 160], ['KRW', '₩', 1337.13], ['INR', '₹', 94.24], ['HKD', 'HK$', 7.846],
+      ['SGD', 'S$', 1.2881], ['AUD', 'A$', 1.4738], ['CAD', 'C$', 1.4258], ['CHF', 'CHF', 0.8384],
+      ['NZD', 'NZ$', 1.8076], ['BRL', 'R$', 5.6637], ['MXN', 'MX$', 18.5931], ['ZAR', 'R', 16.9635],
+      ['TRY', '₺', 50.368], ['SEK', 'kr', 10.0502], ['NOK', 'NKr', 9.5634], ['DKK', 'Dkr', 6.764],
+      ['PLN', 'zł', 3.9914], ['THB', '฿', 33.915], ['IDR', 'Rp', 18244], ['MYR', 'RM', 4.0875],
+      ['PHP', '₱', 63.813], ['ILS', '₪', 3.2107],
+    ]
+    const CURRENCY_ENTRIES = Object.fromEntries(CURRENCY_CATALOG.map(([code, symbol, rate]) => [code, { symbol, rate }]))
+    const CURRENCY_NAMES = {
+      CNY: ['人民币', 'Chinese Yuan'], USD: ['美元', 'US Dollar'], EUR: ['欧元', 'Euro'], GBP: ['英镑', 'British Pound'],
+      JPY: ['日元', 'Japanese Yen'], KRW: ['韩元', 'Korean Won'], INR: ['印度卢比', 'Indian Rupee'], HKD: ['港币', 'Hong Kong Dollar'],
+      SGD: ['新加坡元', 'Singapore Dollar'], AUD: ['澳元', 'Australian Dollar'], CAD: ['加元', 'Canadian Dollar'], CHF: ['瑞士法郎', 'Swiss Franc'],
+      NZD: ['新西兰元', 'New Zealand Dollar'], BRL: ['巴西雷亚尔', 'Brazilian Real'], MXN: ['墨西哥比索', 'Mexican Peso'], ZAR: ['南非兰特', 'South African Rand'],
+      TRY: ['土耳其里拉', 'Turkish Lira'], SEK: ['瑞典克朗', 'Swedish Krona'], NOK: ['挪威克朗', 'Norwegian Krone'], DKK: ['丹麦克朗', 'Danish Krone'],
+      PLN: ['波兰兹罗提', 'Polish Zloty'], THB: ['泰铢', 'Thai Baht'], IDR: ['印尼盾', 'Indonesian Rupiah'], MYR: ['马来西亚林吉特', 'Malaysian Ringgit'],
+      PHP: ['菲律宾比索', 'Philippine Peso'], ILS: ['以色列谢克尔', 'Israeli Shekel'],
+    }
+    function currencyLabel(code, text) {
+      const names = CURRENCY_NAMES[code]
+      return (names ? text(names[0], names[1]) + ' · ' : '') + code
+    }
+    /** 选择器选项;当前值不在目录里时(升级前的自定义符号)补一条,下拉框不能显示错值。 */
+    function currencyChoices(config, text) {
+      const choices = CURRENCY_CATALOG.map(([code]) => [code, currencyLabel(code, text)])
+      const current = config?.currency
+      if (typeof current === 'string' && current.length > 0 && CURRENCY_ENTRIES[current] === undefined) {
+        const symbol = typeof config?.symbol === 'string' && config.symbol.length > 0 ? ' · ' + config.symbol : ''
+        choices.unshift([current, current + symbol])
+      }
+      return choices
+    }
+    /** 换币种时符号与参考汇率一起换;小数位是用户的显示精度偏好,保持不变。 */
+    function currencyPatch(code, config) {
+      const entry = CURRENCY_ENTRIES[code]
+      if (entry === undefined) return null
+      const rate = config?.exchangeRateAuto !== false ? config?.fxRates?.[code] ?? entry.rate : entry.rate
+      return { currency: code, symbol: entry.symbol, exchangeRate: rate }
+    }
     /* DISPLAY_NATIVE_SOURCE */
     const fallbackNative = displayNativeFallback(React)
     let hostNative = {}
@@ -191,6 +234,7 @@ window.__ModuleLoader__.load({
         el('div', { className: 'cm-preview cm-region-preview', role: 'tabpanel', id: id + '-panel', 'aria-labelledby': id + region, 'data-region': region },
           el('div', { className: 'cm-preview-workspace' }, el('div', { className: 'cm-preview-scene' }, scene),
             el(DisplayInspector, { props, config, set, selected, selectedPlan, selectPlan, select, labels, registry, text, region, examples, previewData,
+              currencyChoices: currencyChoices(config, text), currencyPatch,
               stylesOpen, setStylesOpen, openQuota: () => { setExpanded(false); props.onNavigate('quotas', selected === 'codex' || selected === 'strip-codex' ? 'codex' : selectedPlan) } }))))
       return el('section', { className: 'cm-display', 'aria-label': text('交互式显示设置', 'Interactive display settings') },
         el('div', { className: 'cm-display-heading' }, el('div', null,
@@ -223,7 +267,7 @@ window.__ModuleLoader__.load({
           text('跟随皮肤透明度', 'Follow skin transparency')),
         el('span', { className: 'cm-hint' }, text('费用页与侧栏卡片跟随背景，弹窗保留至少 90% 不透明度。', 'Cost pages and sidebar cards share their background; dialogs remain at least 90% opaque.')))
     }
-    function DetailedSettings({ state, draft, setDraft, t, locale, numInput, displayOptions, CURRENCY_PRESETS, USAGE_POSITION_SWITCHABLE, open = false }) {
+    function DetailedSettings({ state, draft, setDraft, t, locale, numInput, displayOptions, USAGE_POSITION_SWITCHABLE, open = false }) {
       const config=state.config
       const text = (zh, en) => locale === 'en' ? en : zh
       const setField=(key,value)=>setDraft(previous=>({...previous,[key]:value}))
@@ -276,15 +320,11 @@ window.__ModuleLoader__.load({
                 className: 'cm-input',
                 value: draft?.currency ?? 'CNY',
                 onChange: event => {
-                  const preset = CURRENCY_PRESETS[event.target.value]
-                  if (preset !== undefined && draft !== null) {
-                    setDraft({ ...draft, currency: event.target.value, ...preset, exchangeRate: draft.exchangeRateAuto !== false ? draft.fxRates?.[event.target.value] ?? preset.exchangeRate : preset.exchangeRate })
-                  }
+                  const patch = currencyPatch(event.target.value, draft ?? config)
+                  if (patch !== null && draft !== null) setDraft({ ...draft, ...patch })
                 },
               },
-                el('option', { value: 'CNY' }, t('currencyCny')),
-                el('option', { value: 'USD' }, t('currencyUsd')),
-                el('option', { value: 'EUR' }, t('currencyEur')))),
+                ...currencyChoices(draft ?? config, text).map(([code, label]) => el('option', { key: code, value: code }, label)))),
             el('div', { className: 'cm-field' },
               el('label', null, t('rateLabel')),
               // 清空不提交:汇率 0 会被服务端校验拒绝并整包报错,保留原值更友好。

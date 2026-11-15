@@ -17,6 +17,10 @@ assert.deepEqual(codexKeys({ displayPreviewCodex: { status: 'ok', windows: { fiv
 let config = sanitizeConfig({ codingPlans: { minimax: { enabled: false, display: 'both', baseUrl: 'https://www.minimax.cn' }, kimi: { enabled: false, display: 'settings' } } })
 let writes = 0, selectedPlan = 'minimax', navigated = null
 const initial = JSON.stringify(config.codingPlans.kimi)
+// 展示币种的真实目录与切换映射由 currency-catalog.mjs 覆盖;这里只验证选择器把
+// 目录选项渲染出来,并把切换补丁交给统一的保存路径(小数位不随切换变化)。
+const currencyChoices = [['CNY', '人民币 · CNY'], ['USD', 'US Dollar · USD'], ['GBP', '英镑 · GBP']]
+const currencyPatch = (code, base) => code === 'GBP' ? { currency: 'GBP', symbol: '£', exchangeRate: base?.fxRates?.GBP ?? 0.75605 } : null
 const set = patch => {
   writes++
   const result = applyConfigPatch(config, JSON.parse(JSON.stringify(patch)))
@@ -29,7 +33,7 @@ const inspect = selected => Inspector({ props: {
   planOptions: [['minimax','MiniMax'],['kimi','Kimi']], state: {},
 }, config, selected, selectedPlan, selectPlan: value => { selectedPlan = value }, openQuota: () => { navigated = selectedPlan },
   set, select() {}, labels: {}, registry: { plan: { on: true, patch: { codingPlans: { ...config.codingPlans, [selectedPlan]: { ...config.codingPlans[selectedPlan], display: 'settings' } } } } },
-  text: (_, en) => en, region: 'sidebar', examples: true })
+  text: (_, en) => en, region: 'sidebar', examples: true, currencyChoices, currencyPatch })
 const control = (tree, label) => nodes(tree).find(node => node.props['aria-label'] === label)
 for (const checked of [false, true]) {
   control(inspect('strip-plans'), 'Show plan balance').props.onChange({ target: { checked } })
@@ -90,4 +94,27 @@ for (const selected of ['codex', 'strip-codex']) {
   control(inspect(selected), 'codexQuotaEnabled').props.onChange({ target: { checked: false } })
   assert.equal(config.codexQuotaEnabled, false)
 }
+const general = inspect('general')
+const currencySelect = control(general, 'currencyLabel')
+assert.deepEqual(currencySelect.children.map(node => node.props.value), ['CNY', 'USD', 'GBP'], 'currency selector renders the catalog in order')
+const decimalsBefore = config.decimals
+currencySelect.props.onChange({ target: { value: 'GBP' } })
+assert.equal(config.currency, 'GBP'); assert.equal(config.symbol, '£'); assert.ok(config.exchangeRate > 0, 'switch keeps a usable rate')
+assert.equal(config.decimals, decimalsBefore, 'switching currency keeps the user decimal setting')
+// 余额显示币种:跨满整行(与「调整组件」同宽),保留完整的币种名称。
+const balanceTree = inspect('balance')
+const balanceCurrency = control(balanceTree, 'Balance currency')
+assert.deepEqual(balanceCurrency.children.map(node => node.props.value), ['native', 'display', 'CNY', 'USD', 'GBP'])
+assert.deepEqual(balanceCurrency.children.map(node => node.children[0]), ['Native currency', 'Follow display currency', '人民币 · CNY', 'US Dollar · USD', '英镑 · GBP'], 'full currency labels stay intact')
+assert.ok(nodes(balanceTree).some(node => node.props['data-inspector-wide'] === true && nodes(node).some(child => child.props['aria-label'] === 'Balance currency')), 'balance currency spans the full inspector width')
+control(balanceTree, 'Balance currency').props.onChange({ target: { value: 'GBP' } })
+assert.equal(config.balance.currency, 'GBP')
+// 语言与币种下拉框各占一整行(与余额显示币种同款),长文本不再被两列网格截断。
+const wideGeneral = nodes(general).filter(node => node.props['data-inspector-wide'] === true)
+assert.equal(wideGeneral.length, 2, 'language and currency selectors each take a full row')
+for (const label of ['languageLabel', 'currencyLabel']) {
+  assert.ok(wideGeneral.some(node => nodes(node).some(child => child.props['aria-label'] === label)), `${label} spans the full inspector width`)
+}
+// 通用设置组渲染在 .cm-general-grid 里(不是 .cm-inspector-controls),整行规则必须两处都有。
+assert.ok(readFileSync(new URL('../src/display/preview.css', import.meta.url), 'utf8').includes('.cm-general-grid>[data-inspector-wide]{grid-column:1/-1}'), 'general grid lets wide fields span both columns')
 console.log('[ok] display controls: per-account visibility/placement, no query enablement, independent selection, targeted navigation and separate today control')

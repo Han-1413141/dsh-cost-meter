@@ -289,12 +289,6 @@
         showId && rawTitle.length > 0 ? el('div', { className: 'cm-sess-id' }, shortId) : null)
     }
 
-    const CURRENCY_PRESETS = {
-      CNY: { symbol: '¥', decimals: 4, exchangeRate: 7.2 },
-      USD: { symbol: '$', decimals: 6, exchangeRate: 1 },
-      EUR: { symbol: '€', decimals: 6, exchangeRate: 0.92 },
-    }
-
     // ── 预算面板(设置页顶部) ──────────────────────────────────────────────
 
     function BudgetPanel(props) {
@@ -1900,7 +1894,7 @@
           : null,
         // 显示设置：独立加载的交互预览，共用草稿与自动保存。
         el(BillingStatistics, { state: { ...state, displayPreviewCodex: codexQuotaCache.source === (state.config.codexQuotaSource ?? 'auto') ? codexQuotaSnapshot() : { status: 'idle', windows: {} } }, api, load: api.loadDisplay, draft, setDraft, t, locale,
-          numInput, displayOptions, quotaPlacementValue, quotaPlacementPatch, quotaPlacementOptions, CURRENCY_PRESETS, USAGE_POSITION_SWITCHABLE, formatMoneyUsd,
+          numInput, displayOptions, quotaPlacementValue, quotaPlacementPatch, quotaPlacementOptions, USAGE_POSITION_SWITCHABLE, formatMoneyUsd,
           planOptions: CODING_PLAN_ROWS.map(row => [row.id, t(row.labelKey)]),
           onNavigate: (page, plan) => { setQuotaTarget(plan); setTab(page) },
           renderSidebar: (preview, data = state) => renderSidebarFooter({ ...data, config: preview }, true, undefined, true),

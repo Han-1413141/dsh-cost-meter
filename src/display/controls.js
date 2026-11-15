@@ -33,8 +33,8 @@ function PeakStyleSample({ render, config, data, style }) {
   return el('span', { className: 'cm-peak-choice-sample', 'aria-hidden': true, inert: '' }, sample)
 }
 
-function DisplayInspector({ props, config, set, selected, selectedPlan, selectPlan, openQuota, select, labels, registry, text, region, general = false, examples, previewData, stylesOpen = false, setStylesOpen }) {
-  const { t, numInput, CURRENCY_PRESETS, displayOptions, quotaPlacementValue, quotaPlacementPatch, quotaPlacementOptions, USAGE_POSITION_SWITCHABLE } = props
+function DisplayInspector({ props, config, set, selected, selectedPlan, selectPlan, openQuota, select, labels, registry, text, region, general = false, examples, previewData, stylesOpen = false, setStylesOpen, currencyChoices, currencyPatch }) {
+  const { t, numInput, displayOptions, quotaPlacementValue, quotaPlacementPatch, quotaPlacementOptions, USAGE_POSITION_SWITCHABLE } = props
   const nested = (key, patch) => set({ [key]: { ...config[key], ...patch } })
   const check = (label, value, change, extra = {}) => el('label', { className: 'cm-check cm-display-switch', key: label },
     el('span', null, label), el('input', { type: 'checkbox', role: 'switch', 'aria-label': label, checked: value, onChange: e => change(e.target.checked), ...extra }))
@@ -74,6 +74,12 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
   }
   const quickHide = () => check(text('点击名称快速隐藏余额', 'Click name to hide balance'), config.balance?.quickHide === true, value => nested('balance', { quickHide: value }), { 'data-display-option': 'balance-quick-hide', title: text('点击名称隐藏或显示，点击金额刷新。', 'Click the name to hide/show; click the amount to refresh.') })
   if (selected === 'balance') controls = [display('balance'), quickHide(),
+    // 控件区在面板够宽时是两列;这一项跨满整行(与上方「调整组件」同宽),
+    // 保留完整的币种名称也不会被半宽列截断。
+    React.cloneElement(choice(text('余额显示币种', 'Balance currency'), config.balance?.currency ?? 'native',
+      [['native', text('原币种', 'Native currency')], ['display', text('跟随显示币种', 'Follow display currency')], ...(currencyChoices ?? [])],
+      value => nested('balance', { currency: value })),
+    { 'data-inspector-wide': true }),
     check(text('仅官方渠道显示', 'Show only on official channels'), config.balance?.officialChannelOnly === true, value => nested('balance', { officialChannelOnly: value }), { 'data-display-option': 'balance-official-only' }),
     el('p', { className: 'cm-inspector-note' }, text('按当前会话渠道显示；无会话渠道时参考今日官方调用。设置页与预览始终保留。', 'Uses the current session channel, or today’s official calls if unavailable. Settings and previews remain visible.')),
     check(text('显示余额来源（DeepSeek）', 'Show balance source (DeepSeek)'), config.balance?.showSource === true, value => nested('balance', { showSource: value }), { 'data-display-option': 'balance-source' }),
@@ -137,10 +143,11 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
     config.codexQuotaEnabled !== true ? el('p', { className: 'cm-inspector-note' }, text('额度查询未开启。打开上方开关后，可在侧栏和输入区显示。', 'Quota queries are disabled. Enable the switch above to show quota in the sidebar and composer.')) : null,
     el('button', { type: 'button', className: 'cm-btn small', onClick: openQuota }, text('账户与额度设置 →', 'Account and quota settings →'))]
   if (selected === 'general') controls = [
-    choice(t('languageLabel'), config.locale ?? 'auto', [['auto', t('localeAuto')], ['zh', '简体中文'], ['en', 'English']], value => set({ locale: value })),
-    choice(t('currencyLabel'), config.currency ?? 'CNY', [['CNY', t('currencyCny')], ['USD', t('currencyUsd')], ['EUR', t('currencyEur')]], value => set({ currency: value, ...CURRENCY_PRESETS[value], exchangeRate: config.exchangeRateAuto !== false ? config.fxRates?.[value] ?? CURRENCY_PRESETS[value].exchangeRate : CURRENCY_PRESETS[value].exchangeRate })),
+    // 语言与币种是长文本下拉框:和余额显示币种一样各占一整行,避免被两列网格截断。
+    React.cloneElement(choice(t('languageLabel'), config.locale ?? 'auto', [['auto', t('localeAuto')], ['zh', '简体中文'], ['en', 'English']], value => set({ locale: value })), { 'data-inspector-wide': true }),
+    React.cloneElement(choice(t('currencyLabel'), config.currency ?? 'CNY', currencyChoices, value => { const patch = currencyPatch(value, config); if (patch !== null) set(patch) }), { 'data-inspector-wide': true }),
     check(text('每日自动更新汇率', 'Update exchange rates daily'), config.exchangeRateAuto !== false, value => set({ exchangeRateAuto: value })),
-    config.exchangeRateAuto !== false ? el('p', { className: 'cm-inspector-note' }, text('参考汇率每日更新；历史费用保留记录时的汇率。', 'Daily reference rates; past costs retain their recorded rates.'), config.exchangeRateDate ? ' · ' + config.exchangeRateDate : '') : null,
+    config.exchangeRateAuto !== false ? el('p', { className: 'cm-inspector-note' }, text('参考汇率每日更新；人民币和欧元保留记录时的汇率，其他币种按最新参考汇率折算。', 'Daily reference rates; CNY and EUR keep their recorded rates, other currencies use the latest rate.'), config.exchangeRateDate ? ' · ' + config.exchangeRateDate : '') : null,
     number(t('rateLabel'), config.exchangeRate ?? 1, value => set({ exchangeRate: value, exchangeRateAuto: false }), 0.000001, 1e9),
     number(t('decimalsLabel'), config.decimals ?? 2, value => set({ decimals: Math.floor(value) }), 0, 10),
     USAGE_POSITION_SWITCHABLE ? choice(t('usagePositionLabel'), config.usage?.position ?? 'cost', [['cost', t('usagePositionCost')], ['general', t('usagePositionGeneral')], ['section', t('usagePositionSection')]], value => nested('usage', { position: value })) : null]
@@ -166,5 +173,5 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
           onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.currentTarget.click() } },
           onClick: () => set({ sidebarSimple: value === 'simple', sidebarSimplePromptSeen: true, ...(value === 'simple' ? {} : { sidebarStyle: value }), ...(value === 'summary' ? { ...(Object.hasOwn(config, 'sidebarSummaryPromptSeen') ? { sidebarSummaryPromptSeen: true } : {}), sidebarTodayMetric: 'both', peakStyle: 'progress', ...(Object.hasOwn(config, 'sidebarOrder') ? { sidebarOrder: ['today', 'balance', 'peak', ...(config.sidebarOrder ?? []).filter(key => !['today', 'balance', 'peak'].includes(key))] } : {}) } : {}) }) },
           el(SidebarStyleSample, { render: props.renderStyleSample, config: previewData.config, data: previewData.state, examples, mode: value }), el('span', { className: 'cm-style-caption' }, label)))) : null,
-    el(DisplayInspector, { props, config, set, selected: 'general', text, general: true }))
+    el(DisplayInspector, { props, config, set, selected: 'general', text, general: true, currencyChoices, currencyPatch }))
 }
