@@ -6,9 +6,9 @@
 
 **Display currency:** the **Currency** field in **Cost → Display → General** (also in **Sidebar → Customize → General**) lists 26 reference currencies. Selecting one updates the symbol and that currency's daily rate; the decimal places stay as configured. With auto-update off the manual rate applies, and switching currency falls back to the catalog rate. A custom currency saved by an older version stays listed. CNY and EUR keep the amount recorded per call, other currencies follow the latest daily rate — see [daily rates and historical amounts](exchange-rates.md).
 
-在“侧栏 → 调整组件 → 官方余额 → 余额显示币种”可单独选择余额金额的展示币种:原币种(默认)、跟随显示币种或币种目录中的任一代码。换算使用当前每日参考汇率;目标不在 USD/CNY/EUR 内时以代码前缀显示。进度比例与预算上限仍按余额记账币种计算，金额随所选币种换算展示。详见[自定义余额来源](custom-balance-sources.md)。
+在“侧栏 → 调整组件 → 官方余额 → 余额显示币种”可单独选择余额金额的展示币种:原币种(默认)、跟随显示币种或币种目录中的任一代码。换算使用当前每日参考汇率;金额使用币种目录中的符号显示。进度比例与预算上限仍按余额记账币种计算，金额随所选币种换算展示。详见[自定义余额来源](custom-balance-sources.md)。
 
-**Balance currency:** under **Sidebar → Customize → Official balance → Balance currency** the balance amount can be shown in its native currency (default), the display currency, or any catalog code. Conversion uses the current daily reference rate, and targets outside USD/CNY/EUR use a code prefix. Progress percentages and budget limits stay in the balance's own currency. See [custom balance sources](custom-balance-sources.en.md).
+**Balance currency:** under **Sidebar → Customize → Official balance → Balance currency** the balance amount can be shown in its native currency (default), the display currency, or any catalog code. Conversion uses the current daily reference rate, and amounts use the symbol from the currency catalog. Progress percentages and budget limits stay in the balance's own currency. See [custom balance sources](custom-balance-sources.en.md).
 
 在“费用 → 显示 → 侧栏”打开“隐藏进度条，仅显示紧凑文本”，可去掉峰谷时段、套餐额度、余额、预算和模型占比的图形条。额度保留窗口名与百分比，峰谷保留当前时段、倒计时和切换时间；悬停详情、点击刷新与超额警告仍可使用。偏好会保存，重启后保留。此选项只影响侧栏和侧栏预览，不改变用量查询、账本、计价、输入区额度条或原有布局/条形方向；关闭后恢复原样式。在峰谷组件里仍可选择只显示倒计时或切换时间。
 

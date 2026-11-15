@@ -30,13 +30,21 @@ const client = readdirSync('src/client').filter(n => n.endsWith('.js')).sort().m
   .replace('exports.apply = apply', 'exports.preview = { CostSection, parseConfig, SidebarFooter, renderSidebarFooter }; exports.apply = apply')
 const day = { ...zeroDay(), cost: 1.28, apiCost: 1.28 }
 const state = { config: saved, today: day, month: day, total: day, history: [], balance: { status: 'error', message: 'Synthetic balance error' }, codingPlans: {}, budgetUsed: 32 }
+const multiBalances = [{ id: 'account-a1', label: '工作账号', status: 'ok', message: '', fetchedAt: Date.now(), currency: 'USD', totalBalance: 12, grantedBalance: 0, toppedUpBalance: 12 },
+  { id: 'account-b2', label: '个人账号', status: 'ok', message: '', fetchedAt: Date.now(), currency: 'USD', totalBalance: 12, grantedBalance: 0, toppedUpBalance: 12 }]
+if (process.argv.includes('--multi-balance-only')) {
+  saved = sanitizeConfig({ ...saved, queryAccounts: { balance: { selected: 'account-a1', accounts: multiBalances.map(({ id, label }) => ({ id, label })) } } })
+  Object.assign(state, { config: saved, balance: multiBalances[0], balanceAccounts: multiBalances })
+}
 const code = `
 import * as ReactDOMPortal from ${literal(req.resolve('react-dom'))};import React from ${literal(req.resolve('react'))};import{createRoot}from ${literal(req.resolve('react-dom/client'))};
 const h=React.createElement;
 const tooltipText=value=>Array.isArray(value)?value.map(tooltipText).join(' '):typeof value==='string'||typeof value==='number'?String(value):value?.props?tooltipText(value.props.children):'';
-const mainRequire=name=>name==='react'?React:{Tooltip:({children,label})=>React.cloneElement(children,{'data-test-tooltip':tooltipText(label)})};mainRequire.async=async path=>path==='./client.local-savings.js'?window.localSavingsUI:window.peakUI;
+const mainRequire=name=>name==='react'?React:{Tooltip:({children,label})=>React.cloneElement(children,{'data-test-tooltip':tooltipText(label)})};mainRequire.async=async path=>path==='./client.plan-settings.js'?window.planSettingsUI:path==='./client.local-savings.js'?window.localSavingsUI:window.peakUI;
 window.__ModuleLoader__={load:mod=>window.mainUI=mod.factory(mainRequire)};
 ${client}
+window.__ModuleLoader__={load:mod=>window.planSettingsUI=mod.factory(()=>React)};
+${readFileSync('lib/client.plan-settings.js', 'utf8')}
 window.__ModuleLoader__={load:mod=>window.peakUI=mod.factory(name=>name==='react-dom'?ReactDOMPortal:React)};
 ${readFileSync('lib/client.peak.js', 'utf8')}
 window.__ModuleLoader__={load:mod=>window.localSavingsUI=mod.factory(()=>React)};
@@ -56,7 +64,7 @@ const api={refreshCodingPlan:async id=>{window.planRefreshes=(window.planRefresh
 window.configure=patch=>api.updateConfig(patch);
 api.refreshCustomBalance=async()=>{window.customBalanceRefreshes=(window.customBalanceRefreshes??0)+1};
 window.orderUI.mount({effect:()=>{}},{getSnapshot:()=>({state}),subscribe:fn=>{window.listeners.add(fn);return()=>window.listeners.delete(fn)}},config=>config?.locale??'zh',{updateConfig:patch=>api.updateConfig(patch)});
-function useCost(){const[value,setValue]=React.useState(state);React.useEffect(()=>{window.listeners.add(setValue);return()=>window.listeners.delete(setValue)},[]);return{state:value,status:'ready'}}
+function useCost(){const[value,setValue]=React.useState(state);React.useEffect(()=>{window.listeners.add(setValue);setValue(state);return()=>window.listeners.delete(setValue)},[]);return{state:value,status:'ready'}}
 function FixturePreview(){return window.mainUI.preview.renderSidebarFooter(useCost().state,true,undefined,true)}
 window.attachFixtureSidebar=(container,preview=false)=>createRoot(container).render(preview?h(FixturePreview):h(SidebarFooter,{useCost,api,wide:true}));
 window.attachFixtureRail=container=>{const root=createRoot(container);root.render(h(SidebarFooter,{useCost,api,wide:false}));return()=>root.unmount()};
@@ -97,7 +105,38 @@ await page.exposeFunction('saveConfig', patch => {
 })
 try {
   await page.goto(url)
-  if (process.argv.includes('--plan-amounts-only')) {
+  if (process.argv.includes('--multi-balance-only')) {
+    const rows = multiBalances
+    const list = page.locator('[data-balance-accounts]'), sidebar = page.locator('#actual-sidebar')
+    await list.getByText('工作账号', { exact: true }).waitFor()
+    assert.equal(await list.getByText('$12', { exact: true }).count(), 2)
+    assert.equal(await sidebar.locator('[data-cm-display="balance"]').count(), 2, 'equal balances still have two account rows')
+    await list.getByRole('button', { name: '切换', exact: true }).click()
+    await page.waitForFunction(() => window.current().queryAccounts.balance.selected === 'account-b2')
+    await sidebar.evaluate(n => { n.style.position = 'static'; n.style.left = 'auto' })
+    await page.screenshot({ path: join(output, 'multiple-balances.png'), fullPage: true })
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.screenshot({ path: join(output, 'multiple-balances-narrow.png'), fullPage: true })
+    for (const accounts of [[rows[0]], []]) {
+      await page.evaluate(accounts => window.setFixtureState({ balanceAccounts: accounts }), accounts)
+      assert.equal(await sidebar.locator('[data-cm-display="balance"]').count(), 1, 'one account or old snapshots keep the original row')
+      assert.ok(!(await sidebar.locator('[data-cm-display="balance"]').innerText()).includes('工作账号'))
+    }
+    assert.deepEqual(errors, []); assert.deepEqual(external, [])
+    console.log('[ok] multiple balances: list, selection, sidebar, equal amounts, single-account and legacy layout')
+  } else if (process.argv.includes('--balance-source-only')) {
+    const source = page.getByLabel('余额来源', { exact: true })
+    assert.equal(await source.inputValue(), 'auto')
+    await source.selectOption('account')
+    await page.waitForFunction(() => window.current().balance.source === 'account' && window.patches.some(p => p.balance?.source === 'account'))
+    await page.reload()
+    assert.equal(await source.inputValue(), 'account', 'wallet preference survives reopening')
+    await page.screenshot({ path: join(output, 'balance-source.png'), fullPage: true })
+    await source.selectOption('auto')
+    await page.waitForFunction(() => window.current().balance.source === 'auto')
+    assert.deepEqual(errors, []); assert.deepEqual(external, [])
+    console.log('[ok] balance source: selection, autosave, reopening and restoring auto')
+  } else if (process.argv.includes('--plan-amounts-only')) {
     const open = async () => {
       await page.getByRole('tab', { name: '显示', exact: true }).click()
       await page.getByRole('tab', { name: '输入区', exact: true }).click()

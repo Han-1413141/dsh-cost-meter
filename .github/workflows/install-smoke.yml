@@ -156,6 +156,8 @@ jobs:
           node test/query-accounts-browser.mjs
           node test/display-settings-browser.mjs --quick-hide-only
           node test/display-settings-browser.mjs --plan-amounts-only
+          node test/display-settings-browser.mjs --balance-source-only
+          node test/display-settings-browser.mjs --multi-balance-only
           node test/session-costs-performance-browser.mjs
           node test/statistics-cache.mjs
           node --expose-gc test/statistics-memory.mjs

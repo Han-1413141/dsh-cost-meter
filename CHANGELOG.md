@@ -1,6 +1,8 @@
 # Changelog
 ## [Unreleased]
 
+## [1.9.67] - 2026-11-15
+
 - 展示币种从 USD/CNY/EUR 扩展到 26 种 ECB 参考汇率，切换币种保留小数位设置；新增「余额显示币种」（原币种 / 跟随显示币种 / 目录币种），官方与自定义余额都可换算展示。
 - 修复切换余额显示币种、开启官方渠道过滤、点击隐藏或对账开关后，侧栏余额行消失到下次刷新才恢复的问题：这些开关只影响展示，现在保留已取回的余额快照。
 - 每日汇率改为一次取回全部报价，个别币种缺报或晚一天公布时保留上一次的值；价格历史仍只记录 USD/CNY/EUR，账本体积不变。
@@ -13,6 +15,16 @@
 - Accept any uppercase three-letter `displayCurrency` code in statistics, session detail and exports, falling back to the USD view outside the catalog.
 - Render the long-text selectors in the settings inspector (balance currency, language, currency) on their own full-width row.
 - Show a currency symbol on the balance row in every combination, and make each symbol identify exactly one currency: dollar currencies use HK$/A$/C$/NZ$/MX$/S$, the yen uses JP¥ to stay distinct from the yuan's ¥, and the Nordic kroner split into kr/NKr/Dkr.
+
+- 多账号余额列表支持切换、改名和删除，侧栏同时显示各账号余额；空凭据不计数，相同 Key 合并显示，单账号保留原样。
+- 官方余额新增“余额来源”选择，可手动查询当前 DSH 登录账号钱包；默认保持模型 Key 优先，手选账号和专用 Key 始终优先。
+- 修正凭据文档：已验证的 DSH 0.2.2-rc.1 / rc.3 优先读取凭据文件，再读取环境变量。
+- Add an explicit signed-in wallet choice for official balances. Auto still prefers the model key; selected accounts and dedicated keys retain priority.
+- Correct the credential documentation to reflect file-first resolution in the verified DSH 0.2.2-rc.1 and rc.3 providers.
+
+感谢 [@Aaryan-Thakur](https://github.com/Aaryan-Thakur) 在 [#506](https://github.com/Han-1413141/dsh-cost-meter/pull/506) 提供币种扩展、余额展示修复和测试，[@mikechen25](https://github.com/mikechen25) 在 [#507](https://github.com/Han-1413141/dsh-cost-meter/issues/507) 提供余额来源需求与复现，以及 [@7WhiteChocolate](https://github.com/7WhiteChocolate) 在 [#502](https://github.com/Han-1413141/dsh-cost-meter/issues/502) 提供 Key 更换反馈，促成凭据来源说明核对。
+
+[更新说明 / Release notes](docs/update-notes-1.9.67.md)
 
 ## [1.9.66] - 2026-11-15
 
