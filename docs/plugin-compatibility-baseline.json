@@ -1,8 +1,8 @@
 {
-  "recordedAt": "2026-11-14T06:15:19.584Z",
+  "recordedAt": "2026-11-15T07:13:51.382Z",
   "plugins": {
     "billion-context": {
-      "version": "0.1.213",
+      "version": "0.1.214",
       "signature": {
         "main": "dist/index.js",
         "exports": {
@@ -27,16 +27,16 @@
           }
         },
         "functions": {
-          "fetchWithTimeout": "fa72cb5924453ed3a7cfb3489a7847064f62017c3b6614e6da2a6c5fe16ac5af",
-          "handle": "0dd735ebb7179b0f6d4ebff338a6296d3b0db6c63be0bb85d23fa5242af0909a",
-          "requestSummaryBody": "6af0543c5e140a10feb8552acbc1010680035e52c480b9130a9a966db6c70a13",
-          "fetchWithRetry": "cf93e3e71ac0597488cc5822a8c3bbf9a463557f8cc625a50b026130cab3a1a8",
-          "installNativeFetchIntercept": "839879dc75b8e7ef4e3bff02f5fbe1b3c0e964fffaf0ea9635a4bd5138d403c3"
+          "fetchWithTimeout": "164c1a4f001b22999a6f7f0271ecc7a606141945ac0aba9a13d0db6fac9bfe50",
+          "handle": "7950d3ea35b98f5bca6a25f15cc926a1749336d207db0598299b2f826f9c96f2",
+          "requestSummaryBody": "bb8e2a37bab3bdb27af670e8817be92d42e2b2f84b74f9c58b8c4c4c2d208f00",
+          "fetchWithRetry": "c4c2ee386b5489dc1bfe52c9ea1629d3ae57c0d5c0854b0efaa76b02d7487af0",
+          "installNativeFetchIntercept": "87be43453f3b4039b6707e1dbb21ab1e21cb122145c917ddb61fb1063c0f364c"
         }
       },
-      "interfaceHash": "7ae4d49fc8a0b12496bd4c69b136ce46922ca3d391b91a99f38ea460dd7bd204",
-      "integrity": "sha512-27GMDHpqImsGev2Pw2JUyWImzJChggJVUqo6RNNeZ4CWFMnuKReQWFghOAZTBU05pmYho/2K0UZ7WWjQ+aBBWQ==",
-      "packageUrl": "https://registry.npmjs.org/billion-context/-/billion-context-0.1.213.tgz"
+      "interfaceHash": "1a0aff3f2aab1d8c0d6793f207728a428c890499bcafbfb7fbdea3df551337f5",
+      "integrity": "sha512-09sddz0mfNo9tmgHxZya3f77UEvnj2fwDusTU5q/xVs47Tao2MYlGlvujMiVzj+Q/EQ/gNsYyV3xlPn8IIqfnA==",
+      "packageUrl": "https://registry.npmjs.org/billion-context/-/billion-context-0.1.214.tgz"
     },
     "dsh-codex-subscription": {
       "version": "3.2.16",
