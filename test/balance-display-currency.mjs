@@ -11,6 +11,15 @@ const row = { enabled: true, unit: 'USD', request: { url: 'https://balance.examp
 const defaults = sanitizeConfig({ customBalances: [row, row] })
 assert.equal(defaults.customBalance.convertToDisplayCurrency, false)
 assert.deepEqual(defaults.customBalances.map(e => e.convertToDisplayCurrency), [false, false])
+// 余额显示币种:native(默认)| display | 目录内代码;非法值回落 native。
+assert.equal(defaults.balance.currency, 'native', '余额显示币种默认跟随原币种')
+const gbpPatch = applyConfigPatch(defaults, { balance: { currency: 'GBP' } })
+assert.deepEqual(gbpPatch.errors, [])
+assert.equal(gbpPatch.config.balance.currency, 'GBP')
+assert.equal(stateSchema.shape.config.parse(gbpPatch.config).balance.currency, 'GBP', 'strict codec 接受目录内代码')
+assert.deepEqual(applyConfigPatch(defaults, { balance: { currency: 'display' } }).errors, [])
+assert.ok(applyConfigPatch(defaults, { balance: { currency: 'ZZZ' } }).errors.length, '目录外代码被拒绝')
+assert.equal(sanitizeConfig({ balance: { currency: 'ZZZ' } }).balance.currency, 'native', '非法值回落原币种')
 const legacy = sanitizeConfig({ customBalance: { ...row, convertToDisplayCurrency: true } })
 assert.equal(legacy.customBalances[0].convertToDisplayCurrency, true, '旧单条配置迁移保留开关')
 for (const invalid of ['true', 1, null, {}, []]) {

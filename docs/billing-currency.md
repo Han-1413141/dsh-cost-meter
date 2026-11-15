@@ -4,6 +4,8 @@
 
 **Display currency** changes how amounts are shown. **Official price currency** selects the DeepSeek price table fetched by Sync. USD prices multiplied by a display exchange rate are not the official CNY prices.
 
+The display-currency selector lists 26 ECB reference currencies (USD, CNY, EUR, GBP, JPY, KRW, INR, HKD, SGD, AUD, CAD, CHF, NZD, BRL, MXN, ZAR, TRY, SEK, NOK, DKK, PLN, THB, IDR, MYR, PHP, ILS). CNY and EUR keep the amount recorded at the time of each call; every other currency converts at the latest daily reference rate, so its historical totals follow that rate. Switching the display currency never changes the ledger, which stays in USD.
+
 For a CNY account, open **Settings → Cost → Prices → Official price sync**, choose **CNY**, wait for auto-save, then click **Sync from official docs** and apply. The CNY hint includes a button to select CNY; this selection alone does not fetch prices or reprice history. Check the sync result: if the CNY page is unavailable and syncing falls back to USD, the hint remains. Switching the table currency preserves recorded amounts. Historical repricing is a separate, explicitly confirmed action that creates a backup and skips records with incomplete logs. No setting changes merely because the hint appears.
 
 For the September 2026 Flash off-peak rates, USD prices of $0.003 / $0.15 / $0.60 correspond to CNY prices of ¥0.02 / ¥1 / ¥4 per million cache-read / uncached-input / output tokens. Multiplying the USD prices by 7.2 gives ¥0.0216 / ¥1.08 / ¥4.32, 8% above that CNY table. The ratio is a comparison of those published prices, not a market exchange rate or a universal rule for every model. Sources: [DeepSeek USD prices](https://api-docs.deepseek.com/quick_start/pricing/) and [DeepSeek CNY prices](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/).
@@ -13,6 +15,8 @@ Use the matching official table when comparing bills. Exchange-rate changes appl
 ## 中文
 
 **显示币种**只决定金额如何展示；**官方价格币种**决定同步哪套 DeepSeek 价格。美元价格乘以显示汇率，不等于官方人民币报价。
+
+展示币种选择器提供 26 种 ECB 参考汇率（USD、CNY、EUR、GBP、JPY、KRW、INR、HKD、SGD、AUD、CAD、CHF、NZD、BRL、MXN、ZAR、TRY、SEK、NOK、DKK、PLN、THB、IDR、MYR、PHP、ILS）。人民币和欧元保留每次调用发生时记录的金额，其他币种按最新每日参考汇率折算，因此历史合计会跟随该汇率变动。切换展示币种不会改动账本，账本恒以美元保存。
 
 人民币账户请进入**设置 → 费用 → 价格 → 官方价格同步**，选择 **CNY**，等待自动保存，再点击同步并应用。提示中的按钮可以直接选择 CNY；仅选择币种不会抓取价格或重算历史。同步后应查看结果：若人民币页面不可用、回退到美元表，提示仍然保留。切换价目表币种保留已有金额；历史重定价是需要确认的独立操作，会保存备份并跳过日志不完整的记录。出现提示本身不会修改设置。
 

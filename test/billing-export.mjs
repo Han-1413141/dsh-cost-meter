@@ -89,7 +89,7 @@ try {
   ledger.days[date].cost = original
   exporter.get({ id: page.id, cancel: true })
   assert.throws(() => exporter.get({ id: page.id }), /expired/)
-  for (const currency of ['CNY', 'EUR']) {
+  for (const currency of ['CNY', 'EUR', 'JPY']) {
     const result = await ready(exporter, exporter.get({ ...query, displayCurrency: currency }))
     const parsed = JSON.parse(download(exporter, result).toString('utf8'))
     assert.equal(parsed.currency, currency)
@@ -113,7 +113,10 @@ try {
   assert.match(csvBytes.toString('utf8'), /"'=中文,""标题""\n第二行"/)
   assert.equal(billingExportCsv(['x'], [['\t=1+1'], ['+cmd'], [-2]]), '\uFEFF"x"\r\n"\'\t=1+1"\r\n"\'+cmd"\r\n"-2"\r\n')
   assert.throws(() => exporter.get({ ...query, format: 'bad' }), /format/)
-  assert.throws(() => exporter.get({ ...query, displayCurrency: 'JPY' }), /currency/)
+  // 目录外代码(含旧版自定义符号)按美元视图导出,文件里标注 USD,不产生错误页。
+  const unsupported = await ready(exporter, exporter.get({ ...query, displayCurrency: 'ZZZ' }))
+  assert.equal(JSON.parse(download(exporter, unsupported).toString('utf8')).currency, 'USD')
+  exporter.get({ id: unsupported.id, cancel: true })
   assert.throws(() => exporter.get({ id: csv.id, offset: -1 }), /offset/)
   assert.equal(billingExportQuerySchema.safeParse({ offset: -1 }).success, false)
   exporter.dispose()

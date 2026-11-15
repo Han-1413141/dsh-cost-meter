@@ -2,6 +2,14 @@
 
 在“费用 → 显示 → 输入区 → 套餐进度条”关闭“显示套餐余额”，输入框上方只保留套餐进度条与百分比，隐藏余额等文本段。默认开启，悬浮详情保留完整信息；该开关不会修改侧栏或账户查询。设置预览同步显示开关效果，保存后重启仍生效。
 
+在“费用 → 显示 → 通用设置”（或“侧栏 → 调整组件 → 通用设置”）的“货币单位”中可选择 26 种展示币种。切换时更新符号与该币种的每日参考汇率，小数位保持当前设置；关闭自动更新后使用输入的手动值，切换币种则改用该币种的目录汇率。旧版本保存的自定义币种仍作为一条选项显示。人民币与欧元保留调用时记录的金额，其他币种按最新参考汇率折算；完整说明见[每日汇率与历史金额](exchange-rates.md)。
+
+**Display currency:** the **Currency** field in **Cost → Display → General** (also in **Sidebar → Customize → General**) lists 26 reference currencies. Selecting one updates the symbol and that currency's daily rate; the decimal places stay as configured. With auto-update off the manual rate applies, and switching currency falls back to the catalog rate. A custom currency saved by an older version stays listed. CNY and EUR keep the amount recorded per call, other currencies follow the latest daily rate — see [daily rates and historical amounts](exchange-rates.md).
+
+在“侧栏 → 调整组件 → 官方余额 → 余额显示币种”可单独选择余额金额的展示币种:原币种(默认)、跟随显示币种或币种目录中的任一代码。换算使用当前每日参考汇率;目标不在 USD/CNY/EUR 内时以代码前缀显示。进度比例与预算上限仍按余额记账币种计算，金额随所选币种换算展示。详见[自定义余额来源](custom-balance-sources.md)。
+
+**Balance currency:** under **Sidebar → Customize → Official balance → Balance currency** the balance amount can be shown in its native currency (default), the display currency, or any catalog code. Conversion uses the current daily reference rate, and targets outside USD/CNY/EUR use a code prefix. Progress percentages and budget limits stay in the balance's own currency. See [custom balance sources](custom-balance-sources.en.md).
+
 在“费用 → 显示 → 侧栏”打开“隐藏进度条，仅显示紧凑文本”，可去掉峰谷时段、套餐额度、余额、预算和模型占比的图形条。额度保留窗口名与百分比，峰谷保留当前时段、倒计时和切换时间；悬停详情、点击刷新与超额警告仍可使用。偏好会保存，重启后保留。此选项只影响侧栏和侧栏预览，不改变用量查询、账本、计价、输入区额度条或原有布局/条形方向；关闭后恢复原样式。在峰谷组件里仍可选择只显示倒计时或切换时间。
 
 **Compact text:** In **Cost → Display → Sidebar**, enable **Hide progress bars, show compact text** to hide sidebar pricing-period, quota, balance, budget and model-share bars. Window labels, percentages, period times, hover details, refresh actions and warnings remain available. The preference survives restart, applies to the sidebar preview, and never changes billing, account queries, composer bars or the saved graphical style. Disable it to restore the existing bars.
