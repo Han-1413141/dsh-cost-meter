@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.9.66] - 2026-11-15
+
+- 验证 billion-context 0.1.214 的原生及代理计费、摘要、重试、历史回放与原版 CLI 自动接入，更新兼容基线并加入 CI。
+- 根据 @7WhiteChocolate 在 [#502](https://github.com/Han-1413141/dsh-cost-meter/issues/502#issuecomment-6877106296) 的恢复反馈，补充已保存 Key 返回 HTTP 401 的排查说明。
+- Verify the actual billion-context 0.1.214 package and add it to the compatibility baseline and CI.
+- Document HTTP 401 troubleshooting for stored balance keys following the recovery report in #502.
+
+[更新说明 / Release notes](docs/update-notes-1.9.66.md)
+
 ## [1.9.65] - 2026-11-14
 
 - 输入区套餐进度条新增“显示套餐余额”开关，默认开启。关闭后保留进度条，余额可在悬浮提示中查看，预览和保存状态同步。

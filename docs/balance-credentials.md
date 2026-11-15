@@ -25,6 +25,14 @@ Desktop 使用相同的费用设置页与宿主凭据接口。更新时使用 De
 
 当前余额凭据更换、清除，以及所用模型路由的 `apiKeyEnv` 或 `baseURL` 变化，会作废余额缓存、在途响应与对账基准。无关模型配置不影响手动选择的余额账号或专用 Key。账号退出、凭据失效及账号服务替换同样会清除旧状态。插件只读取宿主公开的配置描述与生命周期事件；重新挂载时，为所有余额来源重新建立对账基准。
 
+## 已保存的 Key 返回 401
+
+“已配置，来源为 file”表示 DSH 凭据库里有这个值，不表示开放平台仍接受它。HTTP 401 表示当前请求的凭据未通过官方认证；仅凭状态码无法区分 Key 被撤销、保存内容不完整或凭据类型不对。重新保存相同内容不会改变服务端认证结果，最小化窗口也不会使无效 Key 恢复。
+
+请在 DeepSeek 开放平台确认 Key 状态。旧 Key 已丢失、无法核对时，创建新 Key，保存到“余额专用 API Key”，然后点击“刷新余额”。输入框保存后清空是隐藏密钥的正常行为，不是凭据丢失。不要在 issue 中上传 Key、凭据文件或请求头。
+
+[#502](https://github.com/Han-1413141/dsh-cost-meter/issues/502#issuecomment-6877106296) 的报告者 @7WhiteChocolate 确认换用新建 Key 后恢复。旧 Key 未保留，具体失效原因没有得到验证；本次没有把该问题归因于窗口恢复或插件更新，也没有改变余额来源顺序。
+
 ## 验证
 
 验证使用合成凭据和 HTTP 响应，覆盖真实 DSH 凭据 provider 的「进程环境优先于凭据文件」行为、保存/清除、缓存取消、迟到响应、对账基准以及 Host/Client codec。专项回归还覆盖账号与模型 Key 的来源优先级、旧版设置接口与新版配置描述、模型路由切换、官方 Messages 地址、账号异常脱敏、刷新节流、对账基准持久化及客户端错误渲染。
@@ -44,3 +52,5 @@ Query priority is **manually selected balance account → dedicated Key → mode
 Changes to the active balance credential or its model route (`apiKeyEnv` or `baseURL`) invalidate cached and in-flight balances and clear reconciliation baselines. Unrelated model changes leave manually selected accounts and dedicated Keys unchanged. Account sign-out, expiry, and account-service replacement also clear old state. The plugin reads public configuration descriptions and lifecycle events. Every balance source establishes a new reconciliation baseline when the plugin mounts again.
 
 When no model API key is resolved, an unavailable model settings service does not block the signed-in account wallet. Manual refresh retries an unavailable route; a resolved model Key still requires a verified official endpoint.
+
+**A stored key returns HTTP 401.** “Configured, source: file” only confirms that DSH has a stored value. HTTP 401 means that the official API rejected the credential; the status alone cannot distinguish a revoked key, an incomplete value or the wrong credential type. Check the key in the DeepSeek Open Platform. If the old value is unavailable, create a new key, save it as the dedicated balance key and refresh. Clearing the input after saving hides the secret; it does not delete the stored credential. Never post keys, credential files or request headers in an issue. In [#502](https://github.com/Han-1413141/dsh-cost-meter/issues/502#issuecomment-6877106296), @7WhiteChocolate confirmed that a new key restored the balance. The reason the old key stopped working was not established.
