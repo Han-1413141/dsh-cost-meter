@@ -246,6 +246,8 @@ try {
   assert.equal(tierFor(normalizePrice(await customPrice()), time, peakConfig).cacheMiss, 0)
   await page.screenshot({ path: join(output, 'peak-price-multipliers.png'), fullPage: true })
   await custom.getByRole('checkbox', { name: '启用峰谷价格', exact: true }).uncheck()
+  await custom.locator('summary').filter({ hasText: '更多计费项' }).click()
+  await custom.getByRole('checkbox', { name: '启用长上下文价格', exact: true }).check()
   for (const width of [390, 1100]) {
     await page.setViewportSize({ width, height: 1000 })
     const bounds = await custom.evaluate(node => ({ width: node.getBoundingClientRect().width, scroll: node.scrollWidth, client: node.clientWidth,
@@ -254,6 +256,7 @@ try {
     assert.ok(bounds.fields.length >= 3 && bounds.fields.every(value => value >= 80), 'custom price fields remain readable at '+width)
   }
   await page.screenshot({ path: join(output, 'custom-channel-price.png'), fullPage: true })
+  await custom.screenshot({ path: join(output, 'custom-long-context.png') })
   await outputPrice.fill('10 x 0.8')
   await unknown.getByRole('button', { name: 'fixture:unknown · 设置价格', exact: true }).click()
   await page.waitForFunction(() => window.patches.some(p => p.prices?.custom?.['fixture:unknown']?.output === 10))

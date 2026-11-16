@@ -173,6 +173,7 @@ jobs:
           node test/factory-quota-browser.mjs
           node test/codex-quota-browser.mjs
           node test/display-settings-browser.mjs
+          node test/display-settings-browser.mjs --icons-only
           node test/quota-placement-browser.mjs
           node test/opendesign-login-browser.mjs
           node test/balance-gateway-browser.mjs
