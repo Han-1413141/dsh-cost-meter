@@ -20,12 +20,17 @@ const day = { ...zeroDay(), cost: 1.28, apiCost: 1.28 }
 const state = { config, today: day, month: day, total: day, history: [], codingPlans: {}, billionContext: { compatibility: 'ready', unresolved: 0 } }
 const code = `
 import React from ${literal(req.resolve('react'))};
+import * as ReactDOMPortal from ${literal(req.resolve('react-dom'))};
 import { createRoot } from ${literal(req.resolve('react-dom/client'))};
 window.parts = {};
-window.__ModuleLoader__ = { load: mod => { window.parts[mod.chunk || 'main'] = mod.factory(name => name === 'react' ? React : {Tooltip:({children})=>children}); } };
+const fixtureRequire = name => name === 'react' ? React : name === 'react-dom' ? ReactDOMPortal : {Tooltip:({children})=>children};
+fixtureRequire.async = async path => { const chunk = window.parts[path.slice(2)]; if (!chunk) throw Error('Unexpected test chunk: ' + path); return chunk };
+window.__ModuleLoader__ = { load: mod => { window.parts[mod.chunk || 'main'] = mod.factory(fixtureRequire); } };
 ${client}
 ${readFileSync('lib/client.settings-overview.js', 'utf8')}
 ${readFileSync('lib/client.display.js', 'utf8')}
+${readFileSync('lib/client.sidebar-icons.js', 'utf8')}
+${readFileSync('lib/client.peak.js', 'utf8')}
 let state=${literal(state)}, snapshot={state,status:'ready'},listeners=new Set();
 const store={getSnapshot:()=>snapshot,subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn)}};
 const publish=()=>{snapshot={...snapshot,state};for(const listener of listeners)listener()};

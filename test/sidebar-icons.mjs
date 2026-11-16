@@ -29,11 +29,12 @@ assert.equal(sanitizeConfig({ sidebarSimple: true }).sidebarSimple, true)
 const wire = stateSchema.shape.config.parse(patch.config)
 
 let registration, override = [], coarse = false, pocket = false, queryCount = 0
-const stateWrites = []
+const stateWrites = [], recordedEffects = []
+let recordEffects = false
 class Clock extends Date { static now() { return now } }
 const element = (type, props, ...children) => ({ type, key: props?.key ?? null, props: props ?? {}, children })
 const React = { createElement: element, Fragment: 'fragment', useId: () => 'test-id', useRef: value => ({ current: value }),
-  useEffect() {}, useState: value => [override.length ? override.shift() : typeof value === 'function' ? value() : value, value => stateWrites.push(value)] }
+  useEffect(effect) { if (recordEffects) recordedEffects.push(effect) }, useState: value => [override.length ? override.shift() : typeof value === 'function' ? value() : value, value => stateWrites.push(value)] }
 const context = vm.createContext({ Date: Clock, URL, navigator: { language: 'en' }, console,
   document: { body: { getAttribute: () => pocket ? 'mobile' : null } },
   window: { matchMedia: () => ({ matches: coarse }), __ModuleLoader__: { load: v => { registration = v } } },
@@ -78,6 +79,16 @@ override = [null, 'load failed', 0]
 const failed = core.BillingStatistics(loader.props)
 assert.equal(failed.children[0], loader.props.nodes)
 assert.equal(failed.children[1].type, 'button', 'load error offers retry without blanking existing features')
+recordEffects = true
+const synchronousFailure = core.BillingStatistics({ ...loader.props, load: () => { throw Error('synchronous-loader-unavailable') } })
+recordEffects = false
+assert.equal(synchronousFailure.children[0], loader.props.nodes)
+assert.equal(recordedEffects.length, 1)
+let disposeLoad
+assert.doesNotThrow(() => { disposeLoad = recordedEffects[0]() }, 'a missing require.async must not crash the settings tree')
+await new Promise(resolve => setImmediate(resolve))
+assert.ok(stateWrites.includes('synchronous-loader-unavailable'), 'synchronous loader failures take the same retry/fallback path')
+disposeLoad()
 for (const wide of [false, true]) {
   const c = { ...config, sidebarSimple: true }
   const simple = core.renderSidebarFooter({ ...state, config: c }, wide)
