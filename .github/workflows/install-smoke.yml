@@ -243,6 +243,8 @@ jobs:
         run: |
           export DSH_TEST_NODE_MODULES="$PWD/.tmp-sidebar-host/node_modules"
           node test/sidebar-search-recovery.mjs
+          # Forks may not publish the historical upstream tags; fetch the read-only baseline explicitly.
+          git fetch --no-tags --depth=1 https://github.com/Han-1413141/dsh-cost-meter.git refs/tags/v1.8.6:refs/tags/v1.8.6
           node test/credential-editor-dom.mjs --baseline v1.8.6
 
   statistics-client:

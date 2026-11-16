@@ -31,11 +31,16 @@ const core = {core_fiveHour:{percent:0,resetsAt:''},core_weekly:{percent:45,rese
 const initialState = { config:sanitizeConfig({ locale:'zh', balance:{display:'off'}, goQuota:{enabled:false}, codingPlans:{factory:{enabled:true,display:'both'}}, quotaStrip:{enabled:true,budget:false,go:false,plans:true} }), today:day,month:day,total:day,history:[],balance:{},codingPlans:{factory:{enabled:true,display:'both',status:'ok',fetchedAt:1,windows:standard,keyConfigured:false}} }
 const code = `
 import React from ${literal(req.resolve('react'))};
+import * as ReactDOMPortal from ${literal(req.resolve('react-dom'))};
 import {createRoot} from ${literal(req.resolve('react-dom/client'))};
-const require=name=>name==='react'?React:{Tooltip:({children})=>children};require.async=async()=>window.planUI;window.__ModuleLoader__={load:mod=>window.costUI=mod.factory(require)};
+const require=name=>name==='react'?React:{Tooltip:({children})=>children};require.async=async path=>{const chunk=path==='./client.plan-settings.js'?window.planUI:path==='./client.sidebar-icons.js'?window.sidebarIconsUI:path==='./client.peak.js'?window.peakUI:null;if(!chunk)throw Error('Unexpected test chunk: '+path);return chunk};window.__ModuleLoader__={load:mod=>window.costUI=mod.factory(require)};
 ${client}
 window.__ModuleLoader__={load:mod=>window.planUI=mod.factory(require)};
 ${readFileSync('lib/client.plan-settings.js','utf8')}
+window.__ModuleLoader__={load:mod=>window.sidebarIconsUI=mod.factory(name=>name==='react'?React:{})};
+${readFileSync('lib/client.sidebar-icons.js','utf8')}
+window.__ModuleLoader__={load:mod=>window.peakUI=mod.factory(name=>name==='react-dom'?ReactDOMPortal:React)};
+${readFileSync('lib/client.peak.js','utf8')}
 window.__ModuleLoader__={load:mod=>window.displayUI=mod.factory(()=>React)};
 ${readFileSync('lib/client.display.js','utf8')}
 const Display=window.displayUI.mount({effect:()=>{}});
