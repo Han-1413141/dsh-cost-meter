@@ -27,6 +27,7 @@ let saved = sanitizeConfig({ locale: 'zh', prices: { currency: 'USD', default: t
   providers: { fixture: { models: { 'cache-model': model, 'untouched-model': model } } } },
   priceTableDisplay: { 'deepseek:cache-deepseek': false } })
 const day = zeroDay('2026-10-15')
+day.byProviderModel = { 'fixture:cache-model': { calls: 1, cost: 1 }, 'fixture:fresh': { calls: 1, cost: 0 } }
 const state = { config: saved, today: day, month: day, total: day, history: [], balance: {}, priceCatalog: {
   fixture: { 'Fixture models': { 'cache-model': model } }, deepseek: { 'Fixture models': { 'cache-deepseek': saved.prices.models['cache-deepseek'] } },
 } }
@@ -41,10 +42,10 @@ ${readFileSync('src/pricing/index.js', 'utf8')};
 (async()=>{
   const {CostSection,parseConfig}=window.costUI.preview;
   const state=${literal(state)}; state.config=parseConfig(await window.readSavedConfig(),'config');
-  window.savedCount=0;
+  window.savedCount=0;window.savedConfig=state.config;
   const pricing=window.priceUI.mount({effect:fn=>fn(),get:key=>key==='remote'?{$mount:async()=>()=>{}}:{}});
   const api={loadPricing:()=>pricing,loadOpenRouter:async()=>()=>null, updateConfig:async patch=>{
-    await window.saveConfig(patch);window.savedCount++;
+    await window.saveConfig(patch);window.savedConfig=await window.readSavedConfig();window.savedCount++;
   }};
   createRoot(document.getElementById('root')).render(React.createElement(CostSection,{useCost:()=>({state,status:'ready'}),api}));
   window.fixtureReady=true;
@@ -185,6 +186,58 @@ try {
   assert.equal(await page.evaluate(() => window.savedCount), saves + 1, 'Enter then blur saves once')
   assert.equal(provider().input, 4); assert.equal(provider().multiplier, 1)
   assert.deepEqual(saved.prices.providers.fixture.models['untouched-model'], model)
+  // #511: copied prices keep all supported tiers; edits survive host validation and reopening.
+  const openCustom = async (id, en = false) => {
+    await page.getByRole('tab', { name: en ? 'Model pricing' : '模型定价', exact: true }).click()
+    const row = page.locator('[data-model-key="fixture:' + id + '"]')
+    await row.getByRole('button', { name: 'fixture:' + id + (en ? ' · Set price' : ' · 设置价格'), exact: true }).click()
+    await row.getByRole('button', { name: en ? 'Custom' : '自定义', exact: true }).click()
+    await page.waitForFunction(id => window.savedConfig?.priceOverrides?.['fixture:' + id] === '__custom__', id)
+    await row.locator('.cm-custom-more summary').filter({ hasText: en ? 'More billing fields' : '更多计费项' }).click()
+    return row.locator('.cm-custom-price')
+  }
+  let custom = await openCustom('cache-model')
+  const customValue = () => saved.prices.custom['fixture:cache-model']
+  assert.ok(saved.prices.custom?.['fixture:cache-model'], JSON.stringify({ quote: patches.at(-1)?.prices?.custom?.['fixture:cache-model'], override: saved.priceOverrides['fixture:cache-model'] }))
+  assert.deepEqual(customValue().longContext, model.longContext, 'copying a catalog quote retains long-context and optional rates')
+  assert.deepEqual(customValue().peak, model.peak)
+  const threshold = custom.getByRole('spinbutton', { name: '输入 Token 阈值', exact: true })
+  await edit(threshold, '272000')
+  const longField = name => custom.getByRole('textbox', { name: 'fixture:cache-model · 长上下文 · ' + name, exact: true })
+  await edit(longField('输入 · 未命中缓存'), '3.2')
+  await edit(longField('缓存读取'), '0.16')
+  await edit(longField('输出'), '12')
+  await edit(longField('缓存写入'), '')
+  await edit(custom.getByRole('textbox', { name: 'fixture:cache-model · 输入 · 未命中缓存', exact: true }), '1.6')
+  assert.equal(customValue().longContext.aboveInputTokens, 272000)
+  assert.equal(customValue().longContext.cacheMiss, 3.2)
+  assert.equal(customValue().peak.cacheWrite, 7, 'editing base and long tiers retains peak fields')
+  assert.equal(costOf({ input: 272000 }, normalizePrice(customValue())), .4352)
+  assert.ok(Math.abs(costOf({ input: 272001 }, normalizePrice(customValue())) - .8704032) < 1e-10)
+  assert.ok(Math.abs(costOf({ input: 1, cacheRead: 272000, output: 100 }, normalizePrice(customValue())) - .0447232) < 1e-10, 'cached input participates in threshold')
+  for (const invalid of ['0', '-1', '2.5', '']) {
+    const count = patches.length
+    await threshold.fill(invalid); await threshold.press('Tab')
+    assert.equal(await threshold.getAttribute('aria-invalid'), 'true')
+    assert.equal(patches.length, count, 'invalid thresholds do not save')
+  }
+  await threshold.press('Escape')
+  const retained = structuredClone(customValue())
+  await page.reload(); await page.waitForFunction(() => window.fixtureReady)
+  await page.getByRole('tab', { name: '价格', exact: true }).click()
+  custom = await openCustom('cache-model')
+  assert.deepEqual(customValue(), retained, 'custom long-context settings survive reopening')
+  assert.equal(await custom.getByRole('spinbutton', { name: '输入 Token 阈值', exact: true }).inputValue(), '272000')
+  await page.setViewportSize({ width: 390, height: 900 })
+  await custom.screenshot({ path: join(output, 'long-context-390.png') })
+  assert.ok(await custom.evaluate(node => node.getBoundingClientRect().right <= innerWidth + 1))
+  const fresh = await openCustom('fresh')
+  await fresh.getByRole('checkbox', { name: '启用长上下文价格', exact: true }).check()
+  await page.waitForFunction(() => window.savedConfig?.prices.custom?.['fixture:fresh']?.longContext?.aboveInputTokens === 272000)
+  assert.equal(saved.prices.custom['fixture:fresh'].longContext.aboveInputTokens, 272000)
+  await fresh.getByRole('checkbox', { name: '启用长上下文价格', exact: true }).uncheck()
+  await page.waitForFunction(() => window.savedConfig?.prices.custom?.['fixture:fresh']?.longContext === undefined)
+  assert.equal(saved.prices.custom['fixture:fresh'].longContext, undefined)
   for (const [locale, scheme, width] of [['zh', 'light', 1100], ['zh', 'dark', 390], ['en', 'light', 390]]) {
     saved.locale = locale
     // Restore the catalog placement for the same responsive layout check.

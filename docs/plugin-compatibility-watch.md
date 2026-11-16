@@ -91,6 +91,10 @@ node test/codex-subscription-published.mjs
 
 兼容基线更新为 3.2.4，两个既有宿主的 CI 矩阵均加入该实际发布包。
 
+### 2026-11-16：billion-context 0.1.215、dsh-codex-subscription 3.2.17 / 3.2.18
+
+两类插件接口指纹保持一致。billion-context 0.1.215 的原生与代理计费、原版 CLI 自动接入、重试、摘要、子代理、回放和重启检查通过。dsh-codex-subscription 3.2.17、3.2.18 的发布包 RPC、额度解析、刷新、账号缓存切换、认证错误和取消检查通过。测试使用本机服务与合成数据，外部请求为 0。基线和 CI 更新至 0.1.215、3.2.18。
+
 ### 2026-11-15：billion-context 0.1.214
 
 处理 github-actions[bot] 在 [#504](https://github.com/Han-1413141/dsh-cost-meter/issues/504) 报告的五个接入函数变化。新版拆分首字节与响应体超时，调整摘要日志、错误响应清理，以及原生请求的代理选项和预填充请求头处理。
