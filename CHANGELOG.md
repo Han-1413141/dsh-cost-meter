@@ -1,10 +1,20 @@
 # Changelog
 ## [Unreleased]
 
+## [1.9.69] - 2026-11-16
+
+- 自定义价格的“更多计费项”增加长上下文阈值和各项单价；从参考价格复制或继续编辑时保留长上下文、峰谷及其他已支持的价格字段。
+- Add long-context thresholds and rates to custom prices, preserving supported tiers when copying or editing a quote.
+- 验证 billion-context 0.1.215 与 dsh-codex-subscription 3.2.17 / 3.2.18，更新兼容性基线和 CI。
+
 - 新增用户主动选择的“图标”侧栏布局；沿用原费用区块和业务组件，点击图标展开原有余额、套餐、预算等明细及操作，不迁移已有布局偏好。窄栏、小屏、触屏及强制 Pocket 模式保留原有卡片。
 - 峰谷图标使用固定 8 小时倒计时窗口：超过 8 小时保持满环并显示阈值说明，进入窗口后才随剩余时间缩短；实际切换时间沿用上游渠道日历。
 - Add an opt-in **Icons** sidebar layout using the existing footer and original detail/action components. Preserve saved layouts, billing and query settings; retain native cards on small/coarse/Pocket layouts and the collapsed rail.
 - Keep a fixed eight-hour peak countdown window: hold a full ring above eight hours, then shrink with remaining time. No host-specific sidebar selectors or shell-relative image assets.
+
+感谢 [@PersueFree](https://github.com/PersueFree) 在 [#511](https://github.com/Han-1413141/dsh-cost-meter/issues/511) 报告长上下文编辑入口缺失及字段丢失，并提供复现和代码定位；感谢 [@chanyuenpang](https://github.com/chanyuenpang) 在 [#514](https://github.com/Han-1413141/dsh-cost-meter/pull/514) 提供图标侧栏布局、构建优化和回归测试。
+
+[更新说明 / Release notes](docs/update-notes-1.9.69.md)
 
 
 ## [1.9.68] - 2026-11-16

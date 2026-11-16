@@ -18,6 +18,7 @@ import { checkSidebarTextOnly } from './sidebar-text-only-checks.mjs'
 import { checkPlanGauges } from './plan-gauge-checks.mjs'
 import { checkBalanceQuickHide } from './balance-quick-hide-checks.mjs'
 import { checkLocalSavings } from './local-savings-browser-checks.mjs'
+import { checkSidebarIcons } from './sidebar-icons-browser-checks.mjs'
 
 const modules = resolve(process.env.DSH_TEST_UI_MODULES ?? '.tmp-pr240-host/node_modules')
 const req = createRequire(join(modules, '__display.cjs'))
@@ -32,7 +33,7 @@ const day = { ...zeroDay(), cost: 1.28, apiCost: 1.28 }
 const state = { config: saved, today: day, month: day, total: day, history: [], balance: { status: 'error', message: 'Synthetic balance error' }, codingPlans: {}, budgetUsed: 32 }
 const multiBalances = [{ id: 'account-a1', label: '工作账号', status: 'ok', message: '', fetchedAt: Date.now(), currency: 'USD', totalBalance: 12, grantedBalance: 0, toppedUpBalance: 12 },
   { id: 'account-b2', label: '个人账号', status: 'ok', message: '', fetchedAt: Date.now(), currency: 'USD', totalBalance: 12, grantedBalance: 0, toppedUpBalance: 12 }]
-if (process.argv.includes('--multi-balance-only')) {
+if (process.argv.includes('--multi-balance-only') || process.argv.includes('--icons-only')) {
   saved = sanitizeConfig({ ...saved, queryAccounts: { balance: { selected: 'account-a1', accounts: multiBalances.map(({ id, label }) => ({ id, label })) } } })
   Object.assign(state, { config: saved, balance: multiBalances[0], balanceAccounts: multiBalances })
 }
@@ -107,7 +108,10 @@ await page.exposeFunction('saveConfig', patch => {
 })
 try {
   await page.goto(url)
-  if (process.argv.includes('--multi-balance-only')) {
+  if (process.argv.includes('--icons-only')) {
+    await checkSidebarIcons(page, output)
+    assert.deepEqual(errors, []); assert.deepEqual(external, [])
+  } else if (process.argv.includes('--multi-balance-only')) {
     const rows = multiBalances
     const list = page.locator('[data-balance-accounts]'), sidebar = page.locator('#actual-sidebar')
     await list.getByText('工作账号', { exact: true }).waitFor()

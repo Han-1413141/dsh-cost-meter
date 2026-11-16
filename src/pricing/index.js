@@ -354,12 +354,47 @@ window.__ModuleLoader__.load({
         el('p', { className: 'cm-hint' }, en ? 'Use the channel ID from model pricing. Applies to peak-enabled models and is retained when official prices sync.' : '填写模型定价中显示的渠道 ID。规则用于已启用峰谷价格的模型，同步官方价格时会保留。'))
     }
 
+    function ContextThreshold({ value, locale, onChange }) {
+      const [text, setText] = useState(String(value)), [invalid, setInvalid] = useState(false)
+      useEffect(() => { setText(String(value)); setInvalid(false) }, [value])
+      const save = () => {
+        const next = Number(text)
+        if (!text.trim() || !Number.isSafeInteger(next) || next <= 0) { setInvalid(true); return }
+        setInvalid(false); onChange(next)
+      }
+      const label = locale === 'en' ? 'Input Token threshold' : '输入 Token 阈值'
+      return el('label', { className: 'cm-field' }, label, el('input', { className: 'cm-input', type: 'number', min: 1, step: 1,
+        value: text, 'aria-label': label, 'aria-invalid': invalid,
+        title: invalid ? (locale === 'en' ? 'Enter a positive integer.' : '请输入正整数。') : label,
+        onChange: event => { setText(event.target.value); setInvalid(false) }, onBlur: save,
+        onKeyDown: event => { if (event.key === 'Enter') { event.preventDefault(); save() } if (event.key === 'Escape') { event.stopPropagation(); setText(String(value)); setInvalid(false) } } }))
+    }
+
+    function LongContextEditor({ value, label, locale, onChange, t, priceEditor, fields }) {
+      const en = locale === 'en', tier = value.longContext, title = en ? 'Long context' : '长上下文'
+      return el('fieldset', { className: 'cm-long-context' }, el('legend', null, title),
+        el('label', { className: 'cm-check' }, el('input', { type: 'checkbox', checked: !!tier, onChange: event => {
+          const next = { ...value }
+          if (event.target.checked) {
+            next.longContext = { aboveInputTokens: 272000, ...Object.fromEntries(rateFields.map(field => [field, rawRate(value, field)]).filter(([, rate]) => rate != null)) }
+            if (value.separateMultipliers) for (const field of rateFields) Object.assign(next, withRateFactors(next, 'longContext', [field], priceEditor.priceFactor(value, 'base.' + field)))
+          } else delete next.longContext
+          onChange(next)
+        } }), en ? 'Enable long-context prices' : '启用长上下文价格'),
+        tier ? el(Fragment, null,
+          el(ContextThreshold, { value: tier.aboveInputTokens, locale, onChange: aboveInputTokens => onChange({ ...value, longContext: { ...tier, aboveInputTokens } }) }),
+          el('p', { className: 'cm-hint' }, en ? 'Applies when input plus cache read/write exceeds this threshold.' : '输入与缓存读写 Token 合计超过阈值时使用。'),
+          el(TierMultiplier, { value, tier: 'longContext', title: label + ' · ' + title, locale, priceEditor, onChange }),
+          el('div', { className: 'cm-custom-grid' }, ...fields.map(([field, name]) => el(RateField, { key: field, value, tier: 'longContext', field, title: name,
+            label: label + ' · ' + title + ' · ' + name, locale, currency: value.currency, priceEditor, t, onChange })))) : null)
+    }
+
     function CustomPriceEditor({ value, label, locale, onChange, t, priceEditor }) {
       const en = locale === 'en'
       const { priceFactor } = priceEditor
       const fields = [['cacheMiss', en ? 'Input · cache miss' : '输入 · 未命中缓存'], ['cacheHit', en ? 'Cached input' : '缓存读取'], ['output', en ? 'Output' : '输出'], ['cacheWrite', en ? 'Cache write' : '缓存写入'], ['reasoning', en ? 'Separate reasoning' : '单独推理费用']]
       const field = ([key, title]) => el(RateField, { key, value, field: key, title, label: label + ' · ' + title, locale, currency: value.currency, priceEditor, t, onChange })
-      const tiers = [['base', en ? 'Base' : '基础价'], ...(['peak', 'offPeak'].filter(tier => value[tier]).map(tier => [tier, tier === 'peak' ? (en ? 'Peak' : '峰价') : (en ? 'Off-peak' : '谷价')]))]
+      const tiers = [['base', en ? 'Base' : '基础价'], ...(['peak', 'offPeak'].filter(tier => value[tier]).map(tier => [tier, tier === 'peak' ? (en ? 'Peak' : '峰价') : (en ? 'Off-peak' : '谷价')])), ...(value.longContext ? [['longContext', en ? 'Long context' : '长上下文']] : [])]
       return el('fieldset', { className: 'cm-custom-price', 'aria-label': label + (en ? ' · Custom price' : ' · 自定义价格') },
         el('legend', null, en ? 'Custom price · per 1M tokens' : '自定义价格 · 每百万 Token'),
         el('div', { className: 'cm-custom-head' }, el('span', null, en ? 'Only this channel and model' : '仅用于此渠道的这个模型'),
@@ -374,6 +409,7 @@ window.__ModuleLoader__.load({
             el('div', { className: 'cm-effective-grid' }, ...fields.slice(0, 3).map(([key, title]) => el('div', { key }, el('span', null, title), el('strong', null, (value.currency === 'CNY' ? '¥' : '$') + Number((rawRate(tier === 'base' ? value : value[tier], key) * priceFactor(value, tier + '.' + key)).toPrecision(8)).toLocaleString(en ? 'en-US' : 'zh-CN', { maximumFractionDigits: 8 })))))))),
         el('details', { className: 'cm-custom-more' }, el('summary', null, en ? 'More billing fields' : '更多计费项'),
           el('div', { className: 'cm-custom-grid' }, ...fields.slice(3).map(field)),
+          el(LongContextEditor, { value, label, locale, onChange, t, priceEditor, fields }),
           el('p', { className: 'cm-hint' }, en ? 'Leave reasoning blank when it is included in output. Leave cache write blank to use the cached input rate.' : '推理已包含在输出中时无需另填。缓存写入留空则使用缓存读取价格。')),
         el('p', { className: 'cm-hint' }, en ? 'Enter or leave a field to save. Switching the price source keeps your custom values.' : '回车或离开输入框后保存；切换价格来源会保留已填的自定义价格。'))
     }
@@ -447,9 +483,10 @@ window.__ModuleLoader__.load({
             else next[key] = value
             if (value === '__custom__' && !pricesNow.custom?.[key]) {
               const split = key.indexOf(':'), resolved = resolveClientPrice(key.slice(0, split), key.slice(split + 1), { ...config, ...draft })
-              const entry = resolved.entry ?? {}, custom = { currency: resolved.currency ?? 'USD', billingMode: 'flat', ...priceEditor?.priceMultiplierSettings(entry),
+              const entry = resolved.entry ?? {}, custom = { ...entry, currency: resolved.currency ?? 'USD', billingMode: entry.billingMode === 'deepseek-peak' ? 'deepseek-peak' : 'flat', ...priceEditor?.priceMultiplierSettings(entry),
                 cacheMiss: entry.cacheMiss ?? entry.input ?? 0, cacheHit: entry.cacheHit ?? entry.cachedInput ?? entry.cacheMiss ?? entry.input ?? 0, output: entry.output ?? 0,
                 ...(entry.cacheWrite !== undefined ? { cacheWrite: entry.cacheWrite } : {}), ...(entry.reasoning !== undefined ? { reasoning: entry.reasoning } : {}) }
+              delete custom.unpriced
               setDraft({ ...draft, priceOverrides: next, prices: { ...pricesNow, custom: { ...pricesNow.custom, [key]: custom } } })
             } else setDraft({ ...draft, priceOverrides: next })
           }

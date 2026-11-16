@@ -1,8 +1,8 @@
 {
-  "recordedAt": "2026-11-15T07:13:51.382Z",
+  "recordedAt": "2026-11-16T11:14:09.053Z",
   "plugins": {
     "billion-context": {
-      "version": "0.1.214",
+      "version": "0.1.215",
       "signature": {
         "main": "dist/index.js",
         "exports": {
@@ -35,11 +35,11 @@
         }
       },
       "interfaceHash": "1a0aff3f2aab1d8c0d6793f207728a428c890499bcafbfb7fbdea3df551337f5",
-      "integrity": "sha512-09sddz0mfNo9tmgHxZya3f77UEvnj2fwDusTU5q/xVs47Tao2MYlGlvujMiVzj+Q/EQ/gNsYyV3xlPn8IIqfnA==",
-      "packageUrl": "https://registry.npmjs.org/billion-context/-/billion-context-0.1.214.tgz"
+      "integrity": "sha512-bVfynM1BeCy6sOIjcyuTTJSQQ5VJO7wfn5MmbPf5HvgxqjPIvTfW8iJW2E4o+PewInpF+uiwLo4C2FcvD6dqUQ==",
+      "packageUrl": "https://registry.npmjs.org/billion-context/-/billion-context-0.1.215.tgz"
     },
     "dsh-codex-subscription": {
-      "version": "3.2.16",
+      "version": "3.2.18",
       "signature": {
         "main": "./lib/index.js",
         "exports": {
@@ -84,8 +84,8 @@
         }
       },
       "interfaceHash": "b5794156a1a7f1ef2564e0766aae8a6f0afe5c6982eaa8b99c6170dc1ffa5392",
-      "integrity": "sha512-NovTWnwri9lIMxI/WQeFxlRGc0/h+/NEARu5PhRZqPd262IsPpuVBNpNnEFvjvlRKse8EDVNJMPXCV75akq7OQ==",
-      "packageUrl": "https://registry.npmjs.org/dsh-codex-subscription/-/dsh-codex-subscription-3.2.16.tgz"
+      "integrity": "sha512-9PixNTA3nFCI0JzpJZm4pA1oYrJgKU1FEatDZ34YK/xsgVuDbzgD2dIx3xN75xtCWfrG82lkJx/ICVYuaL3VyA==",
+      "packageUrl": "https://registry.npmjs.org/dsh-codex-subscription/-/dsh-codex-subscription-3.2.18.tgz"
     },
     "dsh-codex-connect": {
       "version": "0.2.0-alpha.10",
