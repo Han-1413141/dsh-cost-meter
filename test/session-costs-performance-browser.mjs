@@ -21,7 +21,7 @@ const totalCalls = 4800, perSession = totalCalls / 3, at = Date.parse('2026-10-1
 const headers = [{ id: 'main' }, { id: 'agent-a', origin: 'subagent', parentSession: 'main' }, { id: 'agent-b', origin: 'subagent', parentSession: 'agent-a' }]
 const sessions = new Map(headers.map(header => {
   const events = [{ type: 'session', id: header.id, createdAt: at - 1000 }, { type: 'request/header', seq: 0, time: at,
-    data: { header: { config: { provider: 'deepseek', model: 'deepseek-chat' } } } }]
+    data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } }]
   for (let step = 1; step <= perSession; step++) events.push(
     { type: 'assistant/message', seq: step * 2, time: at + step, data: { turn: Math.ceil(step / 20), step,
       usage: { inputTokens: 1000 + step, outputTokens: 30, cacheReadTokens: 900 }, message: { content: 'synthetic private text' } } },

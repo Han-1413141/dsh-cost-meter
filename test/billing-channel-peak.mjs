@@ -14,6 +14,10 @@ import { recomputeLedgerPricingBasis } from '../lib/backfill.js'
 const now = Date.parse('2026-09-08T07:30:00Z') // 北京时间周二 15:30，峰窗内。
 const dayKey = localDayKey(now)
 const tokens = { input: 77_600, cacheRead: 3_500_000, output: 69_800, cacheWrite: 0 }
+const defaultPriceOverrides = {
+  'deepseek:default': 'deepseek:__default__',
+  'deepseek:unknown-deepseek-model': 'deepseek:__default__',
+}
 const baseOf = ({ cacheHit, cacheMiss, output }) => ({ cacheHit, cacheMiss, output })
 const near = (actual, expected, label) => assert.ok(Math.abs(actual - expected) < 1e-9, `${label}: ${actual} != ${expected}`)
 
@@ -53,13 +57,13 @@ assert.equal(ui.billingClassOfLocal('qianwen-tokenplan', 'qwen3.8-flash', config
 assert.equal(JSON.stringify(mixed), beforeMixed, '计算不修改原始 provider 账本')
 
 for (const [currency, table] of [['USD', DEFAULT_PRICE_TABLE], ['CNY', DEFAULT_PRICE_TABLE_CNY]]) {
-  const cfg = sanitizeConfig({ prices: { ...structuredClone(table), currency } })
+  const cfg = sanitizeConfig({ prices: { ...structuredClone(table), currency }, priceOverrides: defaultPriceOverrides })
   const peak = { enabled: true, effectiveAtMs: Date.parse(cfg.peakEffectiveAt), windows: cfg.peakWindows }
   const flash = table.models['deepseek-v4-flash']
   assert.deepEqual(table.default, flash, '内置默认价包含 Flash 全档位')
   for (const model of ['default', 'unknown-deepseek-model']) {
-    const entry = providerPriceEntryFor('deepseek', model, cfg.prices).entry
-    near(costOf(tokens, entry, now, peak), costOf(tokens, flash, now, peak), '峰时回退与明确 Flash 一致')
+    const entry = providerPriceEntryFor('deepseek', model, cfg.prices, { overrides: cfg.priceOverrides }).entry
+    near(costOf(tokens, entry, now, peak), costOf(tokens, flash, now, peak), '手动默认映射的峰价与明确 Flash 一致')
     near(costOf(tokens, entry, now, peak), costOf(tokens, baseOf(flash), now, peak) * 2, '复现的半价路径恢复峰价')
     for (const time of [now, Date.parse('2026-09-08T05:30:00Z'), Date.parse('2026-09-12T07:30:00Z'), Date.parse('2026-08-10T07:30:00Z')]) {
       const clientEntry = ui.resolveClientPrice('deepseek', model, ui.parseConfig(cfg, 'config')).entry
@@ -91,7 +95,7 @@ const root = mkdtempSync(join(tmpdir(), 'cm-billing-108-109-'))
 const previousHome = process.env.DSH_HOME
 const cleanup = []
 try {
-  const cfg = sanitizeConfig({ legacyAutoImportedAt: 1, prices: { ...structuredClone(DEFAULT_PRICE_TABLE_CNY), currency: 'CNY', default: baseOf(DEFAULT_PRICE_TABLE_CNY.default) } })
+  const cfg = sanitizeConfig({ legacyAutoImportedAt: 1, priceOverrides: defaultPriceOverrides, prices: { ...structuredClone(DEFAULT_PRICE_TABLE_CNY), currency: 'CNY', default: baseOf(DEFAULT_PRICE_TABLE_CNY.default) } })
   const ledger = new Ledger(cfg, {}, join(root, 'ledger.json'))
   ledger.scheduleWrite = () => {}
   // 模拟已升级过 1.7.14 的存量账本，验证本次迁移本身完成修复。
@@ -152,11 +156,11 @@ try {
   assert.equal(fromShards.recostedSessions, 1, '同一会话多份分段日志正确合并')
   near(day.sessions.find(s => s.id === 'complete').cost, after.cost, '分段重放与单份完整日志费用一致')
 
-  const projection = __testProjection.makeCostUsageProjection({ config: sanitizeConfig({ prices: { ...DEFAULT_PRICE_TABLE_CNY, currency: 'CNY' } }) })
+  const projection = __testProjection.makeCostUsageProjection({ config: sanitizeConfig({ prices: { ...DEFAULT_PRICE_TABLE_CNY, currency: 'CNY' }, priceOverrides: defaultPriceOverrides }) })
   let state = projection.init()
   state = projection.apply(state, { type: 'request/header', seq: 0, time: now - 1, data: { header: { config: { provider: 'deepseek', model: 'default' } } } })
   state = projection.apply(state, { type: 'assistant/message', seq: 1, time: now, data: { usage: { inputTokens: tokens.input, cacheReadTokens: tokens.cacheRead, outputTokens: tokens.output } } })
-  near(state.totals.cost, costOf(tokens, baseOf(DEFAULT_PRICE_TABLE_CNY.default), now, { enabled: false }) / cfg.exchangeRate * 2, '会话投影默认回退按峰价，与账本一致')
+  near(state.totals.cost, costOf(tokens, baseOf(DEFAULT_PRICE_TABLE_CNY.default), now, { enabled: false }) / cfg.exchangeRate * 2, '会话投影的手动默认映射按峰价，与账本一致')
 
   // 运行真实服务 getState/updateConfig 和计费监听器，检查 Credits 过滤接线。
   process.env.DSH_HOME = join(root, 'service-home')
