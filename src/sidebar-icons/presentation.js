@@ -16,6 +16,10 @@ export function sidebarIconLogo(kind, id) {
   if (kind === 'plan') return Object.hasOwn(PLAN_ICON_LOGOS, id) ? PLAN_ICON_LOGOS[id] : null
   return kind === 'balance' ? 'deepseek' : kind === 'codex' ? 'openai' : kind === 'claude' ? 'claude' : kind === 'go' ? 'opencode' : null
 }
+// Only Icons pins the value group last; other entries retain their saved relative order.
+export function sidebarIconOrder(entries) {
+  return [...entries.filter(entry => entry.kind !== 'today'), ...entries.filter(entry => entry.kind === 'today')]
+}
 export const COUNTDOWN_WINDOW_MS = 8 * 3600000
 export function countdownWindow(nextAtMs, now) {
   if (!Number.isFinite(nextAtMs) || !Number.isFinite(now)) return null

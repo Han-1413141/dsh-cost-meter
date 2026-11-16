@@ -112,7 +112,7 @@ window.__ModuleLoader__.load({
         return el(Fragment, null, el('style', null, css),
           el('div', { className: 'cm-icons', ref: root, onKeyDownCapture: event => { if (event.key === 'Escape' && open !== null) { event.stopPropagation(); close() } } },
             el('div', { className: 'cm-icons-row', role: 'group', 'aria-label': text('费用图标，点击展开', 'Cost icons; click for details') },
-              el('div', { className: 'cm-icons-list' }, ...entries.map(button))),
+              el('div', { className: 'cm-icons-list' }, ...sidebarIconOrder(entries).map(button))),
             el('div', { id: instance + '-detail', hidden: !chosen, role: 'region', 'aria-label': chosen?.title, className: 'cm-icons-panel' }, chosen ? el(Fragment, null,
               el('div', { className: 'cm-icons-panel-head' }, el('span', null, chosen.title), el('button', { type: 'button', className: 'cm-btn small', onClick: close }, text('收起', 'Collapse'))),
               // Original components remain direct siblings for the upstream same-line arranger.
