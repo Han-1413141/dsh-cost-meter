@@ -21,7 +21,7 @@ const cordis = await import(pathToFileURL(req.resolve('@deepseek-ai/cordis')).hr
 const slotsCore = await import(pathToFileURL(req.resolve('@deepseek-ai/dsh-client-ui-slots')).href)
 const modules = { react: React, 'react-dom': reactDom, 'react-dom/client': reactDomClient, 'react/jsx-runtime': uiReq('react/jsx-runtime'),
   '@deepseek-ai/cordis': cordis, '@deepseek-ai/dsh-client-ui-slots': slotsCore,
-  '@deepseek-ai/dsh-client-ui-primitives': { Tooltip: ({ children }) => children } }
+  '@deepseek-ai/dsh-client-ui-primitives': { Tooltip: ({ children, label }) => h('span', { 'data-tooltip': label }, children) } }
 function load(source) {
   let factory
   dom.window.__ModuleLoader__ = { load: value => { factory = value.factory } }
@@ -41,6 +41,7 @@ const errors = []
 let generation = 0
 try {
   for (const entryPosition of ['dock', 'header']) for (const projectionFirst of [false, true]) for (const frozen of [false, true]) {
+    config.includeSubagentCost = frozen
     let state = { state: null }, projection = projectionFirst ? usage : undefined
     const listeners = new Set(), requests = []
     const subscribe = fn => { listeners.add(fn); return () => listeners.delete(fn) }
@@ -64,6 +65,7 @@ try {
     await act(async () => { for (const r of requests.splice(0)) r.resolve(ledger(own)) })
     assert.match(text(), /This session \$3/)
     assert.ok(dom.window.document.querySelector('.cm-dp'))
+    assert.match(dom.window.document.querySelector('[data-tooltip]').dataset.tooltip, frozen ? /Includes subagents/ : /Main session only/)
     await render('two')
     assert.match(text(), /Loading session cost/)
     assert.doesNotMatch(text(), /This session \$3/, 'switching sessions does not show the previous amount')
