@@ -128,7 +128,7 @@ try {
   assert.equal(Object.hasOwn(saved.prices.models['cache-deepseek'].offPeak, 'cacheWrite'), false)
   assert.deepEqual(saved.prices.models['cache-deepseek'].rateHistory, history)
   // The same card is also used by the default model and by directly shown models.
-  await page.getByRole('button', { name: 'default(未匹配模型时回退) · 编辑价格', exact: true }).click()
+  await page.getByRole('button', { name: '默认价格 · 编辑价格', exact: true }).click()
   const fallback = page.locator('.cm-price-card').filter({ hasText: '默认回退' })
   await edit(fallback.locator('.cm-price-row').nth(1).getByRole('textbox').nth(2), '0.8')
   assert.equal(saved.prices.default.cacheWrite, .8)

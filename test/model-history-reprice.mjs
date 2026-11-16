@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { Ledger, sanitizeConfig, localDayKey } from '../lib/store.js'
 import { apply } from '../lib/index.js'
 import { replaySessionRecords } from '../lib/backfill.js'
-import { pricingConfigAt } from '../lib/billing-history.js'
+import { pricingConfigAt, createPricingHistory } from '../lib/billing-history.js'
 import { TYPERT } from '../lib/typert.host.js'
 
 const root = mkdtempSync(join(tmpdir(), 'cm-model-reprice-')), home = process.env.DSH_HOME
@@ -18,7 +18,7 @@ const config = sanitizeConfig({ legacyAutoImportedAt: 1, exchangeRate: 7, exchan
 let service, requests = 0
 try {
   process.env.DSH_HOME = root
-  const ledger = new Ledger(config, {}, path)
+  const ledger = new Ledger(config, {}, path, [], { pricingHistory: createPricingHistory(config, true) })
   const logs = (id, keys, written = keys) => {
     const records = [{ type: 'session', id, version: 0, createdAt: at - 1000 }]
     for (const [i, key] of keys.entries()) {

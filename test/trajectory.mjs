@@ -7,7 +7,7 @@ let seq = 0
 const at = 1791508800000
 const event = (type, data, extra = {}) => ({ seq: seq++, time: at + seq, type, data, ...extra })
 const rows = [event('turn/start', { turn: 1 }), event('step/start', { turn: 1, step: 1 }),
-  event('request/header', { header: { config: { provider: 'deepseek', model: 'deepseek-chat' }, token: 'HEADER-SECRET' } }),
+  event('request/header', { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' }, token: 'HEADER-SECRET' } }),
   event('user/message', { content: 'PRIVATE-CONTENT' }),
   event('assistant/message', { turn: 1, step: 1, usage: { inputTokens: 100, outputTokens: 20, cacheReadTokens: 40 }, message: { content: 'PRIVATE-RESPONSE' } }),
   event('tool/call', { callId: 't', name: 'read_file', arguments: 'PRIVATE-ARGUMENT' }),
@@ -16,7 +16,7 @@ const rows = [event('turn/start', { turn: 1 }), event('step/start', { turn: 1, s
   event('step/start', { turn: 1, step: 2 }),
   event('assistant/message', { turn: 1, step: 2, usage: { inputTokens: 150, outputTokens: 30 }, message: { content: 'PRIVATE-TEXT' } }),
   event('turn/end', { turn: 1 }),
-  event('compaction/summary', { provider: 'deepseek', model: 'deepseek-chat', usage: { inputTokens: 80, outputTokens: 10 }, summary: 'PRIVATE-SUMMARY' })]
+  event('compaction/summary', { provider: 'deepseek', model: 'deepseek-v4-flash', usage: { inputTokens: 80, outputTokens: 10 }, summary: 'PRIVATE-SUMMARY' })]
 const ledger = { config: sanitizeConfig({ includeSubagentCost: false }), days: {} }
 const ctx = { get: () => ({ get: () => ({ header: { createdAt: at }, snapshotEvents: () => rows }) }) }
 const q = trajectoryQuerySchema.parse({ sessionId: 's' })
@@ -51,7 +51,7 @@ assert.equal((await getCallInspection(ctx, { sessionId: firstRef.sessionId, seq:
 const compactionRef = (await getSessionTrajectory(ledger, ctx, { ...q, stepKey: result.steps[2].key })).steps[0].callRefs[0]
 assert.equal(compactionRef.kind, 'compaction')
 assert.equal((await getCallInspection(ctx, { sessionId: compactionRef.sessionId, seq: compactionRef.logSeq, atMs: compactionRef.atMs })).output, 'PRIVATE-SUMMARY')
-const plan = await getSessionTrajectory({ ...ledger, config: { ...ledger.config, planBilling: { models: { 'deepseek:deepseek-chat': 'plan' } } } }, ctx, q)
+const plan = await getSessionTrajectory({ ...ledger, config: { ...ledger.config, planBilling: { models: { 'deepseek:deepseek-v4-flash': 'plan' } } } }, ctx, q)
 assert.equal(plan.apiCost, 0); assert.equal(plan.cost, result.cost, 'configuration changes bypass cached pricing')
 rows.push(event('turn/start', { turn: 2 }), event('step/start', { turn: 2, step: 1 }), event('tool/call', { callId: 'later', name: 'new_tool' }), event('assistant/message', { turn: 2, step: 1, usage: { inputTokens: 10 } }))
 const next = await getSessionTrajectory(ledger, ctx, q)
@@ -147,7 +147,7 @@ assert.equal(groupOperationCosts([priced('plan-1', 'child-a', 'model', ['read_fi
 
 // Exercise the real RPC computation, including global sorting before page/filter.
 const childRows = Array.from({ length: 120 }, (_, i) => ({ type: 'assistant/message', seq: i + 1, time: at + i + 1, data: { turn: 1, step: i + 1, usage: { inputTokens: 100 + i * 100 } } }))
-const routes = id => [{ type: 'request/header', seq: 0, time: at, data: { header: { config: { provider: 'deepseek', model: 'deepseek-chat' } } } }, ...(id === 'root' ? childRows.slice(0, 5) : childRows)]
+const routes = id => [{ type: 'request/header', seq: 0, time: at, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } }, ...(id === 'root' ? childRows.slice(0, 5) : childRows)]
 const multiCtx = { get: name => name === 'sessions' ? { get: id => ({ header: { id, createdAt: at, title: titles.get(id) }, snapshotEvents: () => routes(id) }) }
   : name === 'sessionQuery' ? { listSessions: async () => [{ id: 'root' }, { id: 'child-a', parentSession: 'root', origin: 'subagent' }, { id: 'child-b', parentSession: 'child-a', origin: 'subagent' }] } : undefined }
 const multiLedger = { config: sanitizeConfig({ includeSubagentCost: true }), days: {} }
@@ -185,7 +185,7 @@ assert.equal((await getSessionTrajectory(multiLedger, multiCtx, { sessionId: 'ro
 assert.equal((await getSessionTrajectory(multiLedger, multiCtx, { sessionId: 'root', agent: 'child-a', operationGroup: modelGroup })).matchingSteps, 120)
 const flatChild = expensive.groups.find(row => row.sessionId === 'child-b')
 assert.equal((await getSessionTrajectory(multiLedger, multiCtx, { sessionId: 'root', group: flatChild.key })).matchingSteps, 120)
-const planOnly = await getSessionTrajectory({ ...multiLedger, config: sanitizeConfig({ ...multiLedger.config, planBilling: { models: { 'deepseek:deepseek-chat': 'plan' } } }) }, multiCtx, { sessionId: 'root', basis: 'api' })
+const planOnly = await getSessionTrajectory({ ...multiLedger, config: sanitizeConfig({ ...multiLedger.config, planBilling: { models: { 'deepseek:deepseek-v4-flash': 'plan' } } }) }, multiCtx, { sessionId: 'root', basis: 'api' })
 assert.equal(planOnly.totalSteps, 0, 'calls outside the selected billing basis do not distort ranking or distribution')
 for (const query of [{ sessionId: 's', order: 'unknown' }, { sessionId: 's', agent: 'x'.repeat(513) }]) await assert.rejects(getSessionTrajectory(ledger, ctx, query))
 for (const query of [{ detail: 'wrong' }, { operation: 1 }, { operationGroup: 'x'.repeat(4097) }, { stepKey: 'x'.repeat(2049) }])

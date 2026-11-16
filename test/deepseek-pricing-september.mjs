@@ -29,7 +29,7 @@ for (const [currency, table, old, newOff, oldFlashPeak, oldProPeak] of [
   ['USD', DEFAULT_PRICE_TABLE, AUGUST_PRICE_TABLE, [0.003, 0.15, 0.6], [0.014, 0.44, 1.32], [0.044, 1.32, 3.96]],
   ['CNY', DEFAULT_PRICE_TABLE_CNY, AUGUST_PRICE_TABLE_CNY, [0.02, 1, 4], [0.1, 3, 9], [0.3, 9, 27]],
 ]) {
-  const config = sanitizeConfig({ prices: { ...structuredClone(table), currency } })
+  const config = sanitizeConfig({ prices: { ...structuredClone(table), currency }, priceOverrides: { 'deepseek:unknown-model': 'deepseek:__default__' } })
   for (const model of ['deepseek-v4-flash', 'deepseek-v4-flash-vision-exp', 'deepseek-v4.1-flash']) {
     const entry = config.prices.models[model]
     assert.deepEqual(values(tierFor(entry, flashAt - 1, peak)), oldFlashPeak)
@@ -47,7 +47,7 @@ for (const [currency, table, old, newOff, oldFlashPeak, oldProPeak] of [
   assert.deepEqual(values(tierFor(pro, proAt, peak)), oldProPeak.map(v => v / 2), 'Pro 不套用 Flash 谷价')
   assert.deepEqual(values(tierFor(pro, proAt + 2 * 3600000, peak)), oldProPeak, 'Pro 保留独立峰价')
   assert.deepEqual(tierFor(pro, Date.parse('2026-08-10T04:00:00Z'), peak), old.models['deepseek-v4-pro'].legacyBase)
-  const fallback = providerPriceEntryFor('deepseek', 'unknown-model', config.prices).entry
+  const fallback = providerPriceEntryFor('deepseek', 'unknown-model', config.prices, { overrides: config.priceOverrides }).entry
   near(costOf({ input: 1e6, cacheRead: 1e6, output: 1e6 }, fallback, flashAt, peak), newOff.reduce((a, b) => a + b, 0))
   const restored = stateSchema.shape.config.parse(config)
   assert.deepEqual(restored.prices.models['deepseek-v4-flash'].rateHistory, table.models['deepseek-v4-flash'].rateHistory, 'RPC 不剥离历史价')

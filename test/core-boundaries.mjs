@@ -48,7 +48,7 @@ check('合法 JSON 但格式错误的账本留存原文并恢复写入', () => {
 
 check('外部记录拒绝不存在的日历日期和错误的来源容器', () => {
   const config = sanitizeConfig({}), now = Date.parse('2026-03-02T12:00:00Z')
-  const record = { id: 'test', at: '2026-02-30T10:00:00Z', provider: 'deepseek', model: 'deepseek-chat', input: 10, output: 1, cached: 0 }
+  const record = { id: 'test', at: '2026-02-30T10:00:00Z', provider: 'deepseek', model: 'deepseek-v4-flash', input: 10, output: 1, cached: 0 }
   const snapshot = { fetchedAt: new Date(now).toISOString(), source: 'test', records: [record] }
   assert.equal(parseExternalUsageSnapshot(snapshot, config, now), null, '不能把 2 月 30 日自动改成 3 月 2 日')
   assert.equal(parseExternalUsageSnapshot({ ...snapshot, fetchedAt: record.at, records: [] }, config, now), null)

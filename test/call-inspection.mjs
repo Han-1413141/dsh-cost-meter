@@ -10,7 +10,7 @@ let seq = 0
 const event = (type, data, extra = {}) => ({ type, seq: seq++, time: 1791508800000 + seq, data, ...extra })
 const rows = [
   event('turn/start', { turn: 1 }), event('step/start', { turn: 1, step: 1 }),
-  event('request/header', { header: { secret: 'SECRET', config: { provider: 'deepseek', model: 'deepseek-chat' } } }),
+  event('request/header', { header: { secret: 'SECRET', config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } }),
   event('system/message', { content: 'SYSTEM-SECRET' }),
   event('user/message', { id: 'u', content: [{ type: 'text', text: '检查项目' }, { type: 'image', data: 'BINARY-SECRET' }] }),
   event('assistant/chunk', { turn: 1, step: 1, chunk: { type: 'usage', usage } }),
@@ -65,14 +65,14 @@ assert.equal(paged.output.length, 16000); assert.equal(paged.truncated, true)
 // Compaction can split two billed model calls without changing turn/step.
 // A usage chunk must still include its own final response and tool results.
 const repeated = [event('turn/start', { turn: 9 }), event('step/start', { turn: 9, step: 1 }),
-  event('request/header', { header: { config: { provider: 'deepseek', model: 'deepseek-chat' } } }),
+  event('request/header', { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } }),
   event('user/message', { content: '检查前后两次结果' })]
 const before = event('assistant/chunk', { turn: 9, step: 1, chunk: { type: 'usage', usage } })
 repeated.push(before,
   event('assistant/message', { turn: 9, step: 1, usage, message: { content: [{ type: 'text', text: '第一次回复' }, { type: 'reasoning', text: '第一次思考' }, { type: 'tool-call', id: 'first-read', name: 'read_file', arguments: { path: 'first.txt' } }] } }),
   event('tool/call', { turn: 9, step: 1, callId: 'first-read', name: 'read_file', arguments: { path: 'first.txt' } }),
   event('tool/result', { turn: 9, step: 1, message: { source: { callId: 'first-read' }, content: '第一次工具结果' } }))
-const compact = event('compaction/summary', { provider: 'deepseek', model: 'deepseek-chat', usage, summary: '中间压缩摘要' })
+const compact = event('compaction/summary', { provider: 'deepseek', model: 'deepseek-v4-flash', usage, summary: '中间压缩摘要' })
 const after = event('assistant/chunk', { turn: 9, step: 1, chunk: { type: 'usage', usage } })
 repeated.push(compact, after,
   event('assistant/message', { turn: 9, step: 1, usage, message: { content: [{ type: 'text', text: '第二次回复' }, { type: 'reasoning', text: '第二次思考' }, { type: 'tool-call', id: 'second-read', name: 'read_file', arguments: { path: 'second.txt' } }] } }),

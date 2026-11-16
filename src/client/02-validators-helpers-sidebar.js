@@ -980,46 +980,62 @@
     }
     /**
      * 模型名归一化(与 lib/pricing.js 的 canonModelId 同逻辑;bundle 无法导入,修改时两处同步):
-     * NFKC 全角/兼容字符归一化后转小写,仅去已知渠道附注 (go)/(zen),只保留 Unicode 字母数字——大小写/空格/横杠/点号等差异全部忽略。
+     * NFKC 后忽略大小写、空格、横杠、下划线与点号，保留路由、变体与括号结构。
      */
     function modelNameText(id) {
       return String(id ?? '').normalize('NFKC').toLowerCase().replace(/[(（]\s*(?:go|zen)\s*[)）]/g, ' ').trim()
     }
     function canonModelIdLocal(id) {
-      return modelNameText(id).replace(/[^\p{L}\p{N}]+/gu, '')
-    }
-    /**
-     * 模型名自动匹配(与 lib/pricing.js 的 matchModelId 同逻辑;bundle 无法导入,修改时两处同步)。
-     * 精确 → 归一化等价 → 去日期/版本后缀 → 安全后缀。
-     */
-    function stripIdDecor(id, snapshotTags = true, shortSnapshotTags = true) {
-      // Strip request decorations one at a time; candidate snapshots keep their identity.
-      const text = modelNameText(id)
-      if (snapshotTags && /[-_./:@](?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])$/.test(text)) return text.slice(0, -5)
-      if (snapshotTags && shortSnapshotTags && /[-_./:@]\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])$/.test(text)) return text.slice(0, -7)
-      return text.replace(/[-_./:@](?:\d{4}-?\d{2}-?\d{2}|v\d+(?:\.\d+)*|\d+k|latest)$/, '')
+      return modelNameText(id).replace(/[\s._\-\u2010-\u2015\u2212]+/gu, '')
     }
 
-    /** Exact IDs precede unique punctuation aliases and request-only safe decorations. */
-    function matchModelIdLocal(modelId, candidates, exactId = modelId, snapshotTags = true, shortSnapshotTags = true) {
+    function stripIdDecor(id, snapshotTags = true, shortSnapshotTags = true) {
+      // Versions and context sizes identify models. Only valid dates and latest are aliases.
+      const text = modelNameText(id)
+      const date = text.match(/[-_./:@](\d{4}-\d{2}-\d{2}|\d{8}|\d{6}|\d{4})$/)
+      if (date) {
+        const digits = date[1].replaceAll('-', '')
+        if (digits.length === 4 && !snapshotTags || digits.length === 6 && (!snapshotTags || !shortSnapshotTags)) return text
+        const year = digits.length === 4 ? 2000 : digits.length === 6 ? 2000 + Number(digits.slice(0, 2)) : Number(digits.slice(0, 4))
+        const month = Number(digits.slice(-4, -2)), day = Number(digits.slice(-2))
+        const parsed = new Date(Date.UTC(year, month - 1, day))
+        if (year >= 2000 && parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day) return text.slice(0, date.index)
+        return text
+      }
+      return text.replace(/[-_./:@]latest$/, '')
+    }
+
+    // Keep ambiguity and match rank so another catalog cannot hide a conflicting alias.
+    function modelIdMatch(modelId, candidates, exactId = modelId, snapshotTags = true, shortSnapshotTags = true) {
       if (typeof modelId !== 'string' || modelId.length === 0) return null
       const list = Array.isArray(candidates) ? candidates.filter(c => typeof c === 'string' && c.length > 0) : []
       const exact = list.find(c => c === exactId)
-      if (exact !== undefined) return exact
+      if (exact !== undefined) return { id: exact, rank: 3 }
       let target = modelId.normalize('NFKC').trim()
-      if (/[:(（]\s*(?:free|online)\b/i.test(target)) return null
+      let rank = 2
       for (;;) {
         const canon = canonModelIdLocal(target)
         if (canon.length === 0) return null
         const hits = list.filter(c => canonModelIdLocal(c) === canon)
-        if (hits.length > 0) return hits.length === 1 ? hits[0] : null
+        if (hits.length > 0) return { id: hits.length === 1 ? hits[0] : null, rank }
+        if (/[:(（]\s*(?:free|online)\b/i.test(target)) return null
         const stripped = stripIdDecor(target, snapshotTags, shortSnapshotTags)
         if (stripped === target.toLowerCase()) return null
         target = stripped
+        rank = 1
       }
     }
 
+    /** Exact IDs precede unique formatting aliases and request-only date tags. */
+    function matchModelIdLocal(modelId, candidates, exactId = modelId, snapshotTags = true, shortSnapshotTags = true) {
+      return modelIdMatch(modelId, candidates, exactId, snapshotTags, shortSnapshotTags)?.id ?? null
+    }
+
     const OPENDESIGN_PROVIDER_IDS = ['opendesign', 'open-design', 'open-design-api', 'amr-link.open-design.ai']
+    const FORWARDING_PROVIDER_IDS_LOCAL = [
+      'vercel', 'copilot', 'cline', 'qoder', 'qoder-cn', 'qoder-global', 'trae', 'trae-cn', 'trae-global',
+      'zcode', 'mimo-app', 'commandcode-plan', 'cursor', 'windsurf', 'augment', 'roo', 'codebuddy',
+    ]
     const SCOPED_PRICE_PROVIDERS = new Set(['openrouter', 'opencode-zen', 'opencode-go', 'opencode-go-plus', 'zen', 'opencode', ...OPENDESIGN_PROVIDER_IDS])
     const MODEL_VENDOR_PREFIXES = {
       openai: /^(?:gpt|o\d|codex)/i, anthropic: /^claude/i, google: /^gemini/i, stepfun: /^step-/i,
@@ -1033,23 +1049,29 @@
     }
     // Full IDs win. Auto aliases may remove a known upstream namespace, never a routing variant.
     // Gemini API model resource names use models/{model}: https://ai.google.dev/api/models
-    function priceModelHit(modelId, models, provider, mode, prices) {
+    function priceModelMatch(modelId, models, provider, mode, prices) {
       if (typeof modelId !== 'string') return null
-      if (Object.hasOwn(models, modelId)) return modelId
+      if (Object.hasOwn(models, modelId)) return { id: modelId, rank: 3 }
       if (mode !== 'auto') return null
       let target = modelId.normalize('NFKC').trim().replace(/^models\/(?=gemini)/i, 'google/')
       const sep = target.search(/[/:]/)
       if (sep > 0) {
-        const vendor = target.slice(0, sep).trim().toLowerCase(), bare = target.slice(sep + 1).trim()
+        const namespace = target.slice(0, sep).trim().toLowerCase()
+        const vendor = namespace === 'deepseek-ai' ? 'deepseek' : namespace
+        const bare = target.slice(sep + 1).trim()
         if (Object.hasOwn(MODEL_VENDOR_PREFIXES, vendor)
-          && (vendor === provider || (provider === 'opencode-zen' || provider === 'opencode-go')
+          && (vendor === provider || ['opencode-zen', 'opencode-go', 'zen', 'opencode', 'opencode-go-plus'].includes(provider)
             && (MODEL_VENDOR_PREFIXES[vendor].test(bare)
               || matchModelIdLocal(bare, Object.keys(vendor === 'deepseek' ? prices?.models ?? {} : prices?.providers?.[vendor]?.models ?? {}), bare, prices?.snapshotTags !== false, prices?.shortSnapshotTags !== false) !== null))) target = bare
         else if (Object.hasOwn(MODEL_VENDOR_PREFIXES, vendor)) return null
       }
       // Formatting a request must not create a literal hit that bypasses alias collisions.
-      return matchModelIdLocal(target, Object.keys(models), modelId, prices?.snapshotTags !== false, prices?.shortSnapshotTags !== false)
+      return modelIdMatch(target, Object.keys(models), modelId, prices?.snapshotTags !== false, prices?.shortSnapshotTags !== false)
     }
+    function priceModelHit(modelId, models, provider, mode, prices) {
+      return priceModelMatch(modelId, models, provider, mode, prices)?.id ?? null
+    }
+
     /**
      * 客户端价格解析(与 pricing.js providerPriceEntryFor 同口径):手动覆盖 → 精确 → 自动匹配。
      * @returns { entry, priced, billingMode, matched }。
@@ -1075,7 +1097,7 @@
       return LOCAL_MODEL_PREFIXES.some(prefix => model.startsWith(prefix))
     }
     function legacyDeepseekOverride(provider, override, prices, mode) {
-      if (provider !== 'deepseek' && !provider.includes('deepseek')
+      if (!['deepseek', 'deepseek-official'].includes(provider)
         && typeof override === 'string' && override.length > 0 && override !== '__local__' && !override.includes(':')) {
         const dsModels = prices.models ?? {}
         const retryHit = Object.hasOwn(dsModels, override) ? override
@@ -1114,13 +1136,23 @@
           return { entry: prices.default ?? { cacheHit: 0, cacheMiss: 0, output: 0 }, priced: prices.default?.unpriced !== true, billingMode: 'deepseek-peak', matched: false }
         }
       }
-          if (['zen', 'opencode', 'opencode-go-plus'].includes(targetProvider)) {
-        const own = priceModelHit(targetModel, prices.providers?.[targetProvider]?.models ?? {}, 'opencode-go', mode, prices)
-        if (own === null) targetProvider = 'opencode-go'
-        else targetModel = own
+      // A channel's own price (including a disabled or ambiguous alias) wins over routing.
+      if (!isLocalOriginClient(targetProvider, targetModel) && targetProvider !== 'openrouter') {
+        const ownModels = prices.providers?.[targetProvider]?.models ?? {}
+        const own = priceModelMatch(targetModel, ownModels, targetProvider, mode, prices)
+        if (own) {
+          const entry = own.id === null ? null : ownModels[own.id]
+          return { entry, priced: entry != null && entry.unpriced !== true, billingMode: priceBillingMode(entry), matched: true }
+        }
       }
-      if (OPENDESIGN_PROVIDER_IDS.includes(targetProvider) && targetProvider !== 'opendesign'
-        && priceModelHit(targetModel, prices.providers?.[targetProvider]?.models ?? {}, targetProvider, mode, prices) === null) targetProvider = 'opendesign'
+      if (/(?:^|[-_])free(?:$|[-_])/.test(targetProvider)
+        && !['our-free-model', 'our-free-model-region'].includes(targetProvider)) return { entry: null, priced: false, billingMode: 'flat', matched: false }
+      if (targetProvider !== 'opencode-go' && PLAN_PROVIDER_ALIASES_LOCAL.go.includes(targetProvider)) {
+        return resolveClientPriceRaw('opencode-go', targetModel, { ...config, priceOverrides: {} })
+      }
+      if (OPENDESIGN_PROVIDER_IDS.includes(targetProvider) && targetProvider !== 'opendesign') {
+        return resolveClientPriceRaw('opendesign', targetModel, { ...config, priceOverrides: {} })
+      }
       // 本地推理来源零价守卫(与 pricing.js 同口径,置于覆盖之后、目录匹配之前)。
       if (isLocalOriginClient(targetProvider, targetModel)) {
         return { entry: null, priced: false, billingMode: 'flat', matched: false }
@@ -1130,12 +1162,12 @@
         const entry = Object.hasOwn(models, targetModel) ? models[targetModel] : null
         return { entry, priced: entry !== null && entry.unpriced !== true, billingMode: 'flat', matched: entry !== null }
       }
-      if (targetProvider === 'deepseek' || targetProvider.includes('deepseek')) {
+      if (['deepseek', 'deepseek-official'].includes(targetProvider)) {
         const models = prices.models ?? {}
-        const hit = priceModelHit(targetModel, models, 'deepseek', mode, prices)
-        if (hit !== null) return models[hit]?.unpriced === true
+        const match = priceModelMatch(targetModel, models, 'deepseek', mode, prices)
+        if (match) return match.id === null || models[match.id]?.unpriced === true
           ? { entry: null, priced: false, billingMode: 'flat', matched: true }
-          : { entry: models[hit], priced: true, billingMode: 'deepseek-peak', matched: true }
+          : { entry: models[match.id], priced: true, billingMode: 'deepseek-peak', matched: true }
         // 回退: provider 缺失/DeepSeek 但模型实际属于 Go 等其它目录时，避免
         // 误套 DeepSeek 默认低价(与 pricing.js 同口径，修复 Go 金额偏低)。
         if (mode === 'auto') {
@@ -1146,26 +1178,26 @@
           for (const [prov, table] of Object.entries(prices.providers ?? {})) {
             if (SCOPED_PRICE_PROVIDERS.has(prov)) continue
             const modelsCat = table?.models ?? {}
-            const h = priceModelHit(targetModel, modelsCat, prov, mode, prices)
-            if (h === null) continue
-            const score = +(h === targetModel || canonModelIdLocal(h) === canonModelIdLocal(targetModel))
+            const match = priceModelMatch(targetModel, modelsCat, prov, mode, prices)
+            if (!match) continue
+            const entry = match.id === null ? null : modelsCat[match.id]
+            const score = match.rank
             if (score > bestLen) {
-              bestEntry = modelsCat[h]; bestLen = score; ambiguous = false
+              bestEntry = entry; bestLen = score; ambiguous = match.id === null || entry == null
               // 与 pricing.js 同口径:命中条目自带峰谷模式时保留,否则客户端
               // 会按 flat 计与服务端入账不一致。
-              bestMode = priceBillingMode(modelsCat[h])
+              bestMode = priceBillingMode(entry)
             } else if (score === bestLen) ambiguous = true
           }
           if (ambiguous) return { entry: null, priced: false, billingMode: 'flat', matched: false }
           if (bestEntry !== null) return { entry: bestEntry, priced: bestEntry.unpriced !== true, billingMode: bestMode, matched: true }
         }
-        return { entry: prices.default ?? { cacheHit: 0, cacheMiss: 0, output: 0 }, priced: prices.default?.unpriced !== true, billingMode: 'deepseek-peak', matched: false }
+        return { entry: null, priced: false, billingMode: 'flat', matched: false }
       }
-      const catalog = prices.providers?.[targetProvider]?.models ?? {}
-      const hit = priceModelHit(targetModel, catalog, targetProvider, mode, prices)
-      if (hit !== null) return { entry: catalog[hit], priced: catalog[hit]?.unpriced !== true, billingMode: priceBillingMode(catalog[hit]), matched: true }
       if (SCOPED_PRICE_PROVIDERS.has(targetProvider)) return { entry: null, priced: false, billingMode: 'flat', matched: false }
-      if (Object.hasOwn(MODEL_VENDOR_PREFIXES, targetProvider)) return { entry: null, priced: false, billingMode: 'flat', matched: false }
+      const deepseekCompatible = mode === 'auto' && !override
+        && /^deepseek/i.test(modelNameText(targetModel).replace(/^deepseek(?:-ai)?[/:]\s*/, ''))
+      if (Object.hasOwn(MODEL_VENDOR_PREFIXES, targetProvider) && !deepseekCompatible) return { entry: null, priced: false, billingMode: 'flat', matched: false }
       // 跨厂商兑底(与 pricing.js 同口径):provider 未在价格表登记时按模型名全库查找。
       if (mode === 'auto') {
         let bestEntry = null
@@ -1175,15 +1207,17 @@
         for (const [prov, table] of [['deepseek', { models: prices.models ?? {} }], ...Object.entries(prices.providers ?? {})]) {
           if (prov === targetProvider || SCOPED_PRICE_PROVIDERS.has(prov)) continue
           const models = table?.models ?? {}
-          const h = priceModelHit(targetModel, models, prov, mode, prices)
-          if (h === null) continue
+          const match = priceModelMatch(targetModel, models, prov, mode, prices)
+          if (!match) continue
+          const h = match.id
+          const entry = h === null ? null : models[h]
           // 与 pricing.js 同口径：只处理 Mistral 转售 ID 与 DeepSeek 日期标签的冲突。
-          if (prov === 'mistral' && h.startsWith('deepseek-') && h !== targetModel
+          if (prov === 'mistral' && h?.startsWith('deepseek-') && h !== targetModel
             && !targetProvider.includes('mistral') && !/^mistral[/:]/i.test(String(targetModel).trim())) continue
-          const score = +(h === targetModel || canonModelIdLocal(h) === canonModelIdLocal(targetModel))
+          const score = match.rank
           if (score > bestLen) {
-            bestEntry = models[h]; bestLen = score; ambiguous = false
-            bestMode = prov === 'deepseek' ? 'deepseek-peak' : priceBillingMode(models[h]) // 与 pricing.js 同口径
+            bestEntry = entry; bestLen = score; ambiguous = h === null || entry == null
+            bestMode = prov === 'deepseek' ? 'deepseek-peak' : priceBillingMode(entry)
           } else if (score === bestLen) ambiguous = true
         }
         if (ambiguous) return { entry: null, priced: false, billingMode: 'flat', matched: false }
@@ -1199,36 +1233,47 @@
     function magpiePriceTarget(provider, modelId, prices, mode, overrides) {
       const override = overrides?.[(provider || 'deepseek') + ':' + modelId]
       if (!provider || mode === 'exact' || typeof modelId !== 'string'
-        || isLocalOriginClient(provider, modelId) || ['our-free-model', 'our-free-model-region'].includes(provider)
+        || isLocalOriginClient(provider, modelId) || /(?:^|[-_])free(?:$|[-_])/.test(provider)
         || typeof override === 'string' && override.length > 0
-        || Object.hasOwn(prices?.providers?.[provider]?.models ?? {}, modelId)) return null
-      const separator = modelId.indexOf('/')
-      if (separator <= 0 || separator === modelId.length - 1) return null
-      const route = modelId.slice(0, separator).toLowerCase()
-      const model = modelId.slice(separator + 1)
-      const aliases = { codex: 'openai', claude: 'anthropic', gemini: 'google', 'ollama-cloud': 'ollama-cloud', volcengine: 'volcengine', ark: 'ark' }
+        || priceModelMatch(modelId, prices?.providers?.[provider]?.models ?? {}, provider, 'auto', prices)) return null
+      const qualified = modelId.normalize('NFKC').trim()
+      const separator = qualified.indexOf('/')
+      if (separator <= 0 || separator === qualified.length - 1) return null
+      const route = qualified.slice(0, separator).trim().toLowerCase().replace(/^llm-/, '')
+      const model = qualified.slice(separator + 1).trim()
+      const aliases = { codex: 'openai', claude: 'anthropic', gemini: 'google', 'deepseek-ai': 'deepseek', 'deepseek-official': 'deepseek', 'ollama-cloud': 'ollama-cloud', volcengine: 'volcengine', ark: 'ark' }
       const magpie = /^(?:dsh-)?magpie(?:$|-)/.test(provider)
+      const freeModelRoute = ['our-free-model', 'our-free-model-region'].includes(route)
       const knownRoute = Object.hasOwn(aliases, route) || SCOPED_PRICE_PROVIDERS.has(route)
-        || ['workbuddy', 'workbuddy-ai', 'qoder', 'qoder-cn', 'trae-cn', 'trae-global', 'zcode', 'mimo-app', 'commandcode-plan', 'cline', 'copilot', 'vercel'].includes(route)
-      if (!magpie && (!knownRoute || Object.hasOwn(MODEL_VENDOR_PREFIXES, provider) || SCOPED_PRICE_PROVIDERS.has(provider))) return null
+        || Object.hasOwn(prices?.providers ?? {}, route) || Object.values(PLAN_PROVIDER_ALIASES_LOCAL).some(names => names.includes(route))
+        || FORWARDING_PROVIDER_IDS_LOCAL.includes(route) || freeModelRoute
+      if (!magpie && (!knownRoute || SCOPED_PRICE_PROVIDERS.has(provider) || PLAN_PROVIDER_ALIASES_LOCAL.go.includes(provider))) return null
       // An unknown free-only route must not inherit a paid reference price.
-      if (/(?:^|-)free$/.test(route) && !Object.hasOwn(prices?.providers ?? {}, route)) return null
-      const upstream = aliases[route] ?? route
-      if (upstream === 'deepseek' && priceModelHit(model, prices?.models ?? {}, 'deepseek', 'auto', prices) === null) return null
+      if (/(?:^|[-_])free(?:$|[-_])/.test(route) && !freeModelRoute) return null
+      const upstream = Object.hasOwn(aliases, route) ? aliases[route] : PLAN_PROVIDER_ALIASES_LOCAL.go.includes(route) ? 'opencode-go' : route
+      if (!magpie && Object.hasOwn(MODEL_VENDOR_PREFIXES, provider) && Object.hasOwn(MODEL_VENDOR_PREFIXES, upstream)
+        && upstream !== provider && (upstream !== 'deepseek' || !/^deepseek/i.test(modelNameText(model)))) return null
+      if (Object.hasOwn(MODEL_VENDOR_PREFIXES, upstream)
+        && priceModelHit(model, upstream === 'deepseek' ? prices?.models ?? {} : prices?.providers?.[upstream]?.models ?? {}, upstream, 'auto', prices) === null) return null
       return {
-        provider: Object.hasOwn(aliases, route) || SCOPED_PRICE_PROVIDERS.has(upstream)
+        provider: knownRoute || Object.hasOwn(aliases, route) || SCOPED_PRICE_PROVIDERS.has(upstream)
           || Object.hasOwn(MODEL_VENDOR_PREFIXES, upstream) || Object.hasOwn(prices?.providers ?? {}, upstream)
           || isLocalOriginClient(upstream, model) ? upstream : provider,
         model,
       }
     }
+
     function resolveClientPrice(provider, modelId, config) {
-      const source = String(provider ?? '').trim().toLowerCase().replace(/^llm-/, '') || 'deepseek'
-      const route = magpiePriceTarget(source, modelId, config?.prices, config?.priceMatch, config?.priceOverrides)
-      if (route) {
+      let source = String(provider ?? '').trim().toLowerCase().replace(/^llm-/, '') || 'deepseek'
+      const freeOverrides = Object.fromEntries(['our-free-model:*', 'our-free-model-region:*']
+        .filter(key => config?.priceOverrides?.[key] === '__free__').map(key => [key, '__free__']))
+      for (let depth = 0; depth < 8; depth++) {
+        const route = magpiePriceTarget(source, modelId, config?.prices, config?.priceMatch, config?.priceOverrides)
+        if (!route) break
         provider = route.provider
+        source = route.provider
         modelId = route.model
-        config = { ...config, priceOverrides: {} }
+        config = { ...config, priceOverrides: freeOverrides }
       }
       let result = resolveClientPriceRaw(provider, modelId, config)
       const normalized = String(provider ?? '').trim().toLowerCase().replace(/^llm-/, '') || 'deepseek'
@@ -1349,6 +1394,44 @@
       }
       return null
     }
+    function routedPlanProviderLocal(provider, modelId) {
+      const name = String(provider ?? '').normalize('NFKC').trim().toLowerCase().replace(/^llm-/, '')
+      if (!name || typeof modelId !== 'string' || isLocalOriginClient(name, modelId)
+        || /(?:^|[-_])free(?:$|[-_])/.test(name) || name === 'opencode-zen'
+        || PLAN_PROVIDER_IDS_LOCAL.includes(name) || Object.values(PLAN_PROVIDER_ALIASES_LOCAL).some(aliases => aliases.includes(name))
+        || inferPlanProviderIdLocal(provider) !== null) return null
+      const parts = modelId.normalize('NFKC').trim().split('/').map(part => part.trim())
+      if (parts.some(part => !part)) return null
+      if (parts.slice(0, -1).some(part => /(?:^|[-_])free(?:$|[-_])/.test(part.toLowerCase())
+        || isLocalOriginClient(part.toLowerCase().replace(/^llm-/, ''), ''))
+        || isLocalOriginClient('', parts.at(-1))) return null
+      const magpie = /^(?:dsh-)?magpie(?:$|-)/.test(name)
+      const vendors = ['openai', 'google', 'deepseek', 'deepseek-ai', 'deepseek-official', 'moonshot', 'z-ai', 'xai', 'alibaba', 'tencent', 'xiaomi', 'upstage', 'nvidia', 'mistral', 'meta', 'meituan', 'gemini', 'claude', 'ollama-cloud', 'ark']
+      const namespaces = {
+        anthropic: { vendor: 'anthropic', model: /^claude/i },
+        minimax: { vendor: 'minimax', model: /^minimax/i },
+        stepfun: { vendor: 'stepfun', model: /^step-/i },
+        codex: { vendor: 'openai', model: /^(?:gpt|o\d|codex)/i },
+      }
+      for (let index = 0; index < Math.min(parts.length - 1, 8); index++) {
+        const route = parts[index].toLowerCase().replace(/^llm-/, '')
+        if (route === 'openrouter' || route === 'opencode-zen' || vendors.includes(route)
+          || /(?:^|[-_])free(?:$|[-_])/.test(route)
+          || isLocalOriginClient(route, parts.slice(index + 1).join('/'))) return null
+        const namespace = Object.hasOwn(namespaces, route) ? namespaces[route] : null
+        if (namespace) {
+          const remainder = parts.slice(index + 1)
+          if (remainder[0].toLowerCase() === namespace.vendor) remainder.shift()
+          if (remainder.length !== 1 || !namespace.model.test(remainder[0])) return null
+        }
+        for (const [id, aliases] of Object.entries(PLAN_PROVIDER_ALIASES_LOCAL)) {
+          if (aliases.includes(route) || id === route) return { id, provider: route }
+        }
+        if (PLAN_PROVIDER_IDS_LOCAL.includes(route)) return { id: route, provider: route }
+        if (!magpie && !FORWARDING_PROVIDER_IDS_LOCAL.includes(route)) return null
+      }
+      return null
+    }
     function planProviderIdOfLocal(provider, config, modelId) {
       const name = String(provider ?? '').trim().toLowerCase().replace(/^llm-/, '')
       const assigned = config?.planBilling?.modelPlans?.[provider + ':' + modelId] ?? config?.planBilling?.modelPlans?.[name + ':' + modelId]
@@ -1357,7 +1440,12 @@
       for (const [id, aliases] of Object.entries(PLAN_PROVIDER_ALIASES_LOCAL)) {
         if (aliases.includes(name)) return id
       }
-      return PLAN_PROVIDER_IDS_LOCAL.includes(name) ? name : inferPlanProviderIdLocal(provider, modelId)
+      if (PLAN_PROVIDER_IDS_LOCAL.includes(name)) return name
+      const inferred = inferPlanProviderIdLocal(provider)
+      if (inferred !== null) return inferred
+      if (isLocalOriginClient(name, modelId) || /(?:^|[-_])free(?:$|[-_])/.test(name) || name === 'opencode-zen') return null
+      if (typeof modelId === 'string' && modelId.normalize('NFKC').includes('/')) return routedPlanProviderLocal(provider, modelId)?.id ?? null
+      return inferPlanProviderIdLocal(provider, modelId)
     }
     function enabledPlanSetOfLocal(config) {
       if (Array.isArray(config?.planBilling?.autoProviders)) return new Set(config.planBilling.autoProviders)
@@ -1409,9 +1497,11 @@
         if (configured === 'plan' || configured === 'api') return configured
       }
       if (planId === null) return 'api'
-      if (planId === 'go' && /^(?:llm-)?(?:dsh-opencode-go|opencode-go(?:-plus)?)$/i.test(String(provider).trim())) return 'plan'
-      if (planId === 'kimi' && /^(?:llm-)?kimi-coding(?:-plan)?$/i.test(String(provider).trim())) return 'plan'
-      if (planId === 'minimax' && /^(?:llm-)?minimax-(?:m-?plan|token-plan)$/i.test(String(provider).trim())) return 'plan'
+      const route = routedPlanProviderLocal(provider, modelId)
+      const subscriptionProvider = route?.id === planId ? route.provider : provider
+      if (planId === 'go' && /^(?:llm-)?(?:dsh-opencode-go|opencode-go(?:-plus)?)$/i.test(String(subscriptionProvider).trim())) return 'plan'
+      if (planId === 'kimi' && /^(?:llm-)?kimi-coding(?:-plan)?$/i.test(String(subscriptionProvider).trim())) return 'plan'
+      if (planId === 'minimax' && /^(?:llm-)?minimax-(?:m-?plan|token-plan)$/i.test(String(subscriptionProvider).trim())) return 'plan'
       return enabledPlanSetOfLocal(config).has(planId) ? 'plan' : 'api'
     }
     /**

@@ -13,7 +13,7 @@ const date = localDayKey(now - 3600000)
 const config = sanitizeConfig({})
 const snapshot = { fetchedAt: new Date(now).toISOString(), sources: [
   { source: 'Hindsight', days: { [date]: { input: 100, output: 20, cached: 30, calls: 2, costUsd: 0.25 } } },
-  { source: 'Other', records: [{ id: 'call-1', at, provider: 'deepseek', model: 'deepseek-chat', input: 1000, output: 100, cached: 50 }] },
+  { source: 'Other', records: [{ id: 'call-1', at, provider: 'deepseek', model: 'deepseek-v4-flash', input: 1000, output: 100, cached: 50 }] },
 ] }
 const parsed = parseExternalUsageSnapshot(snapshot, config, now)
 assert.ok(parsed)
