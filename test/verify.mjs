@@ -750,7 +750,8 @@ assert.equal(legacySession.input, 10000, 'legacy 会话 token 入账正确')
 assert.ok(legacyDay.byProviderModel['deepseek:deepseek-v4-pro'], '账本保存 provider/model 明细')
 console.log('[ok] 账本入账(含分界前 legacyBase)通过')
 console.log('[ok] 今日记录:', JSON.stringify(reloaded.today(), null, 2))
-console.log('[ok] default 回退计费生效(unknown-model-x 用 default 价)')
+assert.equal(reloaded.today().byProviderModel['deepseek:unknown-model-x'].cost, 0, '未知模型保留用量，不套用默认价')
+console.log('[ok] 未知模型保留用量，费用等待明确价格')
 
 // 4) 配置补丁校验。
 const patchOk = applyConfigPatch(reloaded.config, { currency: 'USD', symbol: '$', exchangeRate: 1, decimals: 6 })
@@ -1784,8 +1785,8 @@ const dsCandidates = Object.keys(DEFAULT_PRICE_TABLE.models)
 // 6.1 匹配算法各分支。
 assert.equal(matchModelId('deepseek-v4-flash', dsCandidates), 'deepseek-v4-flash', '精确匹配')
 assert.equal(matchModelId('deepseek-v4-flash-2026-08-01', dsCandidates), 'deepseek-v4-flash', '去日期后缀')
-assert.equal(matchModelId('deepseek-v4-pro-v2', dsCandidates), 'deepseek-v4-pro', '去版本后缀')
-assert.equal(matchModelId('deepseek-v4-flash-128k', dsCandidates), 'deepseek-v4-flash', '前缀匹配')
+assert.equal(matchModelId('deepseek-v4-pro-v2', dsCandidates), null, '不同版本不套用基础模型价')
+assert.equal(matchModelId('deepseek-v4-flash-128k', dsCandidates), null, '独立上下文规格须有明确价格')
 assert.equal(matchModelId('gpt-5-mini-2026-01-01', ['gpt-5-2025-08-07', 'gpt-4.1-2025-04-14']), null, '不同变体不互配')
 assert.equal(matchModelId('totally-unknown-model', dsCandidates), null, '阈值防误配')
 assert.equal(billingClassOf('openai-codex', 'gpt-6-luna', { models: { 'openai-codex:gpt-6-luna': 'plan' } }, new Set()), 'plan', '未知 provider 的模型级 Plan 覆盖优先生效')
@@ -1795,10 +1796,10 @@ assert.equal(matchModelId('claude-opus-4-9', ['claude-opus-4-8']), null, '同家
 assert.equal(matchModelId('glm-5', ['glm-5.3', 'glm-5.2']), null, '不猜测版本号')
 // 数字分叉守卫覆盖宽泛包含/前缀阶段(此前守卫只在家族 token 阶段,'glm-53'
 // 包含 'glm5' 即命中旧版低价):候选是请求前缀且余量全为数字 → 版本分叉拒绝;
-// '-128k' 等容量后缀(余量非纯数字)不受影响。
+// 容量后缀同样保留身份，不通过删除后缀推断价格。
 assert.equal(matchModelId('glm-5.3', ['glm-5']), null, 'containment 阶段数字分叉拒绝(glm-5.3 不落 glm-5 旧价)')
 assert.equal(matchModelId('gpt-5.9', ['gpt-5', 'gpt-5-nano']), null, 'prefix 阶段数字分叉拒绝(gpt-5.9 的 .9)')
-assert.equal(matchModelId('deepseek-v4-flash-128k', dsCandidates), 'deepseek-v4-flash', '容量后缀 -128k 前缀匹配保留')
+assert.equal(matchModelId('deepseek-v4-flash-128k', dsCandidates), null, '容量后缀 -128k 不套用基础模型价')
 assert.equal(matchModelId('claude-opus-4-20250514', ['claude-opus-4']), 'claude-opus-4', '日期快照经去饰等价仍命中')
 assert.equal(matchModelId('', dsCandidates), null, '空 id 安全')
 // 6.2 providerPriceEntryFor:auto/exact 与手动覆盖。
@@ -1807,7 +1808,7 @@ const autoHit = providerPriceEntryFor('deepseek', 'deepseek-v4-flash-2026-08-01'
 assert.equal(autoHit.entry.cacheMiss, flash.cacheMiss, 'auto 模式命中 flash 价')
 assert.equal(autoHit.billingMode, 'deepseek-peak', '匹配命中仍走峰谷计费')
 const exactMiss = providerPriceEntryFor('deepseek', 'deepseek-v4-flash-2026-08-01', dsPrices, { mode: 'exact' })
-assert.equal(exactMiss.entry.cacheMiss, DEFAULT_PRICE_TABLE.default.cacheMiss, 'exact 模式回退默认价')
+assert.equal(exactMiss.priced, false, 'exact 未命中时保持未定价')
 const overrideHit = providerPriceEntryFor('openai', 'gpt-x', providerPrices, { overrides: { 'openai:gpt-x': 'same-model' } })
 assert.equal(overrideHit.priced, true, '手动覆盖命中同 provider 模型')
 assert.equal(overrideHit.entry.cacheMiss, 2, '手动覆盖使用目标价')
@@ -2643,12 +2644,12 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.equal(providerPriceEntryFor('foo', 'no-such-model', fullPrices, { mode: 'auto', overrides: { 'foo:no-such-model': 'no-such-model' } }).priced, false, '未知裸名保持未定价(不误套默认价)')
   const clientSource = readClientSource() + readFileSync(new URL('../src/pricing/index.js', import.meta.url), 'utf8')
   assert.ok(clientSource.includes("value: 'deepseek:' + id"), '设置页下拉框 DeepSeek 目标存带前缀的值(issue #56 根因)')
-  assert.ok(clientSource.includes("if (provider !== 'deepseek' && !provider.includes('deepseek')") && clientSource.includes("matchModelIdLocal(override, Object.keys(dsModels), override, prices?.snapshotTags !== false, prices?.shortSnapshotTags !== false)"), '客户端 resolveClientPrice 同口径裸名兜底(未命中列表/徽章估算与计费一致)')
+  assert.ok(clientSource.includes("if (!['deepseek', 'deepseek-official'].includes(provider)") && clientSource.includes("matchModelIdLocal(override, Object.keys(dsModels), override, prices?.snapshotTags !== false, prices?.shortSnapshotTags !== false)"), '客户端 resolveClientPrice 同口径裸名兜底(未命中列表/徽章估算与计费一致)')
   // 客户端计费口径接线:parseConfig 白名单保留 prices.currency(CNY 价目下
   // 回退计价必须除汇率,否则展示金额放大汇率倍);跨厂商兑底 billingMode 与
   // 服务端 bestMode 对齐;数字分叉守卫双端同步。
   assert.ok(clientSource.includes("currency: typeof v.prices?.currency === 'string'"), '客户端 parseConfig 保留 prices.currency')
-  assert.ok(clientSource.includes("bestMode = priceBillingMode(modelsCat[h])"), '客户端跨厂商兑底 billingMode 与服务端同口径')
+  assert.ok(clientSource.includes("bestMode = priceBillingMode(entry)"), '客户端跨厂商兑底 billingMode 与服务端同口径')
   assert.ok(clientSource.includes('const stripped = stripIdDecor(target, snapshotTags, shortSnapshotTags)') && clientSource.includes('hits.length === 1 ? hits[0] : null'), '客户端安全后缀匹配与 pricing.js 同步')
   console.log('[ok] 手动价格映射裸 DeepSeek 名兜底(宿主+客户端双端/语义保留/下拉框根因修复)通过')
 }

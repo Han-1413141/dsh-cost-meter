@@ -1,6 +1,20 @@
 # Changelog
 ## [Unreleased]
 
+## [1.9.70] - 2026-11-16
+
+- 修复 OpenAI 兼容入口及第三方渠道的 DeepSeek 价格匹配，支持 `deepseek-ai` 命名空间、工作站与套餐别名、Magpie 多层账号路由和 `llm-` 前缀。
+- 手动映射和渠道自有价格优先，完整型号优先于格式别名与日期标签，保留 Mistral 等渠道的独立转售价。未知型号和歧义项保持未定价。
+- 区分版本、上下文规格、免费及本地来源，校验日期标签。免费插件经过转发后保留“按免费计算”设置。
+- 修正工作站转发后的 API／套餐归属，保留原渠道和模型标识。旧价格快照使用原匹配规则，支持按新规则显式重算。
+- Fix DeepSeek matching through compatible APIs, workstation and plan aliases, and nested Magpie account routes.
+- Preserve provider-specific rates and manual assignments, prefer full model IDs, and distinguish model versions, free/local sources and ambiguous quotes.
+- Keep subscription attribution through forwarding routes and preserve the original matching policy in historical price snapshots.
+
+感谢 [@pyk136874470692022](https://github.com/pyk136874470692022) 在 [#499](https://github.com/Han-1413141/dsh-cost-meter/issues/499) 报告第三方 API 调用费用为零并提供截图，促成本次模型价格匹配排查。
+
+[更新说明 / Release notes](docs/update-notes-1.9.70.md)
+
 ## [1.9.69] - 2026-11-16
 
 - 自定义价格的“更多计费项”增加长上下文阈值和各项单价；从参考价格复制或继续编辑时保留长上下文、峰谷及其他已支持的价格字段。

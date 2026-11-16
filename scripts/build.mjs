@@ -74,11 +74,12 @@ const dictionaryStrings = [...messageKeys, ...Object.values(messages).flatMap(Ob
 const separator = ['|', '~', '^', '`'].find(char => dictionaryStrings.every(value => !value.includes(char)))
 assert.ok(separator && dictionaryStrings.every(value => !value.includes('\0')), 'dictionary needs an unused separator')
 const packedMessages = Object.entries(messages).map(([locale, dict]) => [locale, messageKeys.map(key => dict[key] ?? '\0').join(separator)])
+let packedMessageKeys = messageKeys.join(separator)
 // Repeated phrases consume much of the remaining runtime byte budget.
 // Replace only profitable phrases with unused private-use characters, then
 // restore them before exposing dictionaries. All translations round-trip below.
 const phraseCounts = new Map()
-for (const value of Object.values(messages).flatMap(Object.values)) {
+for (const value of dictionaryStrings) {
   for (const match of value.matchAll(/[A-Za-z][A-Za-z0-9'-]{2,}/g)) {
     phraseCounts.set(match[0], (phraseCounts.get(match[0]) ?? 0) + 1)
   }
@@ -97,6 +98,12 @@ for (const value of Object.values(messages).flatMap(Object.values)) {
     }
   }
 }
+// Camel-case keys share words too; restore their exact spelling before dictionary lookup.
+for (const key of messageKeys) {
+  for (const [word] of key.matchAll(/[A-Z]?[a-z]+|[A-Z]+(?=[A-Z]|$)/g)) {
+    if (word.length >= 3) phraseCounts.set(word, (phraseCounts.get(word) ?? 0) + 1)
+  }
+}
 const phrases = []
 // Token 用 UTF-8 只占 2 字节的区间(拉丁扩展-B),而不是 3 字节的 U+E000 私用区:
 // 每次替换省 1 字节,短短语也因此变得划算。产物贴着 DSH STORE 单文件上限时,
@@ -110,22 +117,24 @@ const phraseBytes = phrase => Buffer.byteLength(phrase)
 const candidates = [...phraseCounts].filter(([, count]) => count >= 2)
   .sort((a, b) => (phraseBytes(b[0]) - TOKEN_BYTES) * b[1] - (phraseBytes(a[0]) - TOKEN_BYTES) * a[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
 for (const [phrase] of candidates) {
-  const count = packedMessages.reduce((sum, [, packed]) => sum + packed.split(phrase).length - 1, 0)
+  const count = packedMessages.reduce((sum, [, packed]) => sum + packed.split(phrase).length - 1, packedMessageKeys.split(phrase).length - 1)
   // 短语表里一条的成本是 len + 1(分隔符),每次出现省 (len - TOKEN_BYTES);只收净赚的。
   if (count * (phraseBytes(phrase) - TOKEN_BYTES) <= phraseBytes(phrase) + 1) continue
   const token = String.fromCharCode(tokenBase + phrases.length)
   phrases.push(phrase)
   for (const row of packedMessages) row[1] = row[1].split(phrase).join(token)
+  packedMessageKeys = packedMessageKeys.split(phrase).join(token)
   // U+0180..U+07FF 都是 UTF-8 双字节，实际使用前验证它们未出现在字典中。
   if (phrases.length === tokenLast - tokenBase + 1) break
 }
 const restorePhrases = packed => packed.replace(new RegExp(tokenRange, 'g'), token => phrases[token.charCodeAt(0) - tokenBase])
+assert.deepEqual(restorePhrases(packedMessageKeys).split(separator), messageKeys, 'dictionary packing must preserve every key')
 const unpacked = Object.fromEntries(packedMessages.map(([locale, packed]) => {
   const values = restorePhrases(packed).split(separator)
   return [locale, Object.fromEntries(messageKeys.map((key, i) => [key, values[i]]).filter(([, value]) => value !== '\0'))]
 }))
 assert.deepEqual(unpacked, JSON.parse(JSON.stringify(messages)), 'dictionary packing must preserve every translation')
-src = src.replace(messagesMatch[0], () => `const messageKeys=${javascriptLiteral(messageKeys.join(separator))}.split(${javascriptLiteral(separator)});const messagePhrases=${javascriptLiteral(phrases.join(separator))}.split(${javascriptLiteral(separator)});const MESSAGES=Object.fromEntries(${javascriptLiteral(packedMessages)}.map(([locale,packed])=>{const values=packed.replace(/${tokenRange}/g,token=>messagePhrases[token.charCodeAt(0)-${tokenBase}]).split(${javascriptLiteral(separator)});return [locale,Object.fromEntries(messageKeys.map((key,i)=>[key,values[i]]).filter(([,value])=>value!=="\\0"))]}));\n`)
+src = src.replace(messagesMatch[0], () => `const messagePhrases=${javascriptLiteral(phrases.join(separator))}.split(${javascriptLiteral(separator)});const restoreMessagePhrases=packed=>packed.replace(/${tokenRange}/g,token=>messagePhrases[token.charCodeAt(0)-${tokenBase}]);const messageKeys=restoreMessagePhrases(${javascriptLiteral(packedMessageKeys)}).split(${javascriptLiteral(separator)});const MESSAGES=Object.fromEntries(${javascriptLiteral(packedMessages)}.map(([locale,packed])=>{const values=restoreMessagePhrases(packed).split(${javascriptLiteral(separator)});return [locale,Object.fromEntries(messageKeys.map((key,i)=>[key,values[i]]).filter(([,value])=>value!=="\\0"))]}));\n`)
 // CSS 在源码保留逐行审阅形式；发布时先按 CSS 语法压缩，再嵌入同一客户端。
 // 不删除规则、不调整选择器优先级，所有样式仍在受字节门禁检查的 bundle 内。
 const cssMatch = src.match(/const css = (\[[\s\S]*?\]\.join\('\\n'\))/)

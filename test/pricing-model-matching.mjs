@@ -5,6 +5,8 @@ import { resolve, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { defaultConfig, sanitizeConfig, zeroDay, localDayKey, Ledger } from '../lib/store.js'
+import { PLAN_PROVIDER_ALIASES, FORWARDING_PROVIDER_IDS } from '../lib/plan-provider-aliases.js'
+import { pricingSnapshot, createPricingHistory, normalizePricingHistory } from '../lib/billing-history.js'
 
 // Optional paths let the matcher patch be checked before applying it to the repository.
 const pricingUrl = process.argv[2] ? pathToFileURL(resolve(process.argv[2])) : new URL('../lib/pricing.js', import.meta.url)
@@ -91,7 +93,7 @@ check('opencode-go', 'deepseek-v4-flash', { priced: true, input: 0.22, mode: 'ut
 for (const model of ['zen-only-model', 'go-only-model', 'router-only-model']) {
   check('custom-api', model, { priced: false })
   check('openai', model, { priced: false })
-  check('deepseek', model, { priced: true, input: 0.15, mode: 'deepseek-peak' })
+  check('deepseek', model, { priced: false })
 }
 check('anthropic', 'gemini-3.8-flash', { priced: false })
 check('google', 'gpt-6.1-sol', { priced: false })
@@ -140,7 +142,7 @@ for (const [model, candidates, expected] of [
   ['claude-opus-4.8-latest', ['claude-opus-4-8'], 'claude-opus-4-8'],
   ['gpt-6.1-sol-2026-10-01', ['gpt-6.1-sol'], 'gpt-6.1-sol'],
   ['gpt-6.1-sol-v2-2026-10-01', ['gpt-6.1-sol-v2', 'gpt-6.1-sol'], 'gpt-6.1-sol-v2'],
-  ['gpt-6.1-sol-128k', ['gpt-6.1-sol'], 'gpt-6.1-sol'],
+  ['gpt-6.1-sol-128k', ['gpt-6.1-sol'], null],
   ['GPT 6.1 Sol (Go)', ['gpt-6.1-sol'], 'gpt-6.1-sol'],
   ['gpt6.1sol', ['gpt-6.1-sol', 'gpt_6.1_sol'], null],
   ['gpt6.1sol', ['gpt_6.1_sol', 'gpt-6.1-sol'], null],
@@ -185,7 +187,6 @@ for (const [provider, model, input] of [
   ['openai', 'gpt-6.1-sol/latest', 2],
   ['openai', 'gpt-6.1-sol:latest', 2],
   ['openai', 'gpt-6.1-sol/2026-10-01', 2],
-  ['openai', 'gpt-6.1-sol:v2', 2],
 ]) {
   check(provider, model, { priced: true, input })
   if (provider !== 'deepseek') check(provider, model, { priced: false }, cfg('exact'))
@@ -197,6 +198,7 @@ for (const [provider, model] of [
   ['opencode-zen', 'unknown:gpt-6.1-sol'],
   ['custom-api', 'models/gpt-6.1-sol'],
   ['custom-api', 'models/gemini-3.8-flash:free'],
+  ['openai', 'gpt-6.1-sol:v2'],
   ['opencode-go', 'google:gemini-3.8-flash:online'],
 ]) check(provider, model, { priced: false })
 
@@ -247,16 +249,16 @@ const decoratedAmbiguous = { models: {}, default: {}, providers: {
   google: { models: { 'shared-model': flat(2) } },
 } }
 for (const provider of ['custom-api', 'deepseek']) {
-  check(provider, 'shared-model-v2-2026-10-01', { priced: false }, cfg('auto', {}, decoratedAmbiguous))
+  check(provider, 'shared-model-v2-2026-10-01', { priced: true, input: 1 }, cfg('auto', {}, decoratedAmbiguous))
   check(provider, 'shared-model-v2', { priced: true, input: 1 }, cfg('auto', {}, decoratedAmbiguous))
   const reversed = { ...decoratedAmbiguous, providers: Object.fromEntries(Object.entries(decoratedAmbiguous.providers).reverse()) }
-  check(provider, 'shared-model-v2-2026-10-01', { priced: false }, cfg('auto', {}, reversed))
+  check(provider, 'shared-model-v2-2026-10-01', { priced: true, input: 1 }, cfg('auto', {}, reversed))
 }
 for (const legacy of ['zen', 'opencode']) {
   const legacyScoped = { ...prices, providers: { ...prices.providers, [legacy]: { models: { 'legacy-only-model': flat(99) } } } }
   check(legacy, 'legacy-only-model', { priced: true, input: 99 }, cfg('auto', {}, legacyScoped))
   check('custom-api', 'legacy-only-model', { priced: false }, cfg('auto', {}, legacyScoped))
-  check('deepseek', 'legacy-only-model', { priced: true, input: 0.15 }, cfg('auto', {}, legacyScoped))
+  check('deepseek', 'legacy-only-model', { priced: false }, cfg('auto', {}, legacyScoped))
 }
 
 
@@ -386,7 +388,7 @@ for (const provider of ['custom-provider-id', 'llm-custom-provider-id']) {
   check(provider, 'vercel/google/gemini-3.8-flash', { priced: true, input: 0.75 })
   check(provider, 'unknown/gpt-6.1-sol', { priced: false })
 }
-check('openai', 'codex/gpt-6.1-sol', { priced: false })
+check('openai', 'codex/gpt-6.1-sol', { priced: true, input: 2 })
 check('opencode-go', 'codex/gpt-6.1-sol', { priced: false })
 const magpieKey = 'magpie:codex/gpt-6.1-sol'
 check('magpie', 'codex/gpt-6.1-sol', { priced: true, input: 10 }, cfg('auto', { [magpieKey]: 'openai:gpt-6-astra' }))
@@ -420,6 +422,10 @@ try {
     assert.equal(ledger.today().byProviderModel['dsh-magpie-connect:' + model].cost, expected, 'switching models selects each rate without a manual assignment')
   }
   assert.deepEqual(ledger.config.priceOverrides, {}, 'automatic matching does not create manual assignments')
+  ledger.account({ input: 1000000, output: 0 }, 'deepseek-v4-flash', 'compatible-api-session', Date.now(), 'llm-openai')
+  const compatible = ledger.today().byProviderModel['llm-openai:deepseek-v4-flash']
+  assert.equal(compatible.cost, 0.15, 'an OpenAI-compatible DeepSeek call is priced through the actual ledger')
+  assert.equal(compatible.apiCost, 0.15, 'an API call keeps its API classification and original provider/model key')
   ledger.close()
 } finally { rmSync(switchedHome, { recursive: true, force: true }) }
 
@@ -429,11 +435,17 @@ for (const provider of ['ollama', 'llm-ollama', 'lmstudio', 'local', 'vllm']) {
   check(provider, 'codex/gpt-6.1-sol', { priced: true, input: 10 }, cfg('auto', { [provider.replace(/^llm-/, '') + ':codex/gpt-6.1-sol']: 'openai:gpt-6-astra' }))
 }
 for (const provider of ['our-free-model', 'our-free-model-region']) {
+  check(provider, 'deepseek-v4-flash', { priced: true, input: 0.15 })
+  for (const gateway of ['magpie', 'custom-api']) {
+    check(gateway, provider + '/deepseek-v4-flash', { priced: true, input: 0.15 })
+    check(gateway, provider + '/deepseek-v4-flash', { priced: true, input: 0 }, cfg('auto', { [provider + ':*']: '__free__' }))
+    check('magpie', 'account-a/' + provider + '/deepseek-v4-flash', { priced: true, input: 0 }, cfg('auto', { [provider + ':*']: '__free__' }))
+  }
   check(provider, 'codex/gpt-6.1-sol', { priced: false })
   check(provider, 'codex/gpt-6.1-sol', { priced: true, input: 0 }, cfg('auto', { [provider + ':*']: '__free__' }))
   check(provider, 'codex/gpt-6.1-sol', { priced: true, input: 10 }, cfg('auto', { [provider + ':codex/gpt-6.1-sol']: 'openai:gpt-6-astra' }))
 }
-for (const provider of [undefined, '', 'llm-']) check(provider, 'codex/gpt-6.1-sol', { priced: true, input: 0.15, mode: 'deepseek-peak' })
+for (const provider of [undefined, '', 'llm-']) check(provider, 'codex/gpt-6.1-sol', { priced: false })
 check('magpie', 'deepseek/gpt-6.1-sol', { priced: false })
 for (const provider of ['opencode-go', 'openrouter', 'google']) {
   const withoutSource = { ...prices, providers: { ...prices.providers } }
@@ -442,4 +454,114 @@ for (const provider of ['opencode-go', 'openrouter', 'google']) {
   check('magpie', provider + '/' + model, { priced: false }, cfg('auto', {}, withoutSource))
 }
 
-console.log(`[ok] pricing-model-matching: ${comparisons} backend/client cases, unique aliases, qualified IDs, scoped catalogs, OpenRouter variants, local origins`)
+// Preserve every shipped full catalog ID, including explicit unpriced entries.
+for (const [provider, table] of [['deepseek', { models: installedPrices.models }], ...Object.entries(installedPrices.providers)]) {
+  for (const [model, raw] of Object.entries(table.models ?? {})) {
+    const entry = normalizePrice(raw)
+    for (const mode of ['auto', 'exact']) check(provider, model, {
+      priced: entry !== null && entry.unpriced !== true,
+      ...(entry && !entry.unpriced ? { input: entry.cacheMiss } : {}),
+    }, cfg(mode, {}, installedPrices))
+  }
+}
+
+// All known workstation and plan aliases accept a clear DeepSeek model family.
+const workstationProviders = ['custom-api', 'openai', 'llm-openai', 'anthropic', 'google', 'stepfun', 'magpie', 'billion-context', 'siliconflow', 'qoder', 'trae-cn', 'trae-global', 'zcode', 'cline', 'copilot', 'vercel']
+const planAliases = [...new Set(Object.values(PLAN_PROVIDER_ALIASES).flat())]
+for (const provider of [...new Set([...workstationProviders, ...planAliases])]) {
+  if (['opendesign', 'open-design', 'open-design-api', 'amr-link.open-design.ai', 'openrouter'].includes(provider)) continue
+  const go = PLAN_PROVIDER_ALIASES.go.includes(provider)
+  for (const model of ['deepseek-v4-flash', 'DeepSeek V4 Flash', 'DeepSeekV4Flash', 'deepseek-ai/DeepSeek-V4-Flash', 'ＤｅｅｐＳｅｅｋ－Ｖ４－Ｆｌａｓｈ']) {
+    check(provider, model, { priced: true, input: go ? 0.22 : 0.15 })
+  }
+  if (![...workstationProviders.slice(0, 9), 'codex', 'minimax', 'kimi', 'stepfun', 'qwen'].includes(provider)) {
+    for (const gateway of ['magpie', 'dsh-magpie-connect', 'custom-api']) {
+      check(gateway, provider.replace(/^llm-/, '') + '/deepseek-v4-flash', { priced: true, input: go ? 0.22 : 0.15 })
+    }
+  }
+}
+
+// Ambiguous aliases terminate lookup. Literal entries outrank another catalog's alias.
+const ownCases = [
+  ['custom-api', { 'DeepSeek V4 Flash': flat(90), deepseek_v4_flash: flat(91) }, 'deepseek-v4-flash', false],
+  ['deepseek-relay', { 'deepseek-v4-flash': flat(88) }, 'deepseek-v4-flash', true, 88],
+  ['deepseek-relay', { 'deepseek-v4-flash': { unpriced: true } }, 'deepseek-v4-flash', false],
+  ['deepseek-relay', { 'deepseek-v4-flash': flat(0, 0) }, 'deepseek-v4-flash', true, 0],
+  ['magpie', { 'codex/gpt-6.1-sol': flat(77) }, 'Codex/GPT 6.1 Sol', true, 77],
+  ['magpie', { 'codex/gpt-6.1-sol': flat(77), 'codex/gpt_6_1_sol': flat(78) }, 'codex/GPT 6.1 Sol', false],
+]
+for (const [provider, models, model, priced, input] of ownCases) {
+  check(provider, model, { priced, input }, cfg('auto', {}, { ...prices, providers: { ...prices.providers, [provider]: { models } } }))
+}
+const ranked = { ...prices, providers: { a: { models: { 'shared-model': flat(3) } }, b: { models: { 'Shared Model': flat(9), shared_model: flat(8) } } } }
+for (const providers of [ranked.providers, Object.fromEntries(Object.entries(ranked.providers).reverse())]) {
+  check('custom-api', 'shared-model', { priced: true, input: 3 }, cfg('auto', {}, { ...ranked, providers }))
+  check('custom-api', 'SHARED MODEL', { priced: false }, cfg('auto', {}, { ...ranked, providers }))
+}
+
+// Never convert unknown generations, free/local routes or malformed snapshots to paid base prices.
+for (const provider of ['', 'deepseek', 'deepseek-official', 'deepseek-relay', 'custom-api', 'openai', 'magpie']) {
+  for (const model of ['gpt-future-pro', 'deepseek-v99-very-pro', 'deepseek-v4-flash-v99', 'deepseek-v4-flash-999k', 'deepseek-v4-flash-2026-99-99', 'deepseek-v4-flash-2026-02-30', 'deepseek-v4-flash:free', 'deepseek-v4-flash@online', 'deepseek-v4-flash/free', 'deepseek-chat', 'deepseek-reasoner', 'deepseek-ai/gpt-6.1-sol']) {
+    check(provider, model, { priced: false })
+  }
+}
+for (const provider of ['free-channel', 'deepseek-free', 'magpie-free']) {
+  check(provider, 'deepseek-v4-flash', { priced: false })
+  check(provider, 'codex/gpt-6.1-sol', { priced: false })
+}
+for (const route of ['free-tier', 'account-free-a', 'ollama', 'lmstudio']) {
+  check('magpie', route + '/deepseek-v4-flash', { priced: false })
+  check('magpie', 'account-1/' + route + '/deepseek-v4-flash', { priced: false })
+}
+for (const model of ['deepseek-v4-flash-2026-11-12', 'deepseek-v4-flash-261112', 'deepseek-v4-flash-1112', 'deepseek-v4-flash-latest']) {
+  check('custom-api', model, { priced: true, input: 0.15 })
+}
+for (const [model, candidates, expected] of [
+  ['deepseek-v4-flash@online', ['deepseek-v4-flashonline'], null],
+  ['deepseek-v4-flash/free', ['deepseek-v4-flashfree'], null],
+  ['deepseek-v4-flash (pro)', ['deepseek-v4-flashpro'], null],
+  ['deepseek-v4-flash-2024-02-29', ['deepseek-v4-flash'], 'deepseek-v4-flash'],
+  ['deepseek-v4-flash-2025-02-29', ['deepseek-v4-flash'], null],
+  ['DeepSeek V4 Flash:FREE', ['deepseek-v4-flash:free'], 'deepseek-v4-flash:free'],
+  ['deepseek-v4-flash-128k', ['deepseek-v4-flash-128k', 'deepseek-v4-flash'], 'deepseek-v4-flash-128k'],
+]) {
+  assert.equal(matchModelId(model, candidates), expected)
+  assert.equal(client.matchModelIdLocal(model, candidates), expected)
+}
+check('custom-api', 'known-old', { priced: true, input: 0.15 }, cfg('auto', { 'custom-api:known-old': 'deepseek:__default__' }))
+check('custom-api', 'deepseek-chat', { priced: true, input: 4 }, cfg('auto', {}, { ...prices, providers: { ...prices.providers, 'custom-api': { models: { 'deepseek-chat': flat(4) } } } }))
+for (const provider of ['custom-api', 'openai', 'magpie']) {
+  check(provider, 'llm-opencode-go/deepseek-v4-flash', { priced: true, input: 0.22, mode: 'utc-peak' })
+  for (const forwarding of FORWARDING_PROVIDER_IDS) {
+    check(provider, forwarding + '/factory/deepseek-v4-flash', { priced: true, input: 0.15 })
+    check(provider, forwarding + '/codex/gpt-6.1-sol', { priced: true, input: 2 })
+  }
+}
+for (const model of ['llm-openrouter/deepseek-v4-flash', 'account-1/llm-openrouter/deepseek-v4-flash', 'deepseek-official/gpt-6.1-sol', 'account-1/deepseek-official/gpt-6.1-sol', 'account-1/workbuddy-ai/free-tier/deepseek-v4-flash', 'opencode-go/free-tier/deepseek-v4-flash', 'openai/deepseek-v4-flash', 'anthropic/deepseek-v4-flash']) {
+  check('magpie', model, { priced: false })
+}
+for (const account of ['constructor', '__proto__']) {
+  check('magpie', account + '/deepseek-v4-flash', { priced: true, input: 0.15 })
+}
+
+// Old saved versions keep their original matcher. New snapshots use the current rules.
+const oldSnapshot = pricingSnapshot(cfg(), true)
+const newSnapshot = pricingSnapshot(cfg())
+assert.equal(oldSnapshot.prices.legacyModelMatching, true)
+assert.equal(newSnapshot.prices.legacyModelMatching, false)
+for (const model of ['unknown-model', 'deepseek-v4-flash-128k', 'deepseek-v4-flash-v2']) {
+  assert.equal(providerPriceEntryFor('deepseek', model, oldSnapshot.prices).priced, true)
+  assert.equal(providerPriceEntryFor('deepseek', model, newSnapshot.prices).priced, false)
+}
+assert.equal(providerPriceEntryFor('openai', 'deepseek-v4-flash', oldSnapshot.prices).priced, false)
+assert.equal(providerPriceEntryFor('openai', 'deepseek-v4-flash', newSnapshot.prices).priced, true)
+const currentHistory = createPricingHistory(cfg())
+const restoredHistory = normalizePricingHistory(JSON.parse(JSON.stringify(currentHistory)), cfg())
+assert.equal(Object.values(restoredHistory.versions)[0].prices.legacyModelMatching, false, 'restart preserves the new matching policy')
+check('mistral-vibe', 'deepseek-v4-1-flash-1017', { priced: true, input: 0.3, mode: 'flat' }, cfg('auto', {}, installedPrices))
+check('custom-api', 'deepseek-v4-1-flash-1017', { priced: true, input: 0.3, mode: 'flat' }, cfg('auto', {}, installedPrices))
+check('openai', 'deepseek-v4-1-flash-1017', { priced: true, input: 0.3, mode: 'flat' }, cfg('auto', {}, installedPrices))
+check('deepseek-relay', 'deepseek-v4-1-flash-1017', { priced: true, input: 0.3, mode: 'flat' }, cfg('auto', {}, installedPrices))
+check('deepseek-relay', 'legacy-model', { priced: true, input: 0.15 }, cfg('exact', { 'deepseek-relay:legacy-model': 'deepseek-v4-flash' }))
+
+console.log(`[ok] pricing-model-matching: ${comparisons} backend/client cases, full catalogs, workstation/plan routes, ambiguous aliases, semantic variants and valid snapshots`)

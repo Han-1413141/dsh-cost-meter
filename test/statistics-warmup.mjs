@@ -63,8 +63,8 @@ try {
   const at = Date.parse('2026-10-15T00:00:00Z')
   const records = id => [
     { type: 'session', id, createdAt: at },
-    { type: 'request/header', seq: 0, time: at, data: { header: { config: { provider: 'deepseek', model: 'deepseek-chat' }, key: 'PRIVATE-KEY' } } },
-    { type: 'assistant/message', seq: 1, time: at + 1, data: { turn: 1, step: 1, usage: { inputTokens: 100, outputTokens: 10, body: 'PRIVATE-USAGE' }, message: { content: 'PRIVATE-MESSAGE', source: { provider: 'deepseek', model: 'deepseek-chat', secret: 'PRIVATE-SOURCE' } } } },
+    { type: 'request/header', seq: 0, time: at, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' }, key: 'PRIVATE-KEY' } } },
+    { type: 'assistant/message', seq: 1, time: at + 1, data: { turn: 1, step: 1, usage: { inputTokens: 100, outputTokens: 10, body: 'PRIVATE-USAGE' }, message: { content: 'PRIVATE-MESSAGE', source: { provider: 'deepseek', model: 'deepseek-v4-flash', secret: 'PRIVATE-SOURCE' } } } },
     { type: 'tool/call', seq: 2, time: at + 2, data: { turn: 1, step: 1, name: 'read_file', callId: 'a', arguments: 'PRIVATE-ARGUMENTS' } },
     { type: 'cost-meter/native-search-usage', time: at + 3, data: { provider: 'deepseek-official', model: 'deepseek-search', requestId: '00000000-0000-4000-8000-000000000000', startedAtMs: at + 3,
       query: 'PRIVATE-SEARCH', usage: { inputTokens: 1, outputTokens: 0, cacheReadTokens: 0, cacheWriteTokens: 0, reasoningTokens: 0, body: 'PRIVATE-NATIVE-USAGE' } } },

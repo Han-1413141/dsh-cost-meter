@@ -70,7 +70,7 @@ try {
   assert.equal((await cachedStatistics(generationLedger, identity, changed)).value.cost, 2)
 
   // Real trajectory snapshot: category summaries and paging preserve the conversation total.
-  const at = Date.parse('2026-10-15T02:00:00Z'), events = [{ type: 'request/header', seq: 0, time: at, data: { header: { config: { provider: 'deepseek', model: 'deepseek-chat' }, key: 'PRIVATE-HEADER' } } }]
+  const at = Date.parse('2026-10-15T02:00:00Z'), events = [{ type: 'request/header', seq: 0, time: at, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' }, key: 'PRIVATE-HEADER' } } }]
   for (let i = 1; i <= 2880; i++) events.push(
     { type: 'assistant/message', seq: i * 2, time: at + i, data: { turn: 1, step: i, usage: { inputTokens: i, outputTokens: 10, cacheReadTokens: 900 }, message: { content: 'PRIVATE-BODY' } } },
     { type: 'tool/call', seq: i * 2 + 1, time: at + i, data: { turn: 1, step: i, name: 'tool_' + i % 12, callId: 'c' + i, arguments: 'PRIVATE-ARGUMENTS' } })

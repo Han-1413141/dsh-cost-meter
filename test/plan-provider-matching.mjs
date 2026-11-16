@@ -4,7 +4,7 @@ import { readFileSync, readdirSync, mkdtempSync, mkdirSync, writeFileSync, appen
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { Ledger, sanitizeConfig, applyConfigPatch, localDayKey } from '../lib/store.js'
-import { billingClassOf, planProviderIdOf, enabledPlanSetOf, buildPlanStats } from '../lib/plan-billing.js'
+import { billingClassOf, planProviderIdOf, enabledPlanSetOf, buildPlanStats, PLAN_PROVIDER_IDS, PLAN_PROVIDER_ALIASES } from '../lib/plan-billing.js'
 import { inferPlanProviderId } from '../lib/plan-provider-match.js'
 import { repairPlanHourBuckets } from '../lib/backfill.js'
 import { stateSchema } from '../lib/typert.host.js'
@@ -76,6 +76,93 @@ function assertBilling(provider, model, cfg, expected) {
   assert.equal(billingClassOf(provider, model, cfg.planBilling, enabledPlanSetOf(cfg), cfg.prices), expected, 'server: ' + provider)
   assert.equal(ui.billingClassOfLocal(provider, model, cfg), expected, 'client: ' + provider)
 }
+
+// Explicit plan routes retain their family through gateways and Magpie accounts.
+const routedPlansConfig = sanitizeConfig({ planBilling: { autoProviders: PLAN_PROVIDER_IDS } })
+for (const [id, aliases] of Object.entries(PLAN_PROVIDER_ALIASES)) {
+  for (const alias of new Set([id, ...aliases])) {
+    for (const [provider, model] of [
+      ['custom-api', alias + '/deepseek-v4-flash'],
+      ['magpie', alias + '/deepseek-v4-flash'],
+      ['llm-dsh-magpie-connect', 'account-a/' + alias + '/deepseek-v4-flash'],
+    ]) {
+      const expected = ['openrouter', 'anthropic', 'minimax', 'stepfun', 'codex'].includes(alias) ? null : id
+      assert.equal(planProviderIdOf(provider, routedPlansConfig.planBilling, model), expected, provider + ':' + model)
+      assert.equal(ui.planProviderIdOfLocal(provider, routedPlansConfig, model), expected, 'client: ' + provider + ':' + model)
+      assertBilling(provider, model, routedPlansConfig, expected === null || id === 'siliconflow' ? 'api' : 'plan')
+    }
+  }
+}
+for (const [provider, model, id] of [
+  ['magpie', 'account-a/account-b/factory/deepseek-v4-flash', 'factory'],
+  ['magpie', 'constructor/factory/deepseek-v4-flash', 'factory'],
+  ['magpie', '__proto__/factory/deepseek-v4-flash', 'factory'],
+  ['custom-api', 'vercel/workbuddy/deepseek-v4-flash', 'workbuddy'],
+  ['custom-api', 'copilot/factory/deepseek-v4-flash', 'factory'],
+  ['custom-api', 'factory/DeepSeek-V4-Flash', 'factory'],
+  ['custom-api', ' ＦＡＣＴＯＲＹ／deepseek-v4-flash ', 'factory'],
+  ['workbuddy', 'factory/deepseek-v4-flash', 'workbuddy'],
+  ['my-ark-coding-plan', 'factory/deepseek-v4-flash', 'volcengine'],
+  ['magpie', 'anthropic/claude-opus-4-8', 'anthropic'],
+  ['magpie', 'anthropic/anthropic/claude-opus-4-8', 'anthropic'],
+  ['magpie', 'minimax/minimax-m3', 'minimax'],
+  ['magpie', 'stepfun/step-5-preview', 'stepfun'],
+  ['magpie', 'codex/gpt-6.1-sol', 'codex'],
+  ['magpie', 'codex/openai/gpt-6.1-sol', 'codex'],
+  ['magpie', 'account-a/llm-codex/o3', 'codex'],
+]) {
+  assert.equal(planProviderIdOf(provider, routedPlansConfig.planBilling, model), id, provider + ':' + model)
+  assert.equal(ui.planProviderIdOfLocal(provider, routedPlansConfig, model), id, 'client: ' + provider + ':' + model)
+  assertBilling(provider, model, routedPlansConfig, 'plan')
+}
+for (const [provider, model] of [
+  ['custom-api', 'account-a/factory/deepseek-v4-flash'],
+  ['custom-api', 'unknown/workbuddy-subscription/deepseek-v4-flash'],
+  ['magpie', 'openrouter/factory/deepseek-v4-flash'],
+  ['magpie', 'opencode-zen/workbuddy/deepseek-v4-flash'],
+  ['magpie', 'account-a/ollama/factory/deepseek-v4-flash'],
+  ['magpie', 'account-a/free/factory/deepseek-v4-flash'],
+  ['magpie', 'account-a/workbuddy-ai/free-tier/deepseek-v4-flash'],
+  ['magpie', 'account-a/opencode-go/free-tier/deepseek-v4-flash'],
+  ['magpie', 'workbuddy-ai/account-a/ollama/deepseek-v4-flash'],
+  ['magpie', 'opencode-go/account-a/ollama/deepseek-v4-flash'],
+  ['magpie', 'factory/ollama:deepseek-v4-flash'],
+  ['magpie', 'anthropic/deepseek-v4-flash'],
+  ['magpie', 'minimax/deepseek-v4-flash'],
+  ['magpie', 'stepfun/deepseek-v4-flash'],
+  ['magpie', 'codex/deepseek-v4-flash'],
+  ['magpie', 'account-a/anthropic/deepseek-v4-flash'],
+  ['magpie', 'codex/anthropic/gpt-6.1-sol'],
+  ['magpie', 'anthropic/account-a/claude-opus-4-8'],
+  ['magpie', 'google/factory/deepseek-v4-flash'],
+  ['magpie', 'claude/factory/deepseek-v4-flash'],
+  ['magpie', 'ollama-cloud/factory/deepseek-v4-flash'],
+  ['magpie', 'deepseek-official/factory/deepseek-v4-flash'],
+  ['magpie', 'deepseek-ai/workbuddy-subscription/deepseek-v4-flash'],
+  ['magpie', 'account-a//factory/deepseek-v4-flash'],
+  ['magpie', 'account-a/account-b/account-c/account-d/account-e/account-f/account-g/account-h/factory/deepseek-v4-flash'],
+  ['opencode-zen', 'factory/deepseek-v4-flash'],
+  ['ollama', 'factory/deepseek-v4-flash'],
+  ['our-free-model', 'factory/deepseek-v4-flash'],
+]) {
+  assert.equal(planProviderIdOf(provider, routedPlansConfig.planBilling, model), null, provider + ':' + model)
+  assert.equal(ui.planProviderIdOfLocal(provider, routedPlansConfig, model), null, 'client: ' + provider + ':' + model)
+  assertBilling(provider, model, routedPlansConfig, 'api')
+}
+for (const model of ['opencode-go/deepseek-v4-flash', 'account-a/opencode-go/deepseek-v4-flash', 'kimi-coding/deepseek-v4-flash', 'minimax-token-plan/deepseek-v4-flash']) {
+  assertBilling('magpie', model, sanitizeConfig({}), 'plan')
+}
+const rawRouteModel = 'factory/deepseek-v4-flash'
+assertBilling('magpie', rawRouteModel, sanitizeConfig({ planBilling: { autoProviders: ['factory'], providers: { magpie: 'api' } } }), 'api')
+assertBilling('magpie', rawRouteModel, sanitizeConfig({ planBilling: { autoProviders: ['factory'], models: { ['magpie:' + rawRouteModel]: 'api' } } }), 'api')
+assertBilling('magpie', rawRouteModel, sanitizeConfig({ planBilling: { providers: { magpie: 'api' }, models: { ['magpie:' + rawRouteModel]: 'plan' } } }), 'plan')
+assertBilling('anthropic', 'factory/deepseek-v4-flash', sanitizeConfig({ planBilling: { autoProviders: ['factory'] } }), 'api')
+assertBilling('openrouter', rawRouteModel, routedPlansConfig, 'api')
+const assignedRoutedPlan = sanitizeConfig({ planBilling: { autoProviders: ['qwen'], modelPlans: { ['magpie:' + rawRouteModel]: 'qwen' } } })
+assert.equal(planProviderIdOf('magpie', assignedRoutedPlan.planBilling, rawRouteModel), 'qwen')
+assert.equal(ui.planProviderIdOfLocal('magpie', assignedRoutedPlan, rawRouteModel), 'qwen')
+assertBilling('magpie', rawRouteModel, assignedRoutedPlan, 'plan')
+
 // #389: the dedicated OpenCode Go plugin uses a different request provider id.
 const goConfig = sanitizeConfig({ goQuota: { enabled: true } })
 for (const provider of ['dsh-opencode-go', 'llm-dsh-opencode-go', ' DSH-OpenCode-Go ', 'opencode-go', 'opencode-go-plus', 'zen']) {
@@ -114,6 +201,24 @@ try {
       }
       assertBilling('dsh-opencode-go', models[0], ui.parseConfig(stateSchema.shape.config.parse(saved.config), 'config'), expected)
     } finally { await goLedger.close() }
+  }
+  for (const [provider, model] of [
+    ['custom-api', 'factory/deepseek-v4-flash'],
+    ['magpie', 'account-a/factory/deepseek-v4-flash'],
+    ['magpie', 'account-a/opencode-go/deepseek-v4-flash'],
+  ]) {
+    const routedLedger = new Ledger(routedPlansConfig, {}, join(goRoot, 'routed-' + model.replaceAll('/', '-') + '.json'))
+    try {
+      routedLedger.account({ input: 1000000, output: 1000 }, model, 'routed-plan-session', Date.now(), provider)
+      await routedLedger.flushAsync()
+      const saved = JSON.parse(readFileSync(routedLedger.path, 'utf8'))
+      const day = Object.values(saved.days).find(row => row.calls > 0)
+      const row = day.byProviderModel[provider + ':' + model]
+      assert.ok(row.cost > 0, 'routed plan keeps API-equivalent cost: ' + provider + ':' + model)
+      assert.equal(row.apiCost, 0, 'routed plan does not spend API balance: ' + provider + ':' + model)
+      assert.equal(row.calls, 1)
+      assert.deepEqual(Object.keys(day.byProviderModel), [provider + ':' + model], 'incoming provider/model identities are retained')
+    } finally { await routedLedger.close() }
   }
 } finally { rmSync(goRoot, { recursive: true, force: true }) }
 
