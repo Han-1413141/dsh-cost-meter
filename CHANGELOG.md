@@ -1,6 +1,19 @@
 # Changelog
 ## [Unreleased]
 
+## [1.9.68] - 2026-11-16
+
+- 修复历史重算因 calls 差异而跳过 Token 完整记录的问题，保留原调用次数；按请求收费仍核对次数。
+- 重算记录展示未重算会话的日期、模型、账本与日志差值，重启后保留。
+- 本会话费用悬停提示注明“仅主会话”或“含子代理”。
+- Reprice complete Token totals despite differing call counts, preserve ledger counts, and retain request-count checks for request fees.
+- Persist and display unchanged sessions and ledger/log differences in recalculation history.
+- Show the subagent scope in session-cost tooltips.
+
+感谢 [@PersueFree](https://github.com/PersueFree) 在 [#509](https://github.com/Han-1413141/dsh-cost-meter/issues/509) 提供复现数据、重算判断定位、usage 存储形式及子代理显示反馈。
+
+[更新说明 / Release notes](docs/update-notes-1.9.68.md)
+
 ## [1.9.67] - 2026-11-15
 
 - 展示币种从 USD/CNY/EUR 扩展到 26 种 ECB 参考汇率，切换币种保留小数位设置；新增「余额显示币种」（原币种 / 跟随显示币种 / 目录币种），官方与自定义余额都可换算展示。

@@ -1870,7 +1870,7 @@
       const warm = () => warmPage(props.api?.loadStatistics, { state: snapshot?.state, sessionId: props.sessionId })
       // 悬停详情走宿主官方 Tooltip(与官方统计 pill 一致的黑色气泡),不再用浏览器原生 title。
       return el(Fragment, null,
-        el(Tooltip, { portal: true, label: [fullLine, modelDetail].filter(Boolean).join('; '), side: 'top' },
+        el(Tooltip, { portal: true, label: [fullLine, config?.includeSubagentCost ? (en ? 'Includes subagents' : '含子代理') : (en ? 'Main session only' : '仅主会话'), modelDetail].filter(Boolean).join('; '), side: 'top' },
           el('button', { type: 'button', className: 'cm-dp' + (props.entryPosition === 'header' ? ' cm-dp-header' : ''), 'aria-label': label, 'aria-haspopup': 'dialog', 'aria-expanded': open, onMouseEnter: warm, onFocus: warm, onClick: () => setOpenedId(props.sessionId) },
             el('span', { className: 'cm-dl' }, labelText))),
         dialog)

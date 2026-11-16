@@ -9,9 +9,14 @@ window.__ModuleLoader__.load({
     let createPortal = null
     try { createPortal = require('react-dom')?.createPortal ?? null } catch {}
     const runFields = ['at', 'before', 'after', 'days', 'sessions', 'skipped']
+    const validDetail = row => typeof row?.sessionId === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.date) && typeof row.model === 'string'
+      && ['usage', 'ledgerModelMissing', 'logModelMissing', 'dayModelMissing', 'logMissing'].includes(row.reason)
+      && Array.isArray(row.fields) && row.fields.every(item => ['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning', 'calls'].includes(item?.field)
+        && Number.isFinite(item.ledger) && item.ledger >= 0 && Number.isFinite(item.log) && item.log >= 0)
     const isRequestKey = key => ['deepseek-official:deepseek-web-search', 'deepseek-official:deepseek-web-fetch', 'deepseek-official:deepseek-search-api', 'deepseek-official:deepseek-fetch-api', 'deepseek-official:deepseek-search-server'].includes(key)
     const historySchema = { parse: value => {
-      if (!Array.isArray(value) || !value.every(row => runFields.every(key => Number.isFinite(row?.[key]) && row[key] >= 0) && (row.model === undefined || typeof row.model === 'string'))) throw new Error('Invalid recalculation history')
+      if (!Array.isArray(value) || !value.every(row => runFields.every(key => Number.isFinite(row?.[key]) && row[key] >= 0) && (row.model === undefined || typeof row.model === 'string')
+        && (row.skippedDetails === undefined || Array.isArray(row.skippedDetails) && row.skippedDetails.every(validDetail)))) throw new Error('Invalid recalculation history')
       return value
     } }
     const resultSchema = { parse: value => {
@@ -590,6 +595,14 @@ window.__ModuleLoader__.load({
         return formatMoneyUsd(typeof native === 'number' && rate > 0 ? native / rate : row[field], state.config)
       }
       const allLabel = en ? 'All models' : '全部模型'
+      const reasons = en ? { usage: 'Usage differs', ledgerModelMissing: 'Model missing from ledger', logModelMissing: 'Model missing from logs', dayModelMissing: 'Model missing from daily totals', logMissing: 'No replayable logs' }
+        : { usage: '用量不一致', ledgerModelMissing: '账本缺少此模型', logModelMissing: '日志缺少此模型', dayModelMissing: '当日汇总缺少此模型', logMissing: '无可回放日志' }
+      const skipped = row => row.skippedDetails?.length ? el('details', { key: row.at, className: 'cm-repricing-skipped' },
+        el('summary', null, new Date(row.at).toLocaleString(locale) + ' · ' + row.skipped + (en ? ' unchanged' : ' 条未重算')),
+        el('ul', null, ...row.skippedDetails.map((item, i) => el('li', { key: i },
+          el('div', null, [item.sessionId, item.date, item.model].filter(Boolean).join(' · ')),
+          el('div', null, reasons[item.reason]),
+          ...item.fields.map(field => el('div', { key: field.field }, `${field.field}: ${en ? 'ledger' : '账本'} ${field.ledger} − ${en ? 'log' : '日志'} ${field.log} = ${field.ledger - field.log}`)))))) : null
       const models = useMemo(() => [...new Set([state.today, state.month, ...(state.history ?? [])]
         .flatMap(day => Object.keys(day?.byProviderModel ?? {})))].filter(key => key.indexOf(':') > 0).sort(), [state.today, state.month, state.history])
       const options = useMemo(() => [{ value: '', label: allLabel }, ...models.map(key => ({ value: key, label: key }))], [models, allLabel])
@@ -624,7 +637,7 @@ window.__ModuleLoader__.load({
         runs.length ? el('details', { className: 'cm-repricing-history' }, el('summary', null, en ? 'Recalculation records · original amounts retained' : '重算记录 · 原金额已保留'),
           el('div', { className: 'cm-stat-scroll' }, el('table', { className: 'cm-stat-table' },
             el('thead', null, el('tr', null, ...(en ? ['Time', 'Scope', 'Before', 'After', 'Session/day records'] : ['重算时间', '范围', '原金额', '重算后', '会话日期记录']).map(s => el('th', { key: s, scope: 'col' }, s)))),
-            el('tbody', null, ...runs.map(row => el('tr', { key: row.at }, el('td', null, new Date(row.at).toLocaleString(locale)), el('td', null, row.model || allLabel), el('td', null, money(row, 'before')), el('td', null, money(row, 'after')), el('td', null, row.sessions))))))) : null)
+            el('tbody', null, ...runs.map(row => el('tr', { key: row.at }, el('td', null, new Date(row.at).toLocaleString(locale)), el('td', null, row.model || allLabel), el('td', null, money(row, 'before')), el('td', null, money(row, 'after')), el('td', null, row.sessions)))))), ...runs.map(skipped)) : null)
     }
 
     function ProviderBillingSettings({ state, draft, setDraft, locale }) {
@@ -700,6 +713,7 @@ window.__ModuleLoader__.load({
       style.textContent = '.cm-repricing-scope{display:grid;gap:8px;max-width:620px;margin:16px 0}.cm-repricing-scope>label{font-size:13px;color:var(--dsw-alias-label-secondary)}.cm-repricing-scope .cm-hint{margin:0;line-height:1.6}'
       style.textContent += '.cm-price-search{display:grid;gap:6px;min-width:0}.cm-price-search small{color:var(--dsw-alias-label-tertiary)}.cm-price-search select,.cm-price-search input{width:100%;min-width:0}.cm-repricing-warning{padding:12px;border:1px solid var(--dsw-alias-state-warn-primary,#c58a25);border-radius:10px;background:var(--dsw-alias-bg-layer-1)}.cm-repricing-warning p{margin:8px 0 12px;line-height:1.6}.cm-repricing-history{margin-top:12px}.cm-repricing-history table{width:100%;text-align:left;font-variant-numeric:tabular-nums}.cm-repricing-history td,.cm-repricing-history th{padding:8px;border-bottom:1px solid var(--dsw-alias-border-l1)}'
       style.textContent += '.cm-repricing-history .cm-stat-scroll{overflow-x:auto;max-width:100%}.cm-repricing-history table{min-width:560px}.cm-repricing-history th{white-space:nowrap}.cm-repricing-history td:nth-child(2){min-width:150px;max-width:260px;overflow-wrap:anywhere}'
+      style.textContent += '.cm-repricing-skipped{margin-top:12px;overflow-wrap:anywhere}.cm-repricing-skipped summary{cursor:pointer}.cm-repricing-skipped ul{padding-left:18px}.cm-repricing-skipped li+li{margin-top:12px}'
       style.textContent += '.cm-pricing-page .cm-free-model{margin:0 0 12px;padding:10px 12px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:transparent}.cm-pricing-page .cm-free-model>.cm-check{display:flex;align-items:center;gap:8px;margin:0;font-size:12px;line-height:20px;color:var(--dsw-alias-label-primary)}.cm-pricing-page .cm-free-model input{flex:none;width:16px;height:16px;margin:0;accent-color:var(--dsw-alias-state-business-primary)}.cm-pricing-page .cm-free-model>.cm-hint{display:block;margin:4px 0 0 24px;font-size:11px;line-height:1.5}'
       style.textContent += '.cm-provider-schedules{margin:12px 0}.cm-provider-schedules>.cm-field{max-width:360px;margin:12px 0}.cm-peak-schedule,.cm-custom-more fieldset{min-width:0;margin:12px 0;padding:12px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px}.cm-peak-schedule{display:grid;gap:12px}.cm-custom-more .cm-check{display:flex;align-items:center;gap:8px;margin:12px 0}.cm-custom-more .cm-check input{width:auto;flex:none;margin:0}.cm-peak-schedule legend{font-size:12px}.cm-peak-schedule .cm-hint{margin:0;line-height:1.6}'
       style.textContent += '.cm-custom-price{grid-column:1/-1;display:grid;gap:14px;margin:4px 0 12px;padding:16px;border:1px solid var(--dsw-alias-border-l1);border-radius:var(--dsw-radius-lg,12px);background:var(--dsw-alias-bg-layer-1);min-width:0}.cm-custom-price legend{padding:0 6px;font-weight:500;font-size:13px}.cm-custom-price label{display:grid;gap:7px;font-size:12px;min-width:0;color:var(--dsw-alias-label-secondary)}.cm-custom-price .cm-input{width:100%;min-width:0}.cm-custom-head{display:flex;justify-content:space-between;align-items:center;gap:12px;color:var(--dsw-alias-label-secondary);font-size:12px}.cm-custom-head label{display:flex;align-items:center;gap:8px}.cm-custom-head select{width:auto!important}.cm-custom-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.cm-custom-amount{position:relative;display:block}.cm-custom-amount>span{position:absolute;inset-inline-start:11px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--dsw-alias-label-tertiary)}.cm-custom-amount input{padding-inline-start:28px}.cm-custom-more summary{cursor:pointer;font-size:12px;color:var(--dsw-alias-label-secondary)}.cm-custom-more .cm-custom-grid{grid-template-columns:repeat(2,minmax(0,1fr));margin:12px 0 8px}.cm-custom-price p{margin:0;line-height:1.6}@media(max-width:700px){.cm-custom-grid{grid-template-columns:1fr}.cm-custom-head{flex-wrap:wrap}}'

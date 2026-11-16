@@ -43,7 +43,7 @@ const {CostSection,parseConfig}=window.costUI.preview;
 const state=${literal(initialState)};state.config=parseConfig(state.config,'config');
 if(new URLSearchParams(location.search).has('many'))state.today.byProviderModel=state.month.byProviderModel=Object.fromEntries(Array.from({length:500},(_,i)=>['channel:model-'+i,{calls:1,input:1,output:1,cost:0}]));
 window.patches=[];window.reprices=[];window.historyReads=0;
-const pricing=window.priceUI.mount({effect:fn=>fn(),get:key=>key==='remote'?{$mount:async()=>()=>{}}:{getRepricingHistory:async()=>{window.historyReads++;return ({ok:true,value:window.reprices.map((item,i)=>({at:1792050000000+i,before:1,after:2,days:1,sessions:1,skipped:0,...(typeof item==='object'?{model:item.model}:{})}))})},repriceHistory:async confirmed=>{window.reprices.push(confirmed);return {ok:true,value:{ok:true,message:'已重算，原金额已保留。'}}},repriceModelHistory:async (confirmed,model)=>{window.reprices.push({confirmed,model});return {ok:true,value:{ok:true,message:'单模型重算完成，其他模型保持不变。'}}}}});
+const pricing=window.priceUI.mount({effect:fn=>fn(),get:key=>key==='remote'?{$mount:async()=>()=>{}}:{getRepricingHistory:async()=>{window.historyReads++;return ({ok:true,value:window.reprices.map((item,i)=>({at:1792050000000+i,before:1,after:2,days:1,sessions:1,skipped:0,...(typeof item==='object'?{model:item.model,skipped:1,skippedDetails:[{sessionId:'1fb3107d',date:'2026-11-15',model:item.model,reason:'usage',fields:[{field:'input',ledger:210789,log:210195},{field:'output',ledger:31779,log:31767},{field:'calls',ledger:85,log:84}]}]}:{})}))})},repriceHistory:async confirmed=>{window.reprices.push(confirmed);return {ok:true,value:{ok:true,message:'已重算，原金额已保留。'}}},repriceModelHistory:async (confirmed,model)=>{window.reprices.push({confirmed,model});return {ok:true,value:{ok:true,message:'单模型重算完成，其他模型保持不变。'}}}}});
 const api={reload:async()=>{},loadPricing:()=>pricing,loadOpenRouter:async()=>()=>null,updateConfig:async patch=>{window.patches.push(patch)}};
 const root=createRoot(document.getElementById('root')),render=()=>root.render(React.createElement(CostSection,{useCost:()=>({state,status:'ready'}),api}));
 window.updateAvailability=value=>{state.modelDirectory=value;render()};render();
@@ -285,6 +285,9 @@ try {
   await page.waitForFunction(() => window.reprices.length === 2)
   assert.deepEqual(await page.evaluate(() => window.reprices[1]), { confirmed: true, model: 'deepseek:deepseek-v4-flash' })
   await page.getByRole('cell', { name: 'deepseek:deepseek-v4-flash', exact: true }).waitFor()
+  await page.locator('.cm-repricing-skipped summary').click()
+  assert.match(await page.locator('.cm-repricing-skipped').innerText(), /input: 账本 210789 − 日志 210195 = 594/)
+  assert.match(await page.locator('.cm-repricing-skipped').innerText(), /calls: 账本 85 − 日志 84 = 1/)
   await page.setViewportSize({ width: 430, height: 900 })
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false, '单模型重算在窄窗口不溢出')
   await page.screenshot({ path: join(output, 'single-model-repricing.png'), fullPage: true })
