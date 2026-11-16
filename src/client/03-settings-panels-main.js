@@ -32,6 +32,8 @@
         return () => { active = false }
       }, [props.api, props.load, retry])
       if (Page) return el(Page, { ...props, formatMoneyUsd, formatTokens, resolveLocale })
+      // Keep the original sidebar usable while this optional presentation loads or fails.
+      if (props.fallback) return el(Fragment, null, props.fallback, error ? el('button', { type: 'button', className: 'cm-btn small', title: error, onClick: () => setRetry(n => n + 1) }, resolveLocale(props.state?.config) === 'en' ? 'Retry icon layout' : '重试图标布局') : null)
       if (props.quiet) return null
       return el('div', { className: error ? '' : 'cm-loading', role: error ? 'alert' : 'status', 'aria-label': resolveLocale(props.state?.config) === 'en' ? 'Loading' : '正在读取' }, error || el(Fragment, null, el('i'), el('i'), el('i')), error ? el('button', { className: 'cm-btn', onClick: () => setRetry(n => n + 1) }, '↻') : null)
     }
@@ -1904,7 +1906,7 @@
           renderSidebar: (preview, data = state) => renderSidebarFooter({ ...data, config: preview }, true, undefined, true),
           renderCorner: data => el(CornerChips, { useCost: () => ({ state: data }) }),
           renderStyleSample: (preview, data = state, examples = true) => {
-            if (!examples) return renderSidebarFooter({ ...data, config: preview }, true, undefined, true)
+            if (!examples || preview.sidebarStyle === 'icons') return renderSidebarFooter({ ...data, config: preview }, true, undefined, true)
             const simple = preview.sidebarSimple === true
             const sampleConfig = { ...preview, peakNotice: false, hideBudget: false, hideTodayCost: false,
               budget: { ...preview.budget, enabled: true, amount: Number(preview.budget?.amount) > 0 ? preview.budget.amount : 100 } }
