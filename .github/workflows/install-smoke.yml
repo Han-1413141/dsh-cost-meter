@@ -104,7 +104,7 @@ jobs:
           test -x "$CM_TEST_BROWSER" || (sudo apt-get update && sudo apt-get install -y google-chrome-stable)
           if ! fc-list :lang=zh | grep -q .; then sudo apt-get update && sudo apt-get install -y fonts-noto-cjk; fi
           node test/balance-notice.mjs
-          git fetch --depth=1 origin aa41d946c475b9e37ee11362e0e130df816d52b0
+          git fetch --depth=1 https://github.com/Han-1413141/dsh-cost-meter.git aa41d946c475b9e37ee11362e0e130df816d52b0
           git show aa41d946c475b9e37ee11362e0e130df816d52b0:lib/client.js > .tmp-balance-notice-before.js
           node test/balance-notice-browser.mjs --baseline
           node test/balance-notice-browser.mjs
@@ -183,7 +183,7 @@ jobs:
           node test/notice-layer-browser.mjs
           node test/workbuddy-settings-browser.mjs
           node test/peak-style-picker-browser.mjs
-          git fetch --depth=1 origin tag v1.8.29
+          git fetch --no-tags --depth=1 https://github.com/Han-1413141/dsh-cost-meter.git refs/tags/v1.8.29:refs/tags/v1.8.29
           node test/idle-performance-browser.mjs
       - name: Save context regression browser evidence
         if: always()
@@ -243,6 +243,8 @@ jobs:
         run: |
           export DSH_TEST_NODE_MODULES="$PWD/.tmp-sidebar-host/node_modules"
           node test/sidebar-search-recovery.mjs
+          # Forks may not publish the historical upstream tags; fetch the read-only baseline explicitly.
+          git fetch --no-tags --depth=1 https://github.com/Han-1413141/dsh-cost-meter.git refs/tags/v1.8.6:refs/tags/v1.8.6
           node test/credential-editor-dom.mjs --baseline v1.8.6
 
   statistics-client:

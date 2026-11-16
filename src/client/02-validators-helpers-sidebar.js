@@ -157,7 +157,7 @@
         // Codex 订阅兼容(契约 B-5):用户已关闭一次性提示 / 已应用历史归类的时点。
         // 直通白名单缺失会导致关闭后重开页面又弹提示,或应用后状态行回落「未应用」。
         codexCompatHistoryAppliedAt: num0(v.codexCompatHistoryAppliedAt),
-        sidebarStyle: oneOf(v.sidebarStyle, ['standard', 'compact', 'summary'], 'standard'),
+        sidebarStyle: oneOf(v.sidebarStyle, ['standard', 'compact', 'summary', 'icons'], 'standard'),
         planQuotaStyle: v.planQuotaStyle === 'gauge' ? 'gauge' : 'bars',
         ...mapFields(v, ['sidebarSimplePromptSeen', 'sidebarSummaryPromptSeen', 'peakProgressPromptSeen'].filter(key => Object.hasOwn(v, key)), value => value === true),
         billionContextNoticeEnabled: v.billionContextNoticeEnabled !== false,
@@ -3589,6 +3589,11 @@
           wide ? el(Fragment, null, el('span', null, t('today')), el('span', { className: 'cm-num cm-bal-amt' }, todayValue)) : el(WalletIcon, { size: 16 })))
     }
 
+    const loadSidebarIcons = () => require.async('./client.sidebar-icons.js').then(module => module.mount({
+      makeT, resolveLocale, peakView, usePeakClock, phaseLabelKeys, countdownText, codexQuotaSnapshot,
+      displayCostOf, formatMoneyUsd, sidebarTodayValue, CODING_PLAN_ROWS,
+    }))
+
     function SidebarFooter(props) {
       const costStore = props.useCost ? props.useCost(s => s) : undefined
       useCodexQuota(costStore?.state?.config?.codexQuotaEnabled === true && costStore?.state?.config?.codexQuotaSidebar !== false, costStore?.state?.config?.codexQuotaSource)
@@ -3672,5 +3677,5 @@
         const rank = node => { const index = order.indexOf(node.key); return index < 0 ? 999 : index }
         nodes.sort((a, b) => rank(a) - rank(b))
       }
-      return el('div', { ...(simple ? { tabIndex: 0, role: 'region', 'aria-label': t('sidebarSimple') } : {}), className: 'cm-footer-stack' + (config.sidebarTodayBalanceInline ? ' same-line' : '') + (wide ? '' : ' rail') + (compactWide ? ' compact' : '') + (simple ? ' simple' : config.sidebarStyle === 'summary' && wide ? ' summary' : '') + (config.sidebarTextOnly ? ' text-only' : '') }, ...nodes)
+      return el('div', { ...(simple ? { tabIndex: 0, role: 'region', 'aria-label': t('sidebarSimple') } : {}), className: 'cm-footer-stack' + (config.sidebarTodayBalanceInline ? ' same-line' : '') + (wide ? '' : ' rail') + (compactWide ? ' compact' : '') + (simple ? ' simple' : config.sidebarStyle === 'summary' && wide ? ' summary' : '') + (config.sidebarTextOnly ? ' text-only' : '') }, ...(!simple && wide && config.sidebarStyle === 'icons' ? [el(BillingStatistics, { load: loadSidebarIcons, state: { ...state, config }, preview, nodes, fallback: nodes })] : nodes))
     }

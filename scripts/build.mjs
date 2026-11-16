@@ -150,7 +150,10 @@ for (const phrase of ['var(--dsw-alias-', '.cm-', 'background:', 'align-items:',
 const cssCandidates = [...cssCounts].filter(([, count]) => count >= 2).sort((a, b) =>
   (Buffer.byteLength(b[0]) - 2) * (b[1] - 1) - (Buffer.byteLength(a[0]) - 2) * (a[1] - 1) || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
 const cssPhrases = [], cssTokenBase = 0x0180
-const cssTokenRange = `[${String.fromCharCode(cssTokenBase)}-${String.fromCharCode(cssTokenBase + 127)}]`
+// Prefer unused one-byte markers for the first phrases; preserve the exact CSS on decode.
+const cssAsciiMarkers = ['`', '|', '$', '&', '?', '@'].filter(value => !compactCss.includes(value)).join('')
+const cssTokenRange = `[${cssAsciiMarkers}${String.fromCharCode(cssTokenBase)}-${String.fromCharCode(cssTokenBase + 127)}]`
+const cssTokenIndex = token => token.charCodeAt(0) >= cssTokenBase ? token.charCodeAt(0) - cssTokenBase : cssAsciiMarkers.indexOf(token)
 assert.ok(!new RegExp(cssTokenRange).test(compactCss), 'CSS packing markers must be unused')
 let packedCss = compactCss
 // Greedy by measured saving: each round re-counts every candidate in the already
@@ -164,11 +167,11 @@ while (cssPhrases.length < 128) {
     if (gain > bestGain) { best = phrase; bestGain = gain }
   }
   if (best === null) break
-  packedCss = packedCss.replaceAll(best, String.fromCharCode(cssTokenBase + cssPhrases.length))
+  packedCss = packedCss.replaceAll(best, () => cssAsciiMarkers[cssPhrases.length] ?? String.fromCharCode(cssTokenBase + cssPhrases.length))
   cssPhrases.push(best)
 }
-assert.equal(packedCss.replace(new RegExp(cssTokenRange, 'g'), token => cssPhrases[token.charCodeAt(0) - cssTokenBase]), compactCss)
-src = src.replace(cssMatch[0], () => `const cssPhrases=${javascriptLiteral(cssPhrases.join('~'))}.split("~");const css=${javascriptLiteral(packedCss)}.replace(/${cssTokenRange}/g,token=>cssPhrases[token.charCodeAt(0)-${cssTokenBase}])`)
+assert.equal(packedCss.replace(new RegExp(cssTokenRange, 'g'), token => cssPhrases[cssTokenIndex(token)]), compactCss)
+src = src.replace(cssMatch[0], () => `const cssPhrases=${javascriptLiteral(cssPhrases.join('~'))}.split("~");const css=${javascriptLiteral(packedCss)}.replace(/${cssTokenRange}/g,token=>cssPhrases[token.charCodeAt(0)>=${cssTokenBase}?token.charCodeAt(0)-${cssTokenBase}:${javascriptLiteral(cssAsciiMarkers)}.indexOf(token)])`)
 const result = await transform(withClientRegistration(src), {
   minify: true,
   keepNames: false,
@@ -194,7 +197,7 @@ console.log('✓ lib/client.js within DSH STORE per-file bound (262144)')
 
 // DSH 0.2.0-rc.2 package-local chunks use the host's require.async contract.
 // Each on-demand screen has readable source and a bounded runtime asset.
-for (const chunk of ['billing-storage', 'settings-overview', 'statistics', 'openrouter', 'community', 'pricing', 'display', 'codex', 'peak', 'session-list', 'sidebar-order', 'plan-settings', 'notices', 'local-savings']) {
+for (const chunk of ['billing-storage', 'settings-overview', 'statistics', 'openrouter', 'community', 'pricing', 'display', 'codex', 'peak', 'session-list', 'sidebar-order', 'plan-settings', 'notices', 'local-savings', 'sidebar-icons']) {
   let source = readFileSync(resolve(projectRoot, `src/${chunk}/index.js`), 'utf8')
   if (['peak', 'display', 'pricing'].includes(chunk)) source = source.replace('factory: require => {', 'factory: require => {\n' + readFileSync(resolve(projectRoot, 'lib/peak-timezone.js'), 'utf8').replace(/^export /gm, '') + (chunk === 'peak' ? '' : readFileSync(resolve(projectRoot, 'src/peak/timezone-control.js'), 'utf8')))
   if (chunk === 'pricing') source = source.replace('/* PEAK_PANEL_SOURCE */', readFileSync(resolve(projectRoot, 'src/pricing/peak-panel.js'), 'utf8'))
@@ -205,6 +208,11 @@ for (const chunk of ['billing-storage', 'settings-overview', 'statistics', 'open
     for (const part of ['parts', 'sidebar', 'controls', 'examples']) source = source.replace(`/* DISPLAY_${part.toUpperCase()}_SOURCE */`, readFileSync(resolve(projectRoot, `src/display/${part}.js`), 'utf8'))
     const styles = await transform(readFileSync(resolve(projectRoot, 'src/display/preview.css'), 'utf8'), { loader: 'css', minify: true })
     source = source.replace("'DISPLAY_STYLE_SOURCE'", () => javascriptLiteral(styles.code))
+  }
+  if (chunk === 'sidebar-icons') {
+    source = source.replace('/* ICON_HELPERS_SOURCE */', readFileSync(resolve(projectRoot, 'src/sidebar-icons/presentation.js'), 'utf8').replace(/^export /gm, ''))
+    const styles = await transform(readFileSync(resolve(projectRoot, 'src/sidebar-icons/style.css'), 'utf8'), { loader: 'css', minify: true })
+    source = source.replace("'SIDEBAR_ICONS_STYLE_SOURCE'", () => javascriptLiteral(styles.code))
   }
   if (chunk === 'peak') {
     source = source.replace('/* PEAK_COMPONENT_SOURCE */', readFileSync(resolve(projectRoot, 'src/peak/component.js'), 'utf8'))
