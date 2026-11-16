@@ -28,7 +28,9 @@
         let active = true
         setError('')
         if (typeof load !== 'function') return
-        Promise.resolve().then(load).then(page => { loadedPages.set(load, page); if (active) setPage(() => page) }, e => { if (active) setError(String(e.message ?? e)) })
+        let pending
+        try { pending = load() } catch (error) { pending = Promise.reject(error) }
+        pending.then(page => { loadedPages.set(load, page); if (active) setPage(() => page) }, e => { if (active) setError(String(e.message ?? e)) })
         return () => { active = false }
       }, [props.api, props.load, retry])
       if (Page) return el(Page, { ...props, formatMoneyUsd, formatTokens, resolveLocale })
