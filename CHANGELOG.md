@@ -1,6 +1,12 @@
 # Changelog
 ## [Unreleased]
 
+- 新增用户主动选择的“图标”侧栏布局；沿用原费用区块和业务组件，点击图标展开原有余额、套餐、预算等明细及操作，不迁移已有布局偏好。窄栏、小屏、触屏及强制 Pocket 模式保留原有卡片。
+- 峰谷图标使用固定 8 小时倒计时窗口：超过 8 小时保持满环并显示阈值说明，进入窗口后才随剩余时间缩短；实际切换时间沿用上游渠道日历。
+- Add an opt-in **Icons** sidebar layout using the existing footer and original detail/action components. Preserve saved layouts, billing and query settings; retain native cards on small/coarse/Pocket layouts and the collapsed rail.
+- Keep a fixed eight-hour peak countdown window: hold a full ring above eight hours, then shrink with remaining time. No host-specific sidebar selectors or shell-relative image assets.
+
+
 ## [1.9.68] - 2026-11-16
 
 - 修复历史重算因 calls 差异而跳过 Token 完整记录的问题，保留原调用次数；按请求收费仍核对次数。

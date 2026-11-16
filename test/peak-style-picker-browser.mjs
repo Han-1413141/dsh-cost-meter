@@ -20,11 +20,13 @@ const client = readdirSync('src/client').filter(n=>n.endsWith('.js')).sort().map
   .replace('exports.apply = apply','exports.picker = { renderSidebarFooter, CornerChips, makeT, css, formatMoneyUsd }; exports.apply = apply')
 const code = `
 import * as ReactDOMPortal from ${literal(req.resolve('react-dom'))};import React from ${literal(req.resolve('react'))};import{createRoot}from ${literal(req.resolve('react-dom/client'))};const h=React.createElement;
-const mainRequire=name=>name==='react'?React:{Tooltip:({children})=>children};mainRequire.async=async()=>window.peakUI;
+const mainRequire=name=>name==='react'?React:{Tooltip:({children})=>children};mainRequire.async=async path=>{const chunk=path==='./client.peak.js'?window.peakUI:path==='./client.sidebar-icons.js'?window.sidebarIconsUI:null;if(!chunk)throw Error('Unexpected test chunk: '+path);return chunk};
 window.__ModuleLoader__={load:mod=>window.mainUI=mod.factory(mainRequire)};
 ${client}
 window.__ModuleLoader__={load:mod=>window.peakUI=mod.factory(name=>name==='react-dom'?ReactDOMPortal:React)};
 ${readFileSync('lib/client.peak.js','utf8')}
+window.__ModuleLoader__={load:mod=>window.sidebarIconsUI=mod.factory(name=>name==='react'?React:{})};
+${readFileSync('lib/client.sidebar-icons.js','utf8')}
 window.__ModuleLoader__={load:mod=>window.displayUI=mod.factory(()=>React)};
 ${readFileSync('lib/client.display.js','utf8')}
 const Display=window.displayUI.mount({effect:()=>{}}),{renderSidebarFooter,CornerChips,makeT,css,formatMoneyUsd}=window.mainUI.picker;

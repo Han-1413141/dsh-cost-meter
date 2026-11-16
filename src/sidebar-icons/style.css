@@ -1,0 +1,21 @@
+/* Only our own presentation. The upstream cm-footer-stack owns full-width placement above Settings. */
+.cm-icons{width:100%;min-width:0;color:var(--dsw-alias-label-primary)}
+.cm-icons-row{display:flex;align-items:center;gap:6px;min-width:0;min-height:32px;padding:2px 4px;box-sizing:border-box;white-space:nowrap}
+.cm-icons-list{display:flex;align-items:center;gap:4px;flex:1;min-width:0;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin}
+.cm-icons-button{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:5px;flex:none;width:32px;height:32px;padding:2px;border:0;border-radius:7px;background:transparent;color:inherit;cursor:pointer;box-sizing:border-box}
+.cm-icons-button:hover,.cm-icons-button[aria-expanded=true]{background:var(--dsw-alias-interactive-bg-hover)}
+.cm-icons-button[data-unavailable=true]:after{content:'';position:absolute;right:2px;top:2px;width:5px;height:5px;border-radius:50%;background:var(--dsw-alias-state-warn-primary)}
+.cm-icons-button:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:-2px}
+.cm-icons-glyph{display:inline-flex;position:relative;align-items:center;justify-content:center;width:28px;height:28px;flex:none}
+.cm-icons-ring{position:absolute;inset:0;width:28px;height:28px;transform:rotate(-90deg);stroke-width:2}
+.cm-icons-track{stroke:var(--dsw-alias-border-l2)}
+.cm-icons-progress{stroke:var(--dsw-alias-state-business-primary);stroke-linecap:round}
+.cm-icons-symbol{width:15px;height:15px}
+.cm-icons-mark{font-size:10px;line-height:1;font-weight:700;letter-spacing:-.3px}
+.cm-icons-today{width:auto;min-width:0;padding-right:4px}
+.cm-icons-amount{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
+.cm-icons-amount .cm-today-values{flex-wrap:nowrap;gap:4px}
+.cm-icons-panel{margin-top:4px;max-height:min(38dvh,320px);overflow:auto;overscroll-behavior:contain;padding:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1);box-sizing:border-box}
+.cm-icons-panel[hidden]{display:none}
+.cm-icons-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:600;margin-bottom:6px}
+@media(prefers-reduced-motion:reduce){.cm-icons *{animation:none;transition:none}}

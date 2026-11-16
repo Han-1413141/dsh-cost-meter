@@ -154,7 +154,7 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
     el('summary', null, text('通用设置 · 外观、金额与语言', 'General · appearance, currency and language')),
     el('div', { className: 'cm-display-preferences' }, el(SkinTransparency, { config, set, text })),
     el('div', { className: 'cm-general-grid' }, ...controls))
-  const mode = config.sidebarSimple ? 'simple' : config.sidebarStyle === 'summary' ? 'summary' : config.sidebarStyle === 'compact' ? 'compact' : 'standard'
+  const mode = config.sidebarSimple ? 'simple' : config.sidebarStyle === 'icons' ? 'icons' : config.sidebarStyle === 'summary' ? 'summary' : config.sidebarStyle === 'compact' ? 'compact' : 'standard'
   const showStyles = region === 'sidebar' && stylesOpen
   const selection = registry[selected]
   const scope = region === 'sidebar' ? text('在侧栏显示', 'Show in sidebar') : region === 'composer' ? text('在输入区显示', 'Show in composer') : text('在会话内容显示', 'Show in conversation')
@@ -165,9 +165,9 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
     selected ? el('div', { className: 'cm-inspector-controls', key: selected, 'data-inspector': selected }, ...controls) : null,
     region === 'sidebar' ? check(text('今日消费与余额同行', 'Today and balance on one line'), config.sidebarTodayBalanceInline === true, value => set({ sidebarTodayBalanceInline: value, ...(value ? { sidebarTodayMetric: 'cost' } : {}) }), { 'data-display-option': 'today-balance-inline' }) : null,
     region === 'sidebar' ? check(text('隐藏进度条，仅显示紧凑文本', 'Hide progress bars, show compact text'), config.sidebarTextOnly === true, value => set({ sidebarTextOnly: value }), { 'data-display-option': 'sidebar-text-only' }) : null,
-    region === 'sidebar' ? el('button', { type: 'button', className: 'cm-inspector-layout', 'aria-expanded': stylesOpen, onClick: () => setStylesOpen?.(!stylesOpen) }, text('侧栏布局', 'Sidebar layout'), el('span', null, text(mode === 'summary' ? '合并卡片' : mode === 'simple' ? '简洁' : mode === 'compact' ? '紧凑' : '标准', mode === 'summary' ? 'Combined card' : mode === 'simple' ? 'Simple' : mode === 'compact' ? 'Compact' : 'Standard'), stylesOpen ? ' ▴' : ' ▾')) : null,
+    region === 'sidebar' ? el('button', { type: 'button', className: 'cm-inspector-layout', 'aria-expanded': stylesOpen, onClick: () => setStylesOpen?.(!stylesOpen) }, text('侧栏布局', 'Sidebar layout'), el('span', null, text(mode === 'icons' ? '图标' : mode === 'summary' ? '合并卡片' : mode === 'simple' ? '简洁' : mode === 'compact' ? '紧凑' : '标准', mode === 'icons' ? 'Icons' : mode === 'summary' ? 'Combined card' : mode === 'simple' ? 'Simple' : mode === 'compact' ? 'Compact' : 'Standard'), stylesOpen ? ' ▴' : ' ▾')) : null,
     showStyles ? el('div', { className: 'cm-preview-style-options', role: 'group', 'aria-label': text('侧栏布局', 'Sidebar layout') },
-      ...[['summary', text('合并卡片', 'Combined card')], ['simple', text('简洁', 'Simple')], ['standard', text('标准', 'Standard')], ['compact', text('紧凑', 'Compact')]].map(([value, label]) =>
+      ...[['icons', text('图标', 'Icons')], ['summary', text('合并卡片', 'Combined card')], ['simple', text('简洁', 'Simple')], ['standard', text('标准', 'Standard')], ['compact', text('紧凑', 'Compact')]].map(([value, label]) =>
         el('div', { key: value, role: 'button', tabIndex: 0, 'aria-pressed': mode === value,
           onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.currentTarget.click() } },
           onClick: () => set({ sidebarSimple: value === 'simple', sidebarSimplePromptSeen: true, ...(value === 'simple' ? {} : { sidebarStyle: value }), ...(value === 'summary' ? { ...(Object.hasOwn(config, 'sidebarSummaryPromptSeen') ? { sidebarSummaryPromptSeen: true } : {}), sidebarTodayMetric: 'both', peakStyle: 'progress', ...(Object.hasOwn(config, 'sidebarOrder') ? { sidebarOrder: ['today', 'balance', 'peak', ...(config.sidebarOrder ?? []).filter(key => !['today', 'balance', 'peak'].includes(key))] } : {}) } : {}) }) },

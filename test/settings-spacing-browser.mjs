@@ -23,15 +23,18 @@ const makeBundle = async baseline => {
   const read = path => baseline ? execFileSync('git', ['show', 'HEAD:' + path], { cwd: root, encoding: 'utf8' }) : readFileSync(join(root, path), 'utf8')
   const client = readdirSync(join(root, 'src/client')).filter(name => name.endsWith('.js')).sort().map(name => read('src/client/' + name)).join('')
     .replace('exports.apply = apply', 'exports.fixture = { CostSection, makeT, SidebarFooter }; exports.apply = apply')
-  const code = `import React from ${literal(req.resolve('react'))};import{createRoot}from ${literal(req.resolve('react-dom/client'))};import{modelStatisticsAggregate}from ${literal(join(root,'lib/model-statistics.js'))};
+  const code = `import React from ${literal(req.resolve('react'))};import * as ReactDOMPortal from ${literal(req.resolve('react-dom'))};import{createRoot}from ${literal(req.resolve('react-dom/client'))};import{modelStatisticsAggregate}from ${literal(join(root,'lib/model-statistics.js'))};
 const el=React.createElement, chunks={},factories={};window.fixtureErrors=[];window.fixtureWrites=0;
 window.addEventListener('error',e=>window.fixtureErrors.push(e.message));window.addEventListener('unhandledrejection',e=>window.fixtureErrors.push(String(e.reason)));
-window.__ModuleLoader__={load:m=>{factories[m.chunk??'main']=m.factory;chunks[m.chunk??'main']=m.factory(name=>name==='react'?React:{Tooltip:({children})=>children})}};
+const fixtureRequire=name=>name==='react'?React:name==='react-dom'?ReactDOMPortal:{Tooltip:({children})=>children};fixtureRequire.async=async path=>{const chunk=chunks[path.slice(2)];if(!chunk)throw Error('Unexpected test chunk: '+path);return chunk};
+window.__ModuleLoader__={load:m=>{factories[m.chunk??'main']=m.factory;chunks[m.chunk??'main']=m.factory(fixtureRequire)}};
 ${client}
 ${read('src/codex/index.js')}
 ${read('src/statistics/index.js')}
 ${read('src/pricing/index.js')}
 ${read('lib/client.display.js')}
+${read('lib/client.sidebar-icons.js')}
+${read('lib/client.peak.js')}
 let state=${literal(state)},listeners=new Set(),failures=0;
 if(new URLSearchParams(location.search).get('models')==='many'){
 const keys=Array.from({length:48},(_,i)=>'fixture-'+String(i).padStart(2,'0'));
