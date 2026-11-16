@@ -1,4 +1,5 @@
 // Logic/codec/element-contract regression, not a DOM renderer or visual acceptance test.
+import './sidebar-logos.mjs'
 import assert from 'node:assert/strict'
 import vm from 'node:vm'
 import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
@@ -6,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { sanitizeConfig, applyConfigPatch, zeroDay, Ledger } from '../lib/store.js'
 import { stateSchema } from '../lib/typert.host.js'
-import { COUNTDOWN_WINDOW_MS, countdownWindow, claudeShare, sidebarIconEntries, sidebarIconUnavailable, PLAN_ICON_MARKS, iconMark } from '../src/sidebar-icons/presentation.js'
+import { COUNTDOWN_WINDOW_MS, countdownWindow, claudeShare, sidebarIconEntries, sidebarIconUnavailable, PLAN_ICON_MARKS, iconMark, PLAN_ICON_LOGOS, sidebarIconLogo } from '../src/sidebar-icons/presentation.js'
 
 const now = Date.parse('2026-11-16T02:00:00Z'), hour = 3600000
 for (const [hours, percent, countdown] of [[72, 100, false], [8 + 1 / hour, 100, false], [8, 100, true], [6, 75, true], [4, 50, true], [0, 0, true], [-1, 0, true]]) {
@@ -111,7 +112,19 @@ const allPlansLoader = core.renderSidebarFooter(allPlansState, true).children[0]
 const allPlansTree = Component({ ...allPlansLoader.props, preview: true })
 const planTriggers = walk(allPlansTree).filter(node => node.type === 'button' && node.props['data-cm-display'] === 'plan')
 assert.equal(planTriggers.length, core.CODING_PLAN_ROWS.length, 'all supported providers appear without enabling or querying anything extra')
-for (const trigger of planTriggers) assert.equal(trigger.children[0].props.mark, PLAN_ICON_MARKS[trigger.props['data-cm-plan']])
+const assetData = JSON.parse(readFileSync(new URL('../src/sidebar-icons/logos.json', import.meta.url), 'utf8')).logos
+assert.deepEqual(Array.from(chunk.logoKinds).sort(), Object.keys(assetData).sort())
+for (const trigger of planTriggers) {
+  const glyph = trigger.children[0], id = trigger.props['data-cm-plan']
+  assert.equal(glyph.props.mark, PLAN_ICON_MARKS[id], 'initials remain as a safe fallback')
+  assert.equal(glyph.props.logo, PLAN_ICON_LOGOS[id] ?? null)
+  const shape = walk(glyph.type(glyph.props)).find(node => node.props['data-cm-logo'])
+  if (glyph.props.logo) {
+    assert.equal(shape.props.fill, 'currentColor')
+    assert.equal(shape.props.viewBox, assetData[glyph.props.logo].viewBox)
+    assert.deepEqual(shape.children.map(node => node.props.d), Array.from(assetData[glyph.props.logo].paths, path => path.d), 'shipped geometry preserves original path data')
+  } else assert.equal(shape, undefined)
+}
 const tree = Component({ ...loader.props, preview: true })
 assert.ok(walk(tree).some(node => node.props.className === 'cm-icons-row'))
 assert.equal(walk(tree).filter(node => node.type === 'button' && node.props['data-cm-icon-key']).length, loader.props.nodes.length)

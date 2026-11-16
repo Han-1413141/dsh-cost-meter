@@ -35,6 +35,12 @@ jobs:
             npm pack "@deepseek-ai/dsh-client-modules@$version" --ignore-scripts --pack-destination ".tmp-chunk-loaders/$version"
             tar -xzf ".tmp-chunk-loaders/$version/deepseek-ai-dsh-client-modules-$version.tgz" -C ".tmp-chunk-loaders/$version"
           done
+      - name: Verify pinned brand logo provenance
+        run: |
+          mkdir -p .tmp-logo-provenance
+          npm pack @lobehub/icons-static-svg@1.102.0 --ignore-scripts --pack-destination .tmp-logo-provenance
+          tar -xzf .tmp-logo-provenance/lobehub-icons-static-svg-1.102.0.tgz -C .tmp-logo-provenance
+          node scripts/import-sidebar-logos.mjs .tmp-logo-provenance/package --check
       - name: Verify desktop/web chunks with native and wrapped loaders
         run: |
           export DSH_TEST_UI_MODULES="$PWD/.tmp-chunk-host/node_modules"

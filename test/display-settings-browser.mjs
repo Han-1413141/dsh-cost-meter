@@ -37,6 +37,11 @@ if (process.argv.includes('--multi-balance-only') || process.argv.includes('--ic
   saved = sanitizeConfig({ ...saved, queryAccounts: { balance: { selected: 'account-a1', accounts: multiBalances.map(({ id, label }) => ({ id, label })) } } })
   Object.assign(state, { config: saved, balance: multiBalances[0], balanceAccounts: multiBalances })
 }
+if (process.argv.includes('--icons-only')) {
+  // Synthetic visibility only: include the corner-dot brand without querying a real account.
+  saved = sanitizeConfig({ ...saved, codingPlans: { ...saved.codingPlans, kimi: { ...saved.codingPlans.kimi, enabled: true, display: 'sidebar' } } })
+  state.config = saved
+}
 const code = `
 import * as ReactDOMPortal from ${literal(req.resolve('react-dom'))};import React from ${literal(req.resolve('react'))};import{createRoot}from ${literal(req.resolve('react-dom/client'))};
 const h=React.createElement;

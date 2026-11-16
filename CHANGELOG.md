@@ -1,6 +1,9 @@
 # Changelog
 ## [Unreleased]
 
+- 图标模式加入 DeepSeek、Claude、OpenAI/Codex、OpenCode 和 13 个常见套餐来源的单色品牌 Logo，随分块离线内嵌并跟随主题前景色；未确认的来源保留原有兜底。金额、原有操作、查询、8 小时规则和移动回退保持不变。
+- Add bundled theme-aware provider logos to Icons, with pinned Lobe Icons/MIT attribution and safe neutral/initial fallbacks. Preserve existing layout, actions, query behavior and countdown semantics.
+
 ## [1.9.69] - 2026-11-16
 
 - 自定义价格的“更多计费项”增加长上下文阈值和各项单价；从参考价格复制或继续编辑时保留长上下文、峰谷及其他已支持的价格字段。

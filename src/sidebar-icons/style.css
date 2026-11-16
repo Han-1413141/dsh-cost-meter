@@ -11,6 +11,9 @@
 .cm-icons-track{stroke:var(--dsw-alias-border-l2)}
 .cm-icons-progress{stroke:var(--dsw-alias-state-business-primary);stroke-linecap:round}
 .cm-icons-symbol{width:15px;height:15px}
+.cm-icons-logo{width:18px;height:18px;display:block;flex:none}
+/* Kimi's corner dot needs a smaller optical box to stay inside the ring's 11px inner radius. */
+.cm-icons-logo[data-cm-logo=kimi]{width:16px;height:16px}
 .cm-icons-mark{font-size:10px;line-height:1;font-weight:700;letter-spacing:-.3px}
 .cm-icons-today{width:auto;min-width:0;padding-right:4px}
 .cm-icons-amount{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
