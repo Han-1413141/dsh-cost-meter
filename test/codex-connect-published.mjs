@@ -21,7 +21,9 @@ const functionSource = (text, name) => {
   assert.ok(fn, 'published function ' + name)
   return text.slice(fn.start, fn.end)
 }
-const functions = ['isRecord$2', 'parseResetAt', 'parseWindow', 'parseLimit', 'exactAmount', 'parseCredits', 'parseIndividualLimit', 'parseOpenAICodexUsage',
+// Bundler suffixes changed in alpha.15; use the original record predicates in each package.
+const predicates = declarations.filter(node => node.type === 'FunctionDeclaration' && /^isRecord(?:\$\d+)?$/.test(node.id.name)).map(node => node.id.name)
+const functions = [...predicates, 'parseResetAt', 'parseWindow', 'parseLimit', 'exactAmount', 'parseCredits', 'parseIndividualLimit', 'parseOpenAICodexUsage',
   'harnessHttpRejection', 'loopbackHost', 'normalizeTrustedOrigin', 'effectiveOrigin', 'exactOrigin', 'sameOriginMetadata', 'trustedRequestDecision', 'json$4', 'registerOpenAICodexAuthRoutes']
   .map(name => functionSource(source, name)).join('\n')
 const classNode = declarations.filter(node => node.type === 'VariableDeclaration').flatMap(node => node.declarations)

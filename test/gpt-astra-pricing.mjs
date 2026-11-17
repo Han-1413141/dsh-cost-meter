@@ -37,7 +37,10 @@ for (const provider of ['openai', 'opencode-zen']) {
   assert.equal(resolved.priced, true)
   near(costOf({ cacheWrite: 1000 }, resolved.entry, now, { enabled: false }), 0.0125, `${provider} 路由保留写缓存价`)
 }
-assert.equal(providerPriceEntryFor('ollama', 'gpt-6-astra', clean.prices).priced, false, '本地模型不得套云端价格')
+const local = providerPriceEntryFor('ollama', 'gpt-6-astra', clean.prices)
+assert.equal(local.priced, true)
+assert.equal(local.local, true)
+near(costOf({ input: 1000000, output: 1000000, cacheWrite: 1000000 }, local.entry, now), 0, '本地模型保持已知零单价')
 const custom = providerPriceEntryFor('custom', 'gpt-6-astra', { ...clean.prices, providers: { ...clean.prices.providers, custom: { models: { 'gpt-6-astra': { input: 2, output: 3 } } } } })
 near(costOf({ input: 1000000 }, custom.entry, now), 2, '自定义渠道精确价优先')
 

@@ -19,6 +19,7 @@ const savedEnv = Object.fromEntries(envNames.map(n => [n, process.env[n]]))
 const originalFetch = globalThis.fetch
 const cleanups = []
 try {
+  globalThis.fetch = async () => { throw Error('No external fetch allowed') }
   for (const n of envNames) delete process.env[n]
   process.env.DSH_HOME = root
   process.env.USERPROFILE = root
@@ -72,6 +73,8 @@ try {
   }
   const fetches = []
   globalThis.fetch = async (url, init) => {
+    // Startup catalog refreshes are independent of the three MiMo requests.
+    if (new URL(String(url)).hostname !== 'platform.xiaomimimo.com') throw Error('No external fetch allowed')
     fetches.push({ url: String(url), cookie: init?.headers?.cookie })
     const hit = String(url).includes('tokenPlan/usage') ? fixture['tokenPlan/usage']
       : String(url).includes('tokenPlan/detail') ? fixture['tokenPlan/detail'] : fixture.balance

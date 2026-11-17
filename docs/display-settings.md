@@ -92,3 +92,5 @@ In Settings → Cost → Display → Sidebar → Balance (or Custom balance), en
 1.9.49 起，在“设置 → 费用 → 显示 → 侧栏 → 调整组件 → 套餐进度条”选择“套餐额度样式 → 开口圆环”，可将多个额度窗口并排显示。默认保留横向进度条；所有套餐共用样式选择，已用／剩余方向继续由原选项控制。鼠标悬停查看完整额度和重置时间，点击或按回车刷新。“隐藏进度条，仅显示紧凑文本”开启时优先显示文本，收起侧栏仍使用原有数字布局。
 
 In **Settings → Cost → Display → Sidebar → Plan quota style**, select **Open rings**. The choice applies to Coding Plan cards; used/remaining direction, reset tooltips and refresh remain available. Compact text takes precedence, and collapsed sidebars retain their numeric layout.
+
+Go 额度入口支持点击展开详情，展示滚动 5 小时、本周、本月的用量与重置时间。输入区入口的刷新按钮放在详情中，展开本身不发起查询；再次点击入口或按 Escape 收起。桌面悬停提示继续保留在侧栏。

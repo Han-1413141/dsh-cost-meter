@@ -69,6 +69,7 @@ window.__ModuleLoader__.load({
       // 可点击刷新(issue #52):action 态带手型/焦点环,厂商多窗口融合为段(.cm-qseg 竖线分隔)。
       '.cm-qstrip{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:6px;width:100%;max-width:var(--dsh-chat-content-width,720px);margin:0 auto;box-sizing:border-box;padding:0 calc(var(--dsh-composer-side-clearance,0px) + 16px)}',
       '.cm-qchip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:6px;background:transparent;font-size:11px;line-height:22px;color:var(--dsw-alias-label-secondary);white-space:nowrap;font-variant-numeric:tabular-nums;cursor:default}',
+      '.cm-quota-details{position:relative;min-width:0}.cm-quota-details>summary{list-style:none;cursor:pointer}.cm-quota-details>summary::-webkit-details-marker{display:none}.cm-quota-detail{white-space:normal;box-sizing:border-box;padding:10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1,#fff);color:var(--dsw-alias-label-primary);font-size:12px;line-height:1.6}.cm-qstrip .cm-quota-detail{position:absolute;bottom:calc(100% + 6px);left:0;width:min(320px,calc(100vw - 32px));z-index:100}.cm-quota-detail button{margin-top:8px}',
       '.cm-qchip .cm-qlabel{color:var(--dsw-alias-label-primary);font-weight:600}',
       // display:block:qbar 不是 flex 容器,内部 qfill 默认 inline,行内盒宽高被忽略导致填充永远不可见(issue #52)。
       '.cm-qchip .cm-qbar{display:block;width:44px;height:4px;border-radius:2px;background:var(--dsw-alias-border-l1);overflow:hidden;flex:none}',

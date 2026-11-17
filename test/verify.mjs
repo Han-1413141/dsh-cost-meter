@@ -1065,12 +1065,12 @@ const mmFlat = parseMiniMaxRemains({
 assert.equal(mmFlat['5h'].percent, 25, 'MiniMax 平铺 5 小时窗按计数推导')
 assert.equal(mmFlat['7d'].percent, 80, 'MiniMax 平铺周窗按计数推导')
 assert.ok(mmFlat['5h'].resetsAt.length > 0, 'MiniMax 平铺窗携带重置时刻')
-// 无计数只有剩余百分比(嵌套 data.data + 比例形态)。
+// 无计数只有剩余百分比(嵌套 data.data + 小数百分比)。
 const mmFlatPct = parseMiniMaxRemains({
   base_resp: { status_code: 0 },
   data: { current_interval_remaining_percent: 0.6, current_weekly_remaining_percent: 20 },
 })
-assert.equal(mmFlatPct['5h'].percent, 40, 'MiniMax 剩余比例反推已用(<=1 视为比例)')
+assert.equal(mmFlatPct['5h'].percent, 99.4, 'MiniMax 剩余 0.6% 对应已用 99.4%')
 assert.equal(mmFlatPct['7d'].percent, 80, 'MiniMax 剩余百分比反推已用')
 // status=3 不限量窗不展示。
 const mmUnlimited = parseMiniMaxRemains({
@@ -5253,9 +5253,9 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const prices11 = sanitizeConfig({}).prices
   assert.ok(prices11 && typeof prices11 === 'object', '默认价格表存在')
   // ① 报告者形态:本地前缀模型此前经跨厂商兜底误套 qwen3.8-max($3.29/64 次),现在未定价。
-  assert.equal(providerPriceEntryFor('deepseek', 'lmstudio:qwen3.8-9b-heretic-uncensored-i1', prices11, { mode: 'auto' }).priced, false, '本地前缀模型不再误套云端价')
-  assert.equal(providerPriceEntryFor('lmstudio', 'qwen3.8-9b-heretic-uncensored-i1', prices11, { mode: 'auto' }).priced, false, '本地 provider 渠道未定价')
-  assert.equal(providerPriceEntryFor('opencode-go', 'ollama:llama3.3-70b', prices11, { mode: 'auto' }).priced, false, '跨厂商兜底跳过本地前缀模型')
+  assert.equal(providerPriceEntryFor('deepseek', 'lmstudio:qwen3.8-9b-heretic-uncensored-i1', prices11, { mode: 'auto' }).priced, true, '本地前缀模型不再误套云端价')
+  assert.equal(providerPriceEntryFor('lmstudio', 'qwen3.8-9b-heretic-uncensored-i1', prices11, { mode: 'auto' }).priced, true, '本地 provider 渠道零单价')
+  assert.equal(providerPriceEntryFor('opencode-go', 'ollama:llama3.3-70b', prices11, { mode: 'auto' }).priced, true, '跨厂商兜底跳过本地前缀模型')
   // ② 云端模型定价不受影响(回归)。
   assert.equal(providerPriceEntryFor('deepseek', 'deepseek-v4-flash', prices11, { mode: 'auto' }).priced, true, '云端 DeepSeek 照常定价')
   assert.equal(providerPriceEntryFor('deepseek', 'qwen3.8-max', prices11, { mode: 'auto' }).priced, true, '云端 qwen3.8-max 照常定价(跨目录兑底保留)')
@@ -5320,14 +5320,14 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
 // 11-7) 本地模型扩充清单 + 「__local__」零消耗哨兵(服务端解析)。
 {
   const prices11b = sanitizeConfig({}).prices
-  // ① 哨兵:任意模型(含已命中云端模型)标记 __local__ → 未定价(费用 0)。
-  assert.equal(providerPriceEntryFor('deepseek', 'deepseek-v4-flash', prices11b, { mode: 'auto', overrides: { 'deepseek:deepseek-v4-flash': '__local__' } }).priced, false, '__local__ 哨兵把已命中模型标记为零消耗')
-  assert.equal(providerPriceEntryFor('opencode-go', 'some-model', prices11b, { mode: 'auto', overrides: { 'opencode-go:some-model': '__local__' } }).priced, false, '__local__ 哨兵(非 DeepSeek 渠道)同样生效')
+  // ① 哨兵:任意模型(含已命中云端模型)标记 __local__ → 已知零单价(费用 0)。
+  assert.equal(providerPriceEntryFor('deepseek', 'deepseek-v4-flash', prices11b, { mode: 'auto', overrides: { 'deepseek:deepseek-v4-flash': '__local__' } }).priced, true, '__local__ 哨兵把已命中模型标记为零消耗')
+  assert.equal(providerPriceEntryFor('opencode-go', 'some-model', prices11b, { mode: 'auto', overrides: { 'opencode-go:some-model': '__local__' } }).priced, true, '__local__ 哨兵(非 DeepSeek 渠道)同样生效')
   // ② 扩充本地清单:vLLM / SGLang / TabbyAPI / lmdeploy 等。
-  assert.equal(providerPriceEntryFor('vllm', 'qwen3.8-9b-heretic', prices11b, { mode: 'auto' }).priced, false, 'vllm provider 识别为本地来源')
-  assert.equal(providerPriceEntryFor('deepseek', 'vllm:qwen3.8-9b-heretic', prices11b, { mode: 'auto' }).priced, false, 'vllm: 模型前缀识别为本地来源')
-  assert.equal(providerPriceEntryFor('deepseek', 'sglang:llama3.3-70b', prices11b, { mode: 'auto' }).priced, false, 'sglang: 前缀识别为本地来源')
-  assert.equal(providerPriceEntryFor('tabbyapi', 'mistral-nemo', prices11b, { mode: 'auto' }).priced, false, 'tabbyapi provider 识别为本地来源')
+  assert.equal(providerPriceEntryFor('vllm', 'qwen3.8-9b-heretic', prices11b, { mode: 'auto' }).priced, true, 'vllm provider 识别为本地来源')
+  assert.equal(providerPriceEntryFor('deepseek', 'vllm:qwen3.8-9b-heretic', prices11b, { mode: 'auto' }).priced, true, 'vllm: 模型前缀识别为本地来源')
+  assert.equal(providerPriceEntryFor('deepseek', 'sglang:llama3.3-70b', prices11b, { mode: 'auto' }).priced, true, 'sglang: 前缀识别为本地来源')
+  assert.equal(providerPriceEntryFor('tabbyapi', 'mistral-nemo', prices11b, { mode: 'auto' }).priced, true, 'tabbyapi provider 识别为本地来源')
   // ③ 云端回归(扩充不误伤)。
   assert.equal(providerPriceEntryFor('deepseek', 'deepseek-v4-flash', prices11b, { mode: 'auto' }).priced, true, '云端 DeepSeek 不受扩充影响')
   assert.equal(providerPriceEntryFor('opencode-go', 'qwen3.8-max', prices11b, { mode: 'auto' }).priced, true, '云端第三方条目不受扩充影响')
@@ -5406,13 +5406,13 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const C11 = new Function(clientSrc11.slice(sliceStart11, sliceEnd11) + '\nreturn { resolveClientPrice, isLocalOriginClient }')()
   const prices11m = sanitizeConfig({}).prices
   const matchConfig11 = { prices: prices11m, priceMatch: 'auto' }
-  // ① 哨兵(客户端):priced=false 且视为已人工指定(不进未命中列表)。
+  // ① 哨兵(客户端):priced=true 且视为已人工指定(不进未命中列表)。
   const sentinel11 = C11.resolveClientPrice('deepseek', 'deepseek-v4-flash', { ...matchConfig11, priceOverrides: { 'deepseek:deepseek-v4-flash': '__local__' } })
-  assert.equal(sentinel11.priced, false, '客户端哨兵 priced=false')
+  assert.equal(sentinel11.priced, true, '客户端哨兵 priced=true')
   assert.equal(sentinel11.matched, true, '客户端哨兵视为已指定')
   // ② 本地守卫(扩充名单)。
-  assert.equal(C11.resolveClientPrice('vllm', 'qwen3.8-9b', matchConfig11).priced, false, '客户端 vllm provider 守卫')
-  assert.equal(C11.resolveClientPrice('deepseek', 'ollama:llama3.3', matchConfig11).priced, false, '客户端 ollama: 前缀守卫')
+  assert.equal(C11.resolveClientPrice('vllm', 'qwen3.8-9b', matchConfig11).priced, true, '客户端 vllm provider 守卫')
+  assert.equal(C11.resolveClientPrice('deepseek', 'ollama:llama3.3', matchConfig11).priced, true, '客户端 ollama: 前缀守卫')
   assert.equal(C11.resolveClientPrice('deepseek', 'deepseek-v4-flash', matchConfig11).priced, true, '客户端云端回归')
   // ③ 双侧漂移守卫:同输入同结果。
   assert.equal(

@@ -70,6 +70,17 @@ near(longResult.rows.reduce((n, r) => n + r.cost, 0), longResult.cost)
 const unknown = records.map(r => r.type === 'request/header' ? { ...r, data: { header: { config: { provider: 'unknown', model: 'unknown' } } } } : r)
 assert.ok(turnCostFromRecords(unknown, config, 1, 4).rows.every(r => !r.priced))
 
+// Known local use retains tokens and zero amounts without reporting missing prices.
+for (const legacyModelMatching of [false, true]) for (const provider of ['ollama', 'lmstudio', 'vllm', 'unknown']) {
+  const localRecords = unknown.map(r => r.type === 'request/header' ? { ...r, data: { header: { config: { provider, model: 'local-model' } } } } : r)
+  const localConfig = { ...config, prices: { ...config.prices, legacyModelMatching }, priceOverrides: provider === 'unknown' ? { 'unknown:local-model': '__local__' } : {} }
+  const local = turnCostSchema.parse(turnCostFromRecords(localRecords, localConfig, 1, 4))
+  assert.equal(local.cost, 0); assert.equal(local.apiCost, 0)
+  assert.equal(local.rows.reduce((sum, row) => sum + row.tokens, 0), 185)
+  assert.ok(local.rows.every(row => row.priced && row.rate === 0 && row.cost === 0))
+  assert.ok(local.calls.every(call => call.priced))
+}
+
 const native = { type: NATIVE_SEARCH_USAGE_EVENT, time: at + 2, data: { requestId: '11111111-2222-4333-8444-555555555555', startedAtMs: at + 2, model: 'deepseek-v4-flash', provider: 'deepseek-official', usage } }
 const withSearch = turnCostFromRecords(records, config, 1, 4, [native, native, { ...native, data: { ...native.data, requestId: 'aaaaaaaa-2222-4333-8444-555555555555', startedAtMs: at + 6 } }])
 assert.equal(withSearch.rows.filter(r => r.provider === 'deepseek-official' && r.bucket === 'input')[0].tokens, 100)

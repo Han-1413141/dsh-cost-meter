@@ -185,3 +185,13 @@ try {
   rmSync(root, { recursive: true, force: true })
 }
 console.log('[ok] MiniMax origin: validation, persistence, shipped codecs, fallback, cache, cancellation and source switching')
+
+// #519: official remaining_percent values always use the 0–100 scale.
+for (const remaining of [0, 0.6, 1, 1.1, 2, 99, 100]) {
+  const row = { current_interval_remaining_percent: remaining, current_weekly_remaining_percent: String(remaining) }
+  for (const data of [row, {data: row}, {model_remains: [{model_name: 'general', ...row}]}]) {
+    const windows = parseMiniMaxRemains(data)
+    assert.equal(windows['5h'].percent, Math.round((100 - remaining) * 10) / 10)
+    assert.equal(windows['7d'].percent, windows['5h'].percent)
+  }
+}

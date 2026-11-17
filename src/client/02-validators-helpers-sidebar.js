@@ -1122,8 +1122,8 @@
         return { entry: entry ?? null, priced: !!entry, billingMode: entry?.billingMode ?? 'flat', matched: true, currency: entry?.currency ?? 'USD' }
       }
       // 「本地模型(零消耗)」哨兵(与 pricing.js 同口径):覆盖目标 __local__ →
-      // 未定价(token 照记、费用 0),matched=true 表示已人工指定。
-      if (override === '__local__') return { entry: null, priced: false, billingMode: 'flat', matched: true }
+      // 已知零单价(token 照记、费用 0)，与缺少价格区分。
+      if (override === '__local__') return { entry: { cacheHit: 0, cacheMiss: 0, cacheWrite: 0, output: 0, reasoning: 0 }, billingMode: 'flat', priced: true, local: true, currency: 'USD', matched: true }
       if (typeof override === 'string' && override.length > 0) {
         const sep = override.indexOf(':')
         if (sep > 0 && override.slice(sep + 1).length > 0) {
@@ -1155,7 +1155,7 @@
       }
       // 本地推理来源零价守卫(与 pricing.js 同口径,置于覆盖之后、目录匹配之前)。
       if (isLocalOriginClient(targetProvider, targetModel)) {
-        return { entry: null, priced: false, billingMode: 'flat', matched: false }
+        return legacyDeepseekOverride(provider, override, prices, mode) ?? { entry: { cacheHit: 0, cacheMiss: 0, cacheWrite: 0, output: 0, reasoning: 0 }, billingMode: 'flat', priced: true, local: true, currency: 'USD', matched: true }
       }
       if (targetProvider === 'openrouter') {
         const models = prices.providers?.openrouter?.models ?? {}
@@ -2826,6 +2826,15 @@
       }).concat(go?.fetchedAt > 0 ? t('goQuotaFetchedAt', { time: new Date(go.fetchedAt).toLocaleTimeString() }) : []).join('\n')
     }
 
+    function QuotaDetails({ trigger, detail, refresh, busy, t, ...attributes }) {
+      const display = trigger.props['data-cm-display']
+      return el('details', { ...attributes, 'data-cm-display': display, className: 'cm-quota-details' + (display ? ' ' + trigger.props.className : ''), onKeyDown: e => { if (e.key === 'Escape') { e.currentTarget.open = false; e.currentTarget.querySelector('summary')?.focus(); e.stopPropagation() } } },
+        el('summary', { ...trigger.props, ...(display ? { className: undefined, 'data-cm-display': undefined } : {}), 'aria-label': trigger.props['aria-label'] || t('goQuotaRowLabel') }, trigger.props.children),
+        el('div', { className: 'cm-quota-detail', role: 'region', 'aria-label': t('goQuotaRowLabel') },
+          el('div', { style: { whiteSpace: 'pre-line' } }, detail),
+          refresh ? el('button', { type: 'button', className: 'cm-btn small', disabled: busy, onClick: refresh }, t(busy ? 'refreshing' : 'refresh')) : null))
+    }
+
     function GoQuotaBox(props) {
       const { state, wide } = props
       const goQuota = state.goQuota
@@ -2836,8 +2845,8 @@
       const view = goBoxBody(state, state.config, t)
       const detail = goQuotaDetail(goQuota, state.config, t)
       return el(Tooltip, { portal: true, label: el('span', { style: { whiteSpace: 'pre-line' } }, detail), side: 'right', delayMs: 300 },
-        el('div', { 'data-cm-display': 'go', className: 'cm-bbox' + (view.level === 'ok' ? '' : ' ' + view.level) + (wide ? '' : ' rail') },
-          wide ? view.body : el('div', { className: 'cm-bbox-rail cm-num' }, view.rail)))
+        el(QuotaDetails, { detail, t, trigger: el('summary', { 'data-cm-display': 'go', className: 'cm-bbox' + (view.level === 'ok' ? '' : ' ' + view.level) + (wide ? '' : ' rail') },
+          wide ? view.body : el('div', { className: 'cm-bbox-rail cm-num' }, view.rail)) }))
     }
 
     /** MiniMax Token Plan 窗口的已用百分比(与其它厂商同口径:windows.percent 即已用)。 */
@@ -3597,6 +3606,8 @@
           if (!busy && api) tipLines.push(t('clickToRefresh'))
           if (busy) tipLines.push(t('refreshing'))
           if (err) tipLines.push('⚠ ' + t('queryFailed') + ': ' + err)
+          if (c.key === 'go') return el(QuotaDetails, { key: c.key, detail: [c.tip, err].filter(Boolean).join('\n'), t, busy, refresh: api ? () => doRefresh(c.key) : null,
+            trigger: el('summary', { className: 'cm-qchip action' + (c.level === 'ok' ? '' : ' ' + c.level), 'aria-label': c.label }, kids) })
           return el(Tooltip, { portal: true, key: c.key, label: c.key === 'codex' ? el('span', { style: { whiteSpace: 'pre-line' } }, tipLines.join('\n')) : tipLines.join('; '), side: 'bottom', delayMs: 400 },
             el('span', {
               className: 'cm-qchip' + (api ? ' action' : '') + (c.level === 'ok' ? '' : ' ' + c.level),
