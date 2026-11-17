@@ -1,6 +1,9 @@
 # Changelog
 ## [Unreleased]
 
+- 验证 billion-context 0.1.216 的原生与代理计费、原版 CLI 自动接入，更新兼容基线与 CI；现有 v1.9.71 已兼容。
+- 根据报告者的后续更正，将 #522 标为已撤回并关闭，Go 点击详情按交互改进记录。
+
 ## [1.9.71] - 2026-11-17
 
 - 本地推理和手动“本地零消耗”按已知零单价计费：费用保持 0，Token 正常统计，明细不再显示缺价问号；真正缺少价格的模型仍显示提示。
@@ -15,7 +18,7 @@
 - [@chanyuenpang](https://github.com/chanyuenpang) 在 [#517](https://github.com/Han-1413141/dsh-cost-meter/pull/517) 提供品牌 Logo 和图标布局代码。
 - [@T0TT](https://github.com/T0TT) 在 [#518](https://github.com/Han-1413141/dsh-cost-meter/issues/518) 报告同行文字对齐问题并提供 CSS 建议。
 - [@MCXCC303](https://github.com/MCXCC303) 在 [#519](https://github.com/Han-1413141/dsh-cost-meter/issues/519) 报告 MiniMax 已用 99% 显示为 0% 的问题。
-- [@seeker-Chh](https://github.com/seeker-Chh) 在 [#522](https://github.com/Han-1413141/dsh-cost-meter/issues/522) 提供 Android 点击问题的复现信息。
+- [@seeker-Chh](https://github.com/seeker-Chh) 在 [#522](https://github.com/Han-1413141/dsh-cost-meter/issues/522) 提供 Android 点击排查信息，并[更正问题归属、撤回原报告](https://github.com/Han-1413141/dsh-cost-meter/issues/522#issuecomment-6947573099)。
 - [@github-actions[bot]](https://github.com/apps/github-actions) 通过 [#520](https://github.com/Han-1413141/dsh-cost-meter/issues/520) 和 [#521](https://github.com/Han-1413141/dsh-cost-meter/issues/521) 报告上游插件版本变化。
 
 [更新说明 / Release notes](docs/update-notes-1.9.71.md)
