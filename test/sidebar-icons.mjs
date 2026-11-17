@@ -1,4 +1,5 @@
 // Logic/codec/element-contract regression, not a DOM renderer or visual acceptance test.
+import './sidebar-logos.mjs'
 import assert from 'node:assert/strict'
 import vm from 'node:vm'
 import { readFileSync, readdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs'
@@ -6,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { sanitizeConfig, applyConfigPatch, zeroDay, Ledger } from '../lib/store.js'
 import { stateSchema } from '../lib/typert.host.js'
-import { COUNTDOWN_WINDOW_MS, countdownWindow, claudeShare, sidebarIconEntries, sidebarIconUnavailable, PLAN_ICON_MARKS, iconMark } from '../src/sidebar-icons/presentation.js'
+import { COUNTDOWN_WINDOW_MS, countdownWindow, claudeShare, sidebarIconEntries, sidebarIconUnavailable, PLAN_ICON_MARKS, iconMark, PLAN_ICON_LOGOS, sidebarIconLogo, sidebarIconOrder } from '../src/sidebar-icons/presentation.js'
 
 const now = Date.parse('2026-11-16T02:00:00Z'), hour = 3600000
 for (const [hours, percent, countdown] of [[72, 100, false], [8 + 1 / hour, 100, false], [8, 100, true], [6, 75, true], [4, 50, true], [0, 0, true], [-1, 0, true]]) {
@@ -111,7 +112,19 @@ const allPlansLoader = core.renderSidebarFooter(allPlansState, true).children[0]
 const allPlansTree = Component({ ...allPlansLoader.props, preview: true })
 const planTriggers = walk(allPlansTree).filter(node => node.type === 'button' && node.props['data-cm-display'] === 'plan')
 assert.equal(planTriggers.length, core.CODING_PLAN_ROWS.length, 'all supported providers appear without enabling or querying anything extra')
-for (const trigger of planTriggers) assert.equal(trigger.children[0].props.mark, PLAN_ICON_MARKS[trigger.props['data-cm-plan']])
+const assetData = JSON.parse(readFileSync(new URL('../src/sidebar-icons/logos.json', import.meta.url), 'utf8')).logos
+assert.deepEqual(Array.from(chunk.logoKinds).sort(), Object.keys(assetData).sort())
+for (const trigger of planTriggers) {
+  const glyph = trigger.children[0], id = trigger.props['data-cm-plan']
+  assert.equal(glyph.props.mark, PLAN_ICON_MARKS[id], 'initials remain as a safe fallback')
+  assert.equal(glyph.props.logo, PLAN_ICON_LOGOS[id] ?? null)
+  const shape = walk(glyph.type(glyph.props)).find(node => node.props['data-cm-logo'])
+  if (glyph.props.logo) {
+    assert.equal(shape.props.fill, 'currentColor')
+    assert.equal(shape.props.viewBox, assetData[glyph.props.logo].viewBox)
+    assert.deepEqual(shape.children.map(node => node.props.d), Array.from(assetData[glyph.props.logo].paths, path => path.d), 'shipped geometry preserves original path data')
+  } else assert.equal(shape, undefined)
+}
 const tree = Component({ ...loader.props, preview: true })
 assert.ok(walk(tree).some(node => node.props.className === 'cm-icons-row'))
 assert.equal(walk(tree).filter(node => node.type === 'button' && node.props['data-cm-icon-key']).length, loader.props.nodes.length)
@@ -172,7 +185,21 @@ for (const key of ['today', 'balance']) {
 }
 const iconList = walk(inlineTree).find(node => node.props.className === 'cm-icons-list')
 assert.equal(iconList.children.length, inlineLoader.props.nodes.length, 'numbers stay beside their icon in one ordered list, not in a right-edge bucket')
-assert.deepEqual(iconList.children.map(node => node.props['data-cm-icon-key']), Array.from(inlineLoader.props.nodes, node => node.key))
+assert.deepEqual(iconList.children.map(node => node.props['data-cm-icon-key']), [...Array.from(inlineLoader.props.nodes, node => node.key).filter(key => key !== 'today'), 'today'])
+assert.equal(iconList.children.at(-1).props['data-cm-icon-key'], 'today', 'amount follows all the other icons')
+const savedOrder = ['today', 'models', 'balance', 'plan:qwen', 'peak', 'plan:minimax', 'codex', 'go', 'budget', 'localSavings']
+const customState = { ...state, config: { ...config, sidebarOrder: savedOrder } }
+const customLoader = core.renderSidebarFooter(customState, true).children[0]
+const customTree = Component({ ...customLoader.props, preview: true })
+const customList = walk(customTree).find(node => node.props.className === 'cm-icons-list')
+assert.equal(customList.children.at(-1).props['data-cm-icon-key'], 'today', 'saved today-first order cannot put icons after the amount')
+assert.deepEqual(customList.children.slice(0, -1).map(node => node.props['data-cm-icon-key']), Array.from(customLoader.props.nodes, node => node.key).filter(key => key !== 'today'), 'all other icons preserve their saved relative order')
+assert.deepEqual(customState.config.sidebarOrder, savedOrder, 'presentation never overwrites the saved order')
+const noToday = loader.props.nodes.filter(node => node.key !== 'today')
+const noTodayList = walk(Component({ ...loader.props, nodes: noToday, preview: true })).find(node => node.props.className === 'cm-icons-list')
+assert.deepEqual(noTodayList.children.map(node => node.props['data-cm-icon-key']), Array.from(noToday, node => node.key))
+const frozenEntries = Object.freeze([{ kind: 'today' }, { kind: 'peak' }, { kind: 'models' }])
+assert.deepEqual(sidebarIconOrder(frozenEntries).map(entry => entry.kind), ['peak', 'models', 'today'])
 assert.equal(queryCount, 0)
 assert.equal(sidebarIconUnavailable('plan', 'qwen', { codingPlans: { qwen: { status: 'error' } } }), true)
 assert.equal(sidebarIconUnavailable('codex', undefined, {}, { status: 'unavailable' }), true)

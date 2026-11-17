@@ -8,6 +8,18 @@ export function iconMark(kind, id, title) {
   if (kind === 'gateway') return Array.from(String(title).trim()).slice(0, 2).join('').toUpperCase() || 'GW'
   return null
 }
+// Verified provider identities only. Unknown/custom gateways must not inherit a brand from their label.
+export const PLAN_ICON_LOGOS = { anthropic: 'claude', zai: 'zai', minimax: 'minimax', kimi: 'kimi', openrouter: 'openrouter',
+  siliconflow: 'siliconcloud', commandcode: 'commandcode', clinepass: 'cline', volcengine: 'volcengine',
+  qwen: 'qwen', mimo: 'xiaomimimo', 'baidu-coding': 'baiducloud', workbuddy: 'workbuddy' }
+export function sidebarIconLogo(kind, id) {
+  if (kind === 'plan') return Object.hasOwn(PLAN_ICON_LOGOS, id) ? PLAN_ICON_LOGOS[id] : null
+  return kind === 'balance' ? 'deepseek' : kind === 'codex' ? 'openai' : kind === 'claude' ? 'claude' : kind === 'go' ? 'opencode' : null
+}
+// Only Icons pins the value group last; other entries retain their saved relative order.
+export function sidebarIconOrder(entries) {
+  return [...entries.filter(entry => entry.kind !== 'today'), ...entries.filter(entry => entry.kind === 'today')]
+}
 export const COUNTDOWN_WINDOW_MS = 8 * 3600000
 export function countdownWindow(nextAtMs, now) {
   if (!Number.isFinite(nextAtMs) || !Number.isFinite(now)) return null

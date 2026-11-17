@@ -6,6 +6,7 @@ window.__ModuleLoader__.load({
     const { createElement: el, Fragment, useState, useEffect, useRef, useId } = React
     const css = 'SIDEBAR_ICONS_STYLE_SOURCE'
     /* ICON_HELPERS_SOURCE */
+    const logos = /* ICON_LOGOS_SOURCE */ {}
 
     // Original neutral vector glyphs; no network assets or shell-relative favicon.
     const paths = {
@@ -23,14 +24,16 @@ window.__ModuleLoader__.load({
       plan: 'M5 3h14v18H5zM8 8h8M8 12h8M8 16h5',
       gateway: 'M3 5h18v6H3zM3 15h18v6H3zM6 8h1m-1 10h1',
     }
-    function Glyph({ kind, percent, mark }) {
+    function Glyph({ kind, percent, mark, logo }) {
       const finite = Number.isFinite(percent)
+      const brand = Object.hasOwn(logos, logo) ? logos[logo] : null
       return el('span', { className: 'cm-icons-glyph', 'aria-hidden': true },
         el('svg', { className: 'cm-icons-ring', viewBox: '0 0 28 28', fill: 'none' },
           el('circle', { className: 'cm-icons-track', cx: 14, cy: 14, r: 12 }),
           finite ? el('circle', { className: 'cm-icons-progress', cx: 14, cy: 14, r: 12, pathLength: 100,
             strokeDasharray: `${Math.max(0, Math.min(100, percent))} 100` }) : null),
-        mark ? el('span', { className: 'cm-icons-mark' }, mark) : el('svg', { className: 'cm-icons-symbol', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' },
+        brand ? el('svg', { className: 'cm-icons-symbol cm-icons-logo', 'data-cm-logo': logo, viewBox: brand.viewBox, fill: 'currentColor', fillRule: brand.fillRule },
+          ...brand.paths.map((props, key) => el('path', { key, ...props }))) : mark ? el('span', { className: 'cm-icons-mark' }, mark) : el('svg', { className: 'cm-icons-symbol', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' },
           el('path', { d: paths[kind] ?? paths.generic })))
     }
 
@@ -103,19 +106,19 @@ window.__ModuleLoader__.load({
             'data-cm-icon-key': key, 'data-cm-display': kind, 'data-unavailable': unavailable || undefined, ...(kind === 'plan' ? { 'data-cm-plan': id } : kind === 'gateway' ? { 'data-cm-source': id } : {}),
             'aria-label': label, title: label, 'aria-expanded': expanded, 'aria-controls': instance + '-detail',
             onClick: preview ? undefined : () => setOpen(expanded ? null : key) },
-            el(Glyph, { kind: kind === 'today' && claude ? 'claude' : kind, mark: iconMark(kind, id, title), percent: config.sidebarTextOnly ? null : percent }),
+            el(Glyph, { kind: kind === 'today' && claude ? 'claude' : kind, logo: sidebarIconLogo(kind === 'today' && claude ? 'claude' : kind, id), mark: iconMark(kind, id, title), percent: config.sidebarTextOnly ? null : percent }),
             kind === 'today' ? el('span', { className: 'cm-icons-amount' }, sidebarTodayValue(state.today, config, t)) : null)
         }
         return el(Fragment, null, el('style', null, css),
           el('div', { className: 'cm-icons', ref: root, onKeyDownCapture: event => { if (event.key === 'Escape' && open !== null) { event.stopPropagation(); close() } } },
             el('div', { className: 'cm-icons-row', role: 'group', 'aria-label': text('费用图标，点击展开', 'Cost icons; click for details') },
-              el('div', { className: 'cm-icons-list' }, ...entries.map(button))),
+              el('div', { className: 'cm-icons-list' }, ...sidebarIconOrder(entries).map(button))),
             el('div', { id: instance + '-detail', hidden: !chosen, role: 'region', 'aria-label': chosen?.title, className: 'cm-icons-panel' }, chosen ? el(Fragment, null,
               el('div', { className: 'cm-icons-panel-head' }, el('span', null, chosen.title), el('button', { type: 'button', className: 'cm-btn small', onClick: close }, text('收起', 'Collapse'))),
               // Original components remain direct siblings for the upstream same-line arranger.
               el('div', { className: 'cm-footer-stack' + (paired ? ' same-line' : '') + (config.sidebarTextOnly ? ' text-only' : '') }, ...details.map(entry => entry.node))) : null)))
       }
     }
-    return { mount, iconKinds: Object.keys(paths) }
+    return { mount, iconKinds: Object.keys(paths), logoKinds: Object.keys(logos) }
   },
 })

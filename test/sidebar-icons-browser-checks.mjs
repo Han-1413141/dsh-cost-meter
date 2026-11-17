@@ -11,6 +11,26 @@ export async function checkSidebarIcons(page, output) {
   await icon.waitFor()
   for (const theme of ['light', 'dark']) {
     await page.evaluate(theme => document.documentElement.dataset.theme = theme, theme)
+    for (const [name, size] of [['deepseek', 18], ['kimi', 16]]) {
+      const svg = sidebar.locator('svg[data-cm-logo="' + name + '"]')
+      await svg.waitFor()
+      const geometry = await svg.evaluate(node => ({ width: node.getBoundingClientRect().width, height: node.getBoundingClientRect().height,
+        fill: getComputedStyle(node).fill, color: getComputedStyle(node.closest('button')).color }))
+      assert.equal(geometry.width, size, theme + '/' + name + ' optical width')
+      assert.equal(geometry.height, size, theme + '/' + name + ' optical height')
+      assert.equal(geometry.fill, geometry.color, theme + '/' + name + ' follows the theme foreground')
+      assert.ok(await svg.locator('path').count() > 0)
+    }
+    const placement = await sidebar.locator('.cm-icons-list').evaluate(list => {
+      const value = list.querySelector('.cm-icons-amount').getBoundingClientRect()
+      const group = list.lastElementChild
+      const ownGlyph = group.querySelector('.cm-icons-glyph').getBoundingClientRect()
+      return { lastKey: group.dataset.cmIconKey, gap: value.left - ownGlyph.right,
+        afterAll: [...list.querySelectorAll('.cm-icons-glyph')].every(node => node.getBoundingClientRect().right <= value.left + .5) }
+    })
+    assert.equal(placement.lastKey, 'today', theme + ': amount group is the final item')
+    assert.equal(placement.afterAll, true, theme + ': no icons appear after the amount')
+    assert.ok(placement.gap >= 0 && placement.gap <= 8, theme + ': amount stays next to its icon, not pinned to the far sidebar edge')
     await sidebar.screenshot({ path: join(output, 'icons-' + theme + '.png') })
     await icon.click()
     await sidebar.getByText('工作账号', { exact: true }).waitFor()

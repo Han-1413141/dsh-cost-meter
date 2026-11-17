@@ -21,6 +21,7 @@ import assert from 'node:assert/strict'
 import { javascriptLiteral } from './javascript-literal.mjs'
 import { withClientRegistration } from './client-registration.mjs'
 import { SUBSCRIPTION_CATALOG } from '../lib/subscription-catalog.js'
+import { sidebarLogoGeometry } from './sidebar-logo-geometry.mjs'
 
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -219,6 +220,8 @@ for (const chunk of ['billing-storage', 'settings-overview', 'statistics', 'open
     source = source.replace("'DISPLAY_STYLE_SOURCE'", () => javascriptLiteral(styles.code))
   }
   if (chunk === 'sidebar-icons') {
+    const logos = sidebarLogoGeometry(JSON.parse(readFileSync(resolve(projectRoot, 'src/sidebar-icons/logos.json'), 'utf8')))
+    source = source.replace('/* ICON_LOGOS_SOURCE */ {}', () => javascriptLiteral(logos))
     source = source.replace('/* ICON_HELPERS_SOURCE */', readFileSync(resolve(projectRoot, 'src/sidebar-icons/presentation.js'), 'utf8').replace(/^export /gm, ''))
     const styles = await transform(readFileSync(resolve(projectRoot, 'src/sidebar-icons/style.css'), 'utf8'), { loader: 'css', minify: true })
     source = source.replace("'SIDEBAR_ICONS_STYLE_SOURCE'", () => javascriptLiteral(styles.code))

@@ -1,6 +1,9 @@
 # Changelog
 ## [Unreleased]
 
+- 图标模式加入 DeepSeek、Claude、OpenAI/Codex、OpenCode 和 13 个常见套餐来源的单色品牌 Logo，随分块离线内嵌并跟随主题前景色；未确认的来源保留原有兜底。金额组固定在所有图标之后，数字仍紧跟自身图标，不靠留白吸附侧栏最右；其他图标保留保存顺序。原有操作、查询、8 小时规则和移动回退保持不变。
+- Add bundled theme-aware provider logos to Icons, with pinned Lobe Icons/MIT attribution and safe neutral/initial fallbacks. Keep the value group after all icons without edge-pinning whitespace; retain other icons' saved relative order, actions, query behavior and countdown semantics.
+
 ## [1.9.70] - 2026-11-16
 
 - 修复 OpenAI 兼容入口及第三方渠道的 DeepSeek 价格匹配，支持 `deepseek-ai` 命名空间、工作站与套餐别名、Magpie 多层账号路由和 `llm-` 前缀。
