@@ -1097,7 +1097,7 @@
       return LOCAL_MODEL_PREFIXES.some(prefix => model.startsWith(prefix))
     }
     function legacyDeepseekOverride(provider, override, prices, mode) {
-      if (!['deepseek', 'deepseek-official'].includes(provider)
+      if (!['deepseek', 'deepseek-official', 'deepseek-account'].includes(provider)
         && typeof override === 'string' && override.length > 0 && override !== '__local__' && !override.includes(':')) {
         const dsModels = prices.models ?? {}
         const retryHit = Object.hasOwn(dsModels, override) ? override
@@ -1162,7 +1162,7 @@
         const entry = Object.hasOwn(models, targetModel) ? models[targetModel] : null
         return { entry, priced: entry !== null && entry.unpriced !== true, billingMode: 'flat', matched: entry !== null }
       }
-      if (['deepseek', 'deepseek-official'].includes(targetProvider)) {
+      if (['deepseek', 'deepseek-official', 'deepseek-account'].includes(targetProvider)) {
         const models = prices.models ?? {}
         const match = priceModelMatch(targetModel, models, 'deepseek', mode, prices)
         if (match) return match.id === null || models[match.id]?.unpriced === true
