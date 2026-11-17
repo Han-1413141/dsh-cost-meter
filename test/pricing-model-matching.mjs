@@ -401,6 +401,45 @@ check('magpie', 'codex/gpt-6.1-sol', { priced: false }, cfg('auto', {}, { ...mag
 
 // Real IDs shipped by the Magpie connector catalogs use the current built-in prices.
 const installedPrices = defaultConfig().prices
+
+// #526: the official account provider uses the official catalog in exact and auto modes.
+for (const table of [installedPrices, sanitizeConfig({ prices: { currency: 'CNY' } }).prices]) {
+  for (const mode of ['auto', 'exact']) for (const model of ['deepseek-flash', 'deepseek-v4.1-flash', 'deepseek-v4-pro']) {
+    const official = providerPriceEntryFor('deepseek', model, table, { mode })
+    assert.equal(official.priced, true)
+    for (const provider of ['deepseek-account', 'llm-deepseek-account', 'deepseek-official', 'llm-deepseek-official']) {
+      check(provider, model, { priced: true, input: official.entry.cacheMiss, currency: official.currency, mode: official.billingMode }, cfg(mode, {}, table))
+    }
+  }
+}
+const competingOfficial = { ...installedPrices, providers: { ...installedPrices.providers, reseller: { models: { 'deepseek-flash': flat(99) } } } }
+for (const mode of ['auto', 'exact']) {
+  check('deepseek-account', 'deepseek-flash', { priced: true, input: 0.15, mode: 'deepseek-peak' }, cfg(mode, {}, competingOfficial))
+  check('deepseek-account-proxy', 'deepseek-flash', { priced: false }, cfg(mode, {}, competingOfficial))
+  check('deepseek-account', 'renamed', { priced: true, input: 0.15 }, cfg(mode, { 'deepseek-account:renamed': 'deepseek-flash' }, installedPrices))
+  check('custom-api', 'renamed', { priced: true, input: 0.15 }, cfg(mode, { 'custom-api:renamed': 'deepseek-account:deepseek-flash' }, installedPrices))
+  check('deepseek-account', 'deepseek-flash', { priced: true, input: 0, local: true }, cfg(mode, { 'deepseek-account:deepseek-flash': '__local__' }, installedPrices))
+  for (const models of [{ 'deepseek-flash': flat(7) }, { 'deepseek-flash': { unpriced: true } }]) {
+    check('deepseek-account', 'deepseek-flash', { priced: !models['deepseek-flash'].unpriced, ...(!models['deepseek-flash'].unpriced ? { input: 7, mode: 'flat' } : {}) }, cfg(mode, {}, { ...installedPrices, providers: { ...installedPrices.providers, 'deepseek-account': { models } } }))
+  }
+  check('deepseek-account', 'deepseek-flash', { priced: false }, cfg(mode, {}, { ...competingOfficial, models: { 'deepseek-flash': { unpriced: true } } }))
+  check('deepseek-account', 'deepseek-unknown', { priced: false }, cfg(mode, {}, installedPrices))
+}
+const officialHome = mkdtempSync(join(tmpdir(), 'cm-official-account-'))
+try {
+  for (const mode of ['auto', 'exact']) {
+    const ledger = new Ledger(sanitizeConfig({ priceMatch: mode, peakEnabled: false }), {}, join(officialHome, mode + '.json'))
+    const usage = { input: 111649, output: 24434, cacheRead: 3674752 }
+    ledger.account(usage, 'deepseek-flash', 'official-account-session', Date.now(), 'deepseek-account')
+    const row = ledger.today().byProviderModel['deepseek-account:deepseek-flash']
+    const expected = (usage.input * .15 + usage.output * .6 + usage.cacheRead * .003) / 1e6
+    assert.ok(Math.abs(row.cost - expected) < 1e-12, 'reported usage produces a nonzero official charge')
+    assert.equal(row.apiCost, row.cost)
+    for (const key of ['input', 'output', 'cacheRead']) assert.equal(row[key], usage[key], 'original usage is preserved')
+    assert.deepEqual(Object.keys(ledger.today().byProviderModel), ['deepseek-account:deepseek-flash'])
+    ledger.close()
+  }
+} finally { rmSync(officialHome, { recursive: true, force: true }) }
 for (const [model, provider, bare] of [
   ['codex/gpt-5.6-terra', 'openai', 'gpt-5.6-terra'],
   ['codex/gpt-5.6-luna', 'openai', 'gpt-5.6-luna'],

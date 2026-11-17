@@ -70,6 +70,17 @@ near(longResult.rows.reduce((n, r) => n + r.cost, 0), longResult.cost)
 const unknown = records.map(r => r.type === 'request/header' ? { ...r, data: { header: { config: { provider: 'unknown', model: 'unknown' } } } } : r)
 assert.ok(turnCostFromRecords(unknown, config, 1, 4).rows.every(r => !r.priced))
 
+// #526: the message-level card also resolves official account prices in exact mode.
+const officialConfig = sanitizeConfig({ priceMatch: 'exact', peakEnabled: false })
+const officialRecords = provider => records.map(r => r.type === 'request/header'
+  ? { ...r, data: { header: { config: { provider, model: 'deepseek-flash' } } } } : r)
+const officialReference = turnCostFromRecords(officialRecords('deepseek-official'), officialConfig, 1, 4)
+const officialAccount = turnCostSchema.parse(turnCostFromRecords(officialRecords('deepseek-account'), officialConfig, 1, 4))
+assert.ok(officialAccount.cost > 0)
+near(officialAccount.cost, officialReference.cost)
+assert.ok(officialAccount.calls.every(call => call.priced))
+assert.ok(officialAccount.rows.filter(row => row.tokens > 0).every(row => row.priced))
+
 // Known local use retains tokens and zero amounts without reporting missing prices.
 for (const legacyModelMatching of [false, true]) for (const provider of ['ollama', 'lmstudio', 'vllm', 'unknown']) {
   const localRecords = unknown.map(r => r.type === 'request/header' ? { ...r, data: { header: { config: { provider, model: 'local-model' } } } } : r)
