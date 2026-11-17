@@ -100,3 +100,7 @@ node test/codex-subscription-published.mjs
 处理 github-actions[bot] 在 [#504](https://github.com/Han-1413141/dsh-cost-meter/issues/504) 报告的五个接入函数变化。新版拆分首字节与响应体超时，调整摘要日志、错误响应清理，以及原生请求的代理选项和预填充请求头处理。
 
 SHA-512 校验、静态契约检查和实际发布包回归通过：原生及代理计费、四种协议、摘要、重试、缓存、父子会话、API/Plan、历史回放、重启、取消、预填充及本地拒绝请求，另验证原版 CLI 自动接入。测试仅使用合成数据和本机服务，外部模型请求为 0，上游源文件保持原样。本版无需修改计费适配器，基线和 CI 增加 0.1.214。
+
+### 2026-11-17：Codex Subscription 3.2.19 与 Connect 0.2.0-alpha.15
+
+处理 github-actions[bot] 的 [#520](https://github.com/Han-1413141/dsh-cost-meter/issues/520)、[#521](https://github.com/Han-1413141/dsh-cost-meter/issues/521)。两个官方 npm 包的 SHA-512 与元数据一致，静态契约匹配；实际发布包的额度解析、单周和双窗口、账号切换、刷新、失败处理及只读 HTTP/RPC 检查通过。Connect 的记录类型判断函数由打包器重新编号，测试按发布包中的原始声明读取，不改写函数。费用插件运行时代码无需调整。基线与 CI 保留旧版本并加入上述版本，外部账户及模型请求为 0。

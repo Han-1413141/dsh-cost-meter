@@ -1,6 +1,11 @@
 # Changelog
 ## [Unreleased]
 
+- 本地推理和手动“本地零消耗”使用已知零单价，费用保持 0、Token 正常统计，明细不再显示缺价问号；真正缺价仍保留提示。
+- 修复 MiniMax 剩余 1% 被当作 100%、导致已用 99% 显示为 0% 的问题，并保留小数百分比。
+- 修复“今日消费与余额同行”在纯文字模式下的垂直对齐。Go 额度支持点击展开 5h、周、月窗口及重置时间，刷新按钮位于详情中。
+- 验证 dsh-codex-subscription 3.2.19 和 dsh-codex-connect 0.2.0-alpha.15，更新兼容基线与 CI。
+
 - 图标模式加入 DeepSeek、Claude、OpenAI/Codex、OpenCode 和 13 个常见套餐来源的单色品牌 Logo，随分块离线内嵌并跟随主题前景色；未确认的来源保留原有兜底。金额组固定在所有图标之后，数字仍紧跟自身图标，不靠留白吸附侧栏最右；其他图标保留保存顺序。原有操作、查询、8 小时规则和移动回退保持不变。
 - Add bundled theme-aware provider logos to Icons, with pinned Lobe Icons/MIT attribution and safe neutral/initial fallbacks. Keep the value group after all icons without edge-pinning whitespace; retain other icons' saved relative order, actions, query behavior and countdown semantics.
 

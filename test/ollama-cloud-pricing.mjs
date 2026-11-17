@@ -200,7 +200,7 @@ for (const [model, morning, afternoon] of [['deepseek-v4.1-flash:1017', .15, .30
     near(tierFor(result.entry, at('2026-10-20T13:00:00Z'), DEEPSEEK_PEAK).cacheMiss, afternoon, 'issue #356 afternoon')
   }
   assert.equal(providerPriceEntryFor('ollama-cloud', model, usd.prices, { mode: 'exact' }).priced, false)
-  assert.equal(providerPriceEntryFor('ollama-cloud', model, usd.prices, { overrides: { ['ollama-cloud:' + model]: '__local__' } }).priced, false)
+  assert.equal(providerPriceEntryFor('ollama-cloud', model, usd.prices, { overrides: { ['ollama-cloud:' + model]: '__local__' } }).local, true)
 }
 for (const suffix of [':0000', ':1399', ':free:1017', ':online:1017', ':1017:unknown']) {
   assert.equal(providerPriceEntryFor('ollama-cloud', 'deepseek-v4.1-flash' + suffix, usd.prices).priced, false, suffix)

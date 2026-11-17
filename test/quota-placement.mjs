@@ -51,7 +51,7 @@ assert.equal(ui.parseConfig(config, 'config').goQuota.showInComposer, true)
 const plan = { enabled: true, display: 'off', showInComposer: true }
 const displayConfig = sanitizeConfig({ codingPlans: { zai: plan, kimi: { ...plan, showInComposer: false } }, quotaStrip: { enabled: false } })
 const tree = ui.QuotaStrip({ useCost: () => ({ state: { config: displayConfig, codingPlans: { zai: { status: 'ok', windows: { fiveHour: { percent: 30 }, weekly: { percent: 100 } } }, kimi: { status: 'ok', windows: { weekly: { percent: 10 } } } } } }) })
-const nodes = node => Array.isArray(node) ? node.flatMap(nodes) : node && typeof node === 'object' ? [node, ...(node.children ?? []).flatMap(nodes)] : []
+const nodes = node => Array.isArray(node) ? node.flatMap(nodes) : node && typeof node === 'object' ? [node, ...nodes(node.props?.trigger), ...(node.children ?? []).flatMap(nodes)] : []
 const chips = nodes(tree).filter(node => node.props?.className?.startsWith('cm-qchip'))
 assert.equal(chips.length, 1, 'a single explicit placement shows only that vendor even when the default strip is disabled')
 assert.equal(nodes(tree).filter(node => node.props?.key === 'zai').length, 1)

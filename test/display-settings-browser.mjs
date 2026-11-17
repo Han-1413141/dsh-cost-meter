@@ -18,6 +18,7 @@ import { checkSidebarTextOnly } from './sidebar-text-only-checks.mjs'
 import { checkPlanGauges } from './plan-gauge-checks.mjs'
 import { checkBalanceQuickHide } from './balance-quick-hide-checks.mjs'
 import { checkLocalSavings } from './local-savings-browser-checks.mjs'
+import { checkQuotaDetails } from './quota-details-checks.mjs'
 import { checkSidebarIcons } from './sidebar-icons-browser-checks.mjs'
 
 const modules = resolve(process.env.DSH_TEST_UI_MODULES ?? '.tmp-pr240-host/node_modules')
@@ -28,7 +29,7 @@ const output = resolve('.tmp-display-review'); mkdirSync(output, { recursive: tr
 let saved = sanitizeConfig({ locale: 'zh', exchangeRate: 1, currency: 'CNY', symbol: '¥', sidebarSimple: false, budget: { enabled: true, amount: 100 },
   sidebarModels: { enabled: true }, goQuota: { enabled: false }, quotaStrip: { enabled: true, budget: true, go: false, plans: true }, peakEnabled: true, peakNotice: true })
 const client = readdirSync('src/client').filter(n => n.endsWith('.js')).sort().map(n => readFileSync('src/client/' + n, 'utf8')).join('')
-  .replace('exports.apply = apply', 'exports.preview = { CostSection, parseConfig, SidebarFooter, renderSidebarFooter }; exports.apply = apply')
+  .replace('exports.apply = apply', 'exports.preview = { CostSection, parseConfig, SidebarFooter, renderSidebarFooter, QuotaStrip }; exports.apply = apply')
 const day = { ...zeroDay(), cost: 1.28, apiCost: 1.28 }
 const state = { config: saved, today: day, month: day, total: day, history: [], balance: { status: 'error', message: 'Synthetic balance error' }, codingPlans: {}, budgetUsed: 32 }
 const multiBalances = [{ id: 'account-a1', label: '工作账号', status: 'ok', message: '', fetchedAt: Date.now(), currency: 'USD', totalBalance: 12, grantedBalance: 0, toppedUpBalance: 12 },
@@ -70,11 +71,13 @@ window.changeLocale=locale=>window.setConfig({locale});window.setFixtureState=pa
 const api={refreshCodingPlan:async id=>{window.planRefreshes=(window.planRefreshes??0)+1;await new Promise(done=>setTimeout(done,50))},refreshBalance:async()=>{window.balanceRefreshes=(window.balanceRefreshes??0)+1;await new Promise(done=>setTimeout(done,50))},loadDisplay:async()=>Display,loadCommunity:async()=>()=>null,loadPricing:async()=>()=>null,loadStatistics:async()=>()=>null,updateConfig:async patch=>{
   if(window.failSave)throw Error('synthetic save failure');const config=await window.saveConfig(patch);window.patches.push(patch);state={...state,config:parseConfig(config,'config')};return publish()}};
 window.configure=patch=>api.updateConfig(patch);
+api.refreshGoQuota=async()=>{window.goRefreshes=(window.goRefreshes??0)+1};
 api.refreshCustomBalance=async()=>{window.customBalanceRefreshes=(window.customBalanceRefreshes??0)+1};
 window.orderUI.mount({effect:()=>{}},{getSnapshot:()=>({state}),subscribe:fn=>{window.listeners.add(fn);return()=>window.listeners.delete(fn)}},config=>config?.locale??'zh',{updateConfig:patch=>api.updateConfig(patch)});
 function useCost(){const[value,setValue]=React.useState(state);React.useEffect(()=>{window.listeners.add(setValue);setValue(state);return()=>window.listeners.delete(setValue)},[]);return{state:value,status:'ready'}}
 function FixturePreview(){return window.mainUI.preview.renderSidebarFooter(useCost().state,true,undefined,true)}
 window.attachFixtureSidebar=(container,preview=false)=>createRoot(container).render(preview?h(FixturePreview):h(SidebarFooter,{useCost,api,wide:true}));
+window.attachFixtureStrip=container=>createRoot(container).render(h(window.mainUI.preview.QuotaStrip,{useCost,api}));
 window.attachFixtureRail=container=>{const root=createRoot(container);root.render(h(SidebarFooter,{useCost,api,wide:false}));return()=>root.unmount()};
 function App(){return h(React.Fragment,null,h(CostSection,{useCost,api}),h('div',{id:'actual-sidebar',style:{position:'fixed',left:-2000,width:352,fontSize:14,lineHeight:1.6}},h(SidebarFooter,{useCost,api,wide:true})))}
 const root=createRoot(document.getElementById('root'));window.remount=()=>root.render(h(App,{key:++window.mounts}));window.remount();
@@ -113,7 +116,10 @@ await page.exposeFunction('saveConfig', patch => {
 })
 try {
   await page.goto(url)
-  if (process.argv.includes('--icons-only')) {
+  if (process.argv.includes('--quota-details-only')) {
+    console.log('[ok] quota details ' + JSON.stringify(await checkQuotaDetails(page, output)))
+    assert.deepEqual(errors, []); assert.deepEqual(external, [])
+  } else if (process.argv.includes('--icons-only')) {
     await checkSidebarIcons(page, output)
     assert.deepEqual(errors, []); assert.deepEqual(external, [])
   } else if (process.argv.includes('--multi-balance-only')) {

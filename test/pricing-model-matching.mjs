@@ -45,6 +45,7 @@ function check(provider, model, expected, config = cfg()) {
   const frontend = client.resolveClientPrice(provider, model, config)
   for (const [side, result] of [['backend', backend], ['client', frontend]]) {
     assert.equal(result.priced, expected.priced, `${side}: ${provider}:${model} priced`)
+    if (expected.local !== undefined) assert.equal(result.local, expected.local, `${side}: ${provider}:${model} local origin`)
     if (expected.input !== undefined) assert.equal(normalizePrice(result.entry)?.cacheMiss, expected.input, `${side}: ${provider}:${model} input`)
     if (expected.mode !== undefined) assert.equal(result.billingMode, expected.mode, `${side}: ${provider}:${model} billing mode`)
     if (expected.currency !== undefined) assert.equal(result.currency, expected.currency, `${side}: ${provider}:${model} currency`)
@@ -79,7 +80,7 @@ for (const provider of ['opencode-zen', 'llm-opencode-zen']) {
 }
 check('zen', 'mapped-model', { priced: true, input: 10 }, cfg('auto', { 'zen:mapped-model': 'openai:gpt-6-astra' }))
 check('opencode-zen', 'mapped-model', { priced: true, input: 10 }, cfg('exact', { 'opencode-zen:mapped-model': 'openai:gpt-6-astra' }))
-check('zen', 'gpt-6.1-sol', { priced: false }, cfg('auto', { 'zen:gpt-6.1-sol': '__local__' }))
+check('zen', 'gpt-6.1-sol', { priced: true, input: 0, local: true }, cfg('auto', { 'zen:gpt-6.1-sol': '__local__' }))
 check('opencode-zen', 'gemini-3.7-flash', { priced: false })
 check('opencode-go', 'gemini-3.7-flash', { priced: false })
 
@@ -132,8 +133,8 @@ for (const variant of [':free', ':online', ' (free)', ' (online)']) {
 }
 
 // Known local origins keep zero-cost precedence; explicit override remains an escape hatch.
-for (const provider of ['ollama', 'llm-ollama', 'lmstudio', 'vllm']) check(provider, 'openai/gpt-6-astra', { priced: false })
-check('custom-api', 'ollama/gpt-6-astra', { priced: false })
+for (const provider of ['ollama', 'llm-ollama', 'lmstudio', 'vllm']) check(provider, 'openai/gpt-6-astra', { priced: true, input: 0, local: true })
+check('custom-api', 'ollama/gpt-6-astra', { priced: true, input: 0, local: true })
 check('ollama', 'gpt-6-astra', { priced: true, input: 10 }, cfg('auto', { 'ollama:gpt-6-astra': 'openai:gpt-6-astra' }))
 
 // Non-exact aliases must be unique; candidate date/version snapshots are never stripped.
@@ -227,7 +228,7 @@ for (const mode of ['auto', 'exact']) {
   check('openai', 'gpt-6.1-sol (mini)', { priced: true, input: 10 }, cfg(mode, { 'openai:gpt-6.1-sol (mini)': 'openai:gpt-6-astra' }))
 }
 for (const provider of ['', 'deepseek', 'custom-api']) {
-  for (const model of [' ollama/gpt-6-astra', '\tgguf:qwen3.5', ' LMStudio:gpt-6-astra ']) check(provider, model, { priced: false })
+  for (const model of [' ollama/gpt-6-astra', '\tgguf:qwen3.5', ' LMStudio:gpt-6-astra ']) check(provider, model, { priced: true, input: 0, local: true })
 }
 check('custom-api', ' ollama/gpt-6-astra', { priced: true, input: 10 }, cfg('auto', { 'custom-api: ollama/gpt-6-astra': 'openai:gpt-6-astra' }))
 
@@ -264,7 +265,7 @@ for (const legacy of ['zen', 'opencode']) {
 
 const sentinelCatalog = { ...prices, models: { ...prices.models, __local__: flat(5) } }
 for (const mode of ['auto', 'exact']) {
-  for (const provider of ['custom-api', 'ollama', 'openrouter', 'opencode-zen']) check(provider, 'x', { priced: false }, cfg(mode, { [provider + ':x']: '__local__' }, sentinelCatalog))
+  for (const provider of ['custom-api', 'ollama', 'openrouter', 'opencode-zen']) check(provider, 'x', { priced: true, input: 0, local: true }, cfg(mode, { [provider + ':x']: '__local__' }, sentinelCatalog))
   check('deepseek', 'unknown-model', { priced: false, currency: 'USD' }, cfg(mode, {}, { ...disabledDefault, currency: 'CNY' }))
 }
 const actual = defaultConfig()
@@ -334,8 +335,8 @@ for (const variant of ['ｍｉｎｉ', 'ｐｒｏ', 'ｔｈｉｎｋｉｎｇ', 
   check('openai', `ＧＰＴ－６．１－Ｓｏｌ（${variant}）`, { priced: false })
 }
 for (const provider of ['', 'deepseek', 'custom-api']) {
-  check(provider, ' ＯＬＬＡＭＡ／gpt-6-astra', { priced: false })
-  check(provider, 'ｌｍｓｔｕｄｉｏ：gpt-6-astra', { priced: false })
+  check(provider, ' ＯＬＬＡＭＡ／gpt-6-astra', { priced: true, input: 0, local: true })
+  check(provider, 'ｌｍｓｔｕｄｉｏ：gpt-6-astra', { priced: true, input: 0, local: true })
 }
 const widthCollisions = { ...prices, providers: { ...prices.providers, openai: { models: {
   'gpt-6.1-sol': flat(2), 'ＧＰＴ－６．１－Ｓｏｌ': flat(88),
@@ -379,7 +380,7 @@ for (const provider of magpieProviders) {
     check(provider, model, { priced: false }, cfg('exact'))
   }
   for (const model of ['group/auto-gpt-6-astra', 'deepseek/unknown-model', 'opencode-zen/unknown-model', 'opencode-zen-free/gpt-6.1-sol', 'ollama/gpt-6-astra', 'account-123/ollama/gpt-6-astra', 'openrouter/google/gemini-3.8-flash:unknown']) {
-    check(provider, model, { priced: false })
+    check(provider, model, model.includes('ollama/') ? { priced: true, input: 0, local: true } : { priced: false })
   }
 }
 for (const provider of ['custom-provider-id', 'llm-custom-provider-id']) {
@@ -392,7 +393,7 @@ check('openai', 'codex/gpt-6.1-sol', { priced: true, input: 2 })
 check('opencode-go', 'codex/gpt-6.1-sol', { priced: false })
 const magpieKey = 'magpie:codex/gpt-6.1-sol'
 check('magpie', 'codex/gpt-6.1-sol', { priced: true, input: 10 }, cfg('auto', { [magpieKey]: 'openai:gpt-6-astra' }))
-check('magpie', 'codex/gpt-6.1-sol', { priced: false }, cfg('auto', { [magpieKey]: '__local__' }))
+check('magpie', 'codex/gpt-6.1-sol', { priced: true, input: 0, local: true }, cfg('auto', { [magpieKey]: '__local__' }))
 check('magpie', 'codex/gpt-6.1-sol', { priced: true, input: 2 }, cfg('auto', { 'openai:gpt-6.1-sol': 'openai:gpt-6-astra' }))
 const magpieCatalog = { ...prices, providers: { ...prices.providers, magpie: { models: { 'codex/gpt-6.1-sol': flat(77) } } } }
 check('magpie', 'codex/gpt-6.1-sol', { priced: true, input: 77 }, cfg('auto', {}, magpieCatalog))
@@ -431,7 +432,7 @@ try {
 
 // Gateway decoding preserves the original local/free origin and missing-provider contracts.
 for (const provider of ['ollama', 'llm-ollama', 'lmstudio', 'local', 'vllm']) {
-  check(provider, 'codex/gpt-6.1-sol', { priced: false })
+  check(provider, 'codex/gpt-6.1-sol', { priced: true, input: 0, local: true })
   check(provider, 'codex/gpt-6.1-sol', { priced: true, input: 10 }, cfg('auto', { [provider.replace(/^llm-/, '') + ':codex/gpt-6.1-sol']: 'openai:gpt-6-astra' }))
 }
 for (const provider of ['our-free-model', 'our-free-model-region']) {
@@ -510,8 +511,8 @@ for (const provider of ['free-channel', 'deepseek-free', 'magpie-free']) {
   check(provider, 'codex/gpt-6.1-sol', { priced: false })
 }
 for (const route of ['free-tier', 'account-free-a', 'ollama', 'lmstudio']) {
-  check('magpie', route + '/deepseek-v4-flash', { priced: false })
-  check('magpie', 'account-1/' + route + '/deepseek-v4-flash', { priced: false })
+  check('magpie', route + '/deepseek-v4-flash', ['ollama', 'lmstudio'].includes(route) ? { priced: true, input: 0, local: true } : { priced: false })
+  check('magpie', 'account-1/' + route + '/deepseek-v4-flash', ['ollama', 'lmstudio'].includes(route) ? { priced: true, input: 0, local: true } : { priced: false })
 }
 for (const model of ['deepseek-v4-flash-2026-11-12', 'deepseek-v4-flash-261112', 'deepseek-v4-flash-1112', 'deepseek-v4-flash-latest']) {
   check('custom-api', model, { priced: true, input: 0.15 })
