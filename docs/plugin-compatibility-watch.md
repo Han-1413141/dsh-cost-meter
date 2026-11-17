@@ -104,3 +104,7 @@ SHA-512 校验、静态契约检查和实际发布包回归通过：原生及代
 ### 2026-11-17：Codex Subscription 3.2.19 与 Connect 0.2.0-alpha.15
 
 处理 github-actions[bot] 的 [#520](https://github.com/Han-1413141/dsh-cost-meter/issues/520)、[#521](https://github.com/Han-1413141/dsh-cost-meter/issues/521)。两个官方 npm 包的 SHA-512 与元数据一致，静态契约匹配；实际发布包的额度解析、单周和双窗口、账号切换、刷新、失败处理及只读 HTTP/RPC 检查通过。Connect 的记录类型判断函数由打包器重新编号，测试按发布包中的原始声明读取，不改写函数。费用插件运行时代码无需调整。基线与 CI 保留旧版本并加入上述版本，外部账户及模型请求为 0。
+
+### 2026-11-17：billion-context 0.1.216
+
+处理 github-actions[bot] 在 [#524](https://github.com/Han-1413141/dsh-cost-meter/issues/524) 报告的版本变化。官方发布包 SHA-512 校验通过，接入函数指纹未变。实际发布包的原生与代理计费、四种协议、压缩、重试、缓存、父子会话、API/Plan 分类、回放、重启、取消及原版 CLI 自动接入检查通过。检查使用合成数据和本机服务，外部模型请求为 0。现有 v1.9.71 运行时代码已兼容；本次更新兼容基线并将 0.1.216 加入 CI。
