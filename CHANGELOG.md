@@ -1,13 +1,24 @@
 # Changelog
 ## [Unreleased]
 
-- 本地推理和手动“本地零消耗”使用已知零单价，费用保持 0、Token 正常统计，明细不再显示缺价问号；真正缺价仍保留提示。
-- 修复 MiniMax 剩余 1% 被当作 100%、导致已用 99% 显示为 0% 的问题，并保留小数百分比。
-- 修复“今日消费与余额同行”在纯文字模式下的垂直对齐。Go 额度支持点击展开 5h、周、月窗口及重置时间，刷新按钮位于详情中。
+## [1.9.71] - 2026-11-17
+
+- 本地推理和手动“本地零消耗”按已知零单价计费：费用保持 0，Token 正常统计，明细不再显示缺价问号；真正缺少价格的模型仍显示提示。
+- 修复 MiniMax 剩余 1% 被当作 100%、导致已用 99% 显示为 0% 的问题，保留小数百分比。
+- 修复“今日消费与余额同行”在纯文字模式下的垂直对齐。
+- Go 额度支持点击展开 5h、周、月窗口及重置时间，详情内提供刷新按钮，支持触屏和键盘操作。
+- 图标模式加入 DeepSeek、Claude、OpenAI/Codex、OpenCode 和 13 个常见套餐来源的品牌 Logo，离线内嵌并跟随主题前景色；金额组排在图标之后，其他图标保留已保存的相对顺序。
 - 验证 dsh-codex-subscription 3.2.19 和 dsh-codex-connect 0.2.0-alpha.15，更新兼容基线与 CI。
 
-- 图标模式加入 DeepSeek、Claude、OpenAI/Codex、OpenCode 和 13 个常见套餐来源的单色品牌 Logo，随分块离线内嵌并跟随主题前景色；未确认的来源保留原有兜底。金额组固定在所有图标之后，数字仍紧跟自身图标，不靠留白吸附侧栏最右；其他图标保留保存顺序。原有操作、查询、8 小时规则和移动回退保持不变。
-- Add bundled theme-aware provider logos to Icons, with pinned Lobe Icons/MIT attribution and safe neutral/initial fallbacks. Keep the value group after all icons without edge-pinning whitespace; retain other icons' saved relative order, actions, query behavior and countdown semantics.
+感谢以下贡献者：
+
+- [@chanyuenpang](https://github.com/chanyuenpang) 在 [#517](https://github.com/Han-1413141/dsh-cost-meter/pull/517) 提供品牌 Logo 和图标布局代码。
+- [@T0TT](https://github.com/T0TT) 在 [#518](https://github.com/Han-1413141/dsh-cost-meter/issues/518) 报告同行文字对齐问题并提供 CSS 建议。
+- [@MCXCC303](https://github.com/MCXCC303) 在 [#519](https://github.com/Han-1413141/dsh-cost-meter/issues/519) 报告 MiniMax 已用 99% 显示为 0% 的问题。
+- [@seeker-Chh](https://github.com/seeker-Chh) 在 [#522](https://github.com/Han-1413141/dsh-cost-meter/issues/522) 提供 Android 点击问题的复现信息。
+- [@github-actions[bot]](https://github.com/apps/github-actions) 通过 [#520](https://github.com/Han-1413141/dsh-cost-meter/issues/520) 和 [#521](https://github.com/Han-1413141/dsh-cost-meter/issues/521) 报告上游插件版本变化。
+
+[更新说明 / Release notes](docs/update-notes-1.9.71.md)
 
 ## [1.9.70] - 2026-11-16
 
