@@ -3,7 +3,7 @@ import { createHash, createHmac } from 'node:crypto'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { ALIYUN_BALANCE_URL, ALIYUN_BALANCE_CREDENTIAL_VARS as vars, signAliyunBalanceRequest, parseAliyunBalance, queryAliyunBalance } from '../lib/aliyun-balance.js'
+import { ALIYUN_BALANCE_URL, ALIYUN_BALANCE_CREDENTIAL_VARS as vars, signAliyunBalanceRequest, parseAliyunBalance, queryAliyunBalance, summarizeCashCoupons, cashCouponList } from '../lib/aliyun-balance.js'
 import { queryCustomBalance, customBalanceCredentialVars } from '../lib/custom-balance.js'
 import { sanitizeConfig, applyConfigPatch } from '../lib/store.js'
 import { stateSchema } from '../lib/typert.host.js'
@@ -60,14 +60,21 @@ try {
   assert.equal(JSON.stringify(result).includes('aliyun-test-secret'), false)
   globalThis.fetch = transport
   await queryCustomBalance(ctx, { ...cfg, customBalance: { ...entry, request: { url: 'https://untrusted.example/', headers: { Authorization: '{{SECRET}}' } }, extract: { remaining: 99999 } } })
-  assert.equal(sent.at(-1).url, ALIYUN_BALANCE_URL, '固定 adapter 不受自定义 URL/头/解析规则覆盖')
+  // 固定 adapter 仍只打 business.aliyuncs.com；代金券查询会带业务 query（EffectiveOrNot/PageNum），
+  // 因此这里比 origin+path，而不是整串 URL —— 断言目的是「不被自定义 URL 劫持」，不是「没有 query」。
+  const pinned = new URL(ALIYUN_BALANCE_URL)
+  for (const { url } of sent) {
+    const parsed = new URL(url)
+    assert.equal(parsed.origin, pinned.origin, '固定 adapter 不受自定义 URL 覆盖')
+    assert.equal(parsed.pathname, pinned.pathname)
+  }
   let nonces = []
   await queryAliyunBalance(ctx, cfg, { fetchImpl: async (_url, init) => {
     nonces.push(init.headers['x-acs-signature-nonce'])
     if (nonces.length === 1) throw Object.assign(new Error('network'), { code: 'ECONNRESET' })
     return json(fixture)
   } })
-  assert.equal(nonces.length, 2)
+  assert.ok(nonces.length >= 2, '网络错误后至少重试一次')
   assert.notEqual(nonces[0], nonces[1], '网络重试重新签名')
   for (const status of [302, 401, 403, 429, 500]) {
     let calls = 0
@@ -150,4 +157,107 @@ try {
   if (oldHome === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = oldHome
   rmSync(root, { recursive: true, force: true })
 }
+// ── 代金券计入可用余额（GetFundAccountAvailableAmount 只返回现金可用金） ──────────
+{
+  const prevEnv = Object.fromEntries(vars.map(name => [name, process.env[name]]))
+  for (const name of vars) delete process.env[name]
+  const cash = amount => ({ Success: true, AvailableAmount: amount, Currency: 'CNY' })
+  const coupon = (id, balance, status, expiry) => ({ CashCouponId: id, CashCouponNo: 'NO-' + id, NominalValue: balance, Balance: balance, Status: status, ExpiryTime: expiry })
+  const coupons = (items, total = items.length) => ({ Success: true, Data: { CashCoupon: items, TotalCount: total } })
+  /** 按签名头 Action 分派：Action 不进 URL，只有业务参数进 query。 */
+  const byAction = handlers => async (_url, init) => {
+    const action = init.headers['x-acs-action']
+    return json(handlers[action](init))
+  }
+  const couponAction = 'QueryCashCoupons'
+  try {
+    // 现金 0 + 两张可用券 100/200 → 可用 300，且已过期/已用券不计入。
+    {
+      const sent = []
+      const transport = byAction({
+        GetFundAccountAvailableAmount: () => cash('0.00'),
+        [couponAction]: init => {
+          sent.push(init.headers['x-acs-version'])
+          return coupons([
+            coupon('c1', '100.00', 'Available', '2027-01-31 23:59:59'),
+            coupon('c2', '200.00', 'Available', '2026-12-31 23:59:59'),
+            coupon('c3', '50.00', 'Used', '2026-06-30 23:59:59'),
+          ])
+        },
+      })
+      const result = await queryAliyunBalance(ctx, cfg, { fetchImpl: transport })
+      assert.equal(result.remaining, 300, '现金 0 时可用余额应等于代金券合计')
+      assert.equal(result.couponCount, 2)
+      assert.equal(result.couponBalance, 300)
+      assert.ok(result.message.includes('300.00') && result.message.includes('0.00'), '说明里给出合计与现金拆分')
+      assert.equal(sent[0], '2017-12-14', '代金券走 BSS 2017-12-14')
+    }
+    // 现金与券相加；键名与旧版一致（remaining/unit/maxBudget/spend 不被改写）。
+    {
+      const transport = byAction({
+        GetFundAccountAvailableAmount: () => cash('12.34'),
+        [couponAction]: () => coupons([coupon('d1', '88.80', 'Available', '2027-03-01 00:00:00')]),
+      })
+      const result = await queryAliyunBalance(ctx, cfg, { fetchImpl: transport })
+      assert.equal(result.remaining, 101.14)
+      assert.equal(result.unit, 'CNY')
+      assert.equal(result.maxBudget, null)
+      assert.equal(result.spend, null)
+    }
+    // 券接口被拒（RAM 缺 bss:QueryCashCoupons）：余额不失败，降级为现金并说明原因。
+    {
+      const transport = async (url, init) => (init.headers['x-acs-action'] === couponAction
+        ? json({ Code: 'Forbidden.RAM' }, 403)
+        : json(cash('7.00')))
+      const result = await queryAliyunBalance(ctx, cfg, { fetchImpl: transport })
+      assert.equal(result.remaining, 7, '券查询失败不得影响现金余额')
+      assert.equal(result.couponBalance, 0)
+      assert.ok(result.couponError.length > 0)
+    }
+    // 空券集时补 EffectiveOrNot=true/false 两发，合并去重。
+    {
+      const seen = []
+      const transport = async (url, init) => {
+        if (init.headers['x-acs-action'] !== couponAction) return json(cash('0'))
+        seen.push(url)
+        if (url.includes('EffectiveOrNot=true')) return json(coupons([coupon('e1', '42.00', 'Available', '2027-05-01 00:00:00')]))
+        return json(coupons([]))
+      }
+      const result = await queryAliyunBalance(ctx, cfg, { fetchImpl: transport })
+      assert.equal(result.remaining, 42)
+      assert.ok(seen.some(url => url.includes('EffectiveOrNot=true')))
+      assert.ok(seen.some(url => url.includes('EffectiveOrNot=false')))
+    }
+    // 翻页请求报错时退回首页结果，不把整段券查询判死。
+    {
+      const transport = async (url, init) => {
+        if (init.headers['x-acs-action'] !== couponAction) return json(cash('0'))
+        if (url.includes('PageNum')) return json({ Code: 'InvalidParameter' }, 400)
+        return json(coupons([coupon('f1', '15.00', 'Available', '2027-06-01 00:00:00')], 5))
+      }
+      const result = await queryAliyunBalance(ctx, cfg, { fetchImpl: transport })
+      assert.equal(result.remaining, 15)
+      assert.equal(result.couponError, '')
+    }
+    // 状态大小写 / 已过期 / 缺 Balance 用面额 / 响应形状容错。
+    {
+      const now = Date.parse('2026-11-19T00:00:00Z')
+      const summary = summarizeCashCoupons([
+        { Status: 'AVAILABLE', Balance: '5.00', ExpiryTime: '2099-01-01 00:00:00' },
+        { Status: 'availableToUse', Balance: '6.00', ExpiryTime: '2099-01-01 00:00:00' },
+        { Status: 'Available', Balance: '7.00', ExpiryTime: '2020-01-01 00:00:00' },
+        { Status: 'Expired', Balance: '8.00', ExpiryTime: '2099-01-01 00:00:00' },
+        { Status: 'Available', Balance: '', NominalValue: '9.00', ExpiryTime: '2099-01-01 00:00:00' },
+      ], now)
+      assert.equal(summary.total, 20)
+      assert.equal(summary.count, 3)
+      assert.equal(cashCouponList({ Data: { CashCoupon: [{}, {}] } }).length, 2)
+      assert.equal(cashCouponList({ Data: [{}, {}, {}] }).length, 3)
+      assert.equal(cashCouponList({}).length, 0)
+    }
+  } finally {
+    for (const name of vars) if (prevEnv[name] === undefined) delete process.env[name]; else process.env[name] = prevEnv[name]
+  }
+}
+
 console.log('[ok] 千问 / 阿里云余额：签名、币种、错误边界、凭据、配置与 RPC 回归通过')
