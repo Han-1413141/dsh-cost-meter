@@ -1,6 +1,18 @@
 # Changelog
 ## [Unreleased]
 
+## [1.9.73] - 2026-11-18
+
+- 修复旧版本升级账本缺失 `deepseek-flash` 模型条目导致 `magpie:deepseek/deepseek-flash` 等路由无法自动匹配官方价格的问题：启动时一次性补齐缺失的官方 Flash 规范模型名，保留用户手动修改与主动删除配置。
+- 修复超长会话在历史重算、回填和 RDB 用量读取中因展开超过 20 万条流式文本／推理增量块而触发事件上限、被误判为日志缺失的问题。
+- 修复此前未定价（金额为 0）的会话因宿主自动生成标题等未写入日志的附属调用残差而无法重算的问题：重算时保留账本原有 Token 与调用次数，同步更新会话明细中的 `0 + ?` 状态，并支持后续再次重算；已记录正数费用的不完整日志仍严格保留原值。
+- 磁盘插件版本更新但宿主尚未重启时，在历史重算结果中附带重启提示；启动入口转发模块查询参数。
+- 验证 `dsh-codex-subscription` 3.2.21，更新兼容基线与 CI，并加固自定义余额 `allowedHosts` 落盘断言。
+
+感谢 [@JokerQyou](https://github.com/JokerQyou) 在 [#499 评论](https://github.com/Han-1413141/dsh-cost-meter/issues/499#issuecomment-6967300277) 反馈 `magpie:deepseek/deepseek-flash` 未自动匹配官方价格及 651 次长会话重算失败并提供完整复现截图。
+
+[更新说明 / Release notes](docs/update-notes-1.9.73.md)
+
 ## [1.9.72] - 2026-11-17
 
 - 修复官方账户渠道 `deepseek-account` 及 `llm-deepseek-account` 的价格匹配：精确模式直接使用官方模型目录，自动模式不再受其他渠道的同名价格干扰。

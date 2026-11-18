@@ -252,7 +252,18 @@ try {
     process.env.DSH_HOME = sandboxHome
   }
 
-  /* ---------------- 7) 20 万事件上限错误码穿透 ---------------- */
+  /* ---------------- 7) 20 万事件上限错误码穿透(流式增量块除外) ---------------- */
+  const deltaEvents = [
+    { type: 'turn/start', seq: 0, time: at, data: { turn: 1 } },
+    ...Array.from({ length: 205_000 }, (_, i) => ({ type: 'assistant/chunk', seq: i + 1, time: at + 1, data: { turn: 1, step: 1, chunk: { type: 'text-delta', text: 'x' } } })),
+    { type: 'assistant/message', seq: 205_001, time: at + 2, data: { turn: 1, step: 1, usage, message: { source: { provider: 'deepseek', model: 'test' } } } },
+    { type: 'turn/end', seq: 205_002, time: at + 3, data: { turn: 1 } },
+  ]
+  const deltaSession = { header: { id: 'delta-heavy', createdAt: at }, events: deltaEvents, revision: 'rev-delta' }
+  const deltaCtx = fakeCtx({ sessionPersistence: fakePersistence([deltaSession]), sessionQuery: fakeQuery([deltaSession]) })
+  const deltaUsage = await sessionUsageRecords(deltaCtx, 'delta-heavy', '')
+  assert.equal(deltaUsage.filter(row => row.type === 'assistant/message').length, 1, 'RDB 下超 20 万条 text-delta 不触发上限')
+
   const hugeEvents = Array.from({ length: 200_001 }, (_, i) => ({ type: 'turn/start', seq: i, time: at + i, data: { turn: 1 } }))
   const hugeSession = { header: { id: 'huge-1', createdAt: at }, events: hugeEvents, revision: 'rev-huge' }
   const hugeCtx = fakeCtx({ sessionPersistence: fakePersistence([hugeSession]), sessionQuery: fakeQuery([hugeSession]) })

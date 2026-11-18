@@ -1,5 +1,5 @@
 {
-  "recordedAt": "2026-11-17T12:10:19.424Z",
+  "recordedAt": "2026-11-18T05:07:14.719Z",
   "plugins": {
     "billion-context": {
       "version": "0.1.216",
@@ -35,11 +35,10 @@
         }
       },
       "interfaceHash": "1a0aff3f2aab1d8c0d6793f207728a428c890499bcafbfb7fbdea3df551337f5",
-      "integrity": "sha512-98Q5eSqk0LyemCJ45OrYmZvEd0qpzBjLokthZlQ4yA7yvgUlzuM7fp6iq9dPAJ4N4vaplnvZeld0JxM4S7Ti1A==",
-      "packageUrl": "https://registry.npmjs.org/billion-context/-/billion-context-0.1.216.tgz"
+      "integrity": "sha512-98Q5eSqk0LyemCJ45OrYmZvEd0qpzBjLokthZlQ4yA7yvgUlzuM7fp6iq9dPAJ4N4vaplnvZeld0JxM4S7Ti1A=="
     },
     "dsh-codex-subscription": {
-      "version": "3.2.19",
+      "version": "3.2.21",
       "signature": {
         "main": "./lib/index.js",
         "exports": {
@@ -84,8 +83,7 @@
         }
       },
       "interfaceHash": "b5794156a1a7f1ef2564e0766aae8a6f0afe5c6982eaa8b99c6170dc1ffa5392",
-      "integrity": "sha512-c3W3DGZmSeDL+6EkCTWyoTbwONQEh0m4ovJVx0POUiYrXuu0TenNdxdovkP8Aa6Xa9b2K3safEWQr98ZBg3YDA==",
-      "packageUrl": "https://registry.npmjs.org/dsh-codex-subscription/-/dsh-codex-subscription-3.2.19.tgz"
+      "integrity": "sha512-P+eaYfzettGjKMUhIroAUrJYXcLKkUTL3Fr2cIbCk1mK35uHprqi3buIGNvQfOO7HQl4MGzI7fbvWuiG9ef28w=="
     },
     "dsh-codex-connect": {
       "version": "0.2.0-alpha.15",
@@ -142,8 +140,7 @@
         }
       },
       "interfaceHash": "4fae46024818f9a7edab36c516c7a0aa650c32d68cd0bea1329eacee3862c3bc",
-      "integrity": "sha512-fUKi1NiEBjiA9BTDtbHtSthYFeXRyUnUy+9yv5uKKbWFzhuGcBvzaoq7Nnl9nCJnKIpZmQ8yg3jAoo/y6abjoA==",
-      "packageUrl": "https://registry.npmjs.org/dsh-codex-connect/-/dsh-codex-connect-0.2.0-alpha.15.tgz"
+      "integrity": "sha512-fUKi1NiEBjiA9BTDtbHtSthYFeXRyUnUy+9yv5uKKbWFzhuGcBvzaoq7Nnl9nCJnKIpZmQ8yg3jAoo/y6abjoA=="
     }
   }
 }

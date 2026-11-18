@@ -6139,7 +6139,7 @@ function m_costOf85(entry, tokens) {
   const cbDisk = readFileSync(join(cbRoot, 'storages', 'cost-meter', 'ledger.json'), 'utf8')
   assert.ok(!cbDisk.includes('sk-PLAINTEXT-CB-0001') && !cbDisk.includes('sk-PLAINTEXT-CB-0002'), '落盘文件不含明文密钥')
   assert.ok(cbDisk.includes('{{MY_TRACE_VAR}}'), '落盘保留占位符')
-  assert.ok(cbDisk.includes('relay.example.com'), '落盘保留 allowedHosts')
+  assert.deepEqual(JSON.parse(cbDisk).config.customBalances[0].allowedHosts, ['relay.example.com'], '落盘保留 allowedHosts')
   cbLedger.close()
   await removeFixture(cbRoot, { recursive: true, force: true })
   console.log('[ok] 请求头脱敏三条路径(落盘/下发/补丁,issue #86)通过')

@@ -11,7 +11,8 @@ import { pricingSnapshot, createPricingHistory, normalizePricingHistory } from '
 // Optional paths let the matcher patch be checked before applying it to the repository.
 const pricingUrl = process.argv[2] ? pathToFileURL(resolve(process.argv[2])) : new URL('../lib/pricing.js', import.meta.url)
 const clientUrl = process.argv[3] ? pathToFileURL(resolve(process.argv[3])) : new URL('../src/client/02-validators-helpers-sidebar.js', import.meta.url)
-const { providerPriceEntryFor, matchModelId, normalizePrice } = await import(pricingUrl)
+const { providerPriceEntryFor, matchModelId, normalizePrice, mountMissingDeepSeekFlashModels } = await import(pricingUrl)
+const { runStartupImports } = await import('../lib/index.js')
 const source = readFileSync(clientUrl, 'utf8')
 const start = source.indexOf('function priceEntryFor(modelId, table)')
 const end = source.indexOf('function makeStore(initial,')
@@ -603,5 +604,30 @@ check('custom-api', 'deepseek-v4-1-flash-1017', { priced: true, input: 0.3, mode
 check('openai', 'deepseek-v4-1-flash-1017', { priced: true, input: 0.3, mode: 'flat' }, cfg('auto', {}, installedPrices))
 check('deepseek-relay', 'deepseek-v4-1-flash-1017', { priced: true, input: 0.3, mode: 'flat' }, cfg('auto', {}, installedPrices))
 check('deepseek-relay', 'legacy-model', { priced: true, input: 0.15 }, cfg('exact', { 'deepseek-relay:legacy-model': 'deepseek-v4-flash' }))
+
+// Pre-v1.8.33 upgraded ledgers only mounted deepseek-v4-flash; startup mounts deepseek-flash once so Magpie deepseek/deepseek-flash auto-matches.
+{
+  const root = mkdtempSync(join(tmpdir(), 'cm-magpie-flash-upgrade-'))
+  try {
+    const legacyCfg = sanitizeConfig({
+      legacyAutoImportedAt: 1,
+      pricingCurrency: 'CNY',
+      prices: { currency: 'CNY', models: { 'deepseek-v4-flash': { cacheHit: 0.02, cacheMiss: 1, output: 4, offPeak: { cacheHit: 0.02, cacheMiss: 1, output: 4 }, peak: { cacheHit: 0.04, cacheMiss: 2, output: 8 } } } },
+    })
+    assert.equal(providerPriceEntryFor('magpie', 'deepseek/deepseek-flash', legacyCfg.prices).priced, false)
+    const ledger = new Ledger(legacyCfg, {}, join(root, 'ledger.json'))
+    ledger.scheduleWrite = () => {}
+    await runStartupImports(ledger, join(root, 'sessions'))
+    check('magpie', 'deepseek/deepseek-flash', { priced: true, input: 1, mode: 'deepseek-peak' }, ledger.config)
+    delete ledger.config.prices.models['deepseek-flash']
+    await runStartupImports(ledger, join(root, 'sessions'))
+    assert.equal(Object.hasOwn(ledger.config.prices.models, 'deepseek-flash'), false, 'migration runs once and respects later manual removal')
+    const emptyModels = { currency: 'CNY', models: {} }
+    assert.deepEqual(mountMissingDeepSeekFlashModels(emptyModels), [], 'all-unmounted DeepSeek Flash catalog is not resurrected')
+    ledger.close()
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+}
 
 console.log(`[ok] pricing-model-matching: ${comparisons} backend/client cases, full catalogs, workstation/plan routes, ambiguous aliases, semantic variants and valid snapshots`)
