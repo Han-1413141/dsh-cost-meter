@@ -15,7 +15,7 @@ let factory
 // 下面的断言会立即报错,而不是用一个静默失败的替换继续跑。
 assert.ok(source.includes('exports.apply = apply'), '客户端片段保留 exports.apply = apply 导出语句')
 const instrumented = source.replace('exports.apply = apply',
-  'exports.test = { formatBalanceMoney, formatCustomBalanceMoney, todayUsedInBalanceCurrency }; exports.apply = apply')
+  'exports.test = { formatBalanceMoney, formatCustomBalanceMoney, todayUsedInBalanceCurrency, segmentsForOfficialBalance, segmentsForCustomBalance, BalanceBar }; exports.apply = apply')
 assert.notEqual(instrumented, source, '测试导出替换生效')
 vm.runInNewContext(instrumented, {
   navigator: { language: 'zh' },
@@ -65,5 +65,16 @@ const official = { today: { cost: 2 }, balance: { currency: 'CNY' } }
 assert.equal(ui.todayUsedInBalanceCurrency(official, config({ currency: 'USD', symbol: '$', exchangeRate: 1, balance: { currency: 'display' } }), 'official', null), 14.4)
 assert.equal(ui.todayUsedInBalanceCurrency(official, config(), 'official', null), 14.4)
 assert.equal(ui.todayUsedInBalanceCurrency({ today: { cost: 2 } }, config(), 'custom', { remaining: 1 }, { unit: 'USD' }), 2)
+
+const wallet = { today: { cost: 2 }, balance: { currency: 'CNY', totalBalance: 72 } }
+const uncapped = ui.segmentsForOfficialBalance(wallet, config())
+assert.equal(uncapped.hasCap, false)
+assert.equal(ui.BalanceBar({ segments: uncapped }), null)
+assert.equal(ui.BalanceBar({ segments: ui.segmentsForCustomBalance({}, config(), { remaining: 5 }) }), null)
+const manual = ui.segmentsForOfficialBalance(wallet, config({ balance: { budgetCap: 144 } }))
+assert.equal(manual.cap, 144)
+assert.equal(manual.remainingPct, 50)
+assert.equal(manual.todayPct, 10)
+assert.equal(manual.spentPct, 40)
 
 console.log('[ok] balance display currency: native/display/fixed targets, missing-rate fallback, credits, legacy switch and source-currency progress math')

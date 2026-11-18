@@ -85,7 +85,7 @@ assert.match(lines[0], /DeepSeek.*15\.41/)
 assert.match(lines[1], /赠送.*5\.41.*充值.*10/)
 assert.equal(lines[2], '⚠ 今日 2 次搜索未完整计入统计。')
 assert.match(lines[3], /刷新/)
-assert.equal(tip.props.style.maxWidth, 'min(280px, 70vw)')
+assert.equal(tip.props.style.maxWidth, 'min(225px, 68vw)')
 
 const hostSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
 const start = hostSource.indexOf('function defaultModelProvider(ctx)')

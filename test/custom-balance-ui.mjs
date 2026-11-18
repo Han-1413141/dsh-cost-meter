@@ -1,3 +1,4 @@
+import { withCustomBalanceEditor } from './custom-balance-editor-fixture.mjs'
 import assert from 'node:assert/strict'
 import vm from 'node:vm'
 import { readFileSync, readdirSync } from 'node:fs'
@@ -6,7 +7,7 @@ import { sanitizeConfig, applyConfigPatch } from '../lib/store.js'
 // 执行真实客户端组件及回调：覆盖新增、展开、凭据输入、删除与读取币种。
 // 仅在测试 VM 中暴露闭包函数，不在发布 bundle 中增加测试接口。
 const dir = new URL('../src/client/', import.meta.url)
-const source = readdirSync(dir).filter(name => name.endsWith('.js')).sort().map(name => readFileSync(new URL(name, dir), 'utf8')).join('')
+const source = withCustomBalanceEditor(readdirSync(dir).filter(name => name.endsWith('.js')).sort().map(name => readFileSync(new URL(name, dir), 'utf8')).join(''))
 const code = source.replace('exports.apply = apply', 'exports.test = { QuotasSection, CustomBalanceEntryPanel, CustomBalanceEntryRow, CustomBalanceEntryBox, customBalanceUnitOf, formatCustomBalanceMoney, segmentsForCustomBalance, customBalanceDetailText, parseConfig, makeT, fixedAmount }; exports.apply = apply')
 let factory
 let slots = []

@@ -2,6 +2,12 @@
 
 [English](custom-balance-sources.en.md) · [功能与截图](features.md)
 
+## OpenAI API 赠送额度
+
+在「设置 → 费用 → 额度」选择「添加 OpenAI API 赠送额度」。填写绑定的 API 组织在 [Credit grants](https://platform.openai.com/settings/organization/billing/credit-grants) 显示的赠送金额、生效日期及到期日期（UTC），然后保存该组织的 Admin API Key 并开启查询。密钥通过 DSH 凭据库保存，也可在服务端设置 `DSH_OPENAI_COST_ADMIN_KEY`。
+
+插件按 [OpenAI Costs API](https://developers.openai.com/api/reference/resources/admin/subresources/organization/subresources/usage/methods/costs) 返回的该组织期间费用计算预估余额。在额度页可看总额、组织费用、预估剩余和到期日，侧栏悬停可看明细。多个赠送额度叠加、不同费用的抵扣规则或统计延迟会影响预估，以官方 Credit grants 为准。
+
 ## 请求与响应配置
 
 **POST 携带 JSON 请求体：**进入**设置 → 费用 → 额度**，展开自定义余额，选择 **POST**，在**请求体 (JSON)** 中填写接口要求的内容。例如接口需要账号参数，并返回 `{"data":{"balance":12.5}}`：

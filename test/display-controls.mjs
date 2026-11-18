@@ -43,7 +43,12 @@ config.balance.showProgressBar = true
 const balanceControls = nodes(inspect('balance')).find(node => node.props['data-inspector'] === 'balance').children
 const capIndex = balanceControls.findIndex(node => nodes(node).some(child => child.props['aria-label'] === 'balanceBudgetCapLabel'))
 assert.ok(capIndex >= 0)
-assert.ok(nodes(balanceControls[capIndex + 1]).some(node => node.props['aria-label'] === 'refreshIntervalLabel'), 'balance numeric fields share a compact grid row, without a full-width direction field between them')
+assert.ok(nodes(balanceControls[capIndex + 1]).some(node => node.props['aria-label'] === 'refreshIntervalLabel'), 'balance numeric fields stay adjacent')
+assert.ok(nodes(inspect('balance')).some(node => node.children.includes('balanceNoCap')))
+control(inspect('balance'), 'balanceBudgetCapLabel').props.onChange(250)
+assert.equal(nodes(inspect('balance')).some(node => node.children.includes('balanceNoCap')), false)
+control(inspect('balance'), 'balanceBudgetCapLabel').props.onChange(null)
+assert.equal(config.balance.budgetCap, null)
 config.balance.showProgressBar = false
 const textOnly = 'Hide progress bars, show compact text'
 control(inspect('plan'), textOnly).props.onChange({ target: { checked: true } })

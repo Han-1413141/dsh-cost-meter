@@ -211,7 +211,10 @@ for (const chunk of ['billing-storage', 'settings-overview', 'statistics', 'open
   let source = readFileSync(resolve(projectRoot, `src/${chunk}/index.js`), 'utf8')
   if (['peak', 'display', 'pricing'].includes(chunk)) source = source.replace('factory: require => {', 'factory: require => {\n' + readFileSync(resolve(projectRoot, 'lib/peak-timezone.js'), 'utf8').replace(/^export /gm, '') + (chunk === 'peak' ? '' : readFileSync(resolve(projectRoot, 'src/peak/timezone-control.js'), 'utf8')))
   if (chunk === 'pricing') source = source.replace('/* PEAK_PANEL_SOURCE */', readFileSync(resolve(projectRoot, 'src/pricing/peak-panel.js'), 'utf8'))
-  if (chunk === 'plan-settings') source = source.replace('/* SUBSCRIPTION_CATALOG_SOURCE */ {}', () => javascriptLiteral(SUBSCRIPTION_CATALOG))
+  if (chunk === 'plan-settings') {
+    source = source.replace('/* SUBSCRIPTION_CATALOG_SOURCE */ {}', () => javascriptLiteral(SUBSCRIPTION_CATALOG))
+    source = source.replace('/* CUSTOM_BALANCE_EDITOR_SOURCE */', readFileSync(resolve(projectRoot, 'src/plan-settings/custom-balance.js'), 'utf8'))
+  }
   if (chunk === 'display') {
     source = source.replace('/* DISPLAY_NATIVE_SOURCE */', readFileSync(resolve(projectRoot, 'src/display/native.js'), 'utf8'))
     source = source.replace('/* DISPLAY_APPEARANCE_SOURCE */', readFileSync(resolve(projectRoot, 'src/display/appearance.js'), 'utf8'))

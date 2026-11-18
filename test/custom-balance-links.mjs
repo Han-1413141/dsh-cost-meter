@@ -1,3 +1,4 @@
+import { withCustomBalanceEditor } from './custom-balance-editor-fixture.mjs'
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -33,7 +34,7 @@ try {
 } finally { ledger?.close(); rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }) }
 
 const dir = new URL('../src/client/', import.meta.url)
-const source = readdirSync(dir).filter(n => n.endsWith('.js')).sort().map(n => readFileSync(new URL(n, dir), 'utf8')).join('')
+const source = withCustomBalanceEditor(readdirSync(dir).filter(n => n.endsWith('.js')).sort().map(n => readFileSync(new URL(n, dir), 'utf8')).join(''))
 let factory, slots = [], cursor = 0
 const React = { createElement: (type, props, ...children) => ({ type, props: props ?? {}, children }), Fragment: 'fragment',
   useState: value => { const i = cursor++; slots[i] ??= typeof value === 'function' ? value() : value; return [slots[i], next => { slots[i] = typeof next === 'function' ? next(slots[i]) : next }] },

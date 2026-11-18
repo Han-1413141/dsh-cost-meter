@@ -1,3 +1,4 @@
+import { withCustomBalanceEditor } from './custom-balance-editor-fixture.mjs'
 import assert from 'node:assert/strict'
 import vm from 'node:vm'
 import { readFileSync, readdirSync, mkdtempSync, rmSync } from 'node:fs'
@@ -7,7 +8,7 @@ import { stateSchema } from '../lib/typert.host.js'
 import { sanitizeConfig, applyConfigPatch, Ledger } from '../lib/store.js'
 
 const sourceDir = new URL('../src/client/', import.meta.url)
-const source = readdirSync(sourceDir).filter(name => name.endsWith('.js')).sort().map(name => readFileSync(new URL(name, sourceDir), 'utf8')).join('')
+const source = withCustomBalanceEditor(readdirSync(sourceDir).filter(name => name.endsWith('.js')).sort().map(name => readFileSync(new URL(name, sourceDir), 'utf8')).join(''))
 const expose = ['SidebarModelCosts', 'sidebarModelRows', 'modelStatsRows', 'MODEL_SIDEBAR_DEFAULTS', 'MODEL_OPEN_KEY', 'QuotaCard', 'useQuotaRefresh', 'QuotasSection', 'PlanQuotaCard', 'GatewayQuotaCard', 'GoQuotaCard', 'GoQuotaSettings', 'CustomBalanceEntryPanel', 'SidebarFooter', 'CornerChips', 'parseConfig', 'makeT', 'CODING_PLAN_ROWS']
 expose.push('CostSection', 'MiniMaxPlanCard')
 expose.push('AccountCredentialLauncher')
