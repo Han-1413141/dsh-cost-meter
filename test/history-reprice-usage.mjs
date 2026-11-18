@@ -6,6 +6,7 @@ import * as zlib from 'node:zlib'
 import { Ledger, sanitizeConfig, localDayKey } from '../lib/store.js'
 import { recomputeLedgerPricingBasis, replaySessionRecords } from '../lib/backfill.js'
 import { costOf } from '../lib/pricing.js'
+import { getSessionBilling } from '../lib/turn-cost.js'
 
 const root = mkdtempSync(join(tmpdir(), 'cm-reprice-usage-'))
 const at = Date.parse('2026-11-15T04:00:00Z'), date = localDayKey(at), key = 'apikey-gpt:gpt-6.1-sol'
@@ -83,6 +84,72 @@ try {
   assert.equal(feeResult.recostedSessions, 0)
   assert.equal(feeResult.skippedDetails[0].fields[0].field, 'calls')
   assert.deepEqual(day.sessions.find(row => row.id === feeId), beforeFee)
+
+  // #499: a previously unpriced (cost === 0) Magpie session whose ledger also recorded an unlogged
+  // host auto-title call (ledger tokens >= log tokens, logged calls > 0) reprices all logged calls,
+  // clears 0 + ? in session billing detail, preserves ledger token/call counts, and stays re-repriceable.
+  const magpieKey = 'magpie:deepseek/deepseek-flash', magpieId = 'magpie-zero-cost-residual'
+  const oldHome = process.env.DSH_HOME
+  process.env.DSH_HOME = root
+  try {
+    const magpiePath = join(root, 'storages', 'cost-meter', 'ledger.json')
+    mkdirSync(join(root, 'storages', 'cost-meter'), { recursive: true })
+    const unpricedCfg = sanitizeConfig({
+      exchangeRate: 7,
+      exchangeRateAuto: false,
+      prices: { currency: 'CNY', models: { 'deepseek-v4-flash': { cacheHit: 0.02, cacheMiss: 1, output: 4, offPeak: { cacheHit: 0.02, cacheMiss: 1, output: 4 }, peak: { cacheHit: 0.04, cacheMiss: 2, output: 8 } } } },
+    })
+    const magpieLedger = new Ledger(unpricedCfg, {}, magpiePath)
+    const magpieRecords = [{ type: 'session', version: 4, id: magpieId, createdAt: at - 1 },
+      { type: 'turn/start', seq: 0, time: at - 1, data: { turn: 1 } },
+      { type: 'request/header', seq: 1, time: at, data: { header: { config: { provider: 'magpie', model: 'deepseek/deepseek-flash' } } } }]
+    for (let i = 0; i < 5; i++) {
+      const tokens = { input: 20_000, output: 2_000, cacheRead: 100_000 }
+      magpieLedger.account(tokens, 'deepseek/deepseek-flash', magpieId, at + i, 'magpie')
+      magpieRecords.push({ type: 'step/start', seq: 2 + i * 2, time: at + i, data: { turn: 1, step: i + 1 } },
+        { type: 'assistant/message', seq: 3 + i * 2, time: at + i, data: { turn: 1, step: i + 1, usage: { inputTokens: tokens.input, outputTokens: tokens.output, cacheReadTokens: tokens.cacheRead } } })
+    }
+    magpieRecords.push({ type: 'turn/end', seq: 12, time: at + 10, data: { turn: 1 } })
+    // Host auto-title generation accounts to ledger without persisting a usage event to the session log.
+    magpieLedger.account({ input: 412, output: 12 }, 'deepseek/deepseek-flash', magpieId, at + 11, 'magpie')
+    const magpieSessions = join(root, 'sessions')
+    const magpieDir = join(magpieSessions, 'project', magpieId); mkdirSync(magpieDir, { recursive: true })
+    writeFileSync(join(magpieDir, 'session.jsonl'), magpieRecords.map(row => JSON.stringify(row)).join('\n') + '\n')
+
+    assert.equal(magpieLedger.days[date].sessions[0].cost, 0)
+    const beforeDetail = await getSessionBilling(magpieLedger, {}, { sessionId: magpieId })
+    assert.equal(beforeDetail.cost, 0)
+    assert.equal(beforeDetail.callShares[0].unpriced, true)
+
+    magpieLedger.config = sanitizeConfig({ ...unpricedCfg, priceOverrides: { [magpieKey]: 'deepseek:deepseek-v4-flash' } })
+    const firstReprice = await recomputeLedgerPricingBasis(magpieLedger, magpieSessions, undefined, new Set([magpieId]), true, magpieKey)
+    assert.equal(firstReprice.recostedSessions, 1)
+    assert.equal(firstReprice.skippedSessions, 0)
+    const expectedCny = 5 * (20_000 * 1 + 100_000 * 0.02 + 2_000 * 4) / 1e6
+    assert.ok(Math.abs(magpieLedger.days[date].sessions[0].costCny - expectedCny) < 1e-9)
+    assert.equal(magpieLedger.days[date].sessions[0].calls, 6, 'original ledger call count (including title call) preserved')
+    assert.equal(magpieLedger.days[date].sessions[0].input, 100_412, 'original ledger input tokens preserved')
+
+    const afterDetail = await getSessionBilling(magpieLedger, {}, { sessionId: magpieId })
+    assert.ok(Math.abs(afterDetail.cost - magpieLedger.days[date].sessions[0].cost) < 1e-9, 'session detail matches repriced ledger cost')
+    assert.equal(afterDetail.callShares[0].unpriced, false, '0 + ? unpriced marker cleared after repricing')
+
+    magpieLedger.scheduleWrite()
+    magpieLedger.close()
+    const reopened = Ledger.load(magpiePath)
+    reopened.config = sanitizeConfig({
+      ...reopened.config,
+      priceOverrides: { [magpieKey]: '__custom__' },
+      prices: { ...reopened.config.prices, custom: { [magpieKey]: { currency: 'CNY', cacheMiss: 2, cacheHit: 0.04, output: 8, billingMode: 'flat' } } },
+    })
+    const secondReprice = await recomputeLedgerPricingBasis(reopened, magpieSessions, undefined, new Set([magpieId]), true)
+    assert.equal(secondReprice.recostedSessions, 1, 'persisted unloggedResidualModels permits subsequent repricing after restart')
+    assert.ok(Math.abs(reopened.days[date].sessions[0].costCny - expectedCny * 2) < 1e-9)
+    reopened.close()
+  } finally {
+    if (oldHome === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = oldHome
+  }
 } finally {
   ledger.close()
   rmSync(root, { recursive: true, force: true })

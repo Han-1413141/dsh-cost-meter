@@ -426,6 +426,21 @@ try {
   assert.equal(sourceRecords[0].type, 'session')
   assert.equal(sourceRecords.length, rdbSession.events.length + 1)
 
+  // 长会话回归(#499):651 次调用含超过 20 万条流式 text-delta/reasoning-delta 块时,统一记录源过滤增量块后不抛 SESSION_RECORD_LIMIT。
+  const streamingEvents = [
+    { type: 'request/header', seq: 0, time: at, data: { header: { config: { provider: 'deepseek', model: 'test' } } } },
+  ]
+  for (let i = 0; i < 205_000; i++) {
+    streamingEvents.push({ type: 'assistant/chunk', seq: i + 1, time: at + 1, data: { turn: 1, step: 1, chunk: { type: i % 2 === 0 ? 'text-delta' : 'reasoning-delta', text: 'x' } } })
+  }
+  streamingEvents.push({ type: 'assistant/message', seq: 205_001, time: at + 2, data: { turn: 1, step: 1, usage, message: { content: 'huge', source: { provider: 'deepseek', model: 'test' } } } })
+  const streamingLiveSession = { header: { id: 'stream-heavy', createdAt: at }, snapshotEvents: () => streamingEvents }
+  const streamingSource = createSessionRecordSource({ get: name => name === 'sessions' ? { get: id => id === 'stream-heavy' ? streamingLiveSession : undefined, list: () => [streamingLiveSession] } : undefined }, jsonlRoot, TEST_DETECT)
+  const streamingRecords = await streamingSource.readRecords('stream-heavy')
+  assert.equal(streamingRecords.length, 3, '流式增量块不计入回放记录源')
+  assert.equal(streamingRecords[2].data.message.content, undefined, '回放记录源剥离消息正文')
+  assert.equal(replaySessionRecords(streamingRecords, config).days[localDayKey(at + 2)]['deepseek:test'].input, 100)
+
   const fileSource = createSessionRecordSource(fakeCtx({}), jsonlRoot, TEST_DETECT)
   assert.equal(fileSource.mode, 'unknown', '无宿主会话服务时探测为 unknown,但仍可读文件')
   const fileSourceRows = await fileSource.listSessions()
