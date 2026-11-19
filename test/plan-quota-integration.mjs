@@ -57,7 +57,7 @@ const originalFetch = globalThis.fetch
 try {
   globalThis.fetch = async (url, init) => {
     assert.equal(new URL(url).origin, 'https://open.bigmodel.cn')
-    assert.equal(init.headers.authorization, 'Bearer TEST_PLAN_KEY')
+    assert.equal(init.headers.authorization, 'TEST_PLAN_KEY')
     return Response.json(quota)
   }
   const result = await queryCodingPlan('zai', key, 'zh', (_, code) => code)

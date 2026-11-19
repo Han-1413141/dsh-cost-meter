@@ -3,7 +3,6 @@
  * 计费数学部分基于内置价格表,离线可跑;官方页面解析失败时仅告警不中断。
  */
 import assert from 'node:assert/strict'
-import './zai-candidates.mjs'
 import './statistics-cache.mjs'
 import './ledger-concurrency.mjs'
 import './ledger-lock-recovery.mjs'
@@ -142,6 +141,7 @@ process.on('exit', () => { globalThis.fetch = defaultFetch })
 // This fixture temporarily changes DSH_HOME. Static imports with top-level await
 // run concurrently, so wait until the other home-changing fixtures have finished.
 await import('./statistics-warmup.mjs')
+await import('./zai-candidates.mjs')
 
 // 每个验证进程使用独立临时目录，双时区同时执行时不互相删除账本。
 const suiteRoot = mkdtempSync(join(osTmpdir(), 'cm-verify-'))

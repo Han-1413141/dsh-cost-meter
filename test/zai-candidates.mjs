@@ -26,7 +26,7 @@ const use = fn => {
   calls = []; events.length = 0
   globalThis.fetch = async (url, init) => {
     calls.push(url)
-    assert.equal(init.headers.authorization, `Bearer ${key}`)
+    assert.equal(init.headers.authorization, urls.indexOf(url) < 2 ? key : `Bearer ${key}`)
     assert.equal(init.redirect, 'manual')
     return fn(url, init)
   }
@@ -113,8 +113,12 @@ const server = createServer(async (req, res) => {
   const region = req.url.slice(1)
   const token = req.headers.authorization
   attempts.push([region, req.method, token])
-  const authorized = region === 'cn' ? token === `Bearer ${cnKey}` : token === `Bearer ${globalKey}`
-  if (!authorized) { res.writeHead(401).end(); return }
+  const authorized = region === 'cn' ? token === cnKey : token === globalKey
+  if (!authorized) {
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({ code: 1001, success: false }))
+    return
+  }
   if (attempts.length === 1 && region === 'cn') await firstRead
   res.setHeader('content-type', 'application/json')
   res.end(JSON.stringify(usage))
@@ -154,7 +158,7 @@ try {
   assert.equal(secrets.get('ZAI_API_KEY'), cnKey)
   assert.equal(saved.state.codingPlans.zai.status, 'loading', 'saving a key immediately starts a query')
   await started
-  assert.deepEqual(attempts, [['cn', 'GET', `Bearer ${cnKey}`]])
+  assert.deepEqual(attempts, [['cn', 'GET', cnKey]])
   releaseFirstRead()
   const first = await meter.refreshCodingPlan('zai')
   assert.equal(first.ok, true, first.message)
@@ -172,8 +176,8 @@ try {
   assert.equal(afterChange.codingPlans.zai.status, 'loading', 'host-side rotation invalidates the prior snapshot')
   const refreshed = await meter.refreshCodingPlan('zai')
   assert.equal(refreshed.ok, true, refreshed.message)
-  assert.deepEqual(attempts.at(-2), ['cn', 'GET', `Bearer ${globalKey}`])
-  assert.deepEqual(attempts.at(-1), ['global', 'GET', `Bearer ${globalKey}`])
+  assert.deepEqual(attempts.at(-2), ['cn', 'GET', globalKey])
+  assert.deepEqual(attempts.at(-1), ['global', 'GET', globalKey])
   assert.doesNotMatch(readFileSync(ledger, 'utf8'), /fixture\.secret/)
 } finally {
   releaseFirstRead()
