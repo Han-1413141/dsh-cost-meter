@@ -1149,7 +1149,8 @@
       const s = sources[index] ?? {}
       const snapshots = Array.isArray(state.gatewayQuotas) ? state.gatewayQuotas : []
       const live = snapshots.find(q => q.id === s.id) ?? { id: s.id, status: 'off', accounts: [], unsupportedProviders: [] }
-      const varName = gatewayVarOf(s, state.customVarStatus)
+      const agyLink = s.type === 'agy-link'
+      const varName = agyLink ? null : gatewayVarOf(s, state.customVarStatus)
       const [open, setOpen] = useState(false)
       const [busy, msg, doRefresh] = useQuotaRefresh(t, () => api.refreshGatewayQuota(s.id))
       const write = next => {
@@ -1159,7 +1160,7 @@
       const patch = value => write(sources.map((x, i) => i === index ? { ...x, ...value } : x))
       const field = (label, value, onChange) => el('div', { className: 'cm-field' }, el('label', null, label), el('input', { className: 'cm-input', 'aria-label': label, value: value ?? '', onChange }))
       const windowRow = (window, i) => {
-        const view = miniMaxRow(window?.label || window?.id || t('gatewaySourceUnknown'), window, barDirectionOf(config, 'plan'), t)
+        const view = miniMaxRow(window?.label || window?.id || t('gatewaySourceUnknown'), window, agyLink ? 'remaining' : barDirectionOf(config, 'plan'), t)
         return el(Fragment, { key: window?.id || i }, view.row, window?.resetsAt ? el('div', { className: 'cm-note' }, miniMaxResetText(window, t)) : null)
       }
       const pkgRow = (pkg, i) => el('div', { key: pkg.id || i, className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, pkg.label || 'package'), el('span', { className: 'cm-bbox-pct cm-num' }, (pkg.used ?? '—') + ' / ' + (pkg.limit ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, (pkg.remaining ?? '—') + ' remaining'))
@@ -1172,14 +1173,14 @@
         configNode: el(Fragment, null,
           el('div', { className: 'cm-grid' },
             field(t('gatewaySourceLabel'), s.label, e => patch({ label: e.target.value })),
-            field(t('gatewaySourceBaseURL'), s.baseURL, e => patch({ baseURL: e.target.value })),
+            !agyLink && field(t('gatewaySourceBaseURL'), s.baseURL, e => patch({ baseURL: e.target.value })),
             el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceDisplay')), el('select', { className: 'cm-input', value: s.display ?? 'both', onChange: e => patch({ display: e.target.value }) }, ...displayOptions(t))),
             el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceRefreshInterval')), numInput({ value: s.refreshMinutes ?? 15 }, v => patch({ refreshMinutes: Math.min(1440, Math.max(1, Math.floor(v))) }))),
-            field(t('gatewaySourceAllowlist'), (s.allowedHosts ?? []).join(', '), e => patch({ allowedHosts: e.target.value.split(/[\s,;]+/).filter(Boolean) })),
-            el('label', { className: 'cm-check' },
+            !agyLink && field(t('gatewaySourceAllowlist'), (s.allowedHosts ?? []).join(', '), e => patch({ allowedHosts: e.target.value.split(/[\s,;]+/).filter(Boolean) })),
+            !agyLink && el('label', { className: 'cm-check' },
               el('input', { type: 'checkbox', checked: s.allowInsecureHttp === true, onChange: e => patch({ allowInsecureHttp: e.target.checked }) }),
               el('span', null, t('customBalanceHttp'))),
-          el('label', { className: 'cm-check' },
+          !agyLink && el('label', { className: 'cm-check' },
             el('input', { type: 'checkbox', checked: s.antigravityOnlyGemini === true, onChange: e => patch({ antigravityOnlyGemini: e.target.checked }) }),
             el('span', null, t('gatewayOnlyGemini')))),
           varName ? el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceCredential')), el(CredentialField, { target: 'customVar:' + varName, configured: state.customVarStatus?.[varName]?.configured === true, source: state.customVarStatus?.[varName]?.source ?? '', t, api, placeholder: varName })) : null,
@@ -1274,13 +1275,14 @@
           allowedHosts: [],
         }])
       }
-      const addGateway = () => {
+      const addGateway = (type = 'cliproxyapi') => {
         if (sources.length >= 4 || draft === null) return
+        const agyLink = type === 'agy-link'
         setDraft({
           ...draft,
           gatewayQuotas: {
             ...(draft.gatewayQuotas ?? config.gatewayQuotas ?? {}),
-            sources: [...sources, { id: 'gateway-' + Date.now().toString(36), type: 'cliproxyapi', label: 'CLIProxyAPI', baseURL: 'http://127.0.0.1:8317', enabled: false, display: 'both', refreshMinutes: 15, includeProviders: GATEWAY_PROVIDERS, allowedHosts: [], allowInsecureHttp: false }],
+            sources: [...sources, { id: agyLink ? 'agy-link' : 'gateway-' + Date.now().toString(36), type, label: agyLink ? 'Antigravity' : 'CLIProxyAPI', baseURL: agyLink ? '' : 'http://127.0.0.1:8317', enabled: agyLink, display: 'both', refreshMinutes: 15, includeProviders: agyLink ? ['antigravity'] : GATEWAY_PROVIDERS, allowedHosts: [], allowInsecureHttp: false }],
           },
         })
       }
@@ -1305,7 +1307,8 @@
         el('p', { className: 'cm-note' }, t('quotaSectionNote')),
         el('div', { className: 'cm-quota-list' }, sortQuotaCards(items).map(cardOf)),
         el('div', { className: 'cm-buttons' },
-          el('button', { className: 'cm-btn small', onClick: addGateway, disabled: sources.length >= 4 }, t('gatewaySourceAdd')),
+          el('button', { className: 'cm-btn small', onClick: () => addGateway(), disabled: sources.length >= 4 }, t('gatewaySourceAdd')),
+          el('button', { className: 'cm-btn small', onClick: () => addGateway('agy-link'), disabled: sources.length >= 4 || sources.some(source => source.type === 'agy-link') }, t('agyLinkQuotaAdd')),
           el('button', { className: 'cm-btn small', onClick: () => addEntry(), disabled: entries.length >= 8 }, t('customBalanceAdd')),
           el('button', { className: 'cm-btn small', onClick: () => addEntry('aliyun'), disabled: entries.length >= 8 }, t('aliyunBalanceAdd')),
           el('button', { className: 'cm-btn small', onClick: () => addEntry('tokenrhythm'), disabled: entries.length >= 8 }, t('tokenRhythmBalanceAdd')),

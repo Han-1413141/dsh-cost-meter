@@ -169,6 +169,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
             })))
           : live.status === 'error'
             ? el('div', { className: 'cm-bal-line err' }, live.message || t('unknownError'))
+            : live.status === 'loading' ? el('div', { className: 'cm-bal-line' }, t('refreshing'))
             : live.status === 'off' && live.message
               ? el('p', { className: 'cm-note' }, live.message)
               : el('div', { className: 'cm-bal-line' }, t('codingPlanNotQueried'))
@@ -306,7 +307,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
             : planId === 'workbuddy' ? el(Fragment, null, el('p', { className: 'cm-note' }, t('wbH')), el(WorkBuddyAccounts, { live, config: cfgEntry, setPlan, state }))
             : el(Fragment, null,
               el('div', { className: 'cm-field' },
-                el('label', null, planId === 'baidu-coding' ? 'Cookie (console.bce.baidu.com)' : planId === 'mimo' ? 'Cookie (platform.xiaomimimo.com)' : planId === 'factory' ? 'Factory Token' : planId === 'opendesign' ? 'OpenDesign Cookie / Control Key' : t('codingPlanKeyLabel'))),
+                el('label', null, planId === 'baidu-coding' ? 'Cookie (console.bce.baidu.com)' : planId === 'mimo' ? 'Cookie (platform.xiaomimimo.com)' : planId === 'factory' ? 'Factory Token' : planId === 'opendesign' ? 'OpenDesign Cookie / Control Key' : t(planId === 'zai' ? 'zaiPlanKeyLabel' : 'codingPlanKeyLabel'))),
               el(AccountCredentialField, { state, draft, setDraft,
                 target: 'codingPlans.' + planId,
                 configured: live.keyConfigured === true,

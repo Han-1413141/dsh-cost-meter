@@ -281,7 +281,7 @@
           const raw = Array.isArray(v.gatewayQuotas) ? v.gatewayQuotas : v.gatewayQuotas?.sources
           const sources = Array.isArray(raw) ? raw.slice(0, 4).filter(x => x !== null && typeof x === 'object' && !Array.isArray(x)).map(x => ({
             id: typeof x.id === 'string' ? x.id.slice(0, 48) : '',
-            type: 'cliproxyapi',
+            type: x.type === 'agy-link' ? 'agy-link' : 'cliproxyapi',
             label: typeof x.label === 'string' ? x.label.slice(0, 80) : '',
             baseURL: typeof x.baseURL === 'string' ? x.baseURL : '',
             enabled: x.enabled !== false,
@@ -2286,6 +2286,9 @@
     // 参数化(custom, entryCfg);旧调用路径(全局 customBalance)由外层包装传入。
     function customBalanceDetailText(custom, config, t, state, entryCfg = null) {
       const remaining = formatCustomBalanceMoney(custom.remaining, config, custom, entryCfg)
+      if ((entryCfg ?? config?.customBalance)?.adapter === 'aliyun' && custom.message) {
+        return t('customBalanceRemaining', { amount: remaining }) + ' · ' + custom.message
+      }
       if (entryCfg?.adapter === 'openai-credits') {
         const format = amount => formatCustomBalanceMoney(amount, config, custom, entryCfg)
         return t('openAiCreditSummary', { total: format(custom.maxBudget), used: format(custom.spend), remaining, expiry: entryCfg.grantExpiry })
@@ -2978,8 +2981,9 @@
     function codingPlanPlaceholder(id, title, live, t, wide, refresh) {
       const status = refresh.busy || live?.status === 'loading' ? t('refreshing')
         : refresh.err || live?.status === 'error' ? t('queryFailed')
+        : id === 'zai' && live?.status === 'off' && live?.message ? t(live.keyConfigured ? 'queryFailed' : 'zaiPlanKeyMissing')
         : live?.status === 'ok' ? t('gatewayQuotaEmpty') : t('codingPlanNotQueried')
-      const detail = [title, status, live?.message, ...clickRefreshTipLines(t, refresh)].filter(Boolean).join('\n')
+      const detail = [title, status, live?.message === status ? '' : live?.message, ...clickRefreshTipLines(t, refresh)].filter(Boolean).join('\n')
       return el(Tooltip, { portal: true, label: el('span', { style: { whiteSpace: 'pre-line' } }, detail), side: 'right', delayMs: 300 },
         el('div', {
           'data-cm-display': 'plan', 'data-cm-plan': id, 'aria-label': detail,
@@ -3314,7 +3318,9 @@
       const t = makeT(resolveLocale(state.config))
       const [selection, setSelection] = useState(() => ({ source: source.id, id: readGatewayAccountLS(source.id) }))
       const refresh = useClickRefresh(api ? () => api.refreshGatewayQuota(source.id) : null)
-      const direction = barDirectionOf(state.config, 'plan')
+      const agyLink = source.type === 'agy-link'
+      const direction = agyLink ? 'remaining' : barDirectionOf(state.config, 'plan')
+      const maxRows = agyLink ? 10 : 4
       const multi = snapshot.accounts.length > 1
       const selectedId = selection.source === source.id ? selection.id : readGatewayAccountLS(source.id)
       const selectedIdx = snapshot.accounts.findIndex(a => a.id === selectedId)
@@ -3325,9 +3331,9 @@
       const accountsToRender = multi && currentAccount ? [currentAccount] : snapshot.accounts
       const rows = []
       for (const account of accountsToRender) {
-        if (rows.length >= 4) break
+        if (rows.length >= maxRows) break
         for (const win of account.windows) {
-          if (rows.length >= 4) break
+          if (rows.length >= maxRows) break
           const name = prefix(account) + (win.label || win.id || t('gatewaySourceUnknown'))
           rows.push({ win, name, view: miniMaxRow(name, win, direction, t) })
         }

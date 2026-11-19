@@ -162,7 +162,7 @@ try {
   const prevEnv = Object.fromEntries(vars.map(name => [name, process.env[name]]))
   for (const name of vars) delete process.env[name]
   const cash = amount => ({ Success: true, AvailableAmount: amount, Currency: 'CNY' })
-  const coupon = (id, balance, status, expiry) => ({ CashCouponId: id, CashCouponNo: 'NO-' + id, NominalValue: balance, Balance: balance, Status: status, ExpiryTime: expiry })
+  const coupon = (id, balance, status, expiry) => ({ CashCouponId: id, CashCouponNo: 'NO-' + id, NominalValue: balance, Balance: balance, Status: status, ExpiryTime: expiry, ApplicableProducts: '通用' })
   const coupons = (items, total = items.length) => ({ Success: true, Data: { CashCoupon: items, TotalCount: total } })
   /** 按签名头 Action 分派：Action 不进 URL，只有业务参数进 query。 */
   const byAction = handlers => async (_url, init) => {
@@ -189,7 +189,7 @@ try {
       assert.equal(result.remaining, 300, '现金 0 时可用余额应等于代金券合计')
       assert.equal(result.couponCount, 2)
       assert.equal(result.couponBalance, 300)
-      assert.ok(result.message.includes('300.00') && result.message.includes('0.00'), '说明里给出合计与现金拆分')
+      assert.match(result.message, /fund account ¥0\.00 \+ coupons ¥300\.00/)
       assert.equal(sent[0], '2017-12-14', '代金券走 BSS 2017-12-14')
     }
     // 现金与券相加；键名与旧版一致（remaining/unit/maxBudget/spend 不被改写）。
@@ -212,7 +212,7 @@ try {
       const result = await queryAliyunBalance(ctx, cfg, { fetchImpl: transport })
       assert.equal(result.remaining, 7, '券查询失败不得影响现金余额')
       assert.equal(result.couponBalance, 0)
-      assert.ok(result.couponError.length > 0)
+      assert.match(result.couponError, /bss:DescribeCoupons/)
     }
     // 空券集时补 EffectiveOrNot=true/false 两发，合并去重。
     {
@@ -238,19 +238,24 @@ try {
       const result = await queryAliyunBalance(ctx, cfg, { fetchImpl: transport })
       assert.equal(result.remaining, 15)
       assert.equal(result.couponError, '')
+      assert.match(result.message, /coupon data is incomplete/)
     }
-    // 状态大小写 / 已过期 / 缺 Balance 用面额 / 响应形状容错。
+    // 状态大小写、有效期、实际余额、适用产品、币种与重复券。
     {
       const now = Date.parse('2026-11-19T00:00:00Z')
       const summary = summarizeCashCoupons([
-        { Status: 'AVAILABLE', Balance: '5.00', ExpiryTime: '2099-01-01 00:00:00' },
-        { Status: 'availableToUse', Balance: '6.00', ExpiryTime: '2099-01-01 00:00:00' },
-        { Status: 'Available', Balance: '7.00', ExpiryTime: '2020-01-01 00:00:00' },
-        { Status: 'Expired', Balance: '8.00', ExpiryTime: '2099-01-01 00:00:00' },
-        { Status: 'Available', Balance: '', NominalValue: '9.00', ExpiryTime: '2099-01-01 00:00:00' },
+        coupon(1, '5.00', 'AVAILABLE', '2099-01-01 00:00:00'),
+        coupon(1, '5.00', 'AVAILABLE', '2099-01-01 00:00:00'),
+        { ...coupon(2, '6.00', 'availableToUse', '2099-01-01 00:00:00'), ApplicableProducts: '阿里云百炼' },
+        coupon(3, '7.00', 'Available', '2020-01-01 00:00:00'),
+        coupon(4, '8.00', 'Expired', '2099-01-01 00:00:00'),
+        { ...coupon(5, '', 'Available', '2099-01-01 00:00:00'), NominalValue: '9.00' },
+        { ...coupon(6, '9.00', 'Available', '2099-01-01 00:00:00'), ApplicableProducts: '云服务器' },
+        { ...coupon(7, '9.00', 'Available', '2099-01-01 00:00:00'), Currency: 'USD' },
       ], now)
-      assert.equal(summary.total, 20)
-      assert.equal(summary.count, 3)
+      assert.equal(summary.total, 11)
+      assert.equal(summary.count, 2)
+      assert.equal(summary.incomplete, true)
       assert.equal(cashCouponList({ Data: { CashCoupon: [{}, {}] } }).length, 2)
       assert.equal(cashCouponList({ Data: [{}, {}, {}] }).length, 3)
       assert.equal(cashCouponList({}).length, 0)

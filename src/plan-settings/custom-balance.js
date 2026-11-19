@@ -77,7 +77,7 @@
             ? el('div', { className: 'cm-budget', style: { marginTop: '8px' } },
               el(BalanceBar, { segments: segmentsForCustomBalance(state, config, custom, entry), direction: barDirectionOf(config, 'balance') }),
               el('div', { className: 'cm-bal-line' }, customBalanceDetailText(custom, config, t, state, entry)))
-            : el('div', { className: 'cm-bal-line' }, t('customBalanceRemaining', {
+            : el('div', { className: 'cm-bal-line' }, aliyun ? customBalanceDetailText(custom, config, t, state, entry) : t('customBalanceRemaining', {
               amount: formatCustomBalanceMoney(custom.remaining, config, custom, entry),
             })))
         : custom !== null && custom.status === 'error'

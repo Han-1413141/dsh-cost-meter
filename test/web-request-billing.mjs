@@ -5,15 +5,41 @@ import { tmpdir } from 'node:os'
 import { createNativeSearchBilling } from '../lib/native-search-billing.js'
 import { recordNativeSearchUsage, nativeSearchRecordsFor, listNativeSearchHistory } from '../lib/native-search-history.js'
 import { Ledger, sanitizeConfig } from '../lib/store.js'
-import { replaySessionRecords } from '../lib/backfill.js'
+import { replaySessionRecords, recomputeLedgerPricingBasis } from '../lib/backfill.js'
 import { costFromSamples, getSessionBilling } from '../lib/turn-cost.js'
 import { getSessionTrajectory } from '../lib/trajectory.js'
 import { turnCostSchema, sessionBillingSchema, trajectorySchema } from '../lib/typert.host.js'
 import { currencyLedger } from '../lib/currency-view.js'
 import { createExchangeRateRefresh } from '../lib/exchange-rate-refresh.js'
-import { webRequestUsage } from '../lib/web-request-pricing.js'
+import { nativeServerSearchFees, SERVER_SEARCH_BILLING_END, webRequestUsage } from '../lib/web-request-pricing.js'
 
 const root = mkdtempSync(join(tmpdir(), 'cm-web-fees-')), listeners = new Map()
+{
+  const boundary = SERVER_SEARCH_BILLING_END
+  const payload = { content: [{ type: 'web_search_tool_result', tool_use_id: 'search-1', content: [{ type: 'web_search_result', url: 'https://example.test' }] }] }
+  const observation = at => nativeServerSearchFees(payload, at)[0]
+  assert.equal(observation(boundary - 1).requestFee.rateCny, .005)
+  assert.equal(observation(boundary).requestFee.rateCny, 0)
+  const historyPath = join(root, 'legacy-fees.json')
+  const historyLedger = new Ledger(sanitizeConfig({}), {}, historyPath)
+  const model = 'deepseek-search-server', provider = 'deepseek-official', session = 'legacy'
+  const legacy = { ...observation(boundary - 1), provider, startedAtMs: boundary, requestId: '11111111-1111-4111-8111-111111111111' }
+  historyLedger.account({}, model, session, boundary - 1, provider, undefined, legacy.requestFee)
+  historyLedger.account({ output: 1 }, 'deepseek-flash', session, boundary, provider)
+  recordNativeSearchUsage(historyPath, session, legacy)
+  const events = await nativeSearchRecordsFor(historyPath, session)
+  assert.equal(events.length, 1, 'old overcharged rows remain readable')
+  const replay = replaySessionRecords(events, historyLedger.config, null, true)
+  const detail = costFromSamples(replay.samples, historyLedger.config)
+  assert.equal(detail.cost, 0)
+  assert.equal(detail.rows[0].rate, 0)
+  const stats = await recomputeLedgerPricingBasis(historyLedger, join(root, 'no-session-logs'), undefined, new Set([session]), true, `${provider}:${model}`)
+  assert.equal(stats.beforeCny, .005)
+  assert.equal(stats.afterCny, 0)
+  assert.equal(historyLedger.sumDays().calls, 2)
+  assert.equal(historyLedger.sumDays().output, 1, 'an unrelated model without logs is preserved')
+  await historyLedger.close()
+}
 const clock = Date.now; let now = Date.now() - 86400000
 Date.now = () => now
 const path = join(root, 'ledger.json'), session = { id: 'web-fees' }
