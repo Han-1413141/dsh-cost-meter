@@ -1,6 +1,11 @@
 # Changelog
 ## [Unreleased]
 
+## [1.9.76] - 2026-11-19
+
+- 修复 GLM 额度查询中状态被校验丢弃的问题。保存当前账号的 Coding Plan API Key 后立即查询，凭据变化时清除旧额度缓存。
+- 验证 `dsh-codex-subscription` 3.2.25 的 npm 发布包，在两个 DSH 宿主版本上通过额度查询回归，并更新兼容基线和 CI。感谢 `github-actions[bot]` 在 [#539](https://github.com/Han-1413141/dsh-cost-meter/issues/539) 报告上游版本更新。
+
 ## [1.9.75] - 2026-11-19
 
 - 修复 GLM Coding Plan 额度卡的查询状态，支持识别智谱官方助手为 Claude Code 配置的套餐凭据，并处理缺少有效百分比的额度响应。
