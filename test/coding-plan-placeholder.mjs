@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import vm from 'node:vm'
 import { readFileSync, readdirSync } from 'node:fs'
 import { sanitizeConfig } from '../lib/store.js'
+import { parseKimiBalance } from '../lib/coding-plans.js'
 
 const dir = new URL('../src/client/', import.meta.url)
 const source = readdirSync(dir).filter(name => name.endsWith('.js')).sort()
@@ -63,6 +64,16 @@ const stateWith = (id, live, locale = 'zh', entry = {}) => ({
 })
 const unavailable = [undefined, { status: 'off', message: '未找到凭据' },
   { status: 'error', message: 'HTTP 503' }, { status: 'loading' }, { status: 'ok', windows: {} }]
+
+const kimiBalance = { status: 'ok', windows: parseKimiBalance({ code: 0, data: { available_balance: 150 } }) }
+for (const [locale, label] of [['zh', '余额'], ['en', 'Balance']]) {
+  for (const wide of [true, false]) {
+    const tree = expanded(ui.renderSidebarFooter(stateWith('kimi', kimiBalance, locale), wide))
+    const expected = label + ' ¥150.00'
+    assert.ok(text(cardOf(tree)).includes(expected))
+    assert.equal(text(tooltipOf(tree).props.label).split(expected).length, 2, 'Kimi 余额提示只显示一次本地化标签')
+  }
+}
 
 for (const { id } of ui.CODING_PLAN_ROWS) for (const wide of [false, true]) {
   for (const live of unavailable) {
