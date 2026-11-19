@@ -101,7 +101,7 @@ for (const id of ['minimax', 'zai']) {
     return new Promise((resolve, fail) => { fulfill = resolve; reject = fail })
   } }
   const instance = mount(component, { id, state, wide: true, api })
-  assert.match(text(instance.tree), /Quota not queried/)
+  assert.match(text(instance.tree), id === 'zai' ? /Coding Plan API key required/ : /Quota not queried/)
   cardOf(instance.tree).props.onClick()
   await instance.flush()
   assert.equal(calls, 1)
