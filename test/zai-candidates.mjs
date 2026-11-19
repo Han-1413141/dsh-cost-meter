@@ -2,7 +2,13 @@ import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { once } from 'node:events'
 import { gzipSync } from 'node:zlib'
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { tmpdir } from 'node:os'
 import { queryCodingPlan, CODING_PLAN_ENDPOINTS } from '../lib/coding-plans.js'
+import { apply } from '../lib/index.js'
+import { stateSchema } from '../lib/typert.host.js'
+import { CLIENT_CONTRIBUTION } from './typert-codecs.mjs'
 
 const originalFetch = globalThis.fetch
 const urls = CODING_PLAN_ENDPOINTS.zai
@@ -20,7 +26,7 @@ const use = fn => {
   calls = []; events.length = 0
   globalThis.fetch = async (url, init) => {
     calls.push(url)
-    assert.equal(init.headers.authorization, `Bearer ${key}`)
+    assert.equal(init.headers.authorization, urls.indexOf(url) < 2 ? key : `Bearer ${key}`)
     assert.equal(init.redirect, 'manual')
     return fn(url, init)
   }
@@ -94,3 +100,92 @@ try {
   assert.equal(calls.length, 1, 'Cancellation stops retries and fallback')
 } finally { globalThis.fetch = originalFetch }
 console.log('[ok] GLM: real HTTP bare gzip, bounded reads, per-candidate diagnostics, fallback, cancellation and redaction')
+
+// Exercise the plugin's credential RPC, the actual HTTP request and public state together.
+const root = mkdtempSync(join(tmpdir(), 'cm-zai-credential-'))
+const names = ['DSH_HOME', 'USERPROFILE', 'HOME', 'ZAI_API_KEY', 'BIGMODEL_API_KEY', 'ZHIPU_API_KEY', 'ANTHROPIC_BASE_URL', 'ANTHROPIC_AUTH_TOKEN']
+const env = Object.fromEntries(names.map(name => [name, process.env[name]]))
+const secrets = new Map(), services = {}, listeners = new Map(), effects = [], attempts = []
+const cnKey = 'CN-fixture.secret', globalKey = 'GLOBAL-fixture.secret'
+let releaseFirstRead
+const firstRead = new Promise(resolve => { releaseFirstRead = resolve })
+const server = createServer(async (req, res) => {
+  const region = req.url.slice(1)
+  const token = req.headers.authorization
+  attempts.push([region, req.method, token])
+  const authorized = region === 'cn' ? token === cnKey : token === globalKey
+  if (!authorized) {
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({ code: 1001, success: false }))
+    return
+  }
+  if (attempts.length === 1 && region === 'cn') await firstRead
+  res.setHeader('content-type', 'application/json')
+  res.end(JSON.stringify(usage))
+})
+try {
+  for (const name of names) delete process.env[name]
+  process.env.DSH_HOME = process.env.USERPROFILE = process.env.HOME = root
+  const ledger = join(root, 'storages', 'cost-meter', 'ledger.json')
+  mkdirSync(dirname(ledger), { recursive: true })
+  writeFileSync(ledger, JSON.stringify({ version: 1, days: {}, config: { locale: 'zh', exchangeRateAuto: false,
+    balance: { display: 'off' }, goQuota: { enabled: false }, codingPlans: { zai: { enabled: true, display: 'both' } } } }))
+  server.listen(0, '127.0.0.1')
+  await once(server, 'listening')
+  globalThis.fetch = async (url, init) => {
+    assert.ok(url === urls[0] || url === urls[1], 'verified keys are only sent to official monitor URLs')
+    return originalFetch(`http://127.0.0.1:${server.address().port}/${url === urls[0] ? 'cn' : 'global'}`, init)
+  }
+  const changed = ref => listeners.get('credentials/reference-updated')?.(ref)
+  const credentials = {
+    resolve: async ref => secrets.has(ref) ? { value: secrets.get(ref), source: 'file' } : undefined,
+    describe: async ref => ({ configured: secrets.has(ref), source: 'file' }),
+    set: async (ref, value) => { secrets.set(ref, value); changed(ref) },
+    unset: async ref => { secrets.delete(ref); changed(ref) },
+  }
+  apply({ get: name => name === 'credentials' ? credentials : undefined,
+    provide: (name, value) => { services[name] = value }, inject() {},
+    on: (event, callback) => { listeners.set(event, callback); return () => {} },
+    effect: callback => { const dispose = callback(); if (typeof dispose === 'function') effects.push(dispose) },
+    logger: { info() {}, warn() {}, error() {} } })
+  const meter = services.costMeter
+  const missing = await meter.getState()
+  assert.match(missing.codingPlans.zai.message, /API Key/)
+  assert.deepEqual(attempts, [])
+  const started = once(server, 'request', { signal: AbortSignal.timeout(5_000) })
+  const saved = await meter.setCredential('codingPlans.zai', `  ${cnKey} `)
+  assert.equal(saved.ok, true)
+  assert.equal(secrets.get('ZAI_API_KEY'), cnKey)
+  assert.equal(saved.state.codingPlans.zai.status, 'loading', 'saving a key immediately starts a query')
+  await started
+  assert.deepEqual(attempts, [['cn', 'GET', cnKey]])
+  releaseFirstRead()
+  const first = await meter.refreshCodingPlan('zai')
+  assert.equal(first.ok, true, first.message)
+  const read = CLIENT_CONTRIBUTION.descriptors.find(d => d.method === 'getState').result.create()
+  for (const snapshot of [stateSchema.parse(first.state), read.parse(JSON.parse(JSON.stringify(first.state)))]) {
+    const glm = snapshot.codingPlans.zai
+    assert.equal(glm.keyConfigured, true)
+    assert.equal(glm.windows.fiveHour.percent, 19)
+    assert.equal(glm.windows.weekly.percent, 81)
+    assert.ok(!JSON.stringify(snapshot).includes(cnKey), 'the stored key is not returned to the UI')
+  }
+  attempts.length = 0
+  await credentials.set('ZAI_API_KEY', globalKey)
+  const afterChange = await meter.getLocalState()
+  assert.equal(afterChange.codingPlans.zai.status, 'loading', 'host-side rotation invalidates the prior snapshot')
+  const refreshed = await meter.refreshCodingPlan('zai')
+  assert.equal(refreshed.ok, true, refreshed.message)
+  assert.deepEqual(attempts.at(-2), ['cn', 'GET', globalKey])
+  assert.deepEqual(attempts.at(-1), ['global', 'GET', globalKey])
+  assert.doesNotMatch(readFileSync(ledger, 'utf8'), /fixture\.secret/)
+} finally {
+  releaseFirstRead()
+  for (const dispose of effects.reverse()) await dispose()
+  globalThis.fetch = originalFetch
+  if (server.listening) { server.closeAllConnections(); await new Promise(done => server.close(done)) }
+  for (const [name, value] of Object.entries(env)) { if (value === undefined) delete process.env[name]; else process.env[name] = value }
+  assert.equal(dirname(resolve(root)), resolve(tmpdir()))
+  rmSync(root, { recursive: true, force: true })
+}
+console.log('[ok] GLM credential RPC: saved Key, GET, both regions, credential rotation and public quota state')
