@@ -1846,8 +1846,15 @@ assert.ok(catalog.meituan?.['LongCat']?.['longcat-2.0'] !== undefined, 'Go 新�
 assert.equal(catalog.meituan['LongCat']['longcat-2.0'].cachedInput, 0.006, 'longcat-2.0 缓存读 $0.006')
 assert.equal(catalog['opencode-go']['Muse Spark']['muse-spark-1.2-contributor'].input, 0.1, 'Go 目录 muse-spark-1.2-contributor 输入价 $0.10')
 // 6.4 Kimi 余额解析与端点白名单。
-assert.equal(parseKimiBalance({ available_balance: 12345 }).balance.text, '余额 ¥123.45', 'Kimi 余额分→元换算')
-assert.equal(parseKimiBalance({ available_balance: 8 }).balance.text, '余额 ¥8.00', '小额视为元单位')
+for (const [available_balance, expected] of [[0, '¥0.00'], [8, '¥8.00'], [99.99, '¥99.99'], [100, '¥100.00'],
+  [100.01, '¥100.01'], [150, '¥150.00'], [12345, '¥12345.00'], [49.58894, '¥49.59']]) {
+  assert.equal(parseKimiBalance({ code: 0, data: { available_balance } }).balance.text, expected, 'Kimi PAYG balance is always in yuan')
+}
+assert.equal(parseKimiBalance({ available_balance: '150' }).balance.text, '¥150.00', '旧版扁平响应和数字字符串仍可读取')
+assert.equal(parseKimiBalance({ cash_balance: 50, data: { available_balance: 150 } }).balance.text, '¥150.00', '可用余额优先于现金余额')
+for (const available_balance of [null, true, [], '', 'invalid', -1, Infinity]) {
+  assert.equal(parseKimiBalance({ data: { available_balance } }), null, '无效余额不显示为零元')
+}
 assert.equal(parseKimiBalance(null), null, '非法响应安全')
 assert.ok(CODING_PLAN_ENDPOINTS.kimi.every(u => ['api.moonshot.cn', 'api.kimi.com'].includes(new URL(u).host)), 'Kimi 端点官方域名白名单(含订阅端点 api.kimi.com,issue #53)')
 assert.ok(CODING_PLAN_PROVIDERS.kimi !== undefined, 'kimi 已注册')
@@ -2105,6 +2112,27 @@ assert.ok(CODING_PLAN_ENDPOINTS.zai.slice(2).some(u => u.includes('/v3/')), 'Z.a
     && CODING_PLAN_ENDPOINTS.kimi[2] === 'https://api.moonshot.cn/v1/users/me/balance', 'Kimi 订阅端点在前,PAYG 余额兜底')
   assert.ok(CODING_PLAN_ENDPOINTS.kimi.every(u => ['api.kimi.com', 'api.moonshot.cn'].includes(new URL(u).host)), 'Kimi 端点均为官方域名')
   assert.deepEqual(CODING_PLAN_PROVIDERS.kimi.credentialEnvs, ['KIMI_CODING_API_KEY', 'MOONSHOT_API_KEY', 'KIMI_API_KEY'], '订阅 Key env 优先于 PAYG env')
+  const fetchBefore = globalThis.fetch
+  const requests = []
+  try {
+    globalThis.fetch = async url => {
+      requests.push(url)
+      return url === CODING_PLAN_ENDPOINTS.kimi[2]
+        ? Response.json({ code: 0, data: { available_balance: 150 } })
+        : new Response(null, { status: 401 })
+    }
+    for (const locale of ['zh', 'en']) {
+      requests.length = 0
+      const result = await queryCodingPlan('kimi', 'fixture-payg-key', locale, stubT)
+      assert.deepEqual(requests, CODING_PLAN_ENDPOINTS.kimi, '订阅鉴权拒绝后回退到 PAYG 接口')
+      assert.equal(result.windows.balance.text, '¥150.00')
+    }
+    requests.length = 0
+    globalThis.fetch = async url => { requests.push(url); return Response.json(sample) }
+    const subscription = await queryCodingPlan('kimi', 'fixture-subscription-key', 'zh', stubT)
+    assert.deepEqual(requests, [CODING_PLAN_ENDPOINTS.kimi[0]], '订阅查询成功时不请求 PAYG 接口')
+    assert.deepEqual(subscription.windows, parsed)
+  } finally { globalThis.fetch = fetchBefore }
   console.log('[ok] Kimi Code 订阅配额解析与端点白名单通过')
 }
 console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过')

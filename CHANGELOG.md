@@ -1,6 +1,11 @@
 # Changelog
 ## [Unreleased]
 
+## [1.9.77] - 2026-11-19
+
+- 修复 Kimi / Moonshot 按量付费余额达到 ¥100 时被缩小 100 倍的问题。余额统一按人民币元读取，中文界面显示「余额」，英文界面显示 `Balance`。
+- 感谢 [@Rayawa](https://github.com/Rayawa) 在 [#541](https://github.com/Han-1413141/dsh-cost-meter/issues/541) 提供 ¥100 边界复现，定位换算和翻译问题，并指出了旧测试的单位假设。
+
 ## [1.9.76] - 2026-11-19
 
 - 修复 GLM 额度查询中状态被校验丢弃的问题，并对齐智谱官方额度查询的鉴权方式。保存当前账号的 Coding Plan API Key 后立即查询，凭据变化时清除旧额度缓存。

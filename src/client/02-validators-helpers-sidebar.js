@@ -3196,6 +3196,11 @@
       return String(name).replace(/_/g, ' ')
     }
 
+    function codingPlanWindowText(provider, name, win, t) {
+      if (typeof win?.text !== 'string') return '—'
+      return provider === 'kimi' && name === 'balance' ? t('codingPlanWindowBalance') + ' ' + win.text : win.text
+    }
+
     function codingPlanWindowEntries(windows, provider) {
       const rank = name => {
         const key = name.replace(/^core_/, '').toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -3257,7 +3262,7 @@
         const pct = pctOf(win)
         if (pct === null) {
           return el('div', { key: name, className: 'cm-mm-row wide' },
-            el('span', { className: 'cm-mm-text' }, typeof win?.text === 'string' ? win.text : '—'))
+            el('span', { className: 'cm-mm-text' }, codingPlanWindowText(id, name, win, t)))
         }
         const level = codingPlanQuotaLevel(pct, id)
         const barView = simpleBarByDirection(pct, planDirection)
@@ -3285,7 +3290,7 @@
       const level = codingPlanQuotaLevel(Math.max(0, ...pcts), id)
       const railText = pcts.length > 0
         ? pcts.slice(0, 2).map(p => simpleBarByDirection(p, planDirection).label + '%').join(' ')
-        : (typeof entries[0][1]?.text === 'string' ? entries[0][1].text : '—')
+        : codingPlanWindowText(id, entries[0][0], entries[0][1], t)
       return el(Tooltip, { portal: true, label: el('span', { style: { whiteSpace: 'pre-line' } }, detail), side: 'right', delayMs: 300 },
         el('div', { ...hoverProps, 'data-cm-display': 'plan', 'data-cm-plan': id, className: 'cm-bbox cm-mm clickable' + (level === 'ok' ? '' : ' ' + level) + (wide === false ? ' rail' : '') + (refresh.busy ? ' busy' : ''), ...clickableRefreshProps(refresh.busy, refresh.run) },
           wide === false
@@ -3536,7 +3541,7 @@
               + (pct === null ? (typeof win?.text === 'string' ? win.text : '—') : pct + '%') + reset)
             if (pct === null) {
               // 文本窗口(余额等无百分比的量):以文本段展示,不占进度条名额。
-              if (strip.planAmounts !== false) segs.push({ name, pct: null, text: typeof win?.text === 'string' ? win.text : '—' })
+              if (strip.planAmounts !== false) segs.push({ name, pct: null, text: codingPlanWindowText(rowDef.id, name, win, t) })
               continue
             }
             if (shown >= (rowDef.id === 'factory' ? 3 : 2)) continue
