@@ -1,15 +1,15 @@
 // The footer is the real renderer. Selection outlines are a separate local layer,
 // so they cannot change direct-child selectors or the compact card layout.
-function SidebarPreview({ renderSidebar, config, displayConfig = config, selected, selectedPlan, select, labels, appearance, text, icon, visibility, listPreview, onOrder }) {
+function SidebarPreview({ renderSidebar, config, displayConfig = config, selected, selectedPlan, select, labels, appearance, text, icon, visibility, listPreview, onOrder, examples }) {
   const body = React.useRef(null), selection = React.useRef(null), [targets, setTargets] = useState([])
   React.useEffect(() => {
     const root = selection.current, change = event => onOrder?.(event.detail)
     root.addEventListener('cost-meter:sidebar-reorder', change)
     return () => root.removeEventListener('cost-meter:sidebar-reorder', change)
   }, [onOrder])
-  const preview = React.useMemo(() => sidebarPreviewConfig(config, selected), [config, selected])
+  const preview = React.useMemo(() => examples ? sidebarPreviewConfig(config, selected) : config, [config, selected, examples])
   const parts = sidebarPreviewParts(displayConfig, selected, text)
-  const supplemental = config.sidebarSimple === true && ['models', 'budget', 'go'].includes(selected)
+  const supplemental = examples && config.sidebarSimple === true && ['models', 'budget', 'go'].includes(selected)
   const focusPart = target => {
     select(target.key)
     requestAnimationFrame(() => body.current?.closest('.cm-preview-workspace')?.querySelector(target.control)?.focus({ preventScroll: true }))
@@ -64,7 +64,7 @@ function SidebarPreview({ renderSidebar, config, displayConfig = config, selecte
           el('span', { className: 'cm-display-item-tag' }, target.label ?? labels[target.key] ?? target.key))))),
     el('div', { className: 'cm-preview-account', 'aria-hidden': true }, icon('IconUserOutlineRegular', 18), text('已登录 DeepSeek', 'Signed in to DeepSeek')),
     el('div', { className: 'cm-sidebar-unplaced' },
-      el('p', null, text('未显示的组件', 'Components not shown')),
+      el('p', null, text('预览中未出现 · 点击查看设置', 'Absent from preview · click to view settings')),
       ...['balance', 'budget', 'today', 'peak', 'models', 'go', 'plan', 'customBalance', 'codex', 'localSavings'].filter(key => !available.has(key)).map(key =>
         el('button', { key, type: 'button', 'data-display': key, 'aria-pressed': selected === key, onClick: () => select(key) }, labels[key])),
       ...parts.filter(part => !targets.some(target => target.part === part.part)).map(part =>

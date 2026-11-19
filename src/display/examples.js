@@ -12,8 +12,8 @@ function displayPreviewData(state, config, examples, selected, planId = 'minimax
     'deepseek:deepseek-v4-pro': bucket(todayCost * .3, 16000, 2000, 48000, 4),
     'openai:gpt-5': bucket(todayCost * .1, 8000, 1200, 16000, 2),
   } }
-  const previewConfig = { ...config, sidebar: true, hideOfficialBalance: false, hideBudget: false, hideTodayCost: false,
-    balance: { ...config.balance, display: 'both' },
+  const previewConfig = { ...config, sidebar: true, hideOfficialBalance: false, hideCustomBalance: false, hideBudget: false, hideTodayCost: false,
+    balance: { ...config.balance, display: 'both', budgetCap: config.balance?.budgetCap ?? 100 },
     budget: { ...config.budget, enabled: true, amount },
     goQuota: { ...config.goQuota, enabled: true, display: 'both' },
     sidebarModels: { ...config.sidebarModels, enabled: true }, peakEnabled: true, peakNotice: true,

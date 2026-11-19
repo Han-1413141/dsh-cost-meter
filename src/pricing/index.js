@@ -389,14 +389,30 @@ window.__ModuleLoader__.load({
             label: label + ' · ' + title + ' · ' + name, locale, currency: value.currency, priceEditor, t, onChange })))) : null)
     }
 
-    function CustomPriceEditor({ value, label, locale, onChange, t, priceEditor }) {
+    function CustomPriceEditor({ value: saved, label, locale, onChange: save, t, priceEditor, templates }) {
       const en = locale === 'en'
+      const [template, setTemplate] = useState(null)
+      const value = template?.price ?? saved
+      const onChange = price => template ? setTemplate({ ...template, price }) : save(price)
       const { priceFactor } = priceEditor
       const fields = [['cacheMiss', en ? 'Input · cache miss' : '输入 · 未命中缓存'], ['cacheHit', en ? 'Cached input' : '缓存读取'], ['output', en ? 'Output' : '输出'], ['cacheWrite', en ? 'Cache write' : '缓存写入'], ['reasoning', en ? 'Separate reasoning' : '单独推理费用']]
       const field = ([key, title]) => el(RateField, { key, value, field: key, title, label: label + ' · ' + title, locale, currency: value.currency, priceEditor, t, onChange })
       const tiers = [['base', en ? 'Base' : '基础价'], ...(['peak', 'offPeak'].filter(tier => value[tier]).map(tier => [tier, tier === 'peak' ? (en ? 'Peak' : '峰价') : (en ? 'Off-peak' : '谷价')])), ...(value.longContext ? [['longContext', en ? 'Long context' : '长上下文']] : [])]
       return el('fieldset', { className: 'cm-custom-price', 'aria-label': label + (en ? ' · Custom price' : ' · 自定义价格') },
         el('legend', null, en ? 'Custom price · per 1M tokens' : '自定义价格 · 每百万 Token'),
+        templates.length ? el('div', { className: 'cm-field' },
+          el('span', null, en ? 'Use an existing model as a template' : '以现有模型为模板'),
+          el(SearchPriceSelect, {
+            value: template?.key ?? '', options: templates, label: en ? 'Price template' : '价格模板',
+            placeholder: en ? 'Select a custom price' : '选择已配置自定义价格的模型', locale,
+            onChange: key => {
+              const source = templates.find(option => option.value === key)
+              setTemplate(source ? { key, price: structuredClone(source.price) } : null)
+            },
+          }),
+          template ? el('div', { className: 'cm-buttons' },
+            el('button', { type: 'button', className: 'cm-btn small', onClick: () => { save(template.price); setTemplate(null) } }, en ? 'Save copied price' : '保存复制的价格'),
+            el('button', { type: 'button', className: 'cm-btn small', onClick: () => setTemplate(null) }, en ? 'Cancel' : '取消')) : null) : null,
         el('div', { className: 'cm-custom-head' }, el('span', null, en ? 'Only this channel and model' : '仅用于此渠道的这个模型'),
           el('label', null, en ? 'Currency' : '币种', el('select', { className: 'cm-input', value: value.currency, onChange: event => onChange({ ...value, currency: event.target.value }) },
             el('option', { value: 'USD' }, en ? 'USD · US dollar' : 'USD · 美元'), el('option', { value: 'CNY' }, en ? 'CNY · Yuan' : 'CNY · 人民币')))),
@@ -411,7 +427,9 @@ window.__ModuleLoader__.load({
           el('div', { className: 'cm-custom-grid' }, ...fields.slice(3).map(field)),
           el(LongContextEditor, { value, label, locale, onChange, t, priceEditor, fields }),
           el('p', { className: 'cm-hint' }, en ? 'Leave reasoning blank when it is included in output. Leave cache write blank to use the cached input rate.' : '推理已包含在输出中时无需另填。缓存写入留空则使用缓存读取价格。')),
-        el('p', { className: 'cm-hint' }, en ? 'Enter or leave a field to save. Switching the price source keeps your custom values.' : '回车或离开输入框后保存；切换价格来源会保留已填的自定义价格。'))
+        el('p', { className: 'cm-hint' }, template
+          ? (en ? 'Edit the copied values, then save to apply them to this model.' : '可继续调整复制的数值，保存后应用到当前模型。')
+          : (en ? 'Enter or leave a field to save. Switching the price source keeps your custom values.' : '回车或离开输入框后保存；切换价格来源会保留已填的自定义价格。')))
     }
 
     function RateSummary({ entry, currency, priceEditor, locale, local = false }) {
@@ -448,6 +466,10 @@ window.__ModuleLoader__.load({
           const overrides = draft?.priceOverrides ?? config.priceOverrides ?? {}
           const dismissed = draft?.priceMatchDismissed ?? config.priceMatchDismissed ?? []
           const pricesNow = draft?.prices ?? config.prices
+          const templates = useMemo(() => Object.entries(pricesNow.custom ?? {})
+            .filter(([, price]) => price && !price.unpriced)
+            .map(([value, price]) => ({ value, label: prettyProviderKey(value), price }))
+            .sort((a, b) => a.label.localeCompare(b.label)), [pricesNow.custom, prettyProviderKey])
           const statistics = draft?.modelStatistics ?? config.modelStatistics ?? {}
           const statisticScopes = [['today', '今日费用', 'Today'], ['summary', '月度与累计', 'Monthly / all-time'], ['budget', '预算', 'Budget']]
           const byProvider = useMemo(() => ({ ...state.total?.byProviderModel, ...state.month?.byProviderModel, ...state.today?.byProviderModel,
@@ -538,7 +560,7 @@ window.__ModuleLoader__.load({
                   el('span', null, en ? 'Select a reference model' : '选择参考模型'),
                   el(SearchPriceSelect, { value: source && !source.startsWith('__') ? source : '', options: targetOptions, placeholder: en ? 'Choose a price table entry' : '选择价格表条目', label, locale, onChange: value => { if (value) setOverride(key, value); else choose('auto') } }),
                   !source || source.startsWith('__') ? el('p', { className: 'cm-note' }, en ? 'Current pricing stays in effect until you choose an entry.' : '选定条目后生效，选择前仍使用原价格。') : null) : null,
-                mode === 'custom' && source === '__custom__' && pricesNow.custom?.[key] ? el(CustomPriceEditor, { value: pricesNow.custom[key], label, locale, t, priceEditor,
+                mode === 'custom' && source === '__custom__' && pricesNow.custom?.[key] ? el(CustomPriceEditor, { value: pricesNow.custom[key], label, locale, t, priceEditor, templates: templates.filter(template => template.value !== key),
                   onChange: entry => setDraft({ ...draft, prices: { ...pricesNow, custom: { ...pricesNow.custom, [key]: entry } } }) }) : null,
                 mode === 'auto' ? el('p', { className: 'cm-source-explanation' }, resolved.matched ? (en ? 'The model uses its automatically matched reference price.' : '已自动匹配参考价格，后续调用按该价格计费。') : (en ? 'No exact price found. Choose a table entry or enter a custom quote.' : '尚未命中参考价格，可选择价格表条目或填写自定义价格。')) : null,
                 mode === 'local' ? el('p', { className: 'cm-source-explanation' }, en ? 'Tokens are tracked; new calls have zero API cost.' : '保留 Token 统计，后续调用的 API 费用记为 0。') : null,

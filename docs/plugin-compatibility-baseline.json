@@ -1,5 +1,5 @@
 {
-  "recordedAt": "2026-11-18T05:07:14.719Z",
+  "recordedAt": "2026-11-18T15:18:59.177Z",
   "plugins": {
     "billion-context": {
       "version": "0.1.216",
@@ -38,7 +38,7 @@
       "integrity": "sha512-98Q5eSqk0LyemCJ45OrYmZvEd0qpzBjLokthZlQ4yA7yvgUlzuM7fp6iq9dPAJ4N4vaplnvZeld0JxM4S7Ti1A=="
     },
     "dsh-codex-subscription": {
-      "version": "3.2.21",
+      "version": "3.2.24",
       "signature": {
         "main": "./lib/index.js",
         "exports": {
@@ -77,13 +77,13 @@
         },
         "functions": {
           "registerSubscriptionTransport": "bc8cd28620c0c117e12eaf0e6e82bf2454951091a3a6beaa560acf0e363160d4",
-          "createSubscriptionRpcHandler": "f6f450331aa3033f376a6f567525f3371cfc1d8b96e778b95ade7829c35cf1eb",
+          "createSubscriptionRpcHandler": "f8ae0f7880ede2a228be546fe7a959bc401bf1e6c3b47c69e602fa792073f9e6",
           "parseCodexUsage": "5c72a7a920ed4edb5f9e5610e93bfd84a4ad76f4d72e33283370c8800781df0e",
           "createCodexUsageReader": "cf4c227e1670f5da9e1606e1795bb38d0654c00a2e644cd41c5af61494d7739d"
         }
       },
-      "interfaceHash": "b5794156a1a7f1ef2564e0766aae8a6f0afe5c6982eaa8b99c6170dc1ffa5392",
-      "integrity": "sha512-P+eaYfzettGjKMUhIroAUrJYXcLKkUTL3Fr2cIbCk1mK35uHprqi3buIGNvQfOO7HQl4MGzI7fbvWuiG9ef28w=="
+      "interfaceHash": "934ccb97316b1c749181ff5c99593abe6dd998e6e0c3969ec237aa1cdb0377b0",
+      "integrity": "sha512-VNYMTZxOwvDCDb/ptcLwNPIRJR8azFtj9BQ0J5KFzZ5dynkSCVOvPKK+qld9VZ+DzmNiyz7QviI9mhjGrE+pvg=="
     },
     "dsh-codex-connect": {
       "version": "0.2.0-alpha.15",

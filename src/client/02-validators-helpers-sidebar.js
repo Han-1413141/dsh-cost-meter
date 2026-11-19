@@ -113,7 +113,8 @@
     }
     function parseConfig(v, path) {
     const parseCustomEntry = e => (e == null ? undefined : {
-      ...(['aliyun', 'tokenrhythm'].includes(e.adapter) ? { adapter: e.adapter } : {}),
+      ...(['aliyun', 'tokenrhythm', 'openai-credits'].includes(e.adapter) ? { adapter: e.adapter } : {}),
+      ...(e.adapter === 'openai-credits' ? { grantAmount: num0(e.grantAmount), grantStart: e.grantStart ?? '', grantExpiry: e.grantExpiry ?? '' } : {}),
       enabled: e.enabled === true,
       label: typeof e.label === 'string' ? e.label : '',
       labelEn: typeof e.labelEn === 'string' ? e.labelEn : '',
@@ -141,6 +142,7 @@
         // 会话列表附显 ID 自上线以来实际从未生效(v1.5.38 起一并修复)。
         showSessionId: v.showSessionId === true,
         hideOfficialBalance: v.hideOfficialBalance === true,
+        hideCustomBalance: v.hideCustomBalance === true,
         hideTodayCost: v.hideTodayCost === true,
         sessionListCostPeriod: v.sessionListCostPeriod === 'today' ? 'today' : 'total',
         modelStatistics: v.modelStatistics ?? {},
@@ -1695,6 +1697,9 @@
         }
       }
       const cancel = () => { setText(''); setEditing(false) }
+      const clearButton = configured === true
+        ? el('button', { className: 'cm-btn small', type: 'button', onClick: clear, disabled: blocked }, t('credentialClear'))
+        : null
       // 浏览器可能忽略 password 的 autocomplete=off，并把前一个文本框当用户名。
       // 概览打开时不挂载密码框；明确编辑后使用独立 form，避免串到宿主会话搜索。
       return el('div', { className: 'cm-field' },
@@ -1718,11 +1723,9 @@
             type: 'submit',
             disabled: blocked || text.trim().length === 0,
           }, busy ? t('credentialSaving') : t('credentialSave')),
-          el('button', { className: 'cm-btn small', type: 'button', onClick: cancel, disabled: busy }, t('cancel'))))
-          : el('button', { className: 'cm-btn small', type: 'button', onClick: () => setEditing(true), disabled: blocked }, t('credentialEdit')),
-          configured === true
-            ? el('button', { className: 'cm-btn small', type: 'button', onClick: clear, disabled: blocked }, t('credentialClear'))
-            : null,
+          el('button', { className: 'cm-btn small', type: 'button', onClick: cancel, disabled: busy }, t('cancel')), clearButton))
+          : el('div', { className: 'cm-buttons' },
+            el('button', { className: 'cm-btn small', type: 'button', onClick: () => setEditing(true), disabled: blocked }, t('credentialEdit')), clearButton),
         el('span', { className: 'cm-hint' },
           configured === true
             ? t('credentialConfiguredOf', { source: typeof source === 'string' && source.length > 0 ? source : 'unknown' })
@@ -2050,7 +2053,7 @@
 
     function computeBalanceSegments({ remaining, spend, todayUsed, cap }) {
       if (cap === null || cap <= 0) {
-        return { remainingPct: 100, todayPct: 0, spentPct: 0, hasCap: false, pastSpend: 0, today: 0 }
+        return { remainingPct: 0, todayPct: 0, spentPct: 0, hasCap: false, pastSpend: 0, today: 0 }
       }
       const rem = Math.max(0, Number(remaining) || 0)
       const totalSpend = Math.max(0, Number(spend) || 0)
@@ -2078,18 +2081,18 @@
       const cap = resolveBalanceCap(config, null)
       const remaining = Number(balance?.totalBalance) || 0
       const todayUsed = todayUsedInBalanceCurrency(state, config, 'official', null)
-      const spend = cap !== null ? Math.max(0, cap - remaining) : 0
+      const spend = cap === null ? 0 : Math.max(0, cap - remaining)
       return { cap, ...computeBalanceSegments({ remaining, spend, todayUsed, cap }) }
     }
 
     function BalanceBar(props) {
       const { segments, direction = 'remaining' } = props
-      const { remainingPct, todayPct, spentPct } = segments
+      const { remainingPct, todayPct, spentPct, hasCap } = segments
+      if (!hasCap) return null
       const kids = []
       if (remainingPct > 0) kids.push(el('div', { className: 'cm-bbox-fill', style: { width: remainingPct + '%' } }))
       if (todayPct > 0) kids.push(el('div', { className: 'cm-bbox-seg-today', style: { width: todayPct + '%' } }))
       if (spentPct > 0) kids.push(el('div', { className: 'cm-bbox-seg-spent', style: { width: spentPct + '%' } }))
-      if (kids.length === 0) kids.push(el('div', { className: 'cm-bbox-fill', style: { width: '100%' } }))
       // 已用方向(issue #67):分段顺序反转——消耗段从左端推进、剩余退到右端;
       // 默认(剩余方向)保持蓝在左、消耗从右端生长的原设计。
       const ordered = direction === 'used' ? [...kids].reverse() : kids
@@ -2218,8 +2221,9 @@
     function officialBalanceTooltip(t, balance, config, reconcile, refresh) {
       const lines = [t('officialBalance') + ' ' + formatBalanceMoney(balance.totalBalance, config, balance.currency),
         t('grantedToppedUp', { granted: formatBalanceMoney(balance.grantedBalance, config, balance.currency), toppedUp: formatBalanceMoney(balance.toppedUpBalance, config, balance.currency) }),
+        ...(config.balance?.showProgressBar && resolveBalanceCap(config, null) === null ? [t('balanceNoCap')] : []),
         ...(reconcile?.ok === false ? ['⚠ ' + reconcile.message] : []), ...clickRefreshTipLines(t, refresh)]
-      return el('div', { style: { maxWidth: 'min(280px, 70vw)', whiteSpace: 'normal' } }, ...lines.map((line, key) => el('div', { key }, line)))
+      return el('div', { style: { maxWidth: 'min(225px, 68vw)', whiteSpace: 'normal', fontSize: 11, lineHeight: 1.5 } }, ...lines.map((line, key) => el('div', { key }, line)))
     }
 
     function BalanceBox(props) {
@@ -2240,7 +2244,7 @@
         privacy.hidden ? null : el(BalanceBar, { segments, direction: barDirectionOf(config, 'balance') }))
       return el(Tooltip, { portal: true, label: detail, side: 'right', delayMs: 300 },
         el('div', { 'data-cm-display': 'balance', className: 'cm-bbox clickable' + (wide ? '' : ' rail') + (refresh.busy ? ' busy' : ''), ...clickableRefreshProps(refresh.busy, refresh.run) },
-          wide ? body : el('div', { className: 'cm-bbox-rail cm-num' }, privacy.hidden ? '••••' : Math.round(segments.remainingPct) + '%')))
+          wide ? body : el('div', { className: 'cm-bbox-rail cm-num' }, privacy.hidden || !segments.hasCap ? remaining : Math.round(segments.remainingPct) + '%')))
     }
 
     function resolveCustomBalanceLabel(cfg, locale) {
@@ -2282,6 +2286,10 @@
     // 参数化(custom, entryCfg);旧调用路径(全局 customBalance)由外层包装传入。
     function customBalanceDetailText(custom, config, t, state, entryCfg = null) {
       const remaining = formatCustomBalanceMoney(custom.remaining, config, custom, entryCfg)
+      if (entryCfg?.adapter === 'openai-credits') {
+        const format = amount => formatCustomBalanceMoney(amount, config, custom, entryCfg)
+        return t('openAiCreditSummary', { total: format(custom.maxBudget), used: format(custom.spend), remaining, expiry: entryCfg.grantExpiry })
+      }
       if ((entryCfg ?? config?.customBalance)?.adapter === 'tokenrhythm') return t('customBalanceRemaining', { amount: remaining })
       const formatAmt = v => formatCustomBalanceMoney(v, config, custom, entryCfg)
       if (state && config.balance?.showProgressBar === true) {
@@ -2314,7 +2322,7 @@
       const segments = segmentsForCustomBalance(state, config, custom, entryCfg)
       return {
         level: 'ok',
-        rail: privacy?.hidden ? '••••' : Math.round(segments.remainingPct) + '%',
+        rail: privacy?.hidden || !segments.hasCap ? remaining : Math.round(segments.remainingPct) + '%',
         body: el(Fragment, null,
           el('div', { className: 'cm-bbox-head' },
             el('span', { className: 'cm-balance-name' }, el('span', { className: 'cm-bbox-label' }, privacy ? privacy.label(label) : label), rechargeLinkEl(t, entryCfg?.dashboardUrl || '', label)),
@@ -2327,6 +2335,7 @@
     // enabled 且 display 允许侧边栏的条目;快照缺失(未查询/查询失败)按各自状态
     // 渲染。旧宿主快照(无 customBalances)由 parseConfig 回落单条包装,行为不变。
     function visibleCustomEntries(state, config) {
+      if (config?.hideCustomBalance === true) return []
       const entries = config?.customBalances ?? []
       const snapshots = Array.isArray(state?.customBalances) ? state.customBalances : []
       const out = []
@@ -2353,7 +2362,7 @@
       const visible = visibleCustomEntries(state, config)
       if (visible.length === 0) return null
       return el(Fragment, null, visible.map(({ index, entry, snapshot }) =>
-        el(entry.adapter === 'tokenrhythm' ? CustomBalanceEntryRow : CustomBalanceEntryBox, { key: 'cb-' + index, state, wide, api, t, index, entry, snapshot })))
+        el(['tokenrhythm', 'openai-credits'].includes(entry.adapter) ? CustomBalanceEntryRow : CustomBalanceEntryBox, { key: 'cb-' + index, state, wide, api, t, index, entry, snapshot })))
     }
 
     function CustomBalanceEntryBox(props) {
@@ -3711,11 +3720,11 @@
     }
 
     // Shared presentation only: no store, projection or quota subscription.
-    function renderSidebarFooter(state, wide, api, preview = false, provider) {
+    function renderSidebarFooter(state, wide, api, preview = false, provider, examples = preview) {
       const config = peakConfigForState(state)
       const t = makeT(resolveLocale(config))
       const showBalance = (config.balance?.display === 'sidebar' || config.balance?.display === 'both')
-        && config.hideOfficialBalance !== true && officialBalanceVisible(state, provider, preview)
+        && config.hideOfficialBalance !== true && officialBalanceVisible(state, provider, examples)
       // 多配置形态(v1.7.0,issue #79):可见性逐条判定(可见条目集由
       // visibleCustomEntries 统一给出;组件内部逐条按快照状态渲染)。
       const visibleCustom = visibleCustomEntries(state, config)

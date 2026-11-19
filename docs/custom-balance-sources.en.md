@@ -2,6 +2,12 @@
 
 [简体中文](custom-balance-sources.md) · [Features](features.en.md)
 
+## OpenAI API credits
+
+In Settings → Cost → Quotas, choose Add OpenAI API credits. Enter the grant amount, start date and expiration date in UTC from [Credit grants](https://platform.openai.com/settings/organization/billing/credit-grants) for the linked API organization. Save its Admin API key and enable the card. DSH keeps the key in its credential store. You can also set `DSH_OPENAI_COST_ADMIN_KEY` on the server.
+
+The card estimates the grant remaining from organization costs in the period using the [OpenAI Costs API](https://developers.openai.com/api/reference/resources/admin/subresources/organization/subresources/usage/methods/costs). Quota settings and the sidebar tooltip show the grant amount, organization costs, estimated remainder and expiration. Overlapping grants, different credit eligibility and reporting delays can affect the estimate. Use Credit grants for the official balance.
+
 ## Request and response configuration
 
 **POST with a JSON body:** in **Settings → Cost → Quota**, expand a custom balance entry, select **POST**, then fill in **Request body (JSON)**. For example, if the endpoint expects an account and returns `{"data":{"balance":12.5}}`:

@@ -106,17 +106,21 @@ export async function checkDisplayPreview(page, output) {
             await choose(key)
             const geometry = await page.locator('.cm-preview-workspace').evaluate(n => {
               const scene = n.querySelector('.cm-preview-scene').getBoundingClientRect(), panel = n.querySelector('aside').getBoundingClientRect()
-              const layoutHeight = [...n.querySelectorAll('.cm-inspector-layout,.cm-preview-style-options')].reduce((height, node) => height + node.getBoundingClientRect().height + parseFloat(getComputedStyle(node).marginTop), 0)
+              const shared = n.querySelector('.cm-inspector-global')
+              const sharedHeight = shared?.getBoundingClientRect().height ?? 0
+              const layoutHeight = [shared, n.querySelector('.cm-preview-style-options')].filter(Boolean)
+                .reduce((height, node) => height + node.getBoundingClientRect().height + parseFloat(getComputedStyle(node).marginTop), 0)
               return { layoutHeight, side: panel.left >= scene.right - 1, top: Math.abs(panel.top - scene.top), height: panel.height, overflow: n.scrollWidth > n.clientWidth + 2,
-                switchHeight: n.querySelector('.cm-inspector-visibility').getBoundingClientRect().height }
+                sharedHeight, switchHeight: n.querySelector('.cm-inspector-visibility').getBoundingClientRect().height }
             })
             // Balance has one additional privacy switch (up to 40px); retain the other layout bounds.
             const controlsHeight = key === 'balance' ? 640 : 600
-            if (!(geometry.side && geometry.top < 4 && !geometry.overflow && geometry.switchHeight <= 40 && geometry.height - geometry.layoutHeight < controlsHeight)) {
+            if (!(geometry.side && geometry.top < 4 && !geometry.overflow && geometry.switchHeight <= 40 && geometry.sharedHeight < 180 && geometry.height - geometry.layoutHeight < controlsHeight)) {
               // Capture the failing selection before the finally block restores the fixture.
               await page.locator('.cm-preview-workspace').screenshot({ path: join(output, 'inspector-geometry-failure.png') })
             }
             assert.ok(geometry.side && geometry.top < 4 && !geometry.overflow, `${theme}/${width}/${name}/${key} stays in two bounded columns: ${JSON.stringify(geometry)}`)
+            assert.ok(geometry.sharedHeight < 180, 'sidebar-wide switches and layout trigger stay compact')
             assert.ok(geometry.switchHeight <= 40 && geometry.height - geometry.layoutHeight < controlsHeight, `${theme}/${width}/${name}/${key} controls stay compact with the layout picker expanded: ${JSON.stringify(geometry)}`)
           }
         }

@@ -80,7 +80,7 @@ window.__ModuleLoader__.load({
         try { return localStorage.getItem('dsh-cost-meter:display-examples') !== 'false' } catch { return true }
       })
       const previewData = React.useMemo(() => displayPreviewData(props.state, config, examples, selected, selectedPlan), [props.state, config, examples, selected, selectedPlan])
-      const renderPreviewSidebar = React.useCallback(preview => renderSidebar(preview, previewData.state), [renderSidebar, previewData.state])
+      const renderPreviewSidebar = React.useCallback(preview => renderSidebar(preview, previewData.state, examples), [renderSidebar, previewData.state, examples])
       const appearance = useDisplayAppearance()
       const labels = { balance: text('官方余额', 'Official balance'), budget: text('侧栏预算', 'Sidebar budget'), today: text('今日用量', 'Today’s usage'), peak: text('峰谷时段', 'Peak / off-peak'), models: text('模型花费', 'Model costs'), go: text('Go 额度', 'Go quota'), plan: text('套餐进度条', 'Plan bars'), customBalance: text('自定义余额', 'Custom balance'), codex: text('Codex 额度', 'Codex quota'), 'session-header': text('顶部费用明细', 'Header cost details'), 'dock-cost': text('输入框下方费用入口', 'Composer cost entry'), turn: text('每轮费用', 'Per-turn cost'), corner: text('右下角额度', 'Corner quota'), 'strip-budget': text('预算进度条', 'Budget strip'), 'strip-go': text('Go 进度条', 'Go strip'), 'strip-plans': text('套餐进度条', 'Plan strip') }
       labels.badge = text('会话费用摘要', 'Session cost summary')
@@ -130,7 +130,7 @@ window.__ModuleLoader__.load({
       const planConfig = config.codingPlans?.[selectedPlan] ?? {}
       const planOn = ['both', 'sidebar'].includes(planConfig.display ?? (selectedPlan === 'minimax' ? 'both' : 'settings'))
       registry.plan = { on: planOn, patch: { codingPlans: { ...config.codingPlans, [selectedPlan]: { ...planConfig, display: planOn ? 'settings' : 'both' } } } }
-      registry.customBalance = { on: ['both', 'sidebar'].includes(config.customBalance?.display ?? 'both'), patch: { customBalance: { ...config.customBalance, display: ['both', 'sidebar'].includes(config.customBalance?.display ?? 'both') ? 'settings' : 'both' } } }
+      registry.customBalance = { on: config.hideCustomBalance !== true, patch: { hideCustomBalance: config.hideCustomBalance !== true } }
       registry.codex = { on: config.codexQuotaEnabled === true && config.codexQuotaSidebar !== false, patch: config.codexQuotaEnabled === true && config.codexQuotaSidebar !== false ? { codexQuotaSidebar: false } : { codexQuotaEnabled: true, codexQuotaSidebar: true } }
       registry.sessionList = { on: config.sessionListCosts === true, patch: { sessionListCosts: config.sessionListCosts !== true } }
       registry.localSavings = { on: config.localSavings?.enabled === true, patch: { localSavings: { ...config.localSavings, enabled: config.localSavings?.enabled !== true } } }
@@ -158,7 +158,7 @@ window.__ModuleLoader__.load({
       }
       const sessionHeader = region === 'conversation' ? item('session-header', labels['session-header'], config.hideSessionCostHeader !== true,
         { hideSessionCostHeader: config.hideSessionCostHeader !== true },
-        el('span', { className: 'cm-btn cm-stat-entry' }, text('费用明细', 'Cost details'))) : null
+        el('span', { className: 'cm-btn cm-stat-entry cm-stat-header' }, text('费用明细', 'Cost details'))) : null
       const dockVisible = config.position === 'dock' && config.hideSessionCostDock !== true
       // 输入区费用入口与实际金额行使用相同的货币位置。
       const dockAmountText = t('sessionLineCompact', { amount: examples ? money(.32) : '—' })
@@ -187,7 +187,7 @@ window.__ModuleLoader__.load({
       if (region === 'composer') registry.models = { on: config.sidebarModels?.dock === true, patch: { sidebarModels: { ...config.sidebarModels, dock: config.sidebarModels?.dock !== true } } }
       const regions = [['sidebar', text('侧栏', 'Sidebar')], ['composer', text('输入区', 'Composer')], ['conversation', text('会话内容', 'Conversation')]]
       const scene = region === 'sidebar' ?
-        el(SidebarPreview, { renderSidebar: renderPreviewSidebar, config: previewData.config, selected, selectedPlan, select, labels,
+        el(SidebarPreview, { renderSidebar: renderPreviewSidebar, config: previewData.config, selected, selectedPlan, select, labels, examples,
           displayConfig: config, visibility: { balance: balanceOn, budget: registry.budget.on, today: todayOn,
             go: registry.go.on, peak: registry.peak.on, models: registry.models.on, plan: planOn, customBalance: registry.customBalance.on, codex: registry.codex.on, localSavings: registry.localSavings.on },
           onOrder: order => { if (Object.hasOwn(config, 'sidebarOrder')) set({ sidebarOrder: order }) },
@@ -389,7 +389,7 @@ window.__ModuleLoader__.load({
                 if (draft === null) return
                 setDraft({ ...draft, balance: { ...(draft.balance ?? { display: 'both', refreshMinutes: 5, showProgressBar: false, budgetCap: null }), budgetCap: v > 0 ? v : null } })
               }),
-              el('span', { className: 'cm-hint' }, text('留空则优先使用 API 返回的 max_budget;仍无则显示整条浅蓝', 'Leave empty to use API max_budget; if still missing, show full light-blue bar'))),
+              el('span', { className: 'cm-hint' }, text('留空时使用可用的额度上限。没有上限时仅显示余额。', 'When left blank, use the available cap. Without a cap, show the balance amount.'))),
             // 进度条方向(issue #67):四组条独立选择剩余/已用方向,默认保持各自原设计。
             el('div', { className: 'cm-field' },
               el('label', null, t('barDirectionsTitle')),

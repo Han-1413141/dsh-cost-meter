@@ -1,9 +1,10 @@
 /** On-demand subscription settings, including WorkBuddy account statistics. */
 window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-settings.js', factory: require => {
-  const { createElement: el, useState, useEffect, Fragment } = require('react')
+  const { createElement: el, useState, useEffect, useRef, Fragment } = require('react')
   const subscriptionCatalog = /* SUBSCRIPTION_CATALOG_SOURCE */ {}
   return { mount(helpers) {
-    const { useQuotaRefresh, miniMaxWindowsOf, MiniMaxPlanCard, barDirectionOf, quotaWindowRow, codingPlanWindowLabel, codingPlanWindowEntries, numInput, CredentialField, QuotaCard, resolveLocale, formatMoneyUsd, formatBalanceMoney, quotaPlacementValue, quotaPlacementPatch, quotaPlacementOptions } = helpers
+    const { useQuotaRefresh, miniMaxWindowsOf, MiniMaxPlanCard, barDirectionOf, quotaWindowRow, codingPlanWindowLabel, codingPlanWindowEntries, numInput, CredentialField, QuotaCard, resolveLocale, formatMoneyUsd, formatBalanceMoney, quotaPlacementValue, quotaPlacementPatch, quotaPlacementOptions, displayOptions, BalanceBar, segmentsForCustomBalance, customBalanceUnitOf, customBalanceDetailText, formatCustomBalanceMoney, resolveCustomBalanceLabel } = helpers
+    /* CUSTOM_BALANCE_EDITOR_SOURCE */
     function AccountCredentialField(props) {
       const { state, draft, setDraft, target, api } = props
       const text = (zh, en) => resolveLocale(state.config) === 'en' ? en : zh
@@ -330,6 +331,10 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
     }
 
 
-    return props => props.mode === 'credential' ? el(AccountCredentialField, props) : el(PlanQuotaCard, props)
+    return props => {
+      if (props.mode === 'credential') return el(AccountCredentialField, props)
+      if (props.mode === 'custom-balance') return el(CustomBalanceEntryPanel, props)
+      return el(PlanQuotaCard, props)
+    }
   } }
 } })

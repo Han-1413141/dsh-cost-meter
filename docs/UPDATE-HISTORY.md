@@ -1,5 +1,13 @@
 # dsh-cost-meter 版本更新历史
 
+## v1.9.74(2026-11-19)—— 余额显示、价格模板与界面调整
+
+- 更新微信交流 5 群二维码；余额缺少预算上限时只显示金额。
+- 支持复制自定义模型价格，调整显示设置和会话费用明细。
+- 在额度页加入 OpenAI API 赠送额度预估，验证 `dsh-codex-subscription` 3.2.24。
+
+[更新说明 / Release notes](update-notes-1.9.74.md)
+
 ## v1.9.73(2026-11-18)—— Magpie 官方价格补齐与长会话历史重算修复
 
 - 为旧版升级账本一次性补齐 `deepseek-flash` 官方模型条目，恢复 `magpie:deepseek/deepseek-flash` 自动匹配。
