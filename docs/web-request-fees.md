@@ -15,7 +15,9 @@ v1.9.16 读取 DSH `web.searchProvider`／`web.fetchProvider`，按调用开始�
 |---|---|
 | 官方独立 Search／Fetch API | 在 DSH 网页服务或工具执行期间观察真实成功响应，按上面的规则入账。支持直接工具调用及宿主网页服务调用。 |
 | DSH 的本地 HTTP 抓取后端 | 没有官方 Fetch API 请求就不增加次数费。模型随后阅读网页的 Token 仍由正常用量记录计费。 |
-| 旧版 Messages／服务端内置搜索 | 保留模型 Token 费用。观察到成功且有结果的服务端搜索时，按实际调用另记请求：北京时间 2026 年 11 月 1 日 00:00 前免请求费，此后每次 ¥0.005；没有成功证据时不估补。 |
+| 旧版 Messages／服务端内置搜索 | 保留模型 Token 费用。成功且有结果的搜索保留次数。次数费仅适用于北京时间 2026 年 11 月 1 日 00:00 至 11 月 18 日 12:00 前，每次 ¥0.005。 |
+
+如果旧版已将 11 月 18 日 12:00 起的服务端搜索次数费计入累计统计，可在「价格 → 历史费用」选择 `deepseek-official:deepseek-search-server` 后重算。重算会备份账本，仅调整请求日志与账本用量一致的会话日期记录。
 
 只有官方域名和精确端点被纳入上述固定单价，第三方渠道不会被强行套价。没有会话／工具作用域的独立进程请求不在此插件的观察范围。插件不主动发起搜索或抓取，不替换提供方，不自动重试，也不修改宿主网络策略。
 
@@ -36,7 +38,7 @@ npx --yes --package=dsh-cost-meter@1.9.49 dsh-cost-meter record-search --ledger 
 - `--count` 为已确认成功且尚未计费的请求数，1～10000；八条搜索结果仍是一条成功请求。
 - `--at` 为带时区的实际发生时间，不能晚于当前时间或早于最后一次清空历史。
 - `--id` 是本次补记的稳定标识。重试必须使用相同 ID 和参数；重复执行不会再次收费。不同 ID 视为不同补记，不能给同一批请求换 ID 重复执行。
-- `--source server-tool` 为默认值，按服务端工具收费起点计算；独立 Search API 使用 `--source search-api`。
+- `--source server-tool` 为默认值，按调用时间判断当时的服务端工具单价。独立 Search API 使用 `--source search-api`。
 - 只补请求费，不补模型 Token，不消除原覆盖缺口，不自动推断未观察到的请求是否成功。
 
 补记元数据保存在账本旁的 `ledger.json.native-search-manual/`；历史明细保留 `recordedBy: manual`。备份时一并保留账本、该目录及 `ledger.json.native-search/`。写入与正常计费共用账本锁、原子替换和请求去重；中断后可用原命令重试。
@@ -47,6 +49,6 @@ v1.8.35 meters the official standalone Search and Fetch endpoints separately fro
 
 Request fees use their own billing rows, remain API expenses, and retain historical exchange rates. They do not add tokens or inherit model multipliers, peak discounts or subscriptions. Observations are limited to exact official endpoints in DSH web/tool execution scopes; local HTTP fetching and third-party providers are not assigned this price. Journals contain no queries, URLs, page bodies or credentials. The plugin makes no search/fetch requests itself.
 
-Legacy Messages search retains model-token accounting. Observed successful server-side searches have a request-fee waiver until November 1, 2026 at 00:00 Beijing time, then cost CNY 0.005 per request. Selection is read from DSH’s live web settings and snapshotted at call start; historical records retain their source and rate. Presentation items alone do not create charges. See the [official billing rules](https://api-docs.deepseek.com/guides/search/).
+Legacy Messages search retains model-token accounting. Successful server-side searches cost CNY 0.005 per request from November 1, 2026 at 00:00 up to November 18 at 12:00, Beijing time. Only model tokens are billed after that. To correct previously recorded fees, select `deepseek-official:deepseek-search-server` under Pricing → Historical pricing and recalculate. Recalculation backs up the ledger and updates records whose request logs match the ledger. See the [official pricing rules](https://api-docs.deepseek.com/zh-cn/quick_start/pricing/).
 
 The `record-search` command previews confirmed missing successful search fees; add `--apply` to persist them. Reuse the same `--id`, timestamp, count and session when retrying. `--source server-tool` observes the server-tool waiver; `--source search-api` selects direct Search API fees. The command never infers successful counts from coverage gaps and never fabricates model tokens. Manual records and metadata are retained next to the ledger.

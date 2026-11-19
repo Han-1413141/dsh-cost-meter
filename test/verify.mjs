@@ -6912,6 +6912,7 @@ function m_costOf85(entry, tokens) {
 }
 
 await import('./aliyun-balance.mjs')
+await import('./plan-quota-integration.mjs')
 await import('./tokenrhythm-balance.mjs')
 await import('./gateway-retry.mjs')
 await import('./cache-lifecycle.mjs')

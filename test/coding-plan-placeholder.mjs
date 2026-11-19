@@ -81,7 +81,8 @@ for (const { id } of ui.CODING_PLAN_ROWS) for (const wide of [false, true]) {
     if (!wide) assert.equal(text(card), '—', 'collapsed sidebar has a compact placeholder')
     else assert.match(text(card), live?.status === 'error' ? /查询失败/
       : live?.status === 'loading' ? /刷新中/
-      : live?.status === 'ok' ? /暂无额度数据/ : /未查询额度/)
+      : live?.status === 'ok' ? /暂无额度数据/
+      : id === 'zai' && live?.message ? /请配置 Coding Plan API Key/ : /未查询额度/)
   }
   for (const entry of [{ enabled: false }, { display: 'settings' }, { display: 'off' }]) {
     assert.equal(ui.renderSidebarFooter(stateWith(id, unavailable[1], 'zh', entry), wide), null,
@@ -100,7 +101,7 @@ for (const id of ['minimax', 'zai']) {
     return new Promise((resolve, fail) => { fulfill = resolve; reject = fail })
   } }
   const instance = mount(component, { id, state, wide: true, api })
-  assert.match(text(instance.tree), /Quota not queried/)
+  assert.match(text(instance.tree), id === 'zai' ? /Coding Plan API key required/ : /Quota not queried/)
   cardOf(instance.tree).props.onClick()
   await instance.flush()
   assert.equal(calls, 1)

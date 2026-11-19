@@ -281,7 +281,7 @@
           const raw = Array.isArray(v.gatewayQuotas) ? v.gatewayQuotas : v.gatewayQuotas?.sources
           const sources = Array.isArray(raw) ? raw.slice(0, 4).filter(x => x !== null && typeof x === 'object' && !Array.isArray(x)).map(x => ({
             id: typeof x.id === 'string' ? x.id.slice(0, 48) : '',
-            type: 'cliproxyapi',
+            type: x.type === 'agy-link' ? 'agy-link' : 'cliproxyapi',
             label: typeof x.label === 'string' ? x.label.slice(0, 80) : '',
             baseURL: typeof x.baseURL === 'string' ? x.baseURL : '',
             enabled: x.enabled !== false,
@@ -403,7 +403,7 @@
       const n = x => numOrNull(x)
       const windowOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { id: s0(x.id), label: s0(x.label), ...(n(x.percent) === null ? {} : { percent: n(x.percent) }), resetsAt: s0(x.resetsAt), periodHours: n(x.periodHours), scope: s0(x.scope) } : null
       const creditsOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { unit: s0(x.unit, 'credits'), used: n(x.used), remaining: n(x.remaining), limit: n(x.limit), fetchedAt: s0(x.fetchedAt), packages: Array.isArray(x.packages) ? x.packages.filter(p => p !== null && typeof p === 'object' && !Array.isArray(p)).map(p => ({ id: s0(p.id), label: s0(p.label), used: n(p.used), remaining: n(p.remaining), limit: n(p.limit), startsAt: s0(p.startsAt), resetsAt: s0(p.resetsAt) })) : [] } : undefined
-      return { id: s0(v.id), type: 'cliproxyapi', label: s0(v.label), status: gatewaySourceStatuses.has(v.status) ? v.status : 'error', message: s0(v.message), fetchedAt: n(v.fetchedAt) ?? 0, attemptedAt: n(v.attemptedAt) ?? 0, serverVersion: s0(v.serverVersion), keyConfigured: v.keyConfigured === true, keySource: s0(v.keySource, 'none'), accounts: Array.isArray(v.accounts) ? v.accounts.filter(a => a !== null && typeof a === 'object' && !Array.isArray(a)).slice(0, 16).map(a => ({ id: s0(a.id), provider: s0(a.provider, 'unknown'), label: s0(a.label, 'unknown'), status: gatewayAccountStatuses.has(a.status) ? a.status : 'unknown', message: s0(a.message), plan: s0(a.plan), windows: Array.isArray(a.windows) ? a.windows.map(windowOf).filter(Boolean) : [], credits: creditsOf(a.credits) })) : [], unsupportedProviders: Array.isArray(v.unsupportedProviders) ? v.unsupportedProviders.filter(x => typeof x === 'string').slice(0, 32) : [] }
+      return { id: s0(v.id), type: v.type === 'agy-link' ? 'agy-link' : 'cliproxyapi', label: s0(v.label), status: gatewaySourceStatuses.has(v.status) ? v.status : 'error', message: s0(v.message), fetchedAt: n(v.fetchedAt) ?? 0, attemptedAt: n(v.attemptedAt) ?? 0, serverVersion: s0(v.serverVersion), keyConfigured: v.keyConfigured === true, keySource: s0(v.keySource, 'none'), accounts: Array.isArray(v.accounts) ? v.accounts.filter(a => a !== null && typeof a === 'object' && !Array.isArray(a)).slice(0, 16).map(a => ({ id: s0(a.id), provider: s0(a.provider, 'unknown'), label: s0(a.label, 'unknown'), status: gatewayAccountStatuses.has(a.status) ? a.status : 'unknown', message: s0(a.message), plan: s0(a.plan), windows: Array.isArray(a.windows) ? a.windows.map(windowOf).filter(Boolean) : [], credits: creditsOf(a.credits) })) : [], unsupportedProviders: Array.isArray(v.unsupportedProviders) ? v.unsupportedProviders.filter(x => typeof x === 'string').slice(0, 32) : [] }
     }
     function parsePlanStats(v) {
       if (v === null || typeof v !== 'object' || Array.isArray(v)) return null
@@ -2286,6 +2286,9 @@
     // 参数化(custom, entryCfg);旧调用路径(全局 customBalance)由外层包装传入。
     function customBalanceDetailText(custom, config, t, state, entryCfg = null) {
       const remaining = formatCustomBalanceMoney(custom.remaining, config, custom, entryCfg)
+      if ((entryCfg ?? config?.customBalance)?.adapter === 'aliyun' && custom.message) {
+        return t('customBalanceRemaining', { amount: remaining }) + ' · ' + custom.message
+      }
       if (entryCfg?.adapter === 'openai-credits') {
         const format = amount => formatCustomBalanceMoney(amount, config, custom, entryCfg)
         return t('openAiCreditSummary', { total: format(custom.maxBudget), used: format(custom.spend), remaining, expiry: entryCfg.grantExpiry })
@@ -2978,8 +2981,9 @@
     function codingPlanPlaceholder(id, title, live, t, wide, refresh) {
       const status = refresh.busy || live?.status === 'loading' ? t('refreshing')
         : refresh.err || live?.status === 'error' ? t('queryFailed')
+        : id === 'zai' && live?.status === 'off' && live?.message ? t(live.keyConfigured ? 'queryFailed' : 'zaiPlanKeyMissing')
         : live?.status === 'ok' ? t('gatewayQuotaEmpty') : t('codingPlanNotQueried')
-      const detail = [title, status, live?.message, ...clickRefreshTipLines(t, refresh)].filter(Boolean).join('\n')
+      const detail = [title, status, live?.message === status ? '' : live?.message, ...clickRefreshTipLines(t, refresh)].filter(Boolean).join('\n')
       return el(Tooltip, { portal: true, label: el('span', { style: { whiteSpace: 'pre-line' } }, detail), side: 'right', delayMs: 300 },
         el('div', {
           'data-cm-display': 'plan', 'data-cm-plan': id, 'aria-label': detail,
@@ -3314,20 +3318,22 @@
       const t = makeT(resolveLocale(state.config))
       const [selection, setSelection] = useState(() => ({ source: source.id, id: readGatewayAccountLS(source.id) }))
       const refresh = useClickRefresh(api ? () => api.refreshGatewayQuota(source.id) : null)
-      const direction = barDirectionOf(state.config, 'plan')
+      const agyLink = source.type === 'agy-link'
+      const direction = agyLink ? 'remaining' : barDirectionOf(state.config, 'plan')
+      const maxRows = agyLink ? 10 : 4
       const multi = snapshot.accounts.length > 1
       const selectedId = selection.source === source.id ? selection.id : readGatewayAccountLS(source.id)
       const selectedIdx = snapshot.accounts.findIndex(a => a.id === selectedId)
       const activeIdx = selectedIdx >= 0 ? selectedIdx : Math.max(0, snapshot.accounts.findIndex(a => a.windows.length > 0 || a.credits != null))
       const currentAccount = snapshot.accounts[activeIdx] ?? snapshot.accounts[0]
       const currentAccountName = currentAccount?.label || currentAccount?.id || ''
-      const prefix = account => multi ? (GATEWAY_PROVIDER_LABELS[account.provider] ?? account.provider) + ' · ' : ''
+      const prefix = account => multi && !agyLink ? (GATEWAY_PROVIDER_LABELS[account.provider] ?? account.provider) + ' · ' : ''
       const accountsToRender = multi && currentAccount ? [currentAccount] : snapshot.accounts
       const rows = []
       for (const account of accountsToRender) {
-        if (rows.length >= 4) break
+        if (rows.length >= maxRows) break
         for (const win of account.windows) {
-          if (rows.length >= 4) break
+          if (rows.length >= maxRows) break
           const name = prefix(account) + (win.label || win.id || t('gatewaySourceUnknown'))
           rows.push({ win, name, view: miniMaxRow(name, win, direction, t) })
         }

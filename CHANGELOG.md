@@ -1,6 +1,13 @@
 # Changelog
 ## [Unreleased]
 
+## [1.9.75] - 2026-11-19
+
+- 修复 GLM Coding Plan 额度卡的查询状态，支持识别智谱官方助手为 Claude Code 配置的套餐凭据，并处理缺少有效百分比的额度响应。
+- 支持读取 `dsh-agy-link` 多账号 Antigravity 额度，按上游数据展示模型组、剩余百分比及重置时间。感谢 [@Rayawa](https://github.com/Rayawa) 在 [#536](https://github.com/Han-1413141/dsh-cost-meter/issues/536) 提出需求并提供上游接口线索。
+- 阿里云余额展示资金账户和符合条件的代金券余额。感谢 [@Strunus](https://github.com/Strunus) 在 [#535](https://github.com/Han-1413141/dsh-cost-meter/pull/535) 报告券账户余额显示为零并贡献查询实现。
+- 北京时间 11 月 18 日 12:00 起，DeepSeek 服务端搜索按官网停止收取次数费。历史费用支持按 `deepseek-official:deepseek-search-server` 单独重算。感谢 [@XinXinTang123](https://github.com/XinXinTang123) 在 [#537](https://github.com/Han-1413141/dsh-cost-meter/issues/537) 提供变更时间、日志字段及收费复现。
+
 ## [1.9.74] - 2026-11-19
 
 - 更新 GitHub 首页的微信交流 5 群二维码。

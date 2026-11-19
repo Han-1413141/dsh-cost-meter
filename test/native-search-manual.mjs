@@ -8,7 +8,7 @@ import { recordManualSearchFees } from '../lib/native-search-manual.js'
 import { nativeSearchRecordsFor } from '../lib/native-search-history.js'
 import { replaySessionRecords } from '../lib/backfill.js'
 const root = mkdtempSync(join(tmpdir(), 'cm-manual-search-')), path = join(root, 'ledger.json')
-const at = new Date(Date.now() - 60_000).toISOString(), options = { id: 'confirmed-searches', count: 3, at, session: 's' }
+const at = '2026-11-17T12:00:00+08:00', options = { id: 'confirmed-searches', count: 3, at, session: 's' }
 try {
   const ledger = new Ledger(sanitizeConfig({}), {}, path)
   ledger.account({ input: 50 }, 'deepseek-flash', 'existing', Date.now(), 'deepseek')
@@ -50,6 +50,7 @@ try {
   assert.equal(after.sumDays().calls, 7, 'retry accounts the interrupted correction once')
   await after.close()
   assert.equal(recordManualSearchFees(path, { ...options, id: 'free-period', at: '2026-10-31T12:00:00+08:00' }).amountCny, 0)
+  assert.equal(recordManualSearchFees(path, { ...options, id: 'free-again', at: '2026-11-18T12:00:00+08:00' }).amountCny, 0)
   assert.equal(recordManualSearchFees(path, { ...options, source: 'search-api', id: 'direct-search', at: '2026-10-31T12:00:00+08:00' }).amountCny, .015)
   for (const patch of [{ count: 0 }, { count: 1.5 }, { at: '2026-11-02' }, { source: 'unknown' }, { id: '../bad' }]) {
     assert.throws(() => recordManualSearchFees(path, { ...options, ...patch }))

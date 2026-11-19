@@ -30,6 +30,8 @@ The global exchange rate converts **USD to the display currency**. CNY/EUR sourc
 
 For Qianwen / Alibaba Cloud fund accounts, use **Add Qianwen / Alibaba Cloud balance** to query available funds with a RAM AccessKey signature. The card uses the currency returned by the API. See the [setup, permissions and balance definition](qianwen-balance.md#english).
 
+**Cash coupons.** The card totals fund-account availability and active, same-currency coupons eligible for general or Model Studio pay-as-you-go use. It uses each coupon’s remaining `Balance`. The card identifies incomplete or unavailable coupon data. Grant `bss:DescribeBillingAccount` for the fund account and `bss:DescribeCoupons` for coupon lookup. Alibaba Cloud determines the actual deduction at billing time.
+
 Qwen Token Plan can use the [official CLI subscription quota](qwen-cli-quota.md#english). Install the CLI on the DSH host and run `qianwen auth login` as the same OS user. Local estimates remain the default; CLI mode shows current account credits without changing the local ledger.
 
 Local Qwen Token Plan credits include Plan calls assigned to Qwen. Existing subscription aliases such as `qwen` and `qwen-tokenplan` remain supported; custom providers can select Qwen under Model statistics → Billing class, or use an explicit vendor name and plan marker for auto detection. Explicit API calls are excluded. The pay-as-you-go `qianwen` provider is not assigned merely because its model ID is identical. Models outside the credits table need all three rates configured.

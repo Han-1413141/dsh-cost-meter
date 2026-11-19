@@ -28,6 +28,8 @@
 
 千问 / 阿里云资金账户余额可直接点击「添加千问 / 阿里云余额」，使用 RAM AccessKey 签名查询，显示接口返回的可用金与币种；配置步骤、所需权限及口径见[千问余额说明](qianwen-balance.md)。
 
+**代金券。** 卡片汇总资金账户可用额度和币种一致、当前可用于通用或百炼按量付费的有效券余额。券按 `Balance` 统计。券数据不完整或查询失败时，卡片会提示当前金额的范围。查询资金账户需要 `bss:DescribeBillingAccount`，查询券需要 `bss:DescribeCoupons`。实际抵扣以阿里云账单为准。
+
 千问 Token Plan 可在卡片内选择[官方 CLI 订阅额度](qwen-cli-quota.md)，需在 DSH 主机以同一系统账号安装 CLI 并运行 `qianwen auth login`。默认保留本地估算；CLI 模式显示账号当前 Credits，不修改本地账本。
 
 千问 Token Plan 的本地 Credits 统计归属千问套餐的 Plan 调用。保留 `qwen`、`qwen-tokenplan` 等订阅别名，自定义渠道也可在「按模型统计 → 计费方式」选择千问套餐，或使用明确的厂商名与套餐特征自动识别。显式 API 调用不计；`qianwen` 按量渠道不会仅因同名模型自动归入。模型不在抵扣表中时需补充三项费率。
