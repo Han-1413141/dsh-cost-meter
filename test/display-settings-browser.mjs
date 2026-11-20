@@ -47,7 +47,7 @@ const code = `
 import * as ReactDOMPortal from ${literal(req.resolve('react-dom'))};import React from ${literal(req.resolve('react'))};import{createRoot}from ${literal(req.resolve('react-dom/client'))};
 const h=React.createElement;
 const tooltipText=value=>Array.isArray(value)?value.map(tooltipText).join(' '):typeof value==='string'||typeof value==='number'?String(value):value?.props?tooltipText(value.props.children):'';
-const mainRequire=name=>name==='react'?React:{Tooltip:({children,label})=>React.cloneElement(children,{'data-test-tooltip':tooltipText(label)})};mainRequire.async=async path=>{const chunk={'./client.plan-settings.js':window.planSettingsUI,'./client.local-savings.js':window.localSavingsUI,'./client.peak.js':window.peakUI,'./client.sidebar-icons.js':window.sidebarIconsUI}[path];if(!chunk)throw Error('Unexpected test chunk: '+path);return chunk};
+const mainRequire=name=>name==='react'?React:name==='react-dom'?ReactDOMPortal:{Tooltip:({children,label})=>React.cloneElement(children,{'data-test-tooltip':tooltipText(label)})};mainRequire.async=async path=>{const chunk={'./client.plan-settings.js':window.planSettingsUI,'./client.local-savings.js':window.localSavingsUI,'./client.peak.js':window.peakUI,'./client.sidebar-icons.js':window.sidebarIconsUI}[path];if(!chunk)throw Error('Unexpected test chunk: '+path);return chunk};
 window.__ModuleLoader__={load:mod=>window.mainUI=mod.factory(mainRequire)};
 ${client}
 window.__ModuleLoader__={load:mod=>window.planSettingsUI=mod.factory(()=>React)};
@@ -116,7 +116,40 @@ await page.exposeFunction('saveConfig', patch => {
 })
 try {
   await page.goto(url)
-  if (process.argv.includes('--quota-details-only')) {
+  if (process.argv.includes('--quota-sidebar-only')) {
+    const sidebar = page.locator('#actual-sidebar')
+    await page.getByRole('tab', { name: '额度', exact: true }).click()
+    const card = page.locator('[data-quota-plan="zai"]')
+    await card.locator('input[type=checkbox]').first().check()
+    await page.waitForFunction(() => window.current().codingPlans.zai.sidebarAfterSuccess === true)
+    assert.equal(await sidebar.locator('[data-cm-plan=zai]').count(), 0)
+    const success = () => page.evaluate(() => window.setFixtureState({ codingPlans: { zai: { status: 'ok', fetchedAt: Date.now(), windows: { fiveHour: { percent: 25 } } } } }))
+    await success()
+    await sidebar.locator('[data-cm-plan=zai]').first().waitFor({ state: 'attached' })
+    await card.locator('.cm-quota-sidebar input').uncheck()
+    await page.waitForFunction(() => window.current().codingPlans.zai.display === 'settings' && window.current().codingPlans.zai.enabled)
+    await page.reload()
+    await success()
+    await page.getByRole('tab', { name: '额度', exact: true }).click()
+    assert.equal(await card.locator('.cm-quota-sidebar input').isChecked(), false)
+    assert.equal(await sidebar.locator('[data-cm-plan=zai]').count(), 0)
+    await card.locator('.cm-quota-sidebar input').check()
+    await sidebar.locator('[data-cm-plan=zai]').first().waitFor({ state: 'attached' })
+    await page.getByRole('button', { name: '+ Fireworks.ai', exact: true }).click()
+    await page.waitForFunction(() => window.current().customBalances.some(row => row.adapter === 'fireworks' && row.request.headers.Authorization.includes('{{FIREWORKS_API_KEY}}')))
+    await page.getByRole('button', { name: '显示设置 →', exact: true }).click()
+    await page.locator('.cm-display').waitFor()
+    await page.evaluate(() => {
+      const panel = document.createElement('div'); panel.className = 'bt-leftcol'
+      panel.innerHTML = '<div class="bt-leftcol-foot"></div>'; document.body.append(panel)
+    })
+    await page.locator('.bt-leftcol .cm-bot-cost-mount [data-cm-plan=zai]').waitFor()
+    assert.equal(await sidebar.locator('[data-cm-plan=zai]').count(), 0)
+    await page.locator('.bt-leftcol').evaluate(node => node.remove())
+    await sidebar.locator('[data-cm-plan=zai]').waitFor({ state: 'attached' })
+    assert.deepEqual(errors, []); assert.deepEqual(external, [])
+    console.log('[ok] Quota signup, successful lookup, visibility persistence, Fireworks preset, Display settings and DS Bot switching')
+  } else if (process.argv.includes('--quota-details-only')) {
     console.log('[ok] quota details ' + JSON.stringify(await checkQuotaDetails(page, output)))
     assert.deepEqual(errors, []); assert.deepEqual(external, [])
   } else if (process.argv.includes('--icons-only')) {

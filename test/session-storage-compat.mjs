@@ -326,7 +326,7 @@ try {
   assert.equal(dbResult.inheritedEventCount, 3)
   assert.equal(dbResult.reason, 'sessionQuery')
   assert.equal(dbResult.records.length, persistedRows.length + 1)
-  assert.deepEqual(dbResult.records[0], { type: 'session', id: 'db-1', createdAt: at })
+  assert.deepEqual(dbResult.records[0], { type: 'session', id: 'db-1', createdAt: at, seedLength: 3 })
   assert.deepEqual(pagingPersistence.calls.reads, [0, 2, 3], '按 seq 分页 offset 前进')
   assert.equal(pagingPersistence.calls.close, 1, '读完必须 close 句柄')
 

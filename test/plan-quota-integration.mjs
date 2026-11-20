@@ -1,4 +1,8 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { webcrypto } from 'node:crypto'
+import vm from 'node:vm'
+import { queryCustomBalance } from '../lib/custom-balance.js'
 import { queryAgyLinkQuota } from '../lib/agy-link-quota.js'
 import { parseZaiUsage, queryCodingPlan } from '../lib/coding-plans.js'
 import { zaiClaudeCredential } from '../lib/zai-credentials.js'
@@ -45,6 +49,42 @@ assert.deepEqual(calls.slice(1), ['GET', 'POST', 'GET'])
 assert.ok(Math.abs(refreshed.accounts[0].windows[0].percent - 30) < 1e-9)
 assert.match((await queryAgyLinkQuota(base, { hostOrigin, fetchImpl: async () => new Response(null, { status: 404 }) })).message, /请安装/)
 
+const denied = await queryAgyLinkQuota(base, { hostOrigin, fetchImpl: async () => new Response(null, { status: 403 }) })
+assert.equal(denied.status, 'error')
+assert.match(denied.message, /403.*账号池/)
+const deniedRefresh = await queryAgyLinkQuota(base, { hostOrigin, force: true, fetchImpl: (url, init) =>
+  init.method === 'POST' ? new Response(null, { status: 403 }) : fetchImpl(url, init) })
+assert.equal(deniedRefresh.status, 'partial')
+assert.equal(deniedRefresh.accounts.length, 3)
+assert.match(deniedRefresh.message, /403/)
+
+const desktopCalls = []
+let desktopModule
+const window = { __ModuleLoader__: { load: chunk => { desktopModule = chunk.factory() } }, fetch: async (path, init) => {
+  assert.equal(init.mode, 'same-origin')
+  assert.equal(init.credentials, 'same-origin')
+  assert.equal(init.redirect, 'error')
+  desktopCalls.push(path)
+  if (init.method === 'POST') return Response.json({ ok: true })
+  return fetchImpl(hostOrigin + path, init)
+} }
+vm.runInNewContext(readFileSync(new URL('../lib/client.agy-quota.js', import.meta.url), 'utf8'),
+  { window, crypto: webcrypto, TextEncoder, TextDecoder, AbortController, AbortSignal, setTimeout })
+let notify
+const updated = new Promise(resolve => { notify = resolve })
+const desktop = desktopModule.mount(notify)
+const desktopState = { config: config.config, gatewayQuotas: [denied] }
+desktop.decorate(desktopState, 'zh')
+await updated
+const publicRow = desktop.decorate(desktopState, 'zh').gatewayQuotas[0]
+assert.equal(publicRow.accounts.length, 3)
+assert.doesNotMatch(JSON.stringify(publicRow), /private-path|private@example|raw-one/)
+assert.equal((await desktop.refresh(source.id)).ok, true)
+assert.deepEqual(desktopCalls, ['/plugins/agy-link/pool', '/plugins/agy-link/pool', '/plugins/agy-link/pool/refresh-quota', '/plugins/agy-link/pool'])
+desktop.decorate({ config: { gatewayQuotas: { sources: [] } }, gatewayQuotas: [denied] }, 'zh')
+assert.equal(desktop.refresh(source.id), null)
+desktop.dispose()
+
 const key = zaiClaudeCredential({ ANTHROPIC_BASE_URL: 'https://open.bigmodel.cn/api/anthropic/', ANTHROPIC_AUTH_TOKEN: 'TEST_PLAN_KEY' })
 assert.equal(zaiClaudeCredential({ ANTHROPIC_BASE_URL: 'https://third-party.test', ANTHROPIC_AUTH_TOKEN: 'TEST_PLAN_KEY' }), null)
 const quota = { code: 200, success: true, data: { limits: [
@@ -62,5 +102,19 @@ try {
   }
   const result = await queryCodingPlan('zai', key, 'zh', (_, code) => code)
   assert.equal(result.windows.fiveHour.percent, 15)
+  const entry = { adapter: 'fireworks', enabled: true, label: 'Fireworks.ai', unit: 'USD', channels: ['fireworks'],
+    allowedHosts: ['wallet.example'], request: { url: 'https://wallet.example/balance', method: 'GET', headers: { Authorization: 'Bearer {{FIREWORKS_API_KEY}}' } }, extract: { remaining: 'wallet.available' } }
+  const ctx = { get: name => name === 'credentials' ? { resolve: async () => ({ value: 'fixture-only' }) } : undefined }
+  let requests = 0
+  globalThis.fetch = async (url, init) => {
+    requests++; assert.equal(url, entry.request.url)
+    assert.equal(init.headers.Authorization, 'Bearer fixture-only')
+    return Response.json({ wallet: { available: 0 }, spend: 100 })
+  }
+  assert.equal((await queryCustomBalance(ctx, { customBalance: entry })).remaining, 0)
+  for (const change of [{ allowedHosts: [] }, { request: { ...entry.request, url: 'http://wallet.example/balance' } }]) {
+    await assert.rejects(queryCustomBalance(ctx, { customBalance: { ...entry, ...change } }), /HTTPS/)
+  }
+  assert.equal(requests, 1)
 } finally { globalThis.fetch = originalFetch }
 console.log('[ok] Antigravity pool quotas and GLM official helper credentials')

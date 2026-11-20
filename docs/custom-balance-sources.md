@@ -246,3 +246,11 @@ Magpie 的 `/v1/magpie/quotas` 会返回多个 provider 和多个账号；`sum` 
 Magpie 在本机运行（默认 `127.0.0.1:3425`）时无需 API Key；若 Magpie 在其它主机或开启了鉴权，请把 URL 改成实际地址，在请求头加入 `Authorization: Bearer {{MAGPIE_API_KEY}}`，在白名单填写准确的 `主机:端口`，然后在凭据输入框保存该密钥。优先使用 HTTPS；只有访问非回环 HTTP 地址时才勾选「允许非回环 HTTP」。查询只读取 Magpie 已有统计，不发模型请求。
 
 该预设不依赖官方 WorkBuddy 桌面登录或 WorkBuddy 连接插件；已经安装 `dsh-magpie-quota` 的用户也可以继续使用那个插件，二者展示互不影响。
+
+## Fireworks.ai
+
+在「费用 → 额度」点击「+ Fireworks.ai」，展开卡片，填写返回剩余余额的完整 HTTPS 地址、对应的允许主机及 JSON 字段。预设使用 USD 和 `FIREWORKS_API_KEY` 凭据，默认允许 `api.fireworks.ai`。自有网关请改用该网关对应的主机和凭据。若接口返回 `{"wallet":{"available":12.5}}`，将解析规则设为 `{"remaining":"wallet.available"}`。启用后可手动刷新，查询成功后在侧栏显示；卡片上的开关控制侧栏可见性。
+
+Fireworks 的公开账单摘要提供按时间段统计的费用。插件将余额接口留给用户填写；可直接在 Fireworks 控制台查看预付费余额。[官方账单接口](https://docs.fireworks.ai/api-reference/get-billing-summary) · [预付费说明](https://docs.fireworks.ai/faq-new/billing-pricing/how-does-billing-and-credit-usage-work)
+
+In **Cost → Quotas**, add **Fireworks.ai** and configure a trusted HTTPS endpoint returning your remaining balance. Enter its exact allowed hostname and the JSON path for the remaining amount. Save the endpoint credential in DSH, then enable the source. The result shows the balance, its unit and the last successful lookup time. Fireworks' documented billing summary reports spending over a date range. The billing console is available from the card.

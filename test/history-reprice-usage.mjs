@@ -69,6 +69,28 @@ try {
   const again = await recomputeLedgerPricingBasis(ledger, root, undefined, null, true, key)
   assert.ok(Math.abs(again.after - result.after) < 1e-9, 'repeated recalculation does not change totals')
 
+  // #544: the title plugin records its route and start, but omits the usage.
+  const titleId = 'title-and-failed-attempt'
+  const header = { type: 'request/header', time: at, data: { header: { config: { provider: 'apikey-gpt', model: 'gpt-6.1-sol' } } } }
+  const message = { type: 'assistant/message', time: at + 3, seq: 6, data: { turn: 1, step: 1, usage: { inputTokens: 100 } } }
+  const title = { type: 'session/title-llm-request', time: at + 4, seq: 7, data: { route: header.data.header.config } }
+  const attempt = { type: 'assistant/attempt', time: at + 2, seq: 5, data: { turn: 1, step: 1,
+    stream: [{ chunk: { type: 'usage', usage: { inputTokens: 30 } } }] } }
+  const titleRecords = [{ type: 'session', id: titleId, createdAt: at, parentSession: 'parent', seedLength: 3 }, header,
+    { ...message, seq: 2, time: at, data: { ...message.data, usage: { inputTokens: 888 } } }, attempt, message, title]
+  const titleSource = { listSessions: async () => [{ id: titleId }], readRecords: async () => titleRecords.slice() }
+  for (const input of [30, 100, 20]) ledger.account({ input }, 'gpt-6.1-sol', titleId, at, 'apikey-gpt')
+  ledger.config = sanitizeConfig({ ...config, prices: { ...config.prices, custom: { [key]: { currency: 'CNY', cacheHit: 1, cacheMiss: 9, output: 10 } } } })
+  const checkTitle = () => recomputeLedgerPricingBasis(ledger, root, undefined, new Set([titleId]), true, key, titleSource)
+  const titleResult = await checkTitle()
+  assert.equal(titleResult.recostedSessions, 1)
+  const titleRow = day.sessions.find(row => row.id === titleId)
+  assert.equal(titleRow.calls, 3)
+  assert.ok(Math.abs(titleRow.costCny - 150 * 9 / 1e6) < 1e-9)
+  assert.equal((await checkTitle()).after, titleResult.after)
+  titleRecords.push({ ...title, seq: 8 })
+  assert.equal((await checkTitle()).skippedDetails[0].reason, 'auxiliaryUsage')
+
   // Search request fees are not Token-priced: a missing zero-Token call must still block replacement.
   const feeKey = 'deepseek-official:deepseek-search-api', feeId = 'request-fee'
   const requestFee = { kind: 'search', requests: 1, rateCny: .005 }
