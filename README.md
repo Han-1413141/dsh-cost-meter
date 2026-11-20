@@ -3,7 +3,7 @@
 <p align="center">Cost tracking and subscription quotas for DeepSeek Harness</p>
 
 <p align="center">
-  <a href="https://github.com/Han-1413141/dsh-cost-meter/releases/latest"><img src="https://img.shields.io/badge/version-1.9.80-4176E6?style=flat-square" alt="version"></a>
+  <a href="https://github.com/Han-1413141/dsh-cost-meter/releases/latest"><img src="https://img.shields.io/badge/version-1.9.81-4176E6?style=flat-square" alt="version"></a>
   <a href="https://www.npmjs.com/package/dsh-cost-meter"><img src="https://img.shields.io/npm/dm/dsh-cost-meter?label=downloads&style=flat-square&color=4176E6" alt="npm monthly downloads"></a>
   <a href="https://github.com/Han-1413141/dsh-cost-meter/stargazers"><img src="https://img.shields.io/github/stars/Han-1413141/dsh-cost-meter?label=stars&style=flat-square&color=D9A400" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT license"></a>
@@ -42,20 +42,20 @@ Restart `dsh web` after installation or updates. **Desktop** uses its bundled CL
 The PowerShell installer checks pnpm and Git and uses the `web` profile by default:
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.80/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.81/install.ps1 | iex
 ```
 
 Install a pinned Git tag:
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.80
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.81
 ```
 
 See [installation and updates](docs/install.en.md) for uninstalling or installing without Git.
 
 </details>
 
-Current release **v1.9.80**: [release notes](docs/release-notes/v1.9.80.md) · [troubleshooting](docs/install-troubleshooting.md)
+Current release **v1.9.81**: [release notes](docs/release-notes/v1.9.81.md) · [troubleshooting](docs/install-troubleshooting.md)
 
 ## Feature overview
 
@@ -69,6 +69,29 @@ Current release **v1.9.80**: [release notes](docs/release-notes/v1.9.80.md) · [
 See [features and screenshots](docs/features.en.md) for entry points and [model and plan support](docs/model-and-plan-adaptation.en.md) for providers and credentials.
 
 ## Screenshots & walkthrough
+
+### Sidebar layouts
+
+Switch layouts under **Settings → Cost → Display → Sidebar → Sidebar layout**. Each screenshot uses the same example balance, quota and usage.
+
+| Standard | Compact |
+|:---:|:---:|
+| [![Standard sidebar with stacked quota rows](docs/images/sidebar-standard-en.png)](docs/images/sidebar-standard-en.png) | [![Compact sidebar with two-column quota rows](docs/images/sidebar-compact-en.png)](docs/images/sidebar-compact-en.png) |
+
+| Simple | Combined card |
+|:---:|:---:|
+| [![Simple sidebar with shorter rows](docs/images/sidebar-simple-en.png)](docs/images/sidebar-simple-en.png) | [![Combined sidebar card with usage, balance and pricing period](docs/images/sidebar-summary-en.png)](docs/images/sidebar-summary-en.png) |
+
+<details>
+<summary>Icons layout</summary>
+
+Select an icon to open its details.
+
+[![Sidebar with a combined balance and pricing period icon, plus quota and usage icons](docs/images/sidebar-icons-en.png)](docs/images/sidebar-icons-en.png)
+
+</details>
+
+### Other views
 
 | Cost trends and model ranking | Conversation cost distribution |
 |---|---|

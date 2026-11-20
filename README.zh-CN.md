@@ -3,7 +3,7 @@
 <p align="center">DeepSeek Harness 费用统计与订阅额度插件</p>
 
 <p align="center">
-  <a href="https://github.com/Han-1413141/dsh-cost-meter/releases/latest"><img src="https://img.shields.io/badge/version-1.9.80-4176E6?style=flat-square" alt="version"></a>
+  <a href="https://github.com/Han-1413141/dsh-cost-meter/releases/latest"><img src="https://img.shields.io/badge/version-1.9.81-4176E6?style=flat-square" alt="version"></a>
   <a href="https://www.npmjs.com/package/dsh-cost-meter"><img src="https://img.shields.io/npm/dm/dsh-cost-meter?label=downloads&style=flat-square&color=4176E6" alt="npm monthly downloads"></a>
   <a href="https://github.com/Han-1413141/dsh-cost-meter/stargazers"><img src="https://img.shields.io/github/stars/Han-1413141/dsh-cost-meter?label=stars&style=flat-square&color=D9A400" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT license"></a>
@@ -42,20 +42,20 @@ dsh plugin --profile web add dsh-cost-meter
 PowerShell 脚本自动检查 pnpm 和 Git，默认安装到 `web` Profile：
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.80/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.81/install.ps1 | iex
 ```
 
 固定 Git tag 安装：
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.80
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.81
 ```
 
 更新、卸载及无 Git 的安装方法见[安装说明](docs/install.md)。
 
 </details>
 
-当前版本 **v1.9.80**：[更新说明](docs/release-notes/v1.9.80.md) · [安装排障](docs/install-troubleshooting.md)
+当前版本 **v1.9.81**：[更新说明](docs/release-notes/v1.9.81.md) · [安装排障](docs/install-troubleshooting.md)
 
 ## 功能总览
 
@@ -69,6 +69,29 @@ dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.80
 功能入口和配置见[功能与截图](docs/features.md)；厂商、模型及凭据要求见[适配说明](docs/model-and-plan-adaptation.md)。
 
 ## 图文演示
+
+### 侧栏布局
+
+在 **设置 → 费用 → 显示 → 侧栏 → 侧栏布局** 中切换。各张截图使用同一组示例余额、套餐额度和用量。
+
+| 标准 | 紧凑 |
+|:---:|:---:|
+| [![标准布局，套餐额度纵向排列](docs/images/sidebar-standard-zh.png)](docs/images/sidebar-standard-zh.png) | [![紧凑布局，套餐额度两列排列](docs/images/sidebar-compact-zh.png)](docs/images/sidebar-compact-zh.png) |
+
+| 简洁 | 合并卡片 |
+|:---:|:---:|
+| [![简洁布局，以短行显示用量和额度](docs/images/sidebar-simple-zh.png)](docs/images/sidebar-simple-zh.png) | [![合并卡片布局，同一张卡片显示用量、余额和峰谷时段](docs/images/sidebar-summary-zh.png)](docs/images/sidebar-summary-zh.png) |
+
+<details>
+<summary>图标布局</summary>
+
+点击图标可展开对应明细。
+
+[![侧栏图标布局，包含余额与峰谷图标、套餐额度图标和今日用量图标](docs/images/sidebar-icons-zh.png)](docs/images/sidebar-icons-zh.png)
+
+</details>
+
+### 其他界面
 
 | 费用趋势与模型排行 | 单个会话费用分布 |
 |---|---|
