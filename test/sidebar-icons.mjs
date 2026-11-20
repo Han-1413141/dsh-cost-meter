@@ -292,4 +292,13 @@ const offLoader = core.renderSidebarFooter(offState, true).children[0]
 const offTrigger = walk(Component({ ...offLoader.props, preview: true })).find(node => node.type === 'button' && node.props['data-cm-icon-key'] === 'balance')
 assert.equal(offTrigger.children.find(node => node?.props?.className === 'cm-icons-amount'), undefined, 'no amount when the snapshot is not ok')
 assert.equal(offTrigger.props['data-unavailable'], true, 'failed balance is flagged on the icon')
+// A custom balance reports remaining/unit (possibly CREDITS); inline-amounting it here would mix
+// units and could print a non-zero balance as zero, so it stays disclosure-only.
+const customOnlyState = { ...state, balance: { status: 'off' }, customBalance: { status: 'ok', label: 'Custom', unit: 'CREDITS', remaining: 42, maxBudget: null, spend: null } }
+const customOnlyLoader = core.renderSidebarFooter({ ...customOnlyState, config: { ...config, customBalance: { enabled: true, display: 'sidebar' } } }, true)?.children?.[0]
+const customTrigger = customOnlyLoader && walk(Component({ ...customOnlyLoader.props, preview: true })).find(node => node.type === 'button' && node.props['data-cm-icon-key'] === 'customBalance')
+if (customTrigger) {
+  assert.equal(customTrigger.children.find(node => node?.props?.className === 'cm-icons-amount'), undefined, 'custom balance keeps its amount inside the disclosure')
+  assert.doesNotMatch(String(customTrigger.props['aria-label']), /\b0\b/, 'custom balance never renders a misleading zero')
+}
 console.log('[ok] merged DeepSeek icon: peak folded into balance, one phase tone, persistent amount, no silent slot loss')

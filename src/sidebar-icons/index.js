@@ -38,15 +38,18 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * Balance stays visible beside its icon, using the same snapshot and formatter as the
-     * original balance row. Multiple official accounts in the same currency are summed for the
-     * single icon label; the disclosure still lists every account row separately. Hidden or
-     * failed snapshots contribute nothing rather than a misleading zero.
+     * Official balance amount shown beside the merged icon, using the same snapshot and formatter
+     * as the original balance row. Multiple official accounts are summed for the single label; the
+     * disclosure still lists every account row separately. Failed snapshots contribute nothing
+     * rather than a misleading zero.
+     *
+     * Custom balances stay disclosure-only: their snapshots carry `remaining`/`unit` (including
+     * CREDITS) instead of `totalBalance`/`currency`, so reading them here would mix units and
+     * render a non-zero balance as zero.
      */
     function balanceIconAmount(slot, state, config, formatBalanceMoney) {
-      const rows = slot.kind === 'customBalance'
-        ? [state.customBalance, ...(state.customBalances ?? [])].filter(row => row?.status === 'ok')
-        : (state.balanceAccounts?.length > 1 ? state.balanceAccounts : [state.balance]).filter(row => row?.status === 'ok')
+      if (slot.kind !== 'balance') return null
+      const rows = (state.balanceAccounts?.length > 1 ? state.balanceAccounts : [state.balance]).filter(row => row?.status === 'ok')
       if (!rows.length) return null
       const total = rows.reduce((sum, row) => sum + (Number(row.totalBalance) || 0), 0)
       const currency = rows[0]?.currency

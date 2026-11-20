@@ -22,8 +22,10 @@ export async function checkSidebarIcons(page, output) {
       assert.ok(await svg.locator('path').count() > 0)
     }
     const placement = await sidebar.locator('.cm-icons-list').evaluate(list => {
-      const value = list.querySelector('.cm-icons-amount').getBoundingClientRect()
+      // The balance icon now renders its own inline amount, so the amount under test must be the
+      // one inside the today group rather than the first match in the list.
       const group = list.lastElementChild
+      const value = group.querySelector('.cm-icons-amount').getBoundingClientRect()
       const ownGlyph = group.querySelector('.cm-icons-glyph').getBoundingClientRect()
       return { lastKey: group.dataset.cmIconKey, gap: value.left - ownGlyph.right,
         afterAll: [...list.querySelectorAll('.cm-icons-glyph')].every(node => node.getBoundingClientRect().right <= value.left + .5) }
