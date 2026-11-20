@@ -90,6 +90,8 @@ DeepSeek 图标显示余额和当前计价时段，点击可展开明细。
 |:---:|:---:|:---:|
 | [![平价时段的 DeepSeek 蓝色圆环图标](docs/images/sidebar-icons-deepseek-off-peak.png)](docs/images/sidebar-icons-deepseek-off-peak.png) | [![高峰时段的 DeepSeek 橙色圆环图标](docs/images/sidebar-icons-deepseek-peak.png)](docs/images/sidebar-icons-deepseek-peak.png) | [![展开 DeepSeek 图标，显示余额和下次切换时段](docs/images/sidebar-icons-deepseek-open.png)](docs/images/sidebar-icons-deepseek-open.png) |
 
+感谢 [@chanyuenpang](https://github.com/chanyuenpang) 提出并实现侧栏图标布局。
+
 ### 其他界面
 
 | 费用趋势与模型排行 | 单个会话费用分布 |

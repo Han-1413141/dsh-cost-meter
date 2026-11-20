@@ -90,6 +90,8 @@ The DeepSeek icon shows the balance and the current pricing period. Select it to
 |:---:|:---:|:---:|
 | [![DeepSeek icon with a blue ring during off-peak hours](docs/images/sidebar-icons-deepseek-off-peak.png)](docs/images/sidebar-icons-deepseek-off-peak.png) | [![DeepSeek icon with an orange ring during peak hours](docs/images/sidebar-icons-deepseek-peak.png)](docs/images/sidebar-icons-deepseek-peak.png) | [![DeepSeek icon open, showing the balance and the next pricing change](docs/images/sidebar-icons-deepseek-open.png)](docs/images/sidebar-icons-deepseek-open.png) |
 
+Thanks to [@chanyuenpang](https://github.com/chanyuenpang) for proposing and implementing the Icons sidebar layout.
+
 ### Other views
 
 | Cost trends and model ranking | Conversation cost distribution |
