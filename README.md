@@ -85,9 +85,11 @@ Switch layouts under **Settings → Cost → Display → Sidebar → Sidebar lay
 <details>
 <summary>Icons layout</summary>
 
-Select an icon to open its details.
+Select the DeepSeek icon to open the balance and peak/off-peak details.
 
-[![Sidebar with a combined balance and pricing period icon, plus quota and usage icons](docs/images/sidebar-icons-en.png)](docs/images/sidebar-icons-en.png)
+| Collapsed | DeepSeek details open |
+|:---:|:---:|
+| [![Sidebar icon row](docs/images/sidebar-icons-en.png)](docs/images/sidebar-icons-en.png) | [![DeepSeek icon expanded to show the balance and current pricing period](docs/images/sidebar-icons-expanded-en.png)](docs/images/sidebar-icons-expanded-en.png) |
 
 </details>
 

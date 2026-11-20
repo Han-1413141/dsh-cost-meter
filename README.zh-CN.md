@@ -85,9 +85,11 @@ dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.81
 <details>
 <summary>图标布局</summary>
 
-点击图标可展开对应明细。
+点击 DeepSeek 图标可展开余额和峰谷时段明细。
 
-[![侧栏图标布局，包含余额与峰谷图标、套餐额度图标和今日用量图标](docs/images/sidebar-icons-zh.png)](docs/images/sidebar-icons-zh.png)
+| 收起状态 | 展开 DeepSeek 图标 |
+|:---:|:---:|
+| [![侧栏图标行](docs/images/sidebar-icons-zh.png)](docs/images/sidebar-icons-zh.png) | [![DeepSeek 图标展开后显示余额和当前峰谷时段](docs/images/sidebar-icons-expanded-zh.png)](docs/images/sidebar-icons-expanded-zh.png) |
 
 </details>
 
