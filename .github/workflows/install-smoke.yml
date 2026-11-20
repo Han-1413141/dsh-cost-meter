@@ -133,11 +133,13 @@ jobs:
           DSH_TEST_CODEX_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-subscription-3.2.7.tgz" node test/codex-subscription-published.mjs
           DSH_TEST_CODEX_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-subscription-3.2.9.tgz" node test/codex-subscription-published.mjs
           DSH_TEST_CONNECT_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-connect-0.2.0-alpha.10.tgz" node test/codex-connect-published.mjs
-          npm pack dsh-codex-connect@0.2.0-alpha.15 dsh-codex-subscription@3.2.19 dsh-codex-subscription@3.2.24 dsh-codex-subscription@3.2.25 --ignore-scripts --pack-destination .tmp-billion-matrix
+          npm pack dsh-codex-connect@0.2.0-alpha.15 dsh-codex-subscription@3.2.19 dsh-codex-subscription@3.2.24 dsh-codex-subscription@3.2.25 dsh-codex-connect@0.2.0-alpha.16 dsh-codex-subscription@3.2.26 --ignore-scripts --pack-destination .tmp-billion-matrix
           DSH_TEST_CONNECT_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-connect-0.2.0-alpha.15.tgz" node test/codex-connect-published.mjs
+          DSH_TEST_CONNECT_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-connect-0.2.0-alpha.16.tgz" node test/codex-connect-published.mjs
           DSH_TEST_CODEX_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-subscription-3.2.19.tgz" node test/codex-subscription-published.mjs
           DSH_TEST_CODEX_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-subscription-3.2.24.tgz" node test/codex-subscription-published.mjs
           DSH_TEST_CODEX_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-subscription-3.2.25.tgz" node test/codex-subscription-published.mjs
+          DSH_TEST_CODEX_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-subscription-3.2.26.tgz" node test/codex-subscription-published.mjs
           npm pack @eddyskywalker/dsh-chatgpt-subscription@0.29.0 --ignore-scripts --pack-destination .tmp-billion-matrix
           DSH_TEST_CHATGPT_PACKAGE="$PWD/.tmp-billion-matrix/eddyskywalker-dsh-chatgpt-subscription-0.29.0.tgz" node test/chatgpt-subscription-quota.mjs
           mkdir -p .tmp-our-free-model
@@ -404,11 +406,13 @@ jobs:
           npm pack dsh-codex-subscription@3.2.18 --ignore-scripts --pack-destination .tmp-billion-matrix
           DSH_TEST_CODEX_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-subscription-3.2.18.tgz" node test/codex-subscription-published.mjs
           DSH_TEST_CONNECT_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-connect-0.2.0-alpha.10.tgz" node test/codex-connect-published.mjs
-          npm pack dsh-codex-connect@0.2.0-alpha.15 dsh-codex-subscription@3.2.19 dsh-codex-subscription@3.2.24 dsh-codex-subscription@3.2.25 --ignore-scripts --pack-destination .tmp-billion-matrix
+          npm pack dsh-codex-connect@0.2.0-alpha.15 dsh-codex-subscription@3.2.19 dsh-codex-subscription@3.2.24 dsh-codex-subscription@3.2.25 dsh-codex-connect@0.2.0-alpha.16 dsh-codex-subscription@3.2.26 --ignore-scripts --pack-destination .tmp-billion-matrix
           DSH_TEST_CONNECT_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-connect-0.2.0-alpha.15.tgz" node test/codex-connect-published.mjs
+          DSH_TEST_CONNECT_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-connect-0.2.0-alpha.16.tgz" node test/codex-connect-published.mjs
           DSH_TEST_CODEX_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-subscription-3.2.19.tgz" node test/codex-subscription-published.mjs
           DSH_TEST_CODEX_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-subscription-3.2.24.tgz" node test/codex-subscription-published.mjs
           DSH_TEST_CODEX_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-subscription-3.2.25.tgz" node test/codex-subscription-published.mjs
+          DSH_TEST_CODEX_PACKAGE="$PWD/.tmp-billion-matrix/dsh-codex-subscription-3.2.26.tgz" node test/codex-subscription-published.mjs
           node test/context-costs.mjs --host
           node test/context-costs-regression-browser.mjs
           node test/native-search-host.mjs

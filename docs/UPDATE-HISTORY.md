@@ -1,5 +1,10 @@
 # dsh-cost-meter 版本更新历史
 
+## v1.9.80(2026-11-20)—— 阿里云代金券修复与 Codex 插件兼容
+
+- 修复阿里云通用券和百炼券因适用范围带括号说明而被漏算的问题。感谢 [@dustplume](https://github.com/dustplume) 在 [#553](https://github.com/Han-1413141/dsh-cost-meter/issues/553) 提供脱敏的券数据、定位过滤条件并建议处理括号说明。
+- 验证 `dsh-codex-subscription` 3.2.26 与 `dsh-codex-connect` 0.2.0-alpha.16 的实际发布包，更新兼容基线与 CI。两项版本变化由 [github-actions[bot]](https://github.com/apps/github-actions) 在 [#551](https://github.com/Han-1413141/dsh-cost-meter/issues/551) 和 [#552](https://github.com/Han-1413141/dsh-cost-meter/issues/552) 报告。
+
 ## v1.9.79(2026-11-20)—— DeepSeek 余额与峰谷图标
 
 - 侧栏「图标」样式将 DeepSeek 余额和峰谷时段合为一个按钮。圆环颜色显示当前时段，点击可查看余额和下次切换时间。

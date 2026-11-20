@@ -192,6 +192,36 @@ try {
       assert.match(result.message, /fund account ¥0\.00 \+ coupons ¥300\.00/)
       assert.equal(sent[0], '2017-12-14', '代金券走 BSS 2017-12-14')
     }
+    // #553：括号内的说明属于同一项，真实剩余金额是 295.65 元。
+    {
+      const reportedCoupon = {
+        ...coupon('scope-suffix', '295.65', 'Available', '2099-11-19T08:00:00Z'),
+        EffectiveTime: '2020-11-19T08:00:00Z',
+        NominalValue: '300.00',
+        ApplicableProducts: '通用（不适用商品名单除外）',
+        ApplicableScenarios: '其他,阿里云新购,阿里云续费,阿里云按量付费账单',
+      }
+      const transport = byAction({
+        GetFundAccountAvailableAmount: () => cash('0.00'),
+        [couponAction]: () => coupons([reportedCoupon]),
+      })
+      const result = await queryAliyunBalance(ctx, cfg, { fetchImpl: transport })
+      assert.equal(result.remaining, 295.65)
+      assert.equal(result.couponCount, 1)
+      assert.match(result.message, /fund account ¥0\.00 \+ coupons ¥295\.65/)
+
+      const summarize = (ApplicableProducts, ApplicableScenarios = '按量付费账单') =>
+        summarizeCashCoupons([{ ...reportedCoupon, ApplicableProducts, ApplicableScenarios }])
+      assert.equal(summarize('云服务器，百炼（不含模型训练，专享实例）', '新购；按量付费账单(结算范围见说明)').total, 295.65)
+      assert.equal(summarize('Model Studio (see product terms)', 'pay-as-you-go bills (see terms)').total, 295.65)
+      assert.equal(summarize('云服务器 ECS（备注：云服务器，通用，百炼）').total, 0)
+      assert.equal(summarize('对象存储 OSS（部分商品）').total, 0)
+      assert.equal(summarize('通用（阿里云百炼除外）').total, 0)
+      assert.equal(summarize('通用（不适用产品：对象存储、百炼）').total, 0)
+      assert.equal(summarize('通用', '阿里云新购（备注，按量付费账单）').total, 0)
+      assert.equal(summarize('通用（说明）仅限新购（说明）').total, 0)
+      assert.equal(summarize('通用（未闭合').total, 0)
+    }
     // 现金与券相加；键名与旧版一致（remaining/unit/maxBudget/spend 不被改写）。
     {
       const transport = byAction({
