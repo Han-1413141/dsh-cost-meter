@@ -82,14 +82,15 @@ Switch layouts under **Settings → Cost → Display → Sidebar → Sidebar lay
 |:---:|:---:|
 | [![Simple sidebar with shorter rows](docs/images/sidebar-simple-en.png)](docs/images/sidebar-simple-en.png) | [![Combined sidebar card with usage, balance and pricing period](docs/images/sidebar-summary-en.png)](docs/images/sidebar-summary-en.png) |
 
-<details>
-<summary>Icons layout</summary>
+### Icons layout
 
-Select an icon to open its details.
+The DeepSeek icon shows the balance and the current pricing period. Select it to open the details.
 
-[![Sidebar with a combined balance and pricing period icon, plus quota and usage icons](docs/images/sidebar-icons-en.png)](docs/images/sidebar-icons-en.png)
+| Off-peak | Peak | Open during peak |
+|:---:|:---:|:---:|
+| [![DeepSeek icon with a blue ring during off-peak hours](docs/images/sidebar-icons-deepseek-off-peak.png)](docs/images/sidebar-icons-deepseek-off-peak.png) | [![DeepSeek icon with an orange ring during peak hours](docs/images/sidebar-icons-deepseek-peak.png)](docs/images/sidebar-icons-deepseek-peak.png) | [![DeepSeek icon open, showing the balance and the next pricing change](docs/images/sidebar-icons-deepseek-open.png)](docs/images/sidebar-icons-deepseek-open.png) |
 
-</details>
+Thanks to [@chanyuenpang](https://github.com/chanyuenpang) for proposing and implementing the Icons sidebar layout.
 
 ### Other views
 
