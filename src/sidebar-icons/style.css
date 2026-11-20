@@ -10,12 +10,19 @@
 .cm-icons-ring{position:absolute;inset:0;width:28px;height:28px;transform:rotate(-90deg);stroke-width:2}
 .cm-icons-track{stroke:var(--dsw-alias-border-l2)}
 .cm-icons-progress{stroke:var(--dsw-alias-state-business-primary);stroke-linecap:round}
+/* Peak/off-peak ring on the merged DeepSeek icon: colour is the CURRENT period, the arc is the
+   remaining time until the switch. Values match the upstream peak strip so both stay consistent. */
+.cm-icons-glyph[data-cm-tone=peak] .cm-icons-progress{stroke:#ff9800}
+.cm-icons-glyph[data-cm-tone=off] .cm-icons-progress{stroke:var(--dsw-alias-state-business-primary)}
+.cm-icons-glyph[data-cm-tone=weekend] .cm-icons-progress,.cm-icons-glyph[data-cm-tone=holiday] .cm-icons-progress{stroke:#34a853}
 .cm-icons-symbol{width:15px;height:15px}
 .cm-icons-logo{width:18px;height:18px;display:block;flex:none}
 /* Kimi's corner dot needs a smaller optical box to stay inside the ring's 11px inner radius. */
 .cm-icons-logo[data-cm-logo=kimi]{width:16px;height:16px}
 .cm-icons-mark{font-size:10px;line-height:1;font-weight:700;letter-spacing:-.3px}
 .cm-icons-today{width:auto;min-width:0;padding-right:4px}
+/* The balance icon keeps its amount visible; it must not collapse to the 32px icon-only box. */
+.cm-icons-amount-btn{width:auto;min-width:0;padding-right:6px}
 .cm-icons-amount{min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:600;font-variant-numeric:tabular-nums}
 .cm-icons-amount .cm-today-values{flex-wrap:nowrap;gap:4px}
 .cm-icons-panel{margin-top:4px;max-height:min(38dvh,320px);overflow:auto;overscroll-behavior:contain;padding:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1);box-sizing:border-box}

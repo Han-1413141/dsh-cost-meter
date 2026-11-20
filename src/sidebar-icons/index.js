@@ -24,10 +24,10 @@ window.__ModuleLoader__.load({
       plan: 'M5 3h14v18H5zM8 8h8M8 12h8M8 16h5',
       gateway: 'M3 5h18v6H3zM3 15h18v6H3zM6 8h1m-1 10h1',
     }
-    function Glyph({ kind, percent, mark, logo }) {
+    function Glyph({ kind, percent, mark, logo, tone }) {
       const finite = Number.isFinite(percent)
       const brand = Object.hasOwn(logos, logo) ? logos[logo] : null
-      return el('span', { className: 'cm-icons-glyph', 'aria-hidden': true },
+      return el('span', { className: 'cm-icons-glyph' + (tone ? ' cm-icons-tone-' + tone : ''), 'data-cm-tone': tone || undefined, 'aria-hidden': true },
         el('svg', { className: 'cm-icons-ring', viewBox: '0 0 28 28', fill: 'none' },
           el('circle', { className: 'cm-icons-track', cx: 14, cy: 14, r: 12 }),
           finite ? el('circle', { className: 'cm-icons-progress', cx: 14, cy: 14, r: 12, pathLength: 100,
@@ -35,6 +35,23 @@ window.__ModuleLoader__.load({
         brand ? el('svg', { className: 'cm-icons-symbol cm-icons-logo', 'data-cm-logo': logo, viewBox: brand.viewBox, fill: 'currentColor', fillRule: brand.fillRule },
           ...brand.paths.map((props, key) => el('path', { key, ...props }))) : mark ? el('span', { className: 'cm-icons-mark' }, mark) : el('svg', { className: 'cm-icons-symbol', viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' },
           el('path', { d: paths[kind] ?? paths.generic })))
+    }
+
+    /**
+     * Balance stays visible beside its icon, using the same snapshot and formatter as the
+     * original balance row. Multiple official accounts in the same currency are summed for the
+     * single icon label; the disclosure still lists every account row separately. Hidden or
+     * failed snapshots contribute nothing rather than a misleading zero.
+     */
+    function balanceIconAmount(slot, state, config, formatBalanceMoney) {
+      const rows = slot.kind === 'customBalance'
+        ? [state.customBalance, ...(state.customBalances ?? [])].filter(row => row?.status === 'ok')
+        : (state.balanceAccounts?.length > 1 ? state.balanceAccounts : [state.balance]).filter(row => row?.status === 'ok')
+      if (!rows.length) return null
+      const total = rows.reduce((sum, row) => sum + (Number(row.totalBalance) || 0), 0)
+      const currency = rows[0]?.currency
+      if (!Number.isFinite(total)) return null
+      return formatBalanceMoney(total, config, currency)
     }
 
     function nativeLayout() {
@@ -63,7 +80,7 @@ window.__ModuleLoader__.load({
 
     function mount(helpers) {
       const { makeT, resolveLocale, peakView, usePeakClock, phaseLabelKeys, countdownText, codexQuotaSnapshot,
-        displayCostOf, formatMoneyUsd, sidebarTodayValue, CODING_PLAN_ROWS } = helpers
+        displayCostOf, formatMoneyUsd, formatBalanceMoney, sidebarTodayValue, CODING_PLAN_ROWS } = helpers
       return function SidebarIcons({ state, nodes, preview = false }) {
         const config = state.config, locale = resolveLocale(config), t = makeT(locale)
         const text = (zh, en) => locale === 'en' ? en : zh
@@ -71,16 +88,19 @@ window.__ModuleLoader__.load({
         const now = usePeakClock(config, preview || native ? Date.now() : undefined)
         const [open, setOpen] = useState(null), root = useRef(null), instance = useId()
         const entries = sidebarIconEntries(nodes, state, t, CODING_PLAN_ROWS, text)
-        const chosen = entries.find(entry => entry.key === open)
+        const slots = sidebarIconSlots(entries)
+        const slotOf = key => slots.find(slot => slot.key === key)
+        const chosen = slots.find(slot => slot.key === open)
         const todayEntry = entries.find(entry => entry.kind === 'today')
         const balanceEntry = entries.find(entry => entry.kind === 'balance') ?? entries.find(entry => entry.kind === 'customBalance')
         // Preserve the upstream direct-child pairing contract inside the disclosure.
-        const paired = config.sidebarTodayBalanceInline && todayEntry && balanceEntry && (chosen === todayEntry || chosen === balanceEntry)
-        const details = paired ? entries.filter(entry => entry === todayEntry || entry === balanceEntry) : chosen ? [chosen] : []
+        const paired = config.sidebarTodayBalanceInline && todayEntry && balanceEntry && chosen && (chosen.host === todayEntry || chosen.host === balanceEntry)
+        const details = paired ? entries.filter(entry => entry === todayEntry || entry === balanceEntry) : chosen ? chosen.entries : []
         useEffect(() => { if (open !== null && !chosen) setOpen(null) }, [open, !!chosen])
         // Pointer/viewport/forced Pocket modes use the original nodes, with no hidden duplicate cards.
         if (native) return el(Fragment, null, ...nodes)
         const phase = peakView(config, now)
+        const tone = phaseTone(phase)
         const windowView = phase && countdownWindow(phase.nextAtMs, now)
         const phaseTitle = phase ? [t(phaseLabelKeys(phase).notice), windowView?.countdown
           ? countdownText(phase, now, t) : text('距切换超过 8 小时', 'Switch in more than 8 hours')].join(' · ') : ''
@@ -92,27 +112,32 @@ window.__ModuleLoader__.load({
           const button = [...(root.current?.querySelectorAll('[data-cm-icon-key]') ?? [])].find(node => node.dataset.cmIconKey === open)
           button?.focus()
         }
-        const button = entry => {
-          const { key, kind, id, title } = entry
-          const percent = kind === 'peak' ? windowView?.percent : kind === 'codex' && Number.isFinite(weekly?.percent)
+        const button = slot => {
+          const { key, kind, host } = slot
+          const { id, title } = host
+          // The balance slot also carries the peak period: colour = current phase, arc = remaining time.
+          const peakMember = slot.members.some(entry => entry.kind === 'peak')
+          const percent = peakMember ? windowView?.percent : kind === 'codex' && Number.isFinite(weekly?.percent)
             ? 100 - weekly.percent : kind === 'today' ? claude?.percent : null
-          const detail = kind === 'peak' ? phaseTitle : kind === 'codex' && Number.isFinite(percent)
+          const balanceAmount = kind === 'balance' || kind === 'customBalance' ? balanceIconAmount(slot, state, config, formatBalanceMoney) : null
+          const detail = peakMember && phase ? [title, phaseTitle].join(' · ') : kind === 'codex' && Number.isFinite(percent)
             ? title + ' · ' + text('剩余 ', 'Remaining ') + Math.round(percent * 10) / 10 + '%'
               : kind === 'today' && claude ? title + ' · Claude ' + formatMoneyUsd(claude.amount, config) + ' · ' + claude.percent.toFixed(1) + '%' : title
           const unavailable = sidebarIconUnavailable(kind, id, state, codex)
           const expanded = details.some(entry => entry.key === key)
           const label = detail + (unavailable ? ' · ' + text('额度或余额状态需查看', 'Check quota or balance status') : '') + ' · ' + text('点击展开明细与操作', 'Open details and actions')
-          return el('button', { key, type: 'button', className: 'cm-icons-button' + (kind === 'today' ? ' cm-icons-today' : ''),
+          return el('button', { key, type: 'button', className: 'cm-icons-button' + (kind === 'today' ? ' cm-icons-today' : '') + (balanceAmount ? ' cm-icons-amount-btn' : ''),
             'data-cm-icon-key': key, 'data-cm-display': kind, 'data-unavailable': unavailable || undefined, ...(kind === 'plan' ? { 'data-cm-plan': id } : kind === 'gateway' ? { 'data-cm-source': id } : {}),
             'aria-label': label, title: label, 'aria-expanded': expanded, 'aria-controls': instance + '-detail',
             onClick: preview ? undefined : () => setOpen(expanded ? null : key) },
-            el(Glyph, { kind: kind === 'today' && claude ? 'claude' : kind, logo: sidebarIconLogo(kind === 'today' && claude ? 'claude' : kind, id), mark: iconMark(kind, id, title), percent: config.sidebarTextOnly ? null : percent }),
-            kind === 'today' ? el('span', { className: 'cm-icons-amount' }, sidebarTodayValue(state.today, config, t)) : null)
+            el(Glyph, { kind: kind === 'today' && claude ? 'claude' : kind, logo: sidebarIconLogo(kind === 'today' && claude ? 'claude' : kind, id), mark: iconMark(kind, id, title), percent: config.sidebarTextOnly ? null : percent, tone: peakMember ? tone : null }),
+            kind === 'today' ? el('span', { className: 'cm-icons-amount' }, sidebarTodayValue(state.today, config, t)) : null,
+            balanceAmount ? el('span', { className: 'cm-icons-amount' }, balanceAmount) : null)
         }
         return el(Fragment, null, el('style', null, css),
           el('div', { className: 'cm-icons', ref: root, onKeyDownCapture: event => { if (event.key === 'Escape' && open !== null) { event.stopPropagation(); close() } } },
             el('div', { className: 'cm-icons-row', role: 'group', 'aria-label': text('费用图标，点击展开', 'Cost icons; click for details') },
-              el('div', { className: 'cm-icons-list' }, ...sidebarIconOrder(entries).map(button))),
+              el('div', { className: 'cm-icons-list' }, ...sidebarIconOrder(slots).map(button))),
             el('div', { id: instance + '-detail', hidden: !chosen, role: 'region', 'aria-label': chosen?.title, className: 'cm-icons-panel' }, chosen ? el(Fragment, null,
               el('div', { className: 'cm-icons-panel-head' }, el('span', null, chosen.title), el('button', { type: 'button', className: 'cm-btn small', onClick: close }, text('收起', 'Collapse'))),
               // Original components remain direct siblings for the upstream same-line arranger.

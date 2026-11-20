@@ -3712,7 +3712,7 @@
 
     const loadSidebarIcons = () => require.async('./client.sidebar-icons.js').then(module => module.mount({
       makeT, resolveLocale, peakView, usePeakClock, phaseLabelKeys, countdownText, codexQuotaSnapshot,
-      displayCostOf, formatMoneyUsd, sidebarTodayValue, CODING_PLAN_ROWS,
+      displayCostOf, formatMoneyUsd, formatBalanceMoney, sidebarTodayValue, CODING_PLAN_ROWS,
     }))
 
     function SidebarFooter(props) {

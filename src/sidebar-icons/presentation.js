@@ -47,6 +47,38 @@ export function sidebarIconUnavailable(kind, id, state, codex) {
   return snapshots.some(snapshot => snapshot?.status && !['ok', 'off'].includes(snapshot.status))
 }
 
+/**
+ * Merge per-component icon entries into per-account icons.
+ * Only the peak indicator is folded into the DeepSeek balance icon: both describe the same
+ * official DeepSeek account, so they must not occupy two separate buttons. Every other entry
+ * keeps its own icon; global metrics (today/budget/models/localSavings) are never merged into a
+ * provider. Entries keep their upstream node and order; merged members are exposed via `members`.
+ */
+export const MERGED_INTO_BALANCE = ['peak']
+export function sidebarIconSlots(entries) {
+  const host = entries.find(entry => entry.kind === 'balance') ?? entries.find(entry => entry.kind === 'customBalance')
+  const slots = []
+  for (const entry of entries) {
+    if (host && host !== entry && MERGED_INTO_BALANCE.includes(entry.kind)) {
+      const slot = slots.find(candidate => candidate.host === host)
+      if (slot) slot.members.push(entry)
+      else slots.push({ key: host.key, kind: host.kind, host, members: [entry] })
+      continue
+    }
+    slots.push({ key: entry.key, kind: entry.kind, host: entry, members: [] })
+  }
+  // A host that received members must disclose them together with its own node.
+  return slots.map(slot => ({ ...slot, entries: [slot.host, ...slot.members] }))
+}
+
+/** Phase of the CURRENT pricing period, never the direction of the next switch. */
+export function phaseTone(view) {
+  if (!view) return null
+  if (view.holiday) return 'holiday'
+  if (view.weekend) return 'weekend'
+  return view.inPeak ? 'peak' : 'off'
+}
+
 export function sidebarIconEntries(nodes, state, t, planRows, text) {
   const titles = { balance: 'officialBalance', customBalance: 'customBalanceTitle', budget: 'budget',
     today: state.config.sidebarTodayMetric === 'tokens' ? 'todayTokensTitle' : 'todayCostTitle',
