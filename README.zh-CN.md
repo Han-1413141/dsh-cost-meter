@@ -70,29 +70,7 @@ dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.81
 
 ## 图文演示
 
-### 侧栏布局
-
-在 **设置 → 费用 → 显示 → 侧栏 → 侧栏布局** 中切换。各张截图使用同一组示例余额、套餐额度和用量。
-
-| 标准 | 紧凑 |
-|:---:|:---:|
-| [![标准布局，套餐额度纵向排列](docs/images/sidebar-standard-zh.png)](docs/images/sidebar-standard-zh.png) | [![紧凑布局，套餐额度两列排列](docs/images/sidebar-compact-zh.png)](docs/images/sidebar-compact-zh.png) |
-
-| 简洁 | 合并卡片 |
-|:---:|:---:|
-| [![简洁布局，以短行显示用量和额度](docs/images/sidebar-simple-zh.png)](docs/images/sidebar-simple-zh.png) | [![合并卡片布局，同一张卡片显示用量、余额和峰谷时段](docs/images/sidebar-summary-zh.png)](docs/images/sidebar-summary-zh.png) |
-
-### 图标布局
-
-DeepSeek 图标显示余额和当前计价时段，点击可展开明细。
-
-| 平价时段 | 高峰时段 | 高峰时段展开余额 |
-|:---:|:---:|:---:|
-| [![平价时段的 DeepSeek 蓝色圆环图标](docs/images/sidebar-icons-deepseek-off-peak.png)](docs/images/sidebar-icons-deepseek-off-peak.png) | [![高峰时段的 DeepSeek 橙色圆环图标](docs/images/sidebar-icons-deepseek-peak.png)](docs/images/sidebar-icons-deepseek-peak.png) | [![展开 DeepSeek 图标，显示余额和下次切换时段](docs/images/sidebar-icons-deepseek-open.png)](docs/images/sidebar-icons-deepseek-open.png) |
-
-感谢 [@chanyuenpang](https://github.com/chanyuenpang) 提出并实现侧栏图标布局。
-
-### 其他界面
+### 主要界面
 
 | 费用趋势与模型排行 | 单个会话费用分布 |
 |---|---|
@@ -103,6 +81,28 @@ DeepSeek 图标显示余额和当前计价时段，点击可展开明细。
 | [![套餐额度与余额](docs/images/quotas.png)](docs/images/quotas.png) | [![显示设置与交互预览](docs/images/display.png)](docs/images/display.png) |
 
 点击图片查看大图。[更多界面：调用详情、价格、历史、深色与手机端](docs/features.md)
+
+### 侧栏布局
+
+在 **设置 → 费用 → 显示 → 侧栏 → 侧栏布局** 中切换。各张截图使用同一组示例余额、套餐额度和用量。
+
+| 标准 | 紧凑 |
+|:---:|:---:|
+| <a href="docs/images/sidebar-standard-zh.png"><img src="docs/images/sidebar-standard-zh.png" width="200" alt="标准布局，套餐额度纵向排列"></a> | <a href="docs/images/sidebar-compact-zh.png"><img src="docs/images/sidebar-compact-zh.png" width="200" alt="紧凑布局，套餐额度两列排列"></a> |
+
+| 简洁 | 合并卡片 |
+|:---:|:---:|
+| <a href="docs/images/sidebar-simple-zh.png"><img src="docs/images/sidebar-simple-zh.png" width="200" alt="简洁布局，以短行显示用量和额度"></a> | <a href="docs/images/sidebar-summary-zh.png"><img src="docs/images/sidebar-summary-zh.png" width="200" alt="合并卡片布局，同一张卡片显示用量、余额和峰谷时段"></a> |
+
+### 图标布局
+
+DeepSeek 图标显示余额和当前计价时段，点击可展开明细。
+
+| 平价时段 | 高峰时段 | 高峰时段展开余额 |
+|:---:|:---:|:---:|
+| [![平价时段的 DeepSeek 蓝色圆环图标](docs/images/sidebar-icons-deepseek-off-peak.png)](docs/images/sidebar-icons-deepseek-off-peak.png) | [![高峰时段的 DeepSeek 橙色圆环图标](docs/images/sidebar-icons-deepseek-peak.png)](docs/images/sidebar-icons-deepseek-peak.png) | [![展开 DeepSeek 图标，显示余额和下次切换时段](docs/images/sidebar-icons-deepseek-open.png)](docs/images/sidebar-icons-deepseek-open.png) |
+
+感谢 [@chanyuenpang](https://github.com/chanyuenpang) 提出并实现侧栏图标布局。
 
 ## 文档
 

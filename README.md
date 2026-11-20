@@ -70,29 +70,7 @@ See [features and screenshots](docs/features.en.md) for entry points and [model 
 
 ## Screenshots & walkthrough
 
-### Sidebar layouts
-
-Switch layouts under **Settings → Cost → Display → Sidebar → Sidebar layout**. Each screenshot uses the same example balance, quota and usage.
-
-| Standard | Compact |
-|:---:|:---:|
-| [![Standard sidebar with stacked quota rows](docs/images/sidebar-standard-en.png)](docs/images/sidebar-standard-en.png) | [![Compact sidebar with two-column quota rows](docs/images/sidebar-compact-en.png)](docs/images/sidebar-compact-en.png) |
-
-| Simple | Combined card |
-|:---:|:---:|
-| [![Simple sidebar with shorter rows](docs/images/sidebar-simple-en.png)](docs/images/sidebar-simple-en.png) | [![Combined sidebar card with usage, balance and pricing period](docs/images/sidebar-summary-en.png)](docs/images/sidebar-summary-en.png) |
-
-### Icons layout
-
-The DeepSeek icon shows the balance and the current pricing period. Select it to open the details.
-
-| Off-peak | Peak | Open during peak |
-|:---:|:---:|:---:|
-| [![DeepSeek icon with a blue ring during off-peak hours](docs/images/sidebar-icons-deepseek-off-peak.png)](docs/images/sidebar-icons-deepseek-off-peak.png) | [![DeepSeek icon with an orange ring during peak hours](docs/images/sidebar-icons-deepseek-peak.png)](docs/images/sidebar-icons-deepseek-peak.png) | [![DeepSeek icon open, showing the balance and the next pricing change](docs/images/sidebar-icons-deepseek-open.png)](docs/images/sidebar-icons-deepseek-open.png) |
-
-Thanks to [@chanyuenpang](https://github.com/chanyuenpang) for proposing and implementing the Icons sidebar layout.
-
-### Other views
+### Main views
 
 | Cost trends and model ranking | Conversation cost distribution |
 |---|---|
@@ -103,6 +81,28 @@ Thanks to [@chanyuenpang](https://github.com/chanyuenpang) for proposing and imp
 | [![Quotas and balances](docs/images/quotas.png)](docs/images/quotas.png) | [![Display settings](docs/images/display.png)](docs/images/display.png) |
 
 Select an image for full resolution. [More views: call details, prices, history, dark themes and mobile](docs/features.en.md).
+
+### Sidebar layouts
+
+Switch layouts under **Settings → Cost → Display → Sidebar → Sidebar layout**. Each screenshot uses the same example balance, quota and usage.
+
+| Standard | Compact |
+|:---:|:---:|
+| <a href="docs/images/sidebar-standard-en.png"><img src="docs/images/sidebar-standard-en.png" width="200" alt="Standard sidebar with stacked quota rows"></a> | <a href="docs/images/sidebar-compact-en.png"><img src="docs/images/sidebar-compact-en.png" width="200" alt="Compact sidebar with two-column quota rows"></a> |
+
+| Simple | Combined card |
+|:---:|:---:|
+| <a href="docs/images/sidebar-simple-en.png"><img src="docs/images/sidebar-simple-en.png" width="200" alt="Simple sidebar with shorter rows"></a> | <a href="docs/images/sidebar-summary-en.png"><img src="docs/images/sidebar-summary-en.png" width="200" alt="Combined sidebar card with usage, balance and pricing period"></a> |
+
+### Icons layout
+
+The DeepSeek icon shows the balance and the current pricing period. Select it to open the details.
+
+| Off-peak | Peak | Open during peak |
+|:---:|:---:|:---:|
+| [![DeepSeek icon with a blue ring during off-peak hours](docs/images/sidebar-icons-deepseek-off-peak.png)](docs/images/sidebar-icons-deepseek-off-peak.png) | [![DeepSeek icon with an orange ring during peak hours](docs/images/sidebar-icons-deepseek-peak.png)](docs/images/sidebar-icons-deepseek-peak.png) | [![DeepSeek icon open, showing the balance and the next pricing change](docs/images/sidebar-icons-deepseek-open.png)](docs/images/sidebar-icons-deepseek-open.png) |
+
+Thanks to [@chanyuenpang](https://github.com/chanyuenpang) for proposing and implementing the Icons sidebar layout.
 
 ## Documentation
 
