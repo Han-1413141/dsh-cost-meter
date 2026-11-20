@@ -1,7 +1,11 @@
 # Changelog
 ## [Unreleased]
 
-- 侧栏「图标」样式将 DeepSeek 官方余额与该渠道的峰谷时段合为一个按钮，可展开查看余额及切换时间。图标金额跟随余额隐藏设置；币种不同的账号可在明细中分别查看。感谢 [@chanyuenpang](https://github.com/chanyuenpang) 在 [#548](https://github.com/Han-1413141/dsh-cost-meter/pull/548) 贡献图标合并、时段配色和金额展示。
+## [1.9.79] - 2026-11-20
+
+- 侧栏「图标」样式将 DeepSeek 余额和峰谷时段合为一个按钮。圆环颜色显示当前时段，点击可查看余额和下次切换时间。
+- 隐藏余额时，图标金额同步遮住。多个账号使用不同币种时，展开可分别查看。
+- 感谢 [@chanyuenpang](https://github.com/chanyuenpang) 在 [#548](https://github.com/Han-1413141/dsh-cost-meter/pull/548) 贡献图标合并、时段配色和余额展示。
 
 ## [1.9.78] - 2026-11-20
 
