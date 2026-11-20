@@ -82,18 +82,13 @@ Switch layouts under **Settings → Cost → Display → Sidebar → Sidebar lay
 |:---:|:---:|
 | [![Simple sidebar with shorter rows](docs/images/sidebar-simple-en.png)](docs/images/sidebar-simple-en.png) | [![Combined sidebar card with usage, balance and pricing period](docs/images/sidebar-summary-en.png)](docs/images/sidebar-summary-en.png) |
 
-<details>
-<summary>Icons layout</summary>
+### Icons layout
 
 The DeepSeek icon shows the balance and the current pricing period. Select it to open the details.
 
 | Off-peak | Peak | Open during peak |
 |:---:|:---:|:---:|
 | [![DeepSeek icon with a blue ring during off-peak hours](docs/images/sidebar-icons-deepseek-off-peak.png)](docs/images/sidebar-icons-deepseek-off-peak.png) | [![DeepSeek icon with an orange ring during peak hours](docs/images/sidebar-icons-deepseek-peak.png)](docs/images/sidebar-icons-deepseek-peak.png) | [![DeepSeek icon open, showing the balance and the next pricing change](docs/images/sidebar-icons-deepseek-open.png)](docs/images/sidebar-icons-deepseek-open.png) |
-
-[DeepSeek icon change in PR #548](https://github.com/Han-1413141/dsh-cost-meter/pull/548)
-
-</details>
 
 ### Other views
 
