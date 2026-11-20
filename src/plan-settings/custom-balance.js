@@ -3,6 +3,7 @@
       const aliyun = entry.adapter === 'aliyun'
       const tokenrhythm = entry.adapter === 'tokenrhythm'
       const openAi = entry.adapter === 'openai-credits'
+      const fireworks = entry.adapter === 'fireworks'
       const fixedAdapter = aliyun || tokenrhythm || openAi
       const [open, setOpen] = useState(false)
       const readJsonText = () => ({
@@ -11,6 +12,7 @@
         body: typeof entry.request?.body === 'string' ? entry.request.body : JSON.stringify(entry.request?.body, null, 2) ?? '',
       })
       const [jsonText, setJsonText] = useState(readJsonText)
+      const [channelsText, setChannelsText] = useState(() => (entry.channels ?? []).join(', '))
       const [allowedHostsText, setAllowedHostsText] = useState(() => (entry.allowedHosts ?? []).join(', '))
       const [jsonErr, setJsonErr] = useState({})
       const openRef = useRef(false)
@@ -21,6 +23,7 @@
       const toggleOpen = () => { setOpen(v => !v) }
       useEffect(() => {
         if (open && !openRef.current) {
+          setChannelsText((entry.channels ?? []).join(', '))
           setJsonText(readJsonText())
           setAllowedHostsText((entry.allowedHosts ?? []).join(', '))
           setJsonErr({})
@@ -85,6 +88,10 @@
           : el('div', { className: 'cm-bal-line' }, custom?.message || t('balanceNotQueried'))
       const configFields = el(Fragment, null,
           el('p', { className: 'cm-note' }, t(openAi ? 'openAiCreditNote' : tokenrhythm ? 'tokenRhythmBalanceNote' : aliyun ? 'aliyunBalanceNote' : 'customBalanceConfigNote')),
+          fireworks && el('p', { className: 'cm-note' }, resolveLocale(config) === 'en'
+            ? 'Fireworks documents usage costs. For remaining credit, enter your trusted HTTPS balance endpoint, its hostname and the JSON field containing the balance. You can also check your account in the billing console.'
+            : 'Fireworks 公开接口提供账单用量。查询剩余余额请填写可信的 HTTPS 余额接口、对应主机名和余额字段，也可前往账单控制台查看。',
+            ' ', el('a', { href: 'https://app.fireworks.ai/account/billing', target: '_blank', rel: 'noopener noreferrer' }, 'Fireworks.ai ↗')),
           !tokenrhythm && !openAi && el('label', { className: 'cm-check' },
             el('input', { type: 'checkbox', checked: entry.convertToDisplayCurrency === true,
               disabled: customBalanceUnitOf(config, custom, entry) !== 'USD',
@@ -105,6 +112,14 @@
                 value: entry[field] ?? '',
                 onChange: event => setField(field, event.target.value),
               }))),
+            !tokenrhythm && !openAi && el('label', { className: 'cm-field' },
+              resolveLocale(config) === 'en' ? 'Providers for today’s spend (optional)' : '当日已用的归属渠道（可选）',
+              el('input', { className: 'cm-input', value: channelsText, placeholder: 'cc-switch-apikey-fun',
+                onChange: event => {
+                  const text = event.target.value
+                  setChannelsText(text)
+                  setField('channels', text.split(/[\s,，]+/).filter(Boolean))
+                } })),
             !openAi && el('label', { className: 'cm-field' }, el('span', null, resolveLocale(config) === 'en' ? 'Dashboard link (optional)' : '跳转链接（可选）'),
               el('input', { className: 'cm-input', type: 'url', 'aria-label': resolveLocale(config) === 'en' ? 'Dashboard link' : '跳转链接', value: entry.dashboardUrl ?? '', placeholder: 'https://example.com/account', onChange: event => setField('dashboardUrl', event.target.value) })),
             !fixedAdapter && el('div', { className: 'cm-field' },
@@ -143,7 +158,7 @@
               el('input', {
                 className: 'cm-input',
                 value: entry.request?.url ?? '',
-                placeholder: '/plugins/dsh-workbuddy-connect/status',
+                placeholder: fireworks ? 'https://…' : '/plugins/dsh-workbuddy-connect/status',
                 onChange: event => setRequest('url', event.target.value),
               }), el('span', { className: 'cm-hint' }, t('customBalanceUrlHint'))),
             jsonField('headers', 'customBalanceHeaders', 5, 'customBalanceHeadersVarNote'),
@@ -176,13 +191,14 @@
                 onChange: event => applyAllowedHostsText(event.target.value),
               }),
               el('span', { className: 'cm-hint' }, t('customBalanceAllowedHostsHint'))),
-            !fixedAdapter && el('label', { className: 'cm-check', style: { gridColumn: '1 / -1' } },
+            !fixedAdapter && !fireworks && el('label', { className: 'cm-check', style: { gridColumn: '1 / -1' } },
               el('input', { type: 'checkbox', checked: entry.allowInsecureHttp === true, onChange: event => setField('allowInsecureHttp', event.target.checked) }),
               t('customBalanceHttp')),
             jsonField('extract', 'customBalanceExtract', 8)))
       return el(QuotaCard, {
+        display: (props.sidebarHidden ? 'settings' : entry.display), onSidebar: display => onPatch({ display }, display === 'both'),
         name: `#${index + 1} · ` + (resolveCustomBalanceLabel(entry, resolveLocale(config)) || t('customBalanceTitle')),
-        enabled, saved: JSON.stringify(entry) === JSON.stringify(config.customBalances?.[index]) ? config.customBalances[index] : null, busy, open, statusNode: preview, configNode: configFields, errorMsg: msg,
+        enabled, saved: JSON.stringify(entry) === JSON.stringify(config.customBalances?.[index]) ? config.customBalances[index] : null, busy, open, statusNode: el(Fragment, null, preview, custom?.status === 'ok' && custom.fetchedAt > 0 && el('span', { className: 'cm-hint' }, t('gatewaySourceFetchedAt', { time: new Date(custom.fetchedAt).toLocaleString() }))), configNode: configFields, errorMsg: msg,
         onToggle: value => setField('enabled', value),
         onRefresh: doRefresh,
         onRemove: canRemove ? onRemove : null,

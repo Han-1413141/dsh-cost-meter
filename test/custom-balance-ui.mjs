@@ -219,7 +219,7 @@ for (const locale of ['zh', 'en']) {
 {
   const raw = { status: 'ok', unit: 'USD', remaining: 54.3792, spend: 45.6208, maxBudget: 100, fetchedAt: 0, index: 0 }
   const before = JSON.stringify(raw)
-  const entry = { enabled: true, unit: 'USD', display: 'both', request: { url: 'https://balance.example/status' } }
+  const entry = { enabled: true, channels: ['balance-api'], unit: 'USD', display: 'both', request: { url: 'https://balance.example/status' } }
   const config = sanitizeConfig({ decimals: 2, currency: 'CNY', symbol: '¥', exchangeRate: 7.2, customBalances: [entry] })
   const enabled = { ...config.customBalances[0], convertToDisplayCurrency: true }
   const format = (cfg = config, balance = raw, row = enabled) => ui.formatCustomBalanceMoney(balance.remaining, cfg, balance, row)
@@ -244,7 +244,7 @@ for (const locale of ['zh', 'en']) {
     const t = ui.makeT(locale)
     for (const showProgressBar of [false, true]) {
       const cfg = { ...config, locale, balance: { ...config.balance, showProgressBar } }
-      const state = { config: cfg, today: { cost: 1 }, customBalances: [raw] }
+      const state = { config: cfg, today: { cost: 4, byProviderModel: { 'balance-api:model': { cost: 1 }, 'other:model': { cost: 3 } } }, customBalances: [raw] }
       const detail = ui.customBalanceDetailText(raw, cfg, t, state, enabled)
       assert.ok(detail.includes('¥391.53') && detail.includes('¥720'))
       assert.ok(!detail.includes('$'))
