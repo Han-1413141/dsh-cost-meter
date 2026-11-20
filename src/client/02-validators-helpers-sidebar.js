@@ -113,7 +113,7 @@
     }
     function parseConfig(v, path) {
     const parseCustomEntry = e => (e == null ? undefined : {
-      ...(['aliyun', 'tokenrhythm', 'openai-credits'].includes(e.adapter) ? { adapter: e.adapter } : {}),
+      ...(['aliyun', 'tokenrhythm', 'openai-credits', 'fireworks'].includes(e.adapter) ? { adapter: e.adapter } : {}),
       ...(e.adapter === 'openai-credits' ? { grantAmount: num0(e.grantAmount), grantStart: e.grantStart ?? '', grantExpiry: e.grantExpiry ?? '' } : {}),
       enabled: e.enabled === true,
       label: typeof e.label === 'string' ? e.label : '',
@@ -126,6 +126,7 @@
       refreshMinutes: typeof e.refreshMinutes === 'number' && Number.isFinite(e.refreshMinutes) ? e.refreshMinutes : 15,
       request: e.request && typeof e.request === 'object' ? e.request : { url: '' },
       extract: e.extract && typeof e.extract === 'object' ? e.extract : {},
+      ...(Array.isArray(e?.channels) ? { channels: e.channels.filter(id => typeof id === 'string') } : {}),
       allowedHosts: Array.isArray(e?.allowedHosts) ? e.allowedHosts.filter(h => typeof h === 'string') : [],
     })
       needObject(v, path)
@@ -211,6 +212,7 @@
               out[id] = {
                 enabled: e.enabled === true,
                 display: e.display === 'sidebar' || e.display === 'both' || e.display === 'off' ? e.display : 'settings',
+                ...(typeof e.sidebarAfterSuccess === 'boolean' ? { sidebarAfterSuccess: e.sidebarAfterSuccess } : {}),
                 ...(typeof e.showInComposer === 'boolean' ? { showInComposer: e.showInComposer } : {}),
                 refreshMinutes: typeof e.refreshMinutes === 'number' && Number.isFinite(e.refreshMinutes) ? e.refreshMinutes : 15,
                 apiKey: typeof e.apiKey === 'string' ? e.apiKey : '',
@@ -403,7 +405,7 @@
       const n = x => numOrNull(x)
       const windowOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { id: s0(x.id), label: s0(x.label), ...(n(x.percent) === null ? {} : { percent: n(x.percent) }), resetsAt: s0(x.resetsAt), periodHours: n(x.periodHours), scope: s0(x.scope) } : null
       const creditsOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { unit: s0(x.unit, 'credits'), used: n(x.used), remaining: n(x.remaining), limit: n(x.limit), fetchedAt: s0(x.fetchedAt), packages: Array.isArray(x.packages) ? x.packages.filter(p => p !== null && typeof p === 'object' && !Array.isArray(p)).map(p => ({ id: s0(p.id), label: s0(p.label), used: n(p.used), remaining: n(p.remaining), limit: n(p.limit), startsAt: s0(p.startsAt), resetsAt: s0(p.resetsAt) })) : [] } : undefined
-      return { id: s0(v.id), type: v.type === 'agy-link' ? 'agy-link' : 'cliproxyapi', label: s0(v.label), status: gatewaySourceStatuses.has(v.status) ? v.status : 'error', message: s0(v.message), fetchedAt: n(v.fetchedAt) ?? 0, attemptedAt: n(v.attemptedAt) ?? 0, serverVersion: s0(v.serverVersion), keyConfigured: v.keyConfigured === true, keySource: s0(v.keySource, 'none'), accounts: Array.isArray(v.accounts) ? v.accounts.filter(a => a !== null && typeof a === 'object' && !Array.isArray(a)).slice(0, 16).map(a => ({ id: s0(a.id), provider: s0(a.provider, 'unknown'), label: s0(a.label, 'unknown'), status: gatewayAccountStatuses.has(a.status) ? a.status : 'unknown', message: s0(a.message), plan: s0(a.plan), windows: Array.isArray(a.windows) ? a.windows.map(windowOf).filter(Boolean) : [], credits: creditsOf(a.credits) })) : [], unsupportedProviders: Array.isArray(v.unsupportedProviders) ? v.unsupportedProviders.filter(x => typeof x === 'string').slice(0, 32) : [] }
+      return { browserAccessDenied: v.browserAccessDenied === true, id: s0(v.id), type: v.type === 'agy-link' ? 'agy-link' : 'cliproxyapi', label: s0(v.label), status: gatewaySourceStatuses.has(v.status) ? v.status : 'error', message: s0(v.message), fetchedAt: n(v.fetchedAt) ?? 0, attemptedAt: n(v.attemptedAt) ?? 0, serverVersion: s0(v.serverVersion), keyConfigured: v.keyConfigured === true, keySource: s0(v.keySource, 'none'), accounts: Array.isArray(v.accounts) ? v.accounts.filter(a => a !== null && typeof a === 'object' && !Array.isArray(a)).slice(0, 16).map(a => ({ id: s0(a.id), provider: s0(a.provider, 'unknown'), label: s0(a.label, 'unknown'), status: gatewayAccountStatuses.has(a.status) ? a.status : 'unknown', message: s0(a.message), plan: s0(a.plan), windows: Array.isArray(a.windows) ? a.windows.map(windowOf).filter(Boolean) : [], credits: creditsOf(a.credits) })) : [], unsupportedProviders: Array.isArray(v.unsupportedProviders) ? v.unsupportedProviders.filter(x => typeof x === 'string').slice(0, 32) : [] }
     }
     function parsePlanStats(v) {
       if (v === null || typeof v !== 'object' || Array.isArray(v)) return null
@@ -2039,9 +2041,23 @@
     }
 
     function todayUsedInBalanceCurrency(state, config, mode, custom, entryCfg = null) {
-      // 官方模式只取 deepseek 渠道费用;自定义 Provider 余额无渠道映射,维持全量(与既有行为一致)。
-      const usd = mode === 'official' ? todayOfficialUsd(state) : Number(state.today?.cost) || 0
-      const unit = mode === 'custom' ? customBalanceUnitOf(config, custom, entryCfg) : state.balance?.currency
+      const channels = (entryCfg ?? config?.customBalance)?.channels ?? []
+      if (mode === 'custom') {
+        const unitOfBalance = customBalanceUnitOf(config, custom, entryCfg)
+        if (!channels.length || unitOfBalance === 'CREDITS') return 0
+        const providers = new Set(channels.map(id => id.replace(/^llm-/, '')))
+        const rate = Number(config?.fxRates?.[unitOfBalance] ?? config?.exchangeRate)
+        const factor = unitOfBalance === 'USD' || !(Number.isFinite(rate) && rate > 0) ? 1 : rate
+        const field = { CNY: 'costCny', EUR: 'costEur' }[unitOfBalance]
+        let sum = 0
+        for (const [key, bucket] of Object.entries(state.today?.byProviderModel ?? {})) {
+          if (!providers.has(key.split(':', 1)[0].replace(/^llm-/, ''))) continue
+          sum += field && Number.isFinite(bucket?.[field]) ? bucket[field] : (Number(bucket?.cost) || 0) * factor
+        }
+        return sum
+      }
+      const usd = todayOfficialUsd(state)
+      const unit = state.balance?.currency
       if (unit === 'USD') return usd
       // 积分不能由美元花费换算。
       if (unit === 'CREDITS') return 0
@@ -2071,7 +2087,7 @@
       // 全局 budgetCap 是货币金额，不适用于积分；积分只接受同一响应的上限。
       const cap = resolveBalanceCap(customBalanceUnitOf(config, target, entryCfg) === 'CREDITS' ? null : config, target)
       const remaining = Number(target?.remaining) || 0
-      const spend = Number(target?.spend) || 0
+      const spend = target?.spend == null && cap !== null ? Math.max(0, cap - remaining) : Number(target?.spend) || 0
       const todayUsed = todayUsedInBalanceCurrency(state, config, 'custom', target, entryCfg)
       return { cap, ...computeBalanceSegments({ remaining, spend, todayUsed, cap }) }
     }
@@ -2164,12 +2180,13 @@
     }
 
     const balancePrivacy = makeStore({})
+    function isBalanceHidden(id) {
+      const current = balancePrivacy.getSnapshot()[id]
+      if (current !== undefined) return current
+      try { return window.localStorage?.getItem('cm.balance.hidden.' + id) === '1' } catch { return false }
+    }
     function useBalancePrivacy(config, id, t) {
-      const read = () => {
-        const current = balancePrivacy.getSnapshot()[id]
-        if (current !== undefined) return current
-        try { return window.localStorage?.getItem('cm.balance.hidden.' + id) === '1' } catch { return false }
-      }
+      const read = () => isBalanceHidden(id)
       const [value, setValue] = useState(read)
       useEffect(() => {
         const update = () => setValue(read())
@@ -3712,10 +3729,41 @@
 
     const loadSidebarIcons = () => require.async('./client.sidebar-icons.js').then(module => module.mount({
       makeT, resolveLocale, peakView, usePeakClock, phaseLabelKeys, countdownText, codexQuotaSnapshot,
-      displayCostOf, formatMoneyUsd, formatBalanceMoney, sidebarTodayValue, CODING_PLAN_ROWS,
+      displayCostOf, formatMoneyUsd, formatBalanceMoney, isBalanceHidden, balancePrivacy, sidebarTodayValue, CODING_PLAN_ROWS,
     }))
 
+    function useBotFooterTarget() {
+      const [target, setTarget] = useState(null)
+      useEffect(() => {
+        if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') return
+        let mount
+        const selector = '.bt-leftcol .bt-leftcol-foot'
+        const sync = () => {
+          const foot = document.querySelector(selector)
+          if (foot && mount?.nextSibling === foot) return
+          if (mount) mount.remove()
+          mount = null
+          if (foot && !foot.previousElementSibling?.classList.contains('cm-bot-cost-mount')) {
+            mount = document.createElement('div')
+            mount.className = 'cm-bot-cost-mount'
+            foot.before(mount)
+          }
+          setTarget(mount)
+        }
+        sync()
+        const observer = new MutationObserver(records => {
+          if (mount && !mount.isConnected || records.some(record =>
+            [...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1 &&
+              (node.matches('.bt-leftcol, .bt-leftcol-foot, .cm-bot-cost-mount') || node.querySelector('.bt-leftcol, .bt-leftcol-foot'))))) sync()
+        })
+        observer.observe(document.body, { childList: true, subtree: true })
+        return () => { observer.disconnect(); mount?.remove() }
+      }, [])
+      return target
+    }
+
     function SidebarFooter(props) {
+      const botTarget = useBotFooterTarget()
       const costStore = props.useCost ? props.useCost(s => s) : undefined
       useCodexQuota(costStore?.state?.config?.codexQuotaEnabled === true && costStore?.state?.config?.codexQuotaSidebar !== false, costStore?.state?.config?.codexQuotaSource)
       // 侧边栏页脚非会话作用域插槽:useProjection 在部分宿主/页面可能不可用或
@@ -3727,7 +3775,13 @@
       useProjectionRefresh(props, projectionUsage)
       const current = costStore?.state
       const state = current ? { ...current, config: peakConfigForState(current, projectionUsage?.provider) } : null
-      return state ? renderSidebarFooter(state, !!props.wide, props.api, false, projectionUsage?.provider) : null
+      if (!state) return null
+      if (botTarget) {
+        let portal
+        try { portal = require('react-dom')?.createPortal } catch {}
+        if (portal) return portal(renderSidebarFooter(state, true, props.api, false, projectionUsage?.provider), botTarget)
+      }
+      return renderSidebarFooter(state, !!props.wide, props.api, false, projectionUsage?.provider)
     }
 
     // Shared presentation only: no store, projection or quota subscription.
@@ -3754,7 +3808,7 @@
           const entry = config.codingPlans?.[id]
           if (entry?.enabled !== true) return false
           if (entry.display !== 'sidebar' && entry.display !== 'both') return false
-          return true
+          return entry.sidebarAfterSuccess !== true || state.codingPlans?.[id]?.status === 'ok'
         })
       const plansOn = sidebarPlanIds.length > 0
       // 网关额度侧边栏卡片(issue #96):按来源 display 门控,卡片本体见 GatewayQuotaBox。

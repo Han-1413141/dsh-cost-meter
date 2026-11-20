@@ -125,14 +125,22 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
   if (selected?.startsWith('strip-')) controls = [direction(selected === 'strip-plans' ? 'plan' : selected.slice(6))]
   if (selected === 'strip-plans') controls.push(check(text('显示套餐余额', 'Show plan balance'), config.quotaStrip?.planAmounts !== false, value => nested('quotaStrip', { planAmounts: value }), { 'data-display-option': 'plan-amounts' }))
   if (selected === 'customBalance') controls = [quickHide(),
+    ...(config.customBalances ?? []).flatMap((entry, index) => entry.enabled ? [check(
+      '#' + (index + 1) + ' · ' + (text(entry.label, entry.labelEn) || entry.label || t('customBalanceTitle')),
+      !config.hideCustomBalance && ['both', 'sidebar'].includes(entry.display),
+      visible => set({ ...(visible ? { hideCustomBalance: false } : {}), customBalances: config.customBalances.map((item, i) =>
+        i === index ? { ...item, display: visible ? 'both' : 'settings' } : item) }))] : []),
     check(text('余额进度条（与官方余额共用）', 'Progress bar (shared with official balance)'), config.balance?.showProgressBar === true, value => nested('balance', { showProgressBar: value }), { 'data-display-option': 'balance-progress' }), direction('balance'),
     el('button', { type: 'button', className: 'cm-btn small', onClick: openQuota }, text('在额度页设置各来源 →', 'Configure sources in Quotas →'))]
   if (selected === 'plan') {
     const entry = config.codingPlans?.[selectedPlan] ?? {}
-    const setPlanDisplay = value => set({ codingPlans: { ...config.codingPlans, [selectedPlan]: { ...entry, ...quotaPlacementPatch(value) } } })
+    const setPlanDisplay = value => set({ codingPlans: { ...config.codingPlans, [selectedPlan]: { ...entry, sidebarAfterSuccess: false, ...quotaPlacementPatch(value) } } })
     controls = [
       choice(text('套餐', 'Plan'), selectedPlan, props.planOptions, selectPlan),
       field(text('显示位置', 'Placement'), el('select', { className: 'cm-input', value: quotaPlacementValue(entry, config.quotaStrip, 'plans'), onChange: e => setPlanDisplay(e.target.value) }, ...quotaPlacementOptions(t).filter(option => option.props.value !== 'off'))),
+      ...(config.gatewayQuotas?.sources ?? []).flatMap((source, index) => source.enabled ? [check(source.label || source.id,
+        ['both', 'sidebar'].includes(source.display), visible => nested('gatewayQuotas', { sources: config.gatewayQuotas.sources.map((item, i) =>
+          i === index ? { ...item, display: visible ? 'both' : 'settings' } : item) }))] : []),
       direction('plan', text('所有套餐的进度条方向', 'Bar direction for all plans')),
       choice(text('套餐额度样式', 'Plan quota style'), config.planQuotaStyle ?? 'bars', [['bars', text('横向进度条', 'Bars')], ['gauge', text('开口圆环', 'Open rings')]], value => set({ planQuotaStyle: value })),
       el('button', { type: 'button', className: 'cm-btn small', onClick: openQuota }, text('账户与额度设置 →', 'Account and quota settings →')),

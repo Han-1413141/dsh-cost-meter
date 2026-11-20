@@ -186,6 +186,7 @@ jobs:
           node test/display-settings-browser.mjs
           node test/display-settings-browser.mjs --icons-only
           node test/display-settings-browser.mjs --quota-details-only
+          node test/display-settings-browser.mjs --quota-sidebar-only
           node test/quota-placement-browser.mjs
           node test/opendesign-login-browser.mjs
           node test/balance-gateway-browser.mjs

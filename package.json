@@ -99,6 +99,8 @@
   },
   "files": [
     "docs/web-request-fees.md",
+    "docs/host-price-calculators.md",
+    "docs/release-notes/v1.9.78.md",
     "locale",
     "lib",
     "cordis.patch.yml",
@@ -244,8 +246,7 @@
     "docs/update-notes-1.9.70.md",
     "docs/update-notes-1.9.71.md",
     "docs/update-notes-1.9.72.md",
-    "docs/update-notes-1.9.77.md",
-    "docs/update-notes-1.9.78.md"
+    "docs/update-notes-1.9.77.md"
   ],
   "dependencies": {
     "acorn": "8.15.0",

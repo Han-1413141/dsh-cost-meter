@@ -2389,7 +2389,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   const ownKey = localDayKey(ownAt)
   assert.notEqual(seedKey, ownKey, '测试前提:种子日与 own 日分离')
   const forkLog = [
-    JSON.stringify({ type: 'session', version: 0, id: 'fork-sess', createdAt: forkAt, parentSession: 'parent-sess', seedLength: 123, delegationDepth: 0 }),
+    JSON.stringify({ type: 'session', version: 0, id: 'fork-sess', createdAt: forkAt, parentSession: 'parent-sess', seedLength: 3, delegationDepth: 0 }),
     // 种子段:父会话标题 + header + 两次调用(其中一次被同 (turn,step) 最终样本替换)。
     JSON.stringify({ type: 'session/title', seq: 1, time: seedAt, data: { title: 'Parent history' } }),
     JSON.stringify({ type: 'request/header', seq: 0, time: seedAt, data: { header: { config: { provider: 'deepseek', model: 'deepseek-v4-flash' } } } }),
@@ -3352,7 +3352,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(!idxSrc36.includes('ledger.today().cost, localDayKey'), '对账不再使用全渠道今日合计')
   const cliSrc36 = readClientSource()
   assert.ok(cliSrc36.includes('function todayOfficialUsd(state)'), 'client.js 定义 todayOfficialUsd')
-  assert.ok(cliSrc36.includes("mode === 'official' ? todayOfficialUsd(state) : Number(state.today?.cost) || 0"), '官方余额分支使用官方渠道费用,自定义分支维持全量')
+  assert.ok(cliSrc36.includes('const usd = todayOfficialUsd(state)'), '官方余额使用官方渠道费用')
   assert.ok(cliSrc36.includes("if (provider.startsWith('llm-')) provider = provider.slice(4)"), 'client 端剥离 llm- 包装路由前缀(与 officialCostOfDay 同口径)')
   console.log('[ok] 官方渠道费用拆分(纯函数/Ledger 聚合/对账与进度条接线/旧数据退回)通过')
 }
@@ -6989,6 +6989,7 @@ await import('./deepseek-pricing-september.mjs')
 await import('./deepseek-pricing-official.mjs')
 await import('./model-history-reprice.mjs')
 await import('./history-reprice-usage.mjs')
+await import('./dynamic-pricing.mjs')
 await import('./sidebar-simple.mjs')
 await import('./sidebar-regressions.mjs')
 await import('./gpt-astra-pricing.mjs')

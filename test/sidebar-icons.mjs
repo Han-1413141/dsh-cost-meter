@@ -34,7 +34,7 @@ const stateWrites = [], recordedEffects = []
 let recordEffects = false
 class Clock extends Date { static now() { return now } }
 const element = (type, props, ...children) => ({ type, key: props?.key ?? null, props: props ?? {}, children })
-const React = { createElement: element, Fragment: 'fragment', useId: () => 'test-id', useRef: value => ({ current: value }),
+const React = { createElement: element, Fragment: 'fragment', useSyncExternalStore: (_, read) => read(), useId: () => 'test-id', useRef: value => ({ current: value }),
   useEffect(effect) { if (recordEffects) recordedEffects.push(effect) }, useState: value => [override.length ? override.shift() : typeof value === 'function' ? value() : value, value => stateWrites.push(value)] }
 const context = vm.createContext({ Date: Clock, URL, navigator: { language: 'en' }, console,
   document: { body: { getAttribute: () => pocket ? 'mobile' : null } },
@@ -182,7 +182,7 @@ override = [false, now, 'today']
 const inlineTree = Component(inlineLoader.props)
 const paired = walk(inlineTree).find(node => node.props.className === 'cm-footer-stack same-line')
 assert.ok(paired)
-assert.equal(paired.children.length, 2)
+assert.deepEqual(Array.from(paired.children, node => node.key).sort(), Array.from(inlineLoader.props.nodes).filter(node => ['today', 'balance', 'peak'].includes(node.key)).map(node => node.key).sort())
 for (const key of ['today', 'balance']) {
   assert.ok(paired.children.includes(inlineLoader.props.nodes.find(node => node.key === key)))
   const trigger = walk(inlineTree).find(node => node.props['data-cm-icon-key'] === key)
@@ -251,6 +251,10 @@ const slots = sidebarIconSlots(sampleEntries)
 assert.deepEqual(slots.map(slot => slot.key), ['balance', 'today', 'plan:qwen'], 'peak no longer owns an icon slot')
 assert.deepEqual(slots[0].entries.map(entry => entry.kind), ['balance', 'peak'], 'balance slot discloses both original nodes')
 assert.equal(slots[0].host.kind, 'balance')
+const reversed = [sampleEntries[1], sampleEntries[2], sampleEntries[0]]
+assert.deepEqual(sidebarIconSlots(reversed).map(slot => slot.key), ['balance', 'today'])
+assert.deepEqual(sidebarIconSlots(reversed, 'ollama-cloud').map(slot => slot.key), ['peak', 'today', 'balance'])
+assert.deepEqual(sidebarIconSlots([{ kind: 'customBalance', key: 'customBalance' }, sampleEntries[1]]).map(slot => slot.key), ['customBalance', 'peak'])
 // Global metrics are never absorbed into a provider.
 for (const key of ['today', 'plan:qwen']) assert.equal(slots.find(slot => slot.key === key).members.length, 0)
 // Without a balance icon the peak entry keeps its own slot rather than disappearing.

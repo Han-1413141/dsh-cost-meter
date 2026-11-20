@@ -54,21 +54,17 @@ export function sidebarIconUnavailable(kind, id, state, codex) {
  * keeps its own icon; global metrics (today/budget/models/localSavings) are never merged into a
  * provider. Entries keep their upstream node and order; merged members are exposed via `members`.
  */
-export const MERGED_INTO_BALANCE = ['peak']
-export function sidebarIconSlots(entries) {
-  const host = entries.find(entry => entry.kind === 'balance') ?? entries.find(entry => entry.kind === 'customBalance')
-  const slots = []
-  for (const entry of entries) {
-    if (host && host !== entry && MERGED_INTO_BALANCE.includes(entry.kind)) {
-      const slot = slots.find(candidate => candidate.host === host)
-      if (slot) slot.members.push(entry)
-      else slots.push({ key: host.key, kind: host.kind, host, members: [entry] })
-      continue
-    }
-    slots.push({ key: entry.key, kind: entry.kind, host: entry, members: [] })
-  }
-  // A host that received members must disclose them together with its own node.
-  return slots.map(slot => ({ ...slot, entries: [slot.host, ...slot.members] }))
+export function sidebarIconSlots(entries, provider = '') {
+  const deepSeek = ['', 'deepseek', 'deepseek-official', 'deepseek-account'].includes(String(provider).trim().toLowerCase().replace(/^llm-/, ''))
+  const balance = deepSeek && entries.find(entry => entry.kind === 'balance')
+  const peak = balance && entries.find(entry => entry.kind === 'peak')
+  // Use the earlier position of the two icons in the user's sidebar order.
+  const first = peak && entries.find(entry => entry === balance || entry === peak)
+  return entries.flatMap(entry => {
+    if (entry === first) return [{ ...balance, host: balance, members: [peak], entries: [balance, peak] }]
+    if (peak && (entry === balance || entry === peak)) return []
+    return [{ ...entry, host: entry, members: [], entries: [entry] }]
+  })
 }
 
 /** Phase of the CURRENT pricing period, never the direction of the next switch. */

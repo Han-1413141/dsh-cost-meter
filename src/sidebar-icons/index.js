@@ -37,24 +37,13 @@ window.__ModuleLoader__.load({
           el('path', { d: paths[kind] ?? paths.generic })))
     }
 
-    /**
-     * Official balance amount shown beside the merged icon, using the same snapshot and formatter
-     * as the original balance row. Multiple official accounts are summed for the single label; the
-     * disclosure still lists every account row separately. Failed snapshots contribute nothing
-     * rather than a misleading zero.
-     *
-     * Custom balances stay disclosure-only: their snapshots carry `remaining`/`unit` (including
-     * CREDITS) instead of `totalBalance`/`currency`, so reading them here would mix units and
-     * render a non-zero balance as zero.
-     */
-    function balanceIconAmount(slot, state, config, formatBalanceMoney) {
-      if (slot.kind !== 'balance') return null
-      const rows = (state.balanceAccounts?.length > 1 ? state.balanceAccounts : [state.balance]).filter(row => row?.status === 'ok')
-      if (!rows.length) return null
-      const total = rows.reduce((sum, row) => sum + (Number(row.totalBalance) || 0), 0)
-      const currency = rows[0]?.currency
-      if (!Number.isFinite(total)) return null
-      return formatBalanceMoney(total, config, currency)
+    function balanceIconAmount(rows, config, hidden, formatBalanceMoney) {
+      if (rows.some(row => row?.status !== 'ok' || !Number.isFinite(row.totalBalance))) return null
+      if (hidden) return '••••'
+      const currency = rows[0].currency
+      if (!currency || rows.some(row => row.currency !== currency)) return null
+      const total = rows.reduce((sum, row) => sum + row.totalBalance, 0)
+      return Number.isFinite(total) ? formatBalanceMoney(total, config, currency) : null
     }
 
     function nativeLayout() {
@@ -83,7 +72,7 @@ window.__ModuleLoader__.load({
 
     function mount(helpers) {
       const { makeT, resolveLocale, peakView, usePeakClock, phaseLabelKeys, countdownText, codexQuotaSnapshot,
-        displayCostOf, formatMoneyUsd, formatBalanceMoney, sidebarTodayValue, CODING_PLAN_ROWS } = helpers
+        displayCostOf, formatMoneyUsd, formatBalanceMoney, balancePrivacy, isBalanceHidden, sidebarTodayValue, CODING_PLAN_ROWS } = helpers
       return function SidebarIcons({ state, nodes, preview = false }) {
         const config = state.config, locale = resolveLocale(config), t = makeT(locale)
         const text = (zh, en) => locale === 'en' ? en : zh
@@ -91,14 +80,19 @@ window.__ModuleLoader__.load({
         const now = usePeakClock(config, preview || native ? Date.now() : undefined)
         const [open, setOpen] = useState(null), root = useRef(null), instance = useId()
         const entries = sidebarIconEntries(nodes, state, t, CODING_PLAN_ROWS, text)
-        const slots = sidebarIconSlots(entries)
-        const slotOf = key => slots.find(slot => slot.key === key)
+        const slots = sidebarIconSlots(entries, config.peakProvider)
+        const accounts = state.balanceAccounts ?? []
+        const multi = accounts.length > 1
+        const balances = multi ? accounts : [state.balance?.status === 'off' && accounts.length ? accounts[0] : state.balance]
+        const hiddenBalance = React.useSyncExternalStore(balancePrivacy.subscribe, () =>
+          config.balance?.quickHide === true && (multi ? accounts.some(row => isBalanceHidden('official-' + row.id)) : isBalanceHidden('official')))
         const chosen = slots.find(slot => slot.key === open)
         const todayEntry = entries.find(entry => entry.kind === 'today')
         const balanceEntry = entries.find(entry => entry.kind === 'balance') ?? entries.find(entry => entry.kind === 'customBalance')
         // Preserve the upstream direct-child pairing contract inside the disclosure.
         const paired = config.sidebarTodayBalanceInline && todayEntry && balanceEntry && chosen && (chosen.host === todayEntry || chosen.host === balanceEntry)
-        const details = paired ? entries.filter(entry => entry === todayEntry || entry === balanceEntry) : chosen ? chosen.entries : []
+        const balanceDetails = paired ? slots.find(slot => slot.host === balanceEntry).entries : []
+        const details = paired ? entries.filter(entry => entry === todayEntry || balanceDetails.includes(entry)) : chosen?.entries ?? []
         useEffect(() => { if (open !== null && !chosen) setOpen(null) }, [open, !!chosen])
         // Pointer/viewport/forced Pocket modes use the original nodes, with no hidden duplicate cards.
         if (native) return el(Fragment, null, ...nodes)
@@ -119,16 +113,16 @@ window.__ModuleLoader__.load({
           const { key, kind, host } = slot
           const { id, title } = host
           // The balance slot also carries the peak period: colour = current phase, arc = remaining time.
-          const peakMember = slot.members.some(entry => entry.kind === 'peak')
+          const peakMember = slot.entries.some(entry => entry.kind === 'peak')
           const percent = peakMember ? windowView?.percent : kind === 'codex' && Number.isFinite(weekly?.percent)
             ? 100 - weekly.percent : kind === 'today' ? claude?.percent : null
-          const balanceAmount = kind === 'balance' || kind === 'customBalance' ? balanceIconAmount(slot, state, config, formatBalanceMoney) : null
+          const balanceAmount = kind === 'balance' ? balanceIconAmount(balances, config, hiddenBalance, formatBalanceMoney) : null
           const detail = peakMember && phase ? [title, phaseTitle].join(' · ') : kind === 'codex' && Number.isFinite(percent)
             ? title + ' · ' + text('剩余 ', 'Remaining ') + Math.round(percent * 10) / 10 + '%'
               : kind === 'today' && claude ? title + ' · Claude ' + formatMoneyUsd(claude.amount, config) + ' · ' + claude.percent.toFixed(1) + '%' : title
           const unavailable = sidebarIconUnavailable(kind, id, state, codex)
           const expanded = details.some(entry => entry.key === key)
-          const label = detail + (unavailable ? ' · ' + text('额度或余额状态需查看', 'Check quota or balance status') : '') + ' · ' + text('点击展开明细与操作', 'Open details and actions')
+          const label = detail + (balanceAmount ? ' · ' + balanceAmount : '') + (unavailable ? ' · ' + text('额度或余额状态需查看', 'Check quota or balance status') : '') + ' · ' + text('点击展开明细与操作', 'Open details and actions')
           return el('button', { key, type: 'button', className: 'cm-icons-button' + (kind === 'today' ? ' cm-icons-today' : '') + (balanceAmount ? ' cm-icons-amount-btn' : ''),
             'data-cm-icon-key': key, 'data-cm-display': kind, 'data-unavailable': unavailable || undefined, ...(kind === 'plan' ? { 'data-cm-plan': id } : kind === 'gateway' ? { 'data-cm-source': id } : {}),
             'aria-label': label, title: label, 'aria-expanded': expanded, 'aria-controls': instance + '-detail',

@@ -112,7 +112,13 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
       const setPlan = (field, value) => {
         if (draft === null) return
         const base = draft.codingPlans ?? config.codingPlans ?? {}
-        setDraft({ ...draft, codingPlans: { ...base, [planId]: { ...(base[planId] ?? {}), [field]: value } } })
+        const entry = { ...(base[planId] ?? {}), [field]: value }
+        if (field === 'display') entry.sidebarAfterSuccess = false
+        if (field === 'enabled' && value && entry.sidebarAfterSuccess === undefined && (entry.display ?? 'settings') === 'settings') {
+          entry.display = 'both'
+          entry.sidebarAfterSuccess = true
+        }
+        setDraft({ ...draft, codingPlans: { ...base, [planId]: entry } })
       }
       // 千问抵扣率编辑(#103):三项未填齐时保留本地草稿,完整后才自动保存。
       // 空行属于编辑状态,不能放进自动保存的 rates:服务端会清除空费率。
@@ -218,7 +224,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
             onChange: event => {
               if (draft === null) return
               const base = draft.codingPlans ?? config.codingPlans ?? {}
-              setDraft({ ...draft, codingPlans: { ...base, [planId]: { ...cfgEntry, ...quotaPlacementPatch(event.target.value) } } })
+              setDraft({ ...draft, codingPlans: { ...base, [planId]: { ...cfgEntry, sidebarAfterSuccess: false, ...quotaPlacementPatch(event.target.value) } } })
             },
           },
             ...quotaPlacementOptions(t)),
@@ -319,6 +325,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
                 ? 'Sign in at console.bce.baidu.com, open Token Plan → browser Network → tokenPlanPersonal/resource, and copy the full Cookie request header. Supports Personal credits and Tokens; excludes add-on packs. API keys cannot query quotas.'
                 : '登录 console.bce.baidu.com，打开 Token Plan 页面，在浏览器网络面板找到 tokenPlanPersonal/resource，复制完整 Cookie 请求头。支持个人版积分制与 Token 制套餐，不含加油包；API Key 不用于额度查询。') : null))
       return el(QuotaCard, {
+        display: cfgEntry.display, onSidebar: value => setPlan('display', value),
         planId, targeted: props.targeted,
         name: t(labelKey), enabled, saved: config.codingPlans?.[planId], busy, open, errorMsg: msg?.text === live.message ? null : msg,
         statusNode, configNode,
@@ -333,6 +340,10 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
 
 
     return props => {
+      if (props.mode === 'add-fireworks') return el('button', { type: 'button', className: 'cm-btn small', disabled: props.disabled,
+        onClick: () => props.onAdd({ adapter: 'fireworks', enabled: false, label: 'Fireworks.ai', labelEn: 'Fireworks.ai', unit: 'USD', display: 'both', refreshMinutes: 15,
+            dashboardUrl: 'https://app.fireworks.ai/account/billing', channels: ['fireworks'], allowedHosts: ['api.fireworks.ai'],
+            request: { url: '', method: 'GET', headers: { Authorization: 'Bearer {{FIREWORKS_API_KEY}}' } }, extract: { remaining: 'balance' } }) }, '+ Fireworks.ai')
       if (props.mode === 'credential') return el(AccountCredentialField, props)
       if (props.mode === 'custom-balance') return el(CustomBalanceEntryPanel, props)
       return el(PlanQuotaCard, props)
