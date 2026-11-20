@@ -85,11 +85,13 @@ dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.81
 <details>
 <summary>图标布局</summary>
 
-点击 DeepSeek 图标可展开余额和峰谷时段明细。
+DeepSeek 图标显示余额和当前计价时段，点击可展开明细。
 
-| 收起状态 | 展开 DeepSeek 图标 |
-|:---:|:---:|
-| [![侧栏图标行](docs/images/sidebar-icons-zh.png)](docs/images/sidebar-icons-zh.png) | [![DeepSeek 图标展开后显示余额和当前峰谷时段](docs/images/sidebar-icons-expanded-zh.png)](docs/images/sidebar-icons-expanded-zh.png) |
+| 平价时段 | 高峰时段 | 高峰时段展开余额 |
+|:---:|:---:|:---:|
+| [![平价时段的 DeepSeek 蓝色圆环图标](docs/images/sidebar-icons-deepseek-off-peak.png)](docs/images/sidebar-icons-deepseek-off-peak.png) | [![高峰时段的 DeepSeek 橙色圆环图标](docs/images/sidebar-icons-deepseek-peak.png)](docs/images/sidebar-icons-deepseek-peak.png) | [![展开 DeepSeek 图标，显示余额和下次切换时段](docs/images/sidebar-icons-deepseek-open.png)](docs/images/sidebar-icons-deepseek-open.png) |
+
+[DeepSeek 图标改动 PR #548](https://github.com/Han-1413141/dsh-cost-meter/pull/548)
 
 </details>
 

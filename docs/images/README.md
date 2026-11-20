@@ -4,6 +4,6 @@
 
 The conversation and feature images come from the project's 2026-10-25 screenshot collection, rendered with application components and sample data. Amounts, balances, quota percentages and conversation content are examples.
 
-`sidebar-*.png` 截取自 DeepSeek Harness Web 中运行的 dsh-cost-meter，使用同一组示例数据展示各侧栏布局。
+各侧栏布局截图来自 DeepSeek Harness Web，使用同一组示例数据。`sidebar-icons-deepseek-*.png` 取自维护者提供的合并后演示图。[PR #548](https://github.com/Han-1413141/dsh-cost-meter/pull/548)
 
-The `sidebar-*.png` images show dsh-cost-meter running in DeepSeek Harness Web, with the same example data in each layout.
+The sidebar layout screenshots show dsh-cost-meter running in DeepSeek Harness Web with the same example data. The `sidebar-icons-deepseek-*.png` images come from the maintainer’s post-merge comparison. [PR #548](https://github.com/Han-1413141/dsh-cost-meter/pull/548)
