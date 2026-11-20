@@ -3,6 +3,7 @@ import { createServer } from 'node:http'
 import { queryCodingPlan } from '../lib/coding-plans.js'
 import { planProviderIdOf, billingClassOf } from '../lib/plan-billing.js'
 import { __testServerMessages } from '../lib/index.js'
+import { SUBSCRIPTION_CATALOG } from '../lib/subscription-catalog.js'
 
 const baseCredits = { total: 1984, packages: [{ packageName: 'base', remain: 1384, size: 6000 }, { packageName: 'addon', remain: 600, size: 1700 }], planExpiresAtMs: 1797264000000 }
 let status = { status: 'signed-in', enabled: true, accountId: 'DO_NOT_COPY', accountName: 'DO_NOT_COPY', credits: structuredClone(baseCredits) }
@@ -66,9 +67,16 @@ try {
   for (const locale of ['zh', 'en']) {
     await assert.rejects(queryCodingPlan('qoder', key, locale, realT), e => {
       const expected = realT(locale, 'qoderConnectNotInstalled', { provider: 'Qoder 积分' })
+      if (locale === 'en') assert.equal(expected.includes('Qoder 积分'), false, 'en message must not embed the zh label')
       return e.soft === true && e.message === expected && expected !== 'qoderConnectNotInstalled' && expected.length > 0
     })
   }
+
+  // Catalog describes the account plan expiry (credits.planExpiresAtMs), not per-package cycles.
+  assert.ok(SUBSCRIPTION_CATALOG.qoder.zh.includes('账户套餐到期时间'))
+  assert.ok(!SUBSCRIPTION_CATALOG.qoder.zh.includes('最早周期结束'))
+  assert.ok(SUBSCRIPTION_CATALOG.qoder.en.includes('account plan expiry'))
+  assert.ok(!SUBSCRIPTION_CATALOG.qoder.en.includes('earliest cycle end'))
 
   // Plan attribution: CN aliases fold into qoder; global stays forwarding-only.
   assert.equal(planProviderIdOf('qoder-cn', {}, 'qmodel_latest'), 'qoder')

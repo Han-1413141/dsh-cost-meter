@@ -63,6 +63,13 @@ try {
   assert.equal(await fetchQoderConnectUsage(null), null)
   assert.equal(requestLog.length, 0)
 
+  // Non-loopback or malformed origins are refused before any request.
+  reset()
+  for (const origin of ['http://example.com', 'https://127.0.0.1', 'http://127.0.0.1.evil.example', 'http://user:pass@127.0.0.1', 'http://127.0.0.1/path', 'http://127.0.0.1/?x=1', 'http://127.0.0.1/#f', 'not a url']) {
+    await assert.rejects(fetchQoderConnectUsage(origin), e => e.code === 'qoderConnectUnavailable', `origin ${origin}`)
+  }
+  assert.equal(requestLog.length, 0, 'refused origins never reach the connector')
+
   // Parser direct: invalid totals, package cap, missing expiry.
   assert.equal(parseQoderUsage({ credits: { total: -1 } }), null)
   assert.equal(parseQoderUsage({ credits: { total: NaN } }), null)

@@ -105,7 +105,7 @@ Without credentials/subscription the panel shows a **neutral soft-failure hint**
 
 ### New subscription attribution (2026-10-15)
 
-The per-model billing selector now offers 19 families, separately from quota adapters. Added: Codex / ChatGPT, Volcengine Agent Plan, Tencent Coding Plan, Tencent Token Plan, and Baidu Qianfan Coding Plan. Explicit vendor and plan markers are required for inference; manual assignment or API overrides win. Generic OpenAI, Tencent and Baidu API providers are not subscriptions merely because they use the same models.
+The per-model billing selector now offers 24 families, separately from quota adapters. Added: Codex / ChatGPT, Volcengine Agent Plan, Tencent Coding Plan, Tencent Token Plan, and Baidu Qianfan Coding Plan. Explicit vendor and plan markers are required for inference; manual assignment or API overrides win. Generic OpenAI, Tencent and Baidu API providers are not subscriptions merely because they use the same models.
 
 Go Plus shares Go's reference prices and attribution. The opencode-go-plus alias respects custom prices. Codex auto classification uses the saved Plan provider set; read-only quota can come from native DSH pi-ai OAuth or an installed subscription connector. The four new standalone plan families currently classify local tokens and equivalent cost; they do not invent remote quota percentages or reset windows.
 
