@@ -83,7 +83,7 @@ Price sources: cross-checked against each direct vendor's official API prices an
 
 ## 2. Coding Plan quota adaptation
 
-The "Coding Plan quotas" panel in Settings supports **12 vendors**, each with its own enable switch / key / manual refresh / progress bars and reset times, plus a per-vendor **display position** (sidebar card / Settings page / both / off, default Settings page; v1.5.26); official domains are used by default; MiniMax supports a [custom trusted HTTPS origin](minimax-quota-endpoint.md#english). The discovery chain is: panel key → DSH credential store → environment variables → CLI login fallback.
+The "Coding Plan quotas" panel in Settings supports **17 vendors**, each with its own enable switch / key / manual refresh / progress bars and reset times, plus a per-vendor **display position** (sidebar card / Settings page / both / off, default Settings page; v1.5.26); official domains are used by default; MiniMax supports a [custom trusted HTTPS origin](minimax-quota-endpoint.md#english). The discovery chain is: panel key → DSH credential store → environment variables → CLI login fallback. WorkBuddy and Qoder need no credential; they read subscription connector plugins installed locally.
 
 | Vendor | Endpoint | Shown as | Verified status |
 |---|---|---|---|
@@ -97,6 +97,7 @@ The "Coding Plan quotas" panel in Settings supports **12 vendors**, each with it
 | Cline Pass | `api.cline.bot/api/v1/users/me/plan/usage-limits` | 5-hour / weekly / monthly windows used % + reset times | endpoint alive (401; verified 2026-10); credential `CLINE_PASS_API_KEY` (`sk_*`); `percentUsed` is already a used percentage |
 | SCNet Token Plan | — (no API endpoint; local metering) | monthly credits used % + usage text | the platform only offers `sk-tp-` inference endpoints; usage is console-only — estimated locally via the official deduction table |
 | Volcano Ark Coding Plan | `open.volcengineapi.com` (`Action=GetUsageDetails`/`GetPersonalPlan`/`GetAFPUsage`, Version=2024-01-01, service=ark, region=cn-beijing, AK/SK HMAC) | 5-hour / weekly / monthly windows used % + reset times | control-plane requires IAM sub-user `ArkReadOnlyAccess`+`BillingCenterReadOnlyAccess`, credentials `VOLC_ACCESSKEY`/`VOLC_SECRETKEY` (issue #60); Lite≈5h1200/weekly9000/monthly18000, Pro 5× |
+| Qoder CN | local `dsh-connect-qoder` connector `/plugins/dsh-connect-qoder/usage?region=cn` | subscription credit balance text + plan expiry; package breakdown in the refresh result message | verified alive 2026-11-20; no credential — the connector owns PAT login and upstream caching; CN region only; soft-failure hint when not installed / signed out |
 
 **SCNet local credits metering (issue #26)**: the SCNet (超算互联网) Token Plan is a credits-based monthly subscription (Basic 60,000 / Standard 240,000 / Pro 600,000) with no API-key quota endpoint — the plugin converts the current billing period's local-ledger usage into credits via the **official deduction table** (effective 2026-08-11, `SCNET_CREDIT_RATES`): cache-miss input = input+cacheWrite, cached input = cacheRead, output = output; covering major GLM/DeepSeek/Kimi/MiniMax/Qwen models. It shows a "used / total credits (est.)" text line and a monthly used-% bar. The billing period resets monthly from the configurable plan start date (`YYYY-MM-DD`; empty = calendar month). No credentials, no network — actual consumption is subject to the SCNet console; models not covered by the table are not counted.
 
@@ -104,7 +105,7 @@ Without credentials/subscription the panel shows a **neutral soft-failure hint**
 
 ### New subscription attribution (2026-10-15)
 
-The per-model billing selector now offers 18 families, separately from quota adapters. Added: Codex / ChatGPT, Volcengine Agent Plan, Tencent Coding Plan, Tencent Token Plan, and Baidu Qianfan Coding Plan. Explicit vendor and plan markers are required for inference; manual assignment or API overrides win. Generic OpenAI, Tencent and Baidu API providers are not subscriptions merely because they use the same models.
+The per-model billing selector now offers 19 families, separately from quota adapters. Added: Codex / ChatGPT, Volcengine Agent Plan, Tencent Coding Plan, Tencent Token Plan, and Baidu Qianfan Coding Plan. Explicit vendor and plan markers are required for inference; manual assignment or API overrides win. Generic OpenAI, Tencent and Baidu API providers are not subscriptions merely because they use the same models.
 
 Go Plus shares Go's reference prices and attribution. The opencode-go-plus alias respects custom prices. Codex auto classification uses the saved Plan provider set; read-only quota can come from native DSH pi-ai OAuth or an installed subscription connector. The four new standalone plan families currently classify local tokens and equivalent cost; they do not invent remote quota percentages or reset windows.
 
@@ -130,6 +131,7 @@ The ledger records both the total equivalent cost (cost) and the real-money port
 | anthropic / zai / minimax / commandcode / clinepass / scnet / volcengine | plan if saved in the automatic Plan set | percent-based subscription windows |
 | kimi | plan if saved in the automatic Plan set | subscription windows; override models to api for PAYG balance scenarios |
 | workbuddy / workbuddy-ai / workbuddy-global | plan if saved in the automatic Plan set | Domestic and international routes from both WorkBuddy connectors share the workbuddy family configuration; providers.workbuddy=plan also works explicitly |
+| qoder / qoder-cn | plan if saved in the automatic Plan set | CN subscription credits read via the dsh-connect-qoder connector; providers.qoder=plan also works explicitly; qoder-global is forwarding-only, never plan |
 | openrouter / siliconflow | api | credits/balance are real money |
 | OpenCode Go (zen/opencode routes) | plan if saved in the automatic Plan set | Go-subscription models; Zen PAYG users should override to api |
 | Codex (ChatGPT subscription) | saved Plan set or manual | Native pi-ai OAuth and subscription connector quotas; assign provider:model to plan in settings |

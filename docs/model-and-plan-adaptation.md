@@ -83,7 +83,7 @@
 
 ## 二、Coding Plan 额度适配
 
-设置页「Coding Plan 额度」面板支持 **12 家**,各家独立启用开关 / Key / 手动刷新 / 进度条与重置时间,并可按家配置**显示位置**(侧边栏卡片 / 设置页 / 两者 / 关闭,默认设置页;v1.5.26);默认使用各家官方域名；MiniMax 可[手动指定可信 HTTPS 查询域名](minimax-quota-endpoint.md),发现链为:面板 Key → DSH 凭据库 → 环境变量 → CLI 登录态兜底。
+设置页「Coding Plan 额度」面板支持 **17 家**,各家独立启用开关 / Key / 手动刷新 / 进度条与重置时间,并可按家配置**显示位置**(侧边栏卡片 / 设置页 / 两者 / 关闭,默认设置页;v1.5.26);默认使用各家官方域名；MiniMax 可[手动指定可信 HTTPS 查询域名](minimax-quota-endpoint.md),发现链为:面板 Key → DSH 凭据库 → 环境变量 → CLI 登录态兜底。WorkBuddy 与 Qoder 无需凭据,自动读取本机已安装的订阅连接插件。
 
 | 厂商 | 端点 | 显示内容 | 实测状态 |
 |---|---|---|---|
@@ -97,6 +97,7 @@
 | Cline Pass | `api.cline.bot/api/v1/users/me/plan/usage-limits` | 5 小时 / 周 / 月三窗口用量% + 重置时间 | 端点存活(401;2026-10 实测);凭据 `CLINE_PASS_API_KEY`(`sk_*`);响应里的 `percentUsed` 已是已用百分比 |
 | SCNet 超算互联网 Token Plan | —(无 API 端点,本地计量) | 月度 Credits 已用% + 用量文本 | 平台仅提供 `sk-tp-` 推理端点,用量只在控制台可见;按官方抵扣表本地估算 |
 | 火山方舟 Volcano Ark Coding Plan | `open.volcengineapi.com`(`Action=GetUsageDetails`/`GetPersonalPlan`/`GetAFPUsage`,Version=2024-01-01,service=ark,region=cn-beijing,AK/SK HMAC) | 5 小时 / 周 / 月三档用量%与重置时间 | 管控面需 IAM 子用户 `ArkReadOnlyAccess`+`BillingCenterReadOnlyAccess`,凭据 `VOLC_ACCESSKEY`/`VOLC_SECRETKEY`(issue #60);含 Lite≈5h1200/周9000/月18000、Pro 5倍档位 |
+| Qoder CN | 本机 `dsh-connect-qoder` 连接插件 `/plugins/dsh-connect-qoder/usage?region=cn` | 订阅积分余额文本 + 套餐到期时间;积分包明细在刷新结果消息 | 2026-11-20 实测存活;无需凭据,连接插件负责 PAT 登录与上游缓存;仅 CN 区,未安装/未登录时软失败提示 |
 
 **SCNet 本地 Credits 计量(issue #26)**:SCNet Token Plan 为 Credits 包月订阅(基础 60,000 / 标准 240,000 / 高级 600,000),无 API-Key 化额度端点——插件按**官方 Credits 抵扣表**(2026-08-11 生效,`SCNET_CREDIT_RATES`)对本地账本当前计费周期的用量折算 Credits(未命中输入 = input+cacheWrite,命中缓存输入 = cacheRead,输出 = output;覆盖 GLM/DeepSeek/Kimi/MiniMax/Qwen 各主力量型),展示「已用 / 总额 Credits(est.)」文本与月度已用% 进度条。计费周期自「订阅起始日」(可配,`YYYY-MM-DD`)每月重置,留空按自然月;无需任何凭据、不走网络,实际消耗以控制台账单为准,抵扣表未覆盖的模型不计入。
 
@@ -104,7 +105,7 @@
 
 ### 新增套餐归属（2026-10-15）
 
-在「按模型统计 → 计费方式」选择具体套餐。共有 18 种归属，额度查询仍由已有的独立开关控制。
+在「按模型统计 → 计费方式」选择具体套餐。共有 19 种归属，额度查询仍由已有的独立开关控制。
 
 | 归属 | 识别方式与显示范围 |
 |---|---|
@@ -138,6 +139,7 @@
 | anthropic / zai / minimax / commandcode / clinepass / scnet / volcengine | 已保存为自动套餐 → plan | 窗口百分比制订阅 |
 | kimi | 已保存为自动套餐 → plan | 订阅窗口;PAYG 余额场景请把对应模型覆盖为 api |
 | workbuddy / workbuddy-ai / workbuddy-global | 已保存为自动套餐 → plan | 两种 WorkBuddy 连接插件的国内版、国际版沿用 workbuddy 套餐配置；也可显式设置 providers.workbuddy=plan |
+| qoder / qoder-cn | 已保存为自动套餐 → plan | CN 订阅经 dsh-connect-qoder 连接插件读取积分;也可显式设置 providers.qoder=plan;qoder-global 不归属套餐,仅转发 |
 | openrouter / siliconflow | api | credits/余额为真实扣费 |
 | OpenCode Go(zen/opencode 路由)| 已保存为自动套餐 → plan | Go 订阅包含模型;Zen 按量用户请覆盖为 api |
 | Codex(ChatGPT 订阅)| 保存的套餐归属或手动标记 | 支持 pi-ai 登录及连接插件额度；可在设置中按 provider:model 标记为 plan |

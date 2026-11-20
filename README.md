@@ -3,7 +3,7 @@
 <p align="center">Cost tracking and subscription quotas for DeepSeek Harness</p>
 
 <p align="center">
-  <a href="https://github.com/Han-1413141/dsh-cost-meter/releases/latest"><img src="https://img.shields.io/badge/version-1.9.77-4176E6?style=flat-square" alt="version"></a>
+  <a href="https://github.com/Han-1413141/dsh-cost-meter/releases/latest"><img src="https://img.shields.io/badge/version-1.9.78-4176E6?style=flat-square" alt="version"></a>
   <a href="https://www.npmjs.com/package/dsh-cost-meter"><img src="https://img.shields.io/npm/dm/dsh-cost-meter?label=downloads&style=flat-square&color=4176E6" alt="npm monthly downloads"></a>
   <a href="https://github.com/Han-1413141/dsh-cost-meter/stargazers"><img src="https://img.shields.io/github/stars/Han-1413141/dsh-cost-meter?label=stars&style=flat-square&color=D9A400" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT license"></a>
@@ -42,26 +42,26 @@ Restart `dsh web` after installation or updates. **Desktop** uses its bundled CL
 The PowerShell installer checks pnpm and Git and uses the `web` profile by default:
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.77/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.78/install.ps1 | iex
 ```
 
 Install a pinned Git tag:
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.77
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.78
 ```
 
 See [installation and updates](docs/install.en.md) for uninstalling or installing without Git.
 
 </details>
 
-Current release **v1.9.77**: [release notes](docs/release-notes/v1.9.77.md) · [troubleshooting](docs/install-troubleshooting.md)
+Current release **v1.9.78**: [release notes](docs/release-notes/v1.9.78.md) · [troubleshooting](docs/install-troubleshooting.md)
 
 ## Feature overview
 
 - **Conversation and call costs**: Cost entries in the composer, header and each turn. Inspect rates, tokens, recorded inputs and tool results, including parent/subagent cost attribution.
 - **Statistics and exports**: Filter by date, provider and model; inspect trends, rankings, cache hit rates and token heatmaps. Export one or all retained conversations, and view local-model API-equivalent costs separately.
-- **Quotas and balances**: Codex / ChatGPT, OpenCode Go, MiniMax, Claude, GLM, Kimi, Qianwen, MiMo, OpenDesign and other plans, plus CLIProxyAPI multi-account quotas and custom HTTP balance sources.
+- **Quotas and balances**: Codex / ChatGPT, OpenCode Go, MiniMax, Claude, GLM, Kimi, Qianwen, MiMo, OpenDesign, Qoder CN and other plans, plus CLIProxyAPI multi-account quotas and custom HTTP balance sources.
 - **Multi-provider pricing**: Automatic model matching, editable rates and multipliers, and peak/off-peak tiers. Sync DeepSeek official prices and the OpenRouter catalog; separate API charges from Plan equivalents.
 - **Budgets and pricing alerts**: Daily, monthly, cumulative or custom-date budgets. Peak/off-peak schedules and countdowns, with popup and system notifications before a change.
 - **Display and history**: Configure sidebar cards, composer entries, quota strips and turn costs. Chinese/English UI, dark themes and mobile layouts; historical imports, retention and storage controls.
