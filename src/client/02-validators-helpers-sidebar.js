@@ -2180,12 +2180,13 @@
     }
 
     const balancePrivacy = makeStore({})
+    function isBalanceHidden(id) {
+      const current = balancePrivacy.getSnapshot()[id]
+      if (current !== undefined) return current
+      try { return window.localStorage?.getItem('cm.balance.hidden.' + id) === '1' } catch { return false }
+    }
     function useBalancePrivacy(config, id, t) {
-      const read = () => {
-        const current = balancePrivacy.getSnapshot()[id]
-        if (current !== undefined) return current
-        try { return window.localStorage?.getItem('cm.balance.hidden.' + id) === '1' } catch { return false }
-      }
+      const read = () => isBalanceHidden(id)
       const [value, setValue] = useState(read)
       useEffect(() => {
         const update = () => setValue(read())
@@ -3728,7 +3729,7 @@
 
     const loadSidebarIcons = () => require.async('./client.sidebar-icons.js').then(module => module.mount({
       makeT, resolveLocale, peakView, usePeakClock, phaseLabelKeys, countdownText, codexQuotaSnapshot,
-      displayCostOf, formatMoneyUsd, sidebarTodayValue, CODING_PLAN_ROWS,
+      displayCostOf, formatMoneyUsd, formatBalanceMoney, isBalanceHidden, balancePrivacy, sidebarTodayValue, CODING_PLAN_ROWS,
     }))
 
     function useBotFooterTarget() {
