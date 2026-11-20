@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-05",
+  "generatedAt": "2026-11-20",
   "note": "Auto-generated from lib/pricing.js DEFAULT_PROVIDER_PRICE_TABLE. USD per 1M tokens; unpriced entries have no verified official price.",
   "providers": {
     "openai": {

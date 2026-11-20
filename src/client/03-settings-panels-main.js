@@ -1210,6 +1210,7 @@
       { id: 'mimo', labelKey: 'codingPlanMimo' },
       { id: 'baidu-coding', labelKey: 'codingPlanBaidu' },
       { id: 'workbuddy', labelKey: 'wbT' },
+      { id: 'qoder', labelKey: 'qoderT' },
       { id: 'factory', labelKey: 'codingPlanFactory' },
     ]
 

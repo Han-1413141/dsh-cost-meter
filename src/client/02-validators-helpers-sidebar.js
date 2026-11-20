@@ -3257,7 +3257,7 @@
       const gauge = wide !== false && state.config.planQuotaStyle === 'gauge' && !state.config.sidebarTextOnly
       // 余额放在标题行右端,正文只保留额度窗口;
       // 窗口文本只装数值,标题行自己补「余额:」标签。textWindowOf 只产非空文本,真值检查即可。
-      const titleValue = (id === 'workbuddy' || id === 'opendesign') && windows.balance?.text
+      const titleValue = (id === 'workbuddy' || id === 'opendesign' || id === 'qoder') && windows.balance?.text
         ? t('codingPlanWindowBalance') + ': ' + windows.balance.text : null
       const locale = resolveLocale(state.config)
       const rows = (titleValue ? entries.filter(([name]) => name !== 'balance') : entries).map(([name, win]) => {

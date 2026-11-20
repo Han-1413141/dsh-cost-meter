@@ -305,6 +305,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
               }),
               el('p', { className: 'cm-note' }, (resolveLocale(state.config) === 'en' ? 'Volcano Ark needs AK/SK, ArkReadOnlyAccess and BillingCenterReadOnlyAccess. Enter credentials or export VOLC_ACCESSKEY/VOLC_SECRETKEY. Only open.volcengineapi.com is contacted.' : '火山方舟需 AK/SK、ArkReadOnlyAccess 和 BillingCenterReadOnlyAccess；可填凭据或导出 VOLC_ACCESSKEY/VOLC_SECRETKEY。只连接 open.volcengineapi.com。')))
             : planId === 'workbuddy' ? el(Fragment, null, el('p', { className: 'cm-note' }, t('wbH')), el(WorkBuddyAccounts, { live, config: cfgEntry, setPlan, state }))
+            : planId === 'qoder' ? el('p', { className: 'cm-note' }, t('qoderH'))
             : el(Fragment, null,
               el('div', { className: 'cm-field' },
                 el('label', null, planId === 'baidu-coding' ? 'Cookie (console.bce.baidu.com)' : planId === 'mimo' ? 'Cookie (platform.xiaomimimo.com)' : planId === 'factory' ? 'Factory Token' : planId === 'opendesign' ? 'OpenDesign Cookie / Control Key' : t(planId === 'zai' ? 'zaiPlanKeyLabel' : 'codingPlanKeyLabel'))),
