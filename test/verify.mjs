@@ -1137,6 +1137,8 @@ const officialHosts = {
   volcengine: ['open.volcengineapi.com'],
   qwen: [],
   mimo: ['platform.xiaomimimo.com'],
+  workbuddy: [],
+  qoder: [],
   'baidu-coding': ['console.bce.baidu.com'],
 }
 for (const id of CODING_PLAN_PROVIDER_IDS) {
@@ -7037,6 +7039,7 @@ await import('./workbuddy-accounts.mjs')
 await import('./workbuddy-xdpool.mjs')
 await import('./workbuddy-host.mjs')
 await import('./qoder-connect.mjs')
+await import('./qoder-plan-quota.mjs')
 await import('./mimo-enable-flow.mjs')
 await import('./mimo-v26-pricing.mjs')
 await import('./host-locale.mjs')
