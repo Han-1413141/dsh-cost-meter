@@ -1691,9 +1691,10 @@
           el('span', null, t('cardsTogglePlanTotal'))),
         el(BillingStatistics, { state, api, load: api.loadPricing, mode: 'billing', draft, setDraft, locale }),
         // 今日会话
-        el('div', null,
-          el('button', { className: 'cm-btn', onClick: () => setTab('export') }, locale === 'en' ? 'Export cost records' : '导出费用记录'),
-          el('h3', { className: 'cm-h' }, t('todaySessions')),
+        el('div', { className: 'cm-stack' },
+          el('div', { className: 'cm-budget-head' },
+            el('h3', { className: 'cm-h' }, t('todaySessions')),
+            el('button', { type: 'button', className: 'cm-btn small', onClick: () => setTab('export') }, locale === 'en' ? 'Export cost records' : '导出费用记录')),
           el(TodaySessions, { state, t })),
         // 预算
         el(BudgetPanel, { state, draft, setDraft, t }),
