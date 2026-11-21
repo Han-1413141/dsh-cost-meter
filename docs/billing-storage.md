@@ -4,10 +4,10 @@
 
 从 1.9.34 起，费用设置的「用量 → 计费历史存储」显示 billion-context 辅助文件的数量、大小，以及最早、最新修改时间。左下角设置和插件详情页共用此入口。
 
-默认保留最近 **7 天**的原始辅助文件；可以选择 **30 天**，或「全部保留」关闭自动清理。后台每小时检查一次，每次最多处理 10,000 个符合条件的文件。正在使用、尚未完成、内容无效或缺少完成依据的记录会保留。
+默认保留最近 **7 天**的原始辅助文件；可以选择 **30 天**，或「全部保留」关闭自动清理。后台每小时检查一次，每次最多处理 10,000 个符合条件的文件。保留时间之内的记录（正在使用、尚未完成）一律不动，无法解析的文件也会保留。
 
-- `streams`：将超过保留时间、已完成且已有计费归属的记录合并为 gzip 归档。每批最多 256 条，写入并同步归档后才移除未被并发修改的原始文件。
-- `groups`：删除超过保留时间且已完成、没有待处理请求的预留记录与状态回执。
+- `streams`：将超过保留时间、已完成且已有计费归属的记录合并为 gzip 归档。每批最多 256 条，写入并同步归档后才移除未被并发修改的原始文件。超过保留时间、可解析但永远无法进入归档的辅助记录（进程中断留下的未完成流、旧格式元数据）会被直接回收，不再永久累积。
+- `groups`：删除超过保留时间且已完成、没有待处理请求的预留记录与状态回执。请求中断、从未收到状态回执的孤儿预留，在超过保留时间且自身校验通过后也会被单独回收；回执尚新的配对仍整体保留。
 - `stream-archives`：保留压缩后的计费流元数据，供历史查询、重启和重放使用。
 - 账本、`calls` 调用记录、费用金额、调用次数和历史明细保留。
 
@@ -37,7 +37,7 @@ dsh-cost-meter clean --ledger /path/to/ledger.json --older-than 7d --dry-run
 
 Open **Cost settings → Usage → Billing history storage** from either Settings or the plugin details page. The panel shows file counts, bytes, and oldest/newest modification times for streams, request receipts and compressed archives.
 
-Original auxiliary files are retained for **7 days** by default. Choose **30 days** or **Keep all** to disable cleanup. Hourly maintenance processes up to 10,000 eligible files per run. Active, unfinished, invalid or unconfirmed records are retained. Completed streams with resolved billing coverage are compressed in batches of up to 256 records; the archive is written and synced before unchanged originals are removed. Expired, completed request receipts are removed. Ledger totals, calls, historical details and replay metadata remain available.
+Original auxiliary files are retained for **7 days** by default. Choose **30 days** or **Keep all** to disable cleanup. Hourly maintenance processes up to 10,000 eligible files per run. Records inside the retention window — active or unfinished — are left untouched, and unreadable files are always retained. Completed streams with resolved billing coverage are compressed in batches of up to 256 records; the archive is written and synced before unchanged originals are removed. Expired, completed request receipts are removed. Past the window, parseable auxiliary records that can never enter an archive (interrupted reservations without a receipt, legacy or unfinished stream metadata) are reclaimed instead of accumulating forever. Ledger totals, calls, historical details and replay metadata remain available.
 
 Manual cleanup requires **Preview cleanup → Confirm cleanup**. Canceling performs no cleanup. The CLI examples above use the same operation: preview is the default, `--apply` executes it, and `--streams` / `--groups` select categories (both by default). `--older-than all` retains everything. CLI options do not change the automatic-retention setting. Use `--ledger` for a custom ledger; the default is `$DSH_HOME/storages/cost-meter/ledger.json`, with `~/.dsh` as the fallback home.
 
