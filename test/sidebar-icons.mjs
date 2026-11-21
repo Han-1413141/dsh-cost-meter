@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { sanitizeConfig, applyConfigPatch, zeroDay, Ledger } from '../lib/store.js'
 import { stateSchema } from '../lib/typert.host.js'
-import { COUNTDOWN_WINDOW_MS, countdownWindow, claudeShare, sidebarIconEntries, sidebarIconUnavailable, PLAN_ICON_MARKS, iconMark, PLAN_ICON_LOGOS, sidebarIconLogo, sidebarIconOrder } from '../src/sidebar-icons/presentation.js'
+import { COUNTDOWN_WINDOW_MS, countdownWindow, claudeShare, sidebarIconEntries, sidebarIconUnavailable, PLAN_ICON_MARKS, iconMark, PLAN_ICON_LOGOS, sidebarIconLogo, sidebarIconOrder, sidebarIconSlots, phaseTone } from '../src/sidebar-icons/presentation.js'
 
 const now = Date.parse('2026-11-16T02:00:00Z'), hour = 3600000
 for (const [hours, percent, countdown] of [[72, 100, false], [8 + 1 / hour, 100, false], [8, 100, true], [6, 75, true], [4, 50, true], [0, 0, true], [-1, 0, true]]) {
@@ -34,7 +34,7 @@ const stateWrites = [], recordedEffects = []
 let recordEffects = false
 class Clock extends Date { static now() { return now } }
 const element = (type, props, ...children) => ({ type, key: props?.key ?? null, props: props ?? {}, children })
-const React = { createElement: element, Fragment: 'fragment', useId: () => 'test-id', useRef: value => ({ current: value }),
+const React = { createElement: element, Fragment: 'fragment', useSyncExternalStore: (_, read) => read(), useId: () => 'test-id', useRef: value => ({ current: value }),
   useEffect(effect) { if (recordEffects) recordedEffects.push(effect) }, useState: value => [override.length ? override.shift() : typeof value === 'function' ? value() : value, value => stateWrites.push(value)] }
 const context = vm.createContext({ Date: Clock, URL, navigator: { language: 'en' }, console,
   document: { body: { getAttribute: () => pocket ? 'mobile' : null } },
@@ -127,12 +127,17 @@ for (const trigger of planTriggers) {
 }
 const tree = Component({ ...loader.props, preview: true })
 assert.ok(walk(tree).some(node => node.props.className === 'cm-icons-row'))
-assert.equal(walk(tree).filter(node => node.type === 'button' && node.props['data-cm-icon-key']).length, loader.props.nodes.length)
+// The peak indicator merges into the DeepSeek balance icon, so buttons = nodes - merged members.
+const mergedCount = loader.props.nodes.filter(node => String(node.key).startsWith('peak')).length
+assert.equal(walk(tree).filter(node => node.type === 'button' && node.props['data-cm-icon-key']).length, loader.props.nodes.length - mergedCount)
+assert.equal(walk(tree).some(node => node.props['data-cm-icon-key'] === 'peak'), mergedCount === 0, 'peak never gets its own icon button')
 assert.ok(walk(tree).filter(node => node.type === 'button').every(node => node.props['aria-label'] || node.children.length))
 for (const metric of ['cost', 'tokens', 'both']) {
   const c = { ...config, sidebarTodayMetric: metric }
   const iconTree = Component({ ...loader.props, state: { ...state, config: c }, preview: true })
-  const summary = walk(iconTree).find(node => node.props.className === 'cm-icons-amount')
+  // Scope to the today button: the balance icon now also renders a persistent amount.
+  const todayTrigger = walk(iconTree).find(node => node.type === 'button' && node.props['data-cm-icon-key'] === 'today')
+  const summary = todayTrigger.children.find(node => node?.props?.className === 'cm-icons-amount')
   const upstream = core.renderSidebarFooter({ ...state, config: { ...c, sidebarStyle: 'standard' } }, true)
   const todayNode = upstream.children.find(node => node.key === 'today')
   const todayBody = todayNode.type(todayNode.props)
@@ -177,15 +182,16 @@ override = [false, now, 'today']
 const inlineTree = Component(inlineLoader.props)
 const paired = walk(inlineTree).find(node => node.props.className === 'cm-footer-stack same-line')
 assert.ok(paired)
-assert.equal(paired.children.length, 2)
+assert.deepEqual(Array.from(paired.children, node => node.key).sort(), Array.from(inlineLoader.props.nodes).filter(node => ['today', 'balance', 'peak'].includes(node.key)).map(node => node.key).sort())
 for (const key of ['today', 'balance']) {
   assert.ok(paired.children.includes(inlineLoader.props.nodes.find(node => node.key === key)))
   const trigger = walk(inlineTree).find(node => node.props['data-cm-icon-key'] === key)
   assert.equal(trigger.props['aria-expanded'], true)
 }
 const iconList = walk(inlineTree).find(node => node.props.className === 'cm-icons-list')
-assert.equal(iconList.children.length, inlineLoader.props.nodes.length, 'numbers stay beside their icon in one ordered list, not in a right-edge bucket')
-assert.deepEqual(iconList.children.map(node => node.props['data-cm-icon-key']), [...Array.from(inlineLoader.props.nodes, node => node.key).filter(key => key !== 'today'), 'today'])
+const mergedKeys = new Set(inlineLoader.props.nodes.map(node => String(node.key)).filter(key => key.startsWith('peak')))
+assert.equal(iconList.children.length, inlineLoader.props.nodes.length - mergedKeys.size, 'numbers stay beside their icon in one ordered list, not in a right-edge bucket')
+assert.deepEqual(iconList.children.map(node => node.props['data-cm-icon-key']), [...Array.from(inlineLoader.props.nodes, node => node.key).filter(key => key !== 'today' && !mergedKeys.has(String(key))), 'today'])
 assert.equal(iconList.children.at(-1).props['data-cm-icon-key'], 'today', 'amount follows all the other icons')
 const savedOrder = ['today', 'models', 'balance', 'plan:qwen', 'peak', 'plan:minimax', 'codex', 'go', 'budget', 'localSavings']
 const customState = { ...state, config: { ...config, sidebarOrder: savedOrder } }
@@ -193,11 +199,12 @@ const customLoader = core.renderSidebarFooter(customState, true).children[0]
 const customTree = Component({ ...customLoader.props, preview: true })
 const customList = walk(customTree).find(node => node.props.className === 'cm-icons-list')
 assert.equal(customList.children.at(-1).props['data-cm-icon-key'], 'today', 'saved today-first order cannot put icons after the amount')
-assert.deepEqual(customList.children.slice(0, -1).map(node => node.props['data-cm-icon-key']), Array.from(customLoader.props.nodes, node => node.key).filter(key => key !== 'today'), 'all other icons preserve their saved relative order')
+// Upstream ordering happens on nodes, so the saved 'peak' key still positions the merged slot.
+assert.deepEqual(customList.children.slice(0, -1).map(node => node.props['data-cm-icon-key']), Array.from(customLoader.props.nodes, node => node.key).filter(key => key !== 'today' && !mergedKeys.has(String(key))), 'all other icons preserve their saved relative order')
 assert.deepEqual(customState.config.sidebarOrder, savedOrder, 'presentation never overwrites the saved order')
 const noToday = loader.props.nodes.filter(node => node.key !== 'today')
 const noTodayList = walk(Component({ ...loader.props, nodes: noToday, preview: true })).find(node => node.props.className === 'cm-icons-list')
-assert.deepEqual(noTodayList.children.map(node => node.props['data-cm-icon-key']), Array.from(noToday, node => node.key))
+assert.deepEqual(noTodayList.children.map(node => node.props['data-cm-icon-key']), Array.from(noToday, node => node.key).filter(key => !mergedKeys.has(String(key))))
 const frozenEntries = Object.freeze([{ kind: 'today' }, { kind: 'peak' }, { kind: 'models' }])
 assert.deepEqual(sidebarIconOrder(frozenEntries).map(entry => entry.kind), ['peak', 'models', 'today'])
 assert.equal(queryCount, 0)
@@ -235,3 +242,67 @@ try {
   reopened.close()
 } finally { rmSync(home, { recursive: true, force: true }) }
 console.log('[ok] opt-in icons: 8-hour boundaries, unchanged nodes/settings, loader fallback/retry, mobile/rail fallback, currencies/tokens, native details and persistence (not visual acceptance)')
+
+// DeepSeek is one icon: the peak indicator folds into the balance slot instead of a second button.
+const sampleEntries = sidebarIconEntries([
+  { key: 'balance', type: 'x' }, { key: 'peak', type: 'x' }, { key: 'today', type: 'x' }, { key: 'plan:qwen', type: 'x' },
+], state, key => key, [{ id: 'qwen', labelKey: 'Qwen' }], (zh, en) => en)
+const slots = sidebarIconSlots(sampleEntries)
+assert.deepEqual(slots.map(slot => slot.key), ['balance', 'today', 'plan:qwen'], 'peak no longer owns an icon slot')
+assert.deepEqual(slots[0].entries.map(entry => entry.kind), ['balance', 'peak'], 'balance slot discloses both original nodes')
+assert.equal(slots[0].host.kind, 'balance')
+const reversed = [sampleEntries[1], sampleEntries[2], sampleEntries[0]]
+assert.deepEqual(sidebarIconSlots(reversed).map(slot => slot.key), ['balance', 'today'])
+assert.deepEqual(sidebarIconSlots(reversed, 'ollama-cloud').map(slot => slot.key), ['peak', 'today', 'balance'])
+assert.deepEqual(sidebarIconSlots([{ kind: 'customBalance', key: 'customBalance' }, sampleEntries[1]]).map(slot => slot.key), ['customBalance', 'peak'])
+// Global metrics are never absorbed into a provider.
+for (const key of ['today', 'plan:qwen']) assert.equal(slots.find(slot => slot.key === key).members.length, 0)
+// Without a balance icon the peak entry keeps its own slot rather than disappearing.
+const peakOnly = sidebarIconSlots(sidebarIconEntries([{ key: 'peak', type: 'x' }, { key: 'today', type: 'x' }], state, key => key, [], (zh, en) => en))
+assert.deepEqual(peakOnly.map(slot => slot.key), ['peak', 'today'], 'a hidden balance must not swallow the peak entry')
+assert.equal(sidebarIconSlots([]).length, 0)
+// Colour and wording share one current-period decision; the next switch direction never drives colour.
+assert.equal(phaseTone({ inPeak: true, weekend: false }), 'peak')
+assert.equal(phaseTone({ inPeak: false, weekend: false }), 'off')
+assert.equal(phaseTone({ inPeak: false, weekend: true }), 'weekend')
+assert.equal(phaseTone({ inPeak: false, weekend: false, holiday: true }), 'holiday')
+assert.equal(phaseTone(null), null)
+// Peak at 17:00 (UTC 09:00) with the next switch leaving peak must still render the peak tone.
+const peakConfig = core.parseConfig(stateSchema.shape.config.parse(sanitizeConfig({ ...patch.config, peakEnabled: true, peakNotice: true,
+  peakWindows: [{ start: 6, end: 10 }], peakEffectiveAt: '2026-08-01T00:00:00Z' })), 'config')
+const peakState = { ...state, config: peakConfig }
+const peakLoader = core.renderSidebarFooter(peakState, true)?.children?.[0]
+const peakHasPeakNode = Boolean(peakLoader) && peakLoader.props.nodes.some(node => String(node.key) === 'peak')
+assert.ok(peakHasPeakNode, 'fixture actually produces a peak node so the merge is exercised')
+const peakSlots = sidebarIconSlots(sidebarIconEntries(peakLoader.props.nodes, peakState, key => key, core.CODING_PLAN_ROWS, (zh, en) => zh))
+const mergedSlot = peakSlots.find(slot => slot.members.some(member => member.kind === 'peak'))
+assert.ok(mergedSlot, 'the real peak node is folded into the balance slot')
+assert.equal(mergedSlot.key, 'balance')
+assert.equal(peakSlots.filter(slot => slot.key === 'peak').length, 0, 'no leftover peak slot for the real node set')
+// The component must forward a single phase tone onto the merged glyph whenever a phase exists.
+const toneSource = readFileSync(new URL('../src/sidebar-icons/index.js', import.meta.url), 'utf8')
+assert.match(toneSource, /tone: peakMember \? tone : null/, 'glyph tone is driven by the merged peak member')
+assert.match(toneSource, /const tone = phaseTone\(phase\)/, 'tone comes from the shared phaseTone helper')
+const balanceTrigger = walk(Component({ ...peakLoader.props, preview: true })).find(node => node.type === 'button' && node.props['data-cm-icon-key'] === 'balance')
+assert.ok(balanceTrigger, 'balance icon still renders')
+// The balance amount stays visible instead of living only in a hover title.
+assert.match(balanceTrigger.props['aria-label'], /[Bb]alance|余额/)
+const balanceAmountNode = balanceTrigger.children.find(node => node?.props?.className === 'cm-icons-amount')
+assert.ok(balanceAmountNode, 'balance icon renders its amount inline')
+assert.match(String(balanceAmountNode.children.join('')), /\$20/)
+// A failed balance snapshot contributes no number rather than a misleading zero.
+const offState = { ...state, balance: { status: 'error' } }
+const offLoader = core.renderSidebarFooter(offState, true).children[0]
+const offTrigger = walk(Component({ ...offLoader.props, preview: true })).find(node => node.type === 'button' && node.props['data-cm-icon-key'] === 'balance')
+assert.equal(offTrigger.children.find(node => node?.props?.className === 'cm-icons-amount'), undefined, 'no amount when the snapshot is not ok')
+assert.equal(offTrigger.props['data-unavailable'], true, 'failed balance is flagged on the icon')
+// A custom balance reports remaining/unit (possibly CREDITS); inline-amounting it here would mix
+// units and could print a non-zero balance as zero, so it stays disclosure-only.
+const customOnlyState = { ...state, balance: { status: 'off' }, customBalance: { status: 'ok', label: 'Custom', unit: 'CREDITS', remaining: 42, maxBudget: null, spend: null } }
+const customOnlyLoader = core.renderSidebarFooter({ ...customOnlyState, config: { ...config, customBalance: { enabled: true, display: 'sidebar' } } }, true)?.children?.[0]
+const customTrigger = customOnlyLoader && walk(Component({ ...customOnlyLoader.props, preview: true })).find(node => node.type === 'button' && node.props['data-cm-icon-key'] === 'customBalance')
+if (customTrigger) {
+  assert.equal(customTrigger.children.find(node => node?.props?.className === 'cm-icons-amount'), undefined, 'custom balance keeps its amount inside the disclosure')
+  assert.doesNotMatch(String(customTrigger.props['aria-label']), /\b0\b/, 'custom balance never renders a misleading zero')
+}
+console.log('[ok] merged DeepSeek icon: peak folded into balance, one phase tone, persistent amount, no silent slot loss')

@@ -1,11 +1,36 @@
 # Changelog
 ## [Unreleased]
 
-## [1.9.78] - 2026-11-20
+## [Unreleased]
 
 - 新增 **Qoder CN 订阅积分**额度卡：经本机已安装的 `dsh-connect-qoder` 连接插件只读查询（`/plugins/dsh-connect-qoder/usage?region=cn`），无需填写凭据；显示积分余额与套餐到期时间，积分包明细在刷新结果消息中。未安装/未登录/读取失败时给出中性软失败提示，仅支持 CN 区。
 - Qoder CN 渠道（`qoder` / `qoder-cn`）纳入套餐计费归属，可在「按模型统计 → 计费方式」选择；`qoder-global` 保持仅转发，不归属套餐。
 - 订阅目录新增 Qoder CN 条目（积分包 30 天有效、每日签到 100 积分、到期取有余额积分包的最早周期结束）。
+
+## [1.9.81] - 2026-11-20
+
+- **侧栏布局截图**。中英文仓库首页增加标准、紧凑、简洁、合并卡片与图标布局截图，使用同一组示例用量、余额和套餐额度。
+
+## [1.9.80] - 2026-11-20
+
+- 修复阿里云通用券和百炼券因适用范围带括号说明而被漏算的问题。感谢 [@dustplume](https://github.com/dustplume) 在 [#553](https://github.com/Han-1413141/dsh-cost-meter/issues/553) 提供脱敏的券数据、定位过滤条件并建议处理括号说明。
+- 验证 `dsh-codex-subscription` 3.2.26 与 `dsh-codex-connect` 0.2.0-alpha.16 的实际发布包，更新兼容基线与 CI。两项版本变化由 [github-actions[bot]](https://github.com/apps/github-actions) 在 [#551](https://github.com/Han-1413141/dsh-cost-meter/issues/551) 和 [#552](https://github.com/Han-1413141/dsh-cost-meter/issues/552) 报告。
+
+## [1.9.79] - 2026-11-20
+
+- 侧栏「图标」样式将 DeepSeek 余额和峰谷时段合为一个按钮。圆环颜色显示当前时段，点击可查看余额和下次切换时间。
+- 隐藏余额时，图标金额同步遮住。多个账号使用不同币种时，展开可分别查看。
+- 感谢 [@chanyuenpang](https://github.com/chanyuenpang) 在 [#548](https://github.com/Han-1413141/dsh-cost-meter/pull/548) 贡献图标合并、时段配色和余额展示。
+
+## [1.9.78] - 2026-11-20
+
+- 在额度页启用套餐后，首次成功查询会自动在侧栏显示结果。套餐、网关、积分和自定义余额卡片旁的「侧栏」开关与显示设置同步，关闭后仍可刷新额度。
+- 自定义余额可以填写归属渠道，进度条按这些渠道的当日支出计算。感谢 @PersueFree 在 [#543](https://github.com/Han-1413141/dsh-cost-meter/issues/543) 提供渠道账单和金额对照。
+- 历史重算识别失败尝试的用量、标题请求及 fork 的继承范围。标题调用缺少逐次用量时，仅在账本差额能确定价格时重算。感谢 @wexther 在 [#544](https://github.com/Han-1413141/dsh-cost-meter/issues/544) 提供日志结构和复现条件。
+- DS Bot 模式下，费用卡片显示在左栏底部，返回标准界面后恢复原位置。感谢 @Tommy8081 在 [#545](https://github.com/Han-1413141/dsh-cost-meter/issues/545) 提供布局信息。
+- DSH Desktop 关闭浏览器访问后，Antigravity 额度可通过桌面窗口已有的同源会话读取与刷新。感谢 @liluosama55 在 [#546](https://github.com/Han-1413141/dsh-cost-meter/issues/546) 报告 HTTP 403 的触发条件。
+- Host 插件可以为指定渠道和模型注册动态报价。账本保存每次调用的报价、分项和汇率。感谢 @SnowNight777 在 [#547](https://github.com/Han-1413141/dsh-cost-meter/issues/547) 提出扩展接口和历史报价需求。[接口文档](https://github.com/Han-1413141/dsh-cost-meter/blob/v1.9.78/docs/host-price-calculators.md)
+- 额度页增加 Fireworks.ai 余额来源，可配置可信的 HTTPS 余额接口，通过 DSH 凭据库鉴权，并显示余额和查询时间。感谢 @Huaweidev 在 [#549](https://github.com/Han-1413141/dsh-cost-meter/issues/549) 提出需求和自定义接口方案。
 
 ## [1.9.77] - 2026-11-19
 

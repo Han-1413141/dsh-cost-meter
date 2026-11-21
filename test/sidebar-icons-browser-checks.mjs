@@ -22,8 +22,10 @@ export async function checkSidebarIcons(page, output) {
       assert.ok(await svg.locator('path').count() > 0)
     }
     const placement = await sidebar.locator('.cm-icons-list').evaluate(list => {
-      const value = list.querySelector('.cm-icons-amount').getBoundingClientRect()
+      // The balance icon now renders its own inline amount, so the amount under test must be the
+      // one inside the today group rather than the first match in the list.
       const group = list.lastElementChild
+      const value = group.querySelector('.cm-icons-amount').getBoundingClientRect()
       const ownGlyph = group.querySelector('.cm-icons-glyph').getBoundingClientRect()
       return { lastKey: group.dataset.cmIconKey, gap: value.left - ownGlyph.right,
         afterAll: [...list.querySelectorAll('.cm-icons-glyph')].every(node => node.getBoundingClientRect().right <= value.left + .5) }
@@ -42,6 +44,28 @@ export async function checkSidebarIcons(page, output) {
     assert.equal(await icon.getAttribute('aria-expanded'), 'false')
     assert.equal(await icon.evaluate(node => node === document.activeElement), true)
   }
+  // The icon and open account rows must mask the same money, including after reopening.
+  await page.evaluate(() => window.configure({ balance: { ...window.current().balance, quickHide: true } }))
+  await icon.click()
+  const account = sidebar.locator('.cm-icons-panel [data-cm-display="balance"]').first()
+  await account.locator('.cm-balance-name [role=button]').click()
+  await page.waitForFunction(() => document.querySelector('#actual-sidebar [data-cm-icon-key=balance] .cm-icons-amount')?.textContent === '••••')
+  assert.equal(await account.locator('.cm-bal-amt').innerText(), '••••')
+  assert.doesNotMatch(await icon.getAttribute('aria-label'), /\$24|\$12/)
+  await page.reload()
+  await sidebar.evaluate(node => { node.style.position = 'static'; node.style.left = 'auto'; node.style.width = '324px' })
+  await icon.waitFor()
+  assert.equal(await icon.locator('.cm-icons-amount').innerText(), '••••')
+  await icon.click()
+  await account.locator('.cm-balance-name [role=button]').click()
+  await page.waitForFunction(() => document.querySelector('#actual-sidebar [data-cm-icon-key=balance] .cm-icons-amount')?.textContent.includes('24'))
+  await page.evaluate(() => window.setFixtureState({ balanceAccounts: [
+    { id: 'account-a1', label: 'USD', status: 'ok', currency: 'USD', totalBalance: 10, grantedBalance: 0, toppedUpBalance: 10, fetchedAt: Date.now(), message: '' },
+    { id: 'account-b2', label: 'CNY', status: 'ok', currency: 'CNY', totalBalance: 20, grantedBalance: 0, toppedUpBalance: 20, fetchedAt: Date.now(), message: '' },
+  ] }))
+  await icon.locator('.cm-icons-amount').waitFor({ state: 'detached' })
+  assert.match(await account.innerText(), /10/)
+  assert.match(await sidebar.locator('.cm-icons-panel [data-cm-display="balance"]').last().innerText(), /20/)
   await page.setViewportSize({ width: 390, height: 844 })
   await sidebar.locator('.cm-icons').waitFor({ state: 'detached' })
   assert.equal(await sidebar.locator('[data-cm-display="balance"]').count(), 2)

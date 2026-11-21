@@ -10,7 +10,7 @@ window.__ModuleLoader__.load({
     try { createPortal = require('react-dom')?.createPortal ?? null } catch {}
     const runFields = ['at', 'before', 'after', 'days', 'sessions', 'skipped']
     const validDetail = row => typeof row?.sessionId === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(row.date) && typeof row.model === 'string'
-      && ['usage', 'ledgerModelMissing', 'logModelMissing', 'dayModelMissing', 'logMissing'].includes(row.reason)
+      && ['usage', 'auxiliaryUsage', 'dynamicQuote', 'ledgerModelMissing', 'logModelMissing', 'dayModelMissing', 'logMissing'].includes(row.reason)
       && Array.isArray(row.fields) && row.fields.every(item => ['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning', 'calls'].includes(item?.field)
         && Number.isFinite(item.ledger) && item.ledger >= 0 && Number.isFinite(item.log) && item.log >= 0)
     const isRequestKey = key => ['deepseek-official:deepseek-web-search', 'deepseek-official:deepseek-web-fetch', 'deepseek-official:deepseek-search-api', 'deepseek-official:deepseek-fetch-api', 'deepseek-official:deepseek-search-server'].includes(key)
@@ -654,8 +654,8 @@ window.__ModuleLoader__.load({
         return formatMoneyUsd(typeof native === 'number' && rate > 0 ? native / rate : row[field], state.config)
       }
       const allLabel = en ? 'All models' : '全部模型'
-      const reasons = en ? { usage: 'Usage differs', ledgerModelMissing: 'Model missing from ledger', logModelMissing: 'Model missing from logs', dayModelMissing: 'Model missing from daily totals', logMissing: 'No replayable logs' }
-        : { usage: '用量不一致', ledgerModelMissing: '账本缺少此模型', logModelMissing: '日志缺少此模型', dayModelMissing: '当日汇总缺少此模型', logMissing: '无可回放日志' }
+      const reasons = en ? { dynamicQuote: 'Recorded dynamic quote', auxiliaryUsage: 'Missing per-call usage for title or retry requests', usage: 'Usage differs', ledgerModelMissing: 'Model missing from ledger', logModelMissing: 'Model missing from logs', dayModelMissing: 'Model missing from daily totals', logMissing: 'No replayable logs' }
+        : { dynamicQuote: '保留已入账的动态报价', auxiliaryUsage: '标题或重试请求缺少逐次用量，无法确定费用', usage: '用量不一致', ledgerModelMissing: '账本缺少此模型', logModelMissing: '日志缺少此模型', dayModelMissing: '当日汇总缺少此模型', logMissing: '无可回放日志' }
       const skipped = row => row.skippedDetails?.length ? el('details', { key: row.at, className: 'cm-repricing-skipped' },
         el('summary', null, new Date(row.at).toLocaleString(locale) + ' · ' + row.skipped + (en ? ' unchanged' : ' 条未重算')),
         el('ul', null, ...row.skippedDetails.map((item, i) => el('li', { key: i },

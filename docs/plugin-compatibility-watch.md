@@ -120,3 +120,7 @@ SHA-512 校验、静态契约检查和实际发布包回归通过：原生及代
 ### 2026-11-19：Codex Subscription 3.2.25
 
 [#539](https://github.com/Han-1413141/dsh-cost-meter/issues/539) 报告 `3.2.25` 发布。npm 发布包 SHA-512 与登记值一致，四个额度接口函数的指纹与 `3.2.24` 一致。使用发布包在 DSH `0.2.0-rc.2` 和 `0.2.2-alpha.3` 上验证了两种额度窗口、强制刷新、账号切换、授权失效恢复和宿主 RPC。回归使用本机测试数据，兼容基线和两个 CI 矩阵均已加入 `3.2.25`。
+
+### 2026-11-20：Codex Subscription 3.2.26 与 Connect 0.2.0-alpha.16
+
+[#551](https://github.com/Han-1413141/dsh-cost-meter/issues/551) 与 [#552](https://github.com/Han-1413141/dsh-cost-meter/issues/552) 的 npm 发布包 SHA-512 校验通过。Subscription 移除了 `dsh-home-paths` 依赖。Connect 调整了宿主版本范围并移除了 `./invariant` 导出，其当前宿主声明不再包含 DSH `0.2.0-rc.2`。额度相关的函数指纹一致。Subscription 在两套宿主传输上通过额度解析、刷新和授权失效回归，Connect 通过发布包的额度解析及只读 HTTP 回归。测试使用本机数据。

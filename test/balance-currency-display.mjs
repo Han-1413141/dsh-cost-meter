@@ -64,7 +64,14 @@ assert.equal(ui.formatCustomBalanceMoney(10, config({ currency: 'USD', symbol: '
 const official = { today: { cost: 2 }, balance: { currency: 'CNY' } }
 assert.equal(ui.todayUsedInBalanceCurrency(official, config({ currency: 'USD', symbol: '$', exchangeRate: 1, balance: { currency: 'display' } }), 'official', null), 14.4)
 assert.equal(ui.todayUsedInBalanceCurrency(official, config(), 'official', null), 14.4)
-assert.equal(ui.todayUsedInBalanceCurrency({ today: { cost: 2 } }, config(), 'custom', { remaining: 1 }, { unit: 'USD' }), 2)
+assert.equal(ui.todayUsedInBalanceCurrency({ today: { cost: 2 } }, config(), 'custom', { remaining: 1 }, { unit: 'USD' }), 0)
+const channelState = { today: { cost: 6.426, byProviderModel: {
+  'llm-cc-switch-apikey-fun:flash': { costCny: 1.9356 }, 'deepseek-account:flash': { costCny: 4.4704 },
+  'cc-switch-apikey-fun-extra:flash': { costCny: 0.02 },
+} } }
+const customSegments = ui.segmentsForCustomBalance(channelState, config(), { remaining: 154.19, maxBudget: 265.2 }, { unit: 'CNY', channels: ['cc-switch-apikey-fun'] })
+assert.equal(customSegments.today, 1.9356)
+assert.ok(Math.abs(customSegments.pastSpend - 109.0744) < 1e-8)
 
 const wallet = { today: { cost: 2 }, balance: { currency: 'CNY', totalBalance: 72 } }
 const uncapped = ui.segmentsForOfficialBalance(wallet, config())

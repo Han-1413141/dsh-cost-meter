@@ -129,7 +129,7 @@ window.__ModuleLoader__.load({
       registry.go = { on: ['both', 'sidebar'].includes(config.goQuota?.display ?? 'both'), patch: { goQuota: { ...config.goQuota, display: ['both', 'sidebar'].includes(config.goQuota?.display ?? 'both') ? 'settings' : 'both' } } }
       const planConfig = config.codingPlans?.[selectedPlan] ?? {}
       const planOn = ['both', 'sidebar'].includes(planConfig.display ?? (selectedPlan === 'minimax' ? 'both' : 'settings'))
-      registry.plan = { on: planOn, patch: { codingPlans: { ...config.codingPlans, [selectedPlan]: { ...planConfig, display: planOn ? 'settings' : 'both' } } } }
+      registry.plan = { on: planOn, patch: { codingPlans: { ...config.codingPlans, [selectedPlan]: { ...planConfig, sidebarAfterSuccess: false, display: planOn ? 'settings' : 'both' } } } }
       registry.customBalance = { on: config.hideCustomBalance !== true, patch: { hideCustomBalance: config.hideCustomBalance !== true } }
       registry.codex = { on: config.codexQuotaEnabled === true && config.codexQuotaSidebar !== false, patch: config.codexQuotaEnabled === true && config.codexQuotaSidebar !== false ? { codexQuotaSidebar: false } : { codexQuotaEnabled: true, codexQuotaSidebar: true } }
       registry.sessionList = { on: config.sessionListCosts === true, patch: { sessionListCosts: config.sessionListCosts !== true } }
