@@ -70,6 +70,29 @@ const save = async filename => {
 try {
   await page.goto('http://127.0.0.1:' + server.address().port)
   await page.getByRole('button', { name: '导出费用记录', exact: true }).waitFor()
+  // Issue #561: export button aligns on the right of the Today's sessions header row with clear spacing above the table.
+  const measureTodaySessions = () => page.evaluate(() => {
+    const heading = [...document.querySelectorAll('h3.cm-h')].find(el => el.textContent === '今日会话')
+    const head = heading?.closest('.cm-budget-head')
+    const button = head?.querySelector('button.cm-btn')
+    const stack = head?.closest('.cm-stack')
+    const table = stack?.querySelector('.cm-scroll')
+    if (!heading || !head || !button || !stack || !table) return null
+    const h = heading.getBoundingClientRect(), b = button.getBoundingClientRect(), hr = head.getBoundingClientRect(), t = table.getBoundingClientRect()
+    return {
+      buttonRightOfHeading: b.left >= h.right + 8,
+      sameRow: Math.abs((b.top + b.height / 2) - (h.top + h.height / 2)) <= 6,
+      wrappedGap: b.top - h.bottom,
+      headToTableGap: Math.round(t.top - hr.bottom),
+    }
+  })
+  const wideLayout = await measureTodaySessions()
+  assert.ok(wideLayout && wideLayout.buttonRightOfHeading && wideLayout.sameRow && wideLayout.headToTableGap >= 8, 'today sessions desktop spacing (#561): ' + JSON.stringify(wideLayout))
+  await page.screenshot({ path: join(output, 'overview-today-sessions.png') })
+  await page.setViewportSize({ width: 360, height: 900 })
+  const narrowLayout = await measureTodaySessions()
+  assert.ok(narrowLayout && ((narrowLayout.buttonRightOfHeading && narrowLayout.sameRow) || narrowLayout.wrappedGap >= 8) && narrowLayout.headToTableGap >= 8, 'today sessions narrow spacing (#561): ' + JSON.stringify(narrowLayout))
+  await page.setViewportSize({ width: 1200, height: 900 })
   assert.equal(await page.evaluate(() => window.chunkLoads), 0, 'settings does not load statistics or replay logs until clicked')
   await page.getByRole('button', { name: '导出费用记录', exact: true }).click()
   await popup.waitFor({ state: 'visible' })
