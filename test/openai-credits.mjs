@@ -38,7 +38,18 @@ const costs = await queryOpenAiCredits(ctx, config, {
 })
 assert.deepEqual(costs, { label: raw.label, unit: 'USD', remaining: 145, maxBudget: 200, spend: 55 })
 assert.equal(calls[0].get('start_time'), String(Date.parse('2026-11-01T00:00:00Z') / 1000))
+assert.equal(calls[0].get('bucket_width'), '1d')
+assert.equal(calls[0].get('end_time'), String(Date.parse('2026-11-19T00:00:00Z') / 1000))
+assert.equal(calls[1].get('end_time'), calls[0].get('end_time'))
 assert.equal(calls[1].get('page'), 'cursor-1')
+const lastDay = await queryOpenAiCredits(ctx, config, {
+  now: Date.parse('2026-11-30T12:00:00Z'),
+  fetchImpl: async url => {
+    assert.equal(new URL(url).searchParams.get('end_time'), String(Date.parse('2026-12-01T00:00:00Z') / 1000))
+    return asPage(25)
+  },
+})
+assert.equal(lastDay.remaining, 175)
 const expired = await queryOpenAiCredits(ctx, config, {
   now: Date.parse('2026-12-10T00:00:00Z'),
   fetchImpl: async url => {
