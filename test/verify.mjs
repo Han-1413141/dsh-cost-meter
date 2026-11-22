@@ -1970,7 +1970,7 @@ console.log('[ok] 宽泛匹配与跨厂商兑底(路由 provider 费用为零修
   // 旧 v3 checkpoint(ver 不匹配)隔离——宿主 ver 检查拒绝旧行并全量 refold,
   // 不会对旧结构 state 调用 parse。
   const projRow = { ver: def.stateVersion, seq: events.length, val: structuredClone(projState) }
-  assert.equal(projRow.ver, 13, 'stateVersion 为 13（重放旧 checkpoint，支持 responseModel 回落）')
+  assert.equal(projRow.ver, 14, 'stateVersion 为 14（按宿主继承边界重放旧 checkpoint）')
   usageProjectionStateSchema.parse(projRow.val)
   // ⑤ issue #43 崩溃点复现对照:缺 stateSchema 的定义(fork 0.2.0 场景)在
   // restore 路径抛出与 issue 报错完全一致的 TypeError。
@@ -2479,10 +2479,10 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   assert.ok(scheduled >= 1, '清洗后调度落盘')
   // 投影与启动接线:源码结构断言(投影无独立运行时入口,行为经宿主重放自愈)。
   const indexSource = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
-  assert.ok(indexSource.includes('stateVersion: 13'), '投影 stateVersion 13:支持 responseModel 回落并重放旧 checkpoint')
+  assert.ok(indexSource.includes('stateVersion: 14'), '投影 stateVersion 14：按宿主继承边界重放旧 checkpoint')
   assert.ok(indexSource.includes("if (event.type === 'session')") && indexSource.includes('createdAt') && indexSource.includes('seedLength'), '投影记录会话创建时刻与 seedLength(旧宿主兼容+多 end-seed 延迟扣除)')
   assert.ok(indexSource.includes("if (event.type === 'session/end-seed')"), '投影识别 session/end-seed fork 种子边界(issue #55)')
-  assert.ok(indexSource.includes('isSeedBySeq') && indexSource.includes('isSeedByLength') && indexSource.includes('seedEndSeq'), '投影按 seq/length/time 三重过滤种子段(issue #55/#61)')
+  assert.ok(indexSource.includes('isSeedBySeq') && indexSource.includes('hasExactBoundary') && indexSource.includes('seedEndSeq'), '投影优先使用精确继承边界，兼容旧日志(issue #55/#61)')
   assert.ok(indexSource.includes('if (isSeed) return state'), '投影对种子 usage 不聚合')
   assert.ok(indexSource.includes('createdAt: state.createdAt'), '投影 usage 更新不丢失 fork 过滤基准')
   assert.ok(indexSource.includes('seedEndSeq: state.seedEndSeq'), '投影 usage 更新不丢失种子边界基准')
