@@ -353,6 +353,28 @@ jobs:
           $config = node .tmp-next-host/node_modules/@deepseek-ai/dsh/lib/bin.js --profile web --dump-config
           if ($LASTEXITCODE -ne 0 -or -not ($config | Select-String 'name: dsh-cost-meter')) { exit 1 }
 
+  dsh-023-compatibility:
+    runs-on: ubuntu-latest
+    env:
+      DSH_TEST_HOST_VERSION: 0.2.3-alpha.2
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.22.3
+      - name: Install the published host and workspace dependencies
+        run: |
+          npm install -g pnpm
+          pnpm install --frozen-lockfile
+          npm install --prefix .tmp-dsh-023 --no-audit --no-fund "@deepseek-ai/dsh@$DSH_TEST_HOST_VERSION"
+      - name: Verify session history and install the packed plugin in a Web profile
+        run: |
+          export DSH_TEST_NODE_MODULES="$PWD/.tmp-dsh-023/node_modules"
+          node test/host-peer-compatibility.mjs
+          node test/dsh-023-session-history.mjs
+          archive=$(npm pack --silent --pack-destination .tmp-dsh-023)
+          node test/next-host-install.mjs ".tmp-dsh-023/$archive"
+
   next-host-compatibility:
     runs-on: ubuntu-latest
     steps:
