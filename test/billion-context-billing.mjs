@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -348,6 +348,24 @@ try {
   assert.equal(normalizeBillionUsage('openai', { prompt_tokens: 5, completion_tokens: 1, prompt_tokens_details: { cached_tokens: 9 } }), null)
   assert.equal(normalizeBillionUsage('responses', { input_tokens: -1, output_tokens: 1 }), null)
   assert.ok((await billionRecordsFor(ledgerPath, 'root')).some(row => row.type.endsWith('replacement')))
+  // billionContextEnabled:false: no bridge file, no shard tree, while native ledger accounting works.
+  const disabledPath = join(root, 'disabled/ledger.json')
+  const disabledLedger = new Ledger(sanitizeConfig({ peakEnabled: false, billionContextEnabled: false }), {}, disabledPath)
+  assert.equal(disabledLedger.config.billionContextEnabled, false)
+  const disabledBridge = installBillionContextBilling(ctx, disabledLedger)
+  assert.equal(disabledBridge.createScope({ sessionId: 'disabled-call' }, at), undefined)
+  assert.equal(existsSync(join(dirname(disabledPath), 'billion-context-bridge.json')), false)
+  assert.equal(existsSync(disabledPath + '.billion-context'), false)
+  disabledLedger.account({ input: 10, output: 2 }, 'main', 'disabled-call', at, 'fixture'); disabledLedger.flush()
+  assert.equal(disabledLedger.sumDays().calls, 1, 'the primary ledger stays authoritative when auxiliary measurement is off')
+  disabledLedger.config.billionContextEnabled = true
+  const enabledScope = disabledBridge.createScope({ sessionId: 'enabled-call' }, at)
+  assert.ok(enabledScope)
+  assert.ok(existsSync(join(dirname(disabledPath), 'billion-context-bridge.json')))
+  disabledLedger.config.billionContextEnabled = false
+  assert.equal(disabledBridge.createScope({ sessionId: 'disabled-again' }, at), undefined)
+  assert.equal(disabledBridge.status(), undefined)
+  disabledLedger.close()
   console.log(JSON.stringify({ check: 'billion-context billing', actualPinnedUpstream: realUpstream, upstreamVersion, forceDirectCovered: directSupported, nativePrefillCovered, nativeLocalRefusalsCovered, billedCalls: 8, totalUsd: before,
     checks: 'four protocols, compression, retry attempts, actual cache buckets, API/Plan, parent/agents, replay equality, restart, atomic receipts, cancellation, unknown usage and privacy', externalRequests: 0 }))
 } finally {
