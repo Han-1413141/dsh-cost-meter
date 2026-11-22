@@ -38,7 +38,7 @@
       "integrity": "sha512-98Q5eSqk0LyemCJ45OrYmZvEd0qpzBjLokthZlQ4yA7yvgUlzuM7fp6iq9dPAJ4N4vaplnvZeld0JxM4S7Ti1A=="
     },
     "dsh-codex-subscription": {
-      "version": "3.2.27",
+      "version": "3.2.28",
       "signature": {
         "main": "./lib/index.js",
         "exports": {
@@ -82,7 +82,7 @@
         }
       },
       "interfaceHash": "cc6c6a526c386a0733a9a87bc6799623635188c6de73f0f51c58d4305f45a683",
-      "integrity": "sha512-1EMVtfUBzVUAV7ukFxDYC6iR7BZHGNo/4oo2l+ewRc42YiReGJ6+R6tzau+nRJoDtxOAjIvFBjNhAKhTVvY41g=="
+      "integrity": "sha512-f5XLEMkJqo9mbUlKxKePIfjPDatXdyIc0aV+cjdVamgPJ8UZH4+RpE7LTmIkuRyHtaYy0Ei8fpNXH2iXOY3frg=="
     },
     "dsh-codex-connect": {
       "version": "0.2.0-alpha.16",

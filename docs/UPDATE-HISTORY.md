@@ -1,5 +1,10 @@
 # dsh-cost-meter 版本更新历史
 
+## v1.9.84(2026-11-22)—— 历史费用日期修复与 Codex Subscription 兼容
+
+- 修复安装前历史回填的日期。跨午夜请求按发起时的本地日期计费，每天的会话明细记录当天首笔用量的时间。升级时按请求日志核对旧账，调整费用前自动备份。日志或金额对不上的记录保留原账。@aabbqq1 提供了跨日期的账本明细、调用次数与金额。[#570](https://github.com/Han-1413141/dsh-cost-meter/issues/570)
+- 验证 `dsh-codex-subscription@3.2.28` 的 npm 发布包，更新兼容基线和两套宿主 CI。GitHub Actions 报告了上游版本变化。[#569](https://github.com/Han-1413141/dsh-cost-meter/issues/569)
+
 ## v1.9.83(2026-11-22)—— Antigravity-Manager 额度与计费修复
 
 - 新增 Antigravity-Manager 额度来源。设置页和侧栏可按账号查看分组额度与重置时间，也支持旧版接口返回的逐模型额度。由 @snhun 提出。[#566](https://github.com/Han-1413141/dsh-cost-meter/issues/566)
