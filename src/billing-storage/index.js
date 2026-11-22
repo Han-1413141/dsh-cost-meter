@@ -32,6 +32,9 @@ window.__ModuleLoader__.load({
         el('label', { className: 'cm-field' }, text('原始辅助文件保留时间', 'Keep original auxiliary files'),
           el('select', { value: days, disabled: busy, onChange: event => { setConfirm(false); setDraft({ ...config, billingStorageRetentionDays: Number(event.target.value) }) } },
             [7, 30, 0].map(value => el('option', { key: value, value }, value ? text(`${value} 天`, `${value} days`) : text('全部保留（关闭自动清理）', 'Keep all (disable cleanup)'))))),
+        el('label', { className: 'cm-check' }, el('input', { type: 'checkbox', role: 'switch', checked: config.billionContextEnabled !== false, disabled: busy, onChange: event => setDraft({ ...config, billionContextEnabled: event.target.checked }) }),
+          text('启用 billion-context 辅助计量', 'Enable billion-context auxiliary measurement')),
+        el('p', { className: 'cm-note' }, text('关闭后，新请求仅使用宿主计费。在途请求按原方式完成，历史分片按所选天数保留。', 'When off, new requests use host billing. Requests already in progress finish normally. Existing files follow the selected retention period.')),
         data ? el('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,180px),1fr))', gap: '12px', margin: '12px 0' } },
           [['streams', text('计费流', 'Streams')], ['groups', text('请求回执', 'Request receipts')], ['archives', text('压缩归档', 'Compressed archives')]].map(([key, title]) => {
             const value = data[key]
