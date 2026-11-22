@@ -1,8 +1,12 @@
 # Changelog
 ## [Unreleased]
 
-- 新增 billion-context 辅助计量开关。计费历史存储按保留天数清理中断请求留下的分片。
-- 修复 OpenAI API 赠送额度预估漏计当前 UTC 日费用的问题，费用查询仍不会超过赠送额度到期时间。
+## [1.9.83] - 2026-11-22
+
+- 新增 Antigravity-Manager 额度来源。设置页和侧栏可按账号查看分组额度与重置时间，也支持旧版接口返回的逐模型额度。由 @snhun 提出。[#566](https://github.com/Han-1413141/dsh-cost-meter/issues/566)
+- 修复 Kimi 余额标签重复。旧版余额数据在英文界面显示为 `Balance ¥83.32`，在中文界面显示为 `余额 ¥83.32`。@Rayawa 提供了问题截图。[#567](https://github.com/Han-1413141/dsh-cost-meter/issues/567)
+- 新增 billion-context 辅助计量开关。关闭后，新请求使用宿主计费。存储维护会回收超龄的无回执预留文件和中断分片，保留待处理回执，并在归档前恢复旧记录的计费归属。@isryanyhliu 提供了文件增长记录、修复代码和回归用例。[#563](https://github.com/Han-1413141/dsh-cost-meter/issues/563) · [PR #564](https://github.com/Han-1413141/dsh-cost-meter/pull/564)
+- 修复 OpenAI API 赠送额度预估漏计当前 UTC 日费用的问题。查询包含当天的费用时间桶，截止时间最晚到赠送额度到期时。@xu-mengnan 提交了修复和分页、到期边界测试。[PR #565](https://github.com/Han-1413141/dsh-cost-meter/pull/565)
 
 ## [1.9.82] - 2026-11-21
 
