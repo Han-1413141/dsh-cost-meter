@@ -1,6 +1,8 @@
 # Changelog
 ## [Unreleased]
 
+- 修复 OpenAI API 赠送额度预估漏计当前 UTC 日费用的问题，费用查询仍不会超过赠送额度到期时间。
+
 ## [1.9.82] - 2026-11-21
 
 - **路由响应模型计价回落**：当配置的路由模型 ID（如 `openrouter/auto`）无法识别计价时，自动回落使用供应商实际返回的 `responseModel`（实时流 `finish.replayState.response.responseModel` 与会话日志 `assistant/message` / `compaction/summary`）计算费用并归属到实际模型；已定价、本地、显式免费路由与手动覆盖/动态报价配置保持原样。感谢 [@res0Nanz](https://github.com/res0Nanz) 在 [#558](https://github.com/Han-1413141/dsh-cost-meter/issues/558) 提出需求并指明日志字段路径。
