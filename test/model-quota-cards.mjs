@@ -9,9 +9,9 @@ import { sanitizeConfig, applyConfigPatch, Ledger } from '../lib/store.js'
 
 const sourceDir = new URL('../src/client/', import.meta.url)
 const source = withCustomBalanceEditor(readdirSync(sourceDir).filter(name => name.endsWith('.js')).sort().map(name => readFileSync(new URL(name, sourceDir), 'utf8')).join(''))
-const expose = ['SidebarModelCosts', 'sidebarModelRows', 'modelStatsRows', 'MODEL_SIDEBAR_DEFAULTS', 'MODEL_OPEN_KEY', 'QuotaCard', 'useQuotaRefresh', 'QuotasSection', 'PlanQuotaCard', 'GatewayQuotaCard', 'GoQuotaCard', 'GoQuotaSettings', 'CustomBalanceEntryPanel', 'SidebarFooter', 'CornerChips', 'parseConfig', 'makeT', 'CODING_PLAN_ROWS']
+const expose = ['SidebarModelCosts', 'sidebarModelRows', 'modelStatsRows', 'MODEL_SIDEBAR_DEFAULTS', 'MODEL_OPEN_KEY', 'QuotaCard', 'useQuotaRefresh', 'QuotasSection', 'PlanQuotaCard', 'GoQuotaCard', 'GoQuotaSettings', 'CustomBalanceEntryPanel', 'SidebarFooter', 'CornerChips', 'parseConfig', 'makeT', 'CODING_PLAN_ROWS']
 expose.push('CostSection', 'MiniMaxPlanCard')
-expose.push('AccountCredentialLauncher')
+expose.push('AccountCredentialLauncher', 'miniMaxRow', 'miniMaxResetText', 'GATEWAY_PROVIDER_LABELS', 'displayOptions')
 expose.push('quotaPlacementValue', 'quotaPlacementPatch', 'quotaPlacementOptions')
 expose.push('BalancePanel', 'CredentialField', 'parseBalance', 'miniMaxWindowsOf', 'barDirectionOf', 'quotaWindowRow', 'codingPlanWindowLabel', 'codingPlanWindowEntries', 'numInput', 'resolveLocale', 'formatMoneyUsd')
 const element = (type, props, ...children) => ({ type, props: props ?? {}, children })
@@ -254,7 +254,7 @@ const cards = () => withClass(quota.tree, 'cm-quota-list')[0].children.flat()
 const keys = () => cards().map(n => n.props.key)
 assert.deepEqual(keys(), ['gw-gw-0', 'gw-gw-1', 'go', ...e.ui.CODING_PLAN_ROWS.map(r => 'plan-' + r.id), 'cb-0', 'cb-1'])
 assert.equal(writes, 0, '显示和排序不写配置')
-const gateway = e.mount(e.ui.GatewayQuotaCard, cards()[1].props)
+const gateway = e.mount(e.ui.PlanQuotaCard, cards()[1].props)
 gateway.tree.props.onToggleOpen(); await e.flush()
 assert.equal(gateway.tree.props.open, true)
 const beforeExpand = writes
@@ -294,6 +294,15 @@ assert.ok(custom.tree.props.saved, '保存新下标后恢复刷新')
 while (draft.customBalances.length < 8) { btn(quota.tree, t('customBalanceAdd')).props.onClick(); quota.render(quotaProps()) }
 assert.equal(btn(quota.tree, t('customBalanceAdd')).props.disabled, true)
 assert.equal(btn(quota.tree, t('aliyunBalanceAdd')).props.disabled, true)
+btn(quota.tree, t('managerQuotaAdd')).props.onClick()
+quota.render(quotaProps())
+const managerDraft = draft.gatewayQuotas.sources.at(-1)
+assert.equal(managerDraft.type, 'antigravity-manager')
+assert.equal(managerDraft.baseURL, 'http://127.0.0.1:8045')
+assert.deepEqual(plain(managerDraft.includeProviders), ['antigravity'])
+const managerConfig = applyConfigPatch(quotaState.config, { gatewayQuotas: draft.gatewayQuotas })
+assert.deepEqual(managerConfig.errors, [])
+assert.equal(e.ui.parseConfig(managerConfig.config, 'config').gatewayQuotas.sources.at(-1).type, 'antigravity-manager')
 while (draft.gatewayQuotas.sources.length < 4) { e.setNow(1000 + draft.gatewayQuotas.sources.length); btn(quota.tree, t('gatewaySourceAdd')).props.onClick(); quota.render(quotaProps()) }
 assert.equal(btn(quota.tree, t('gatewaySourceAdd')).props.disabled, true)
 

@@ -39,7 +39,7 @@ Filter costs by date, provider and model. Inspect API charges, Plan equivalents,
 
 ## Subscription quotas and balances
 
-Plan cards display usage windows, percentages and reset times. Enabled cards retain their status and retry action when credentials are missing or queries fail. Sources include Codex / ChatGPT subscriptions, OpenCode Go, Coding Plan providers and WorkBuddy credits. CLIProxyAPI shows per-account quotas; custom balances support HTTP endpoints, credential references, response extraction and dashboard links.
+Plan cards display usage windows, percentages and reset times. Enabled cards retain their status and retry action when credentials are missing or queries fail. Sources include Codex / ChatGPT subscriptions, OpenCode Go, Coding Plan providers and WorkBuddy credits. CLIProxyAPI and Antigravity-Manager show per-account quotas. Custom balances support HTTP endpoints, credential references, response extraction and dashboard links.
 
 [Providers and credentials](model-and-plan-adaptation.en.md) · [Balance credentials](balance-credentials.md) · [Custom balances](custom-balance-sources.en.md) · [Gateway setup](cliproxyapi-quota.md)
 

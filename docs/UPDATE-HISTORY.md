@@ -1,5 +1,12 @@
 # dsh-cost-meter 版本更新历史
 
+## v1.9.83(2026-11-22)—— Antigravity-Manager 额度与计费修复
+
+- 新增 Antigravity-Manager 额度来源。设置页和侧栏可按账号查看分组额度与重置时间，也支持旧版接口返回的逐模型额度。由 @snhun 提出。[#566](https://github.com/Han-1413141/dsh-cost-meter/issues/566)
+- 修复 Kimi 余额标签重复。旧版余额数据在英文界面显示为 `Balance ¥83.32`，在中文界面显示为 `余额 ¥83.32`。@Rayawa 提供了问题截图。[#567](https://github.com/Han-1413141/dsh-cost-meter/issues/567)
+- 新增 billion-context 辅助计量开关。关闭后，新请求使用宿主计费。存储维护会回收超龄的无回执预留文件和中断分片，保留待处理回执，并在归档前恢复旧记录的计费归属。@isryanyhliu 提供了文件增长记录、修复代码和回归用例。[#563](https://github.com/Han-1413141/dsh-cost-meter/issues/563) · [PR #564](https://github.com/Han-1413141/dsh-cost-meter/pull/564)
+- 修复 OpenAI API 赠送额度预估漏计当前 UTC 日费用的问题。查询包含当天的费用时间桶，截止时间最晚到赠送额度到期时。@xu-mengnan 提交了修复和分页、到期边界测试。[PR #565](https://github.com/Han-1413141/dsh-cost-meter/pull/565)
+
 ## v1.9.82(2026-11-21)—— 路由响应模型计价、Kimi 降级额度保护与总览间距修复
 
 - **路由响应模型计价回落**：当配置的路由模型 ID（如 `openrouter/auto`）无法识别计价时，自动回落使用供应商实际返回的 `responseModel` 计算费用并归属到实际模型；已定价、本地、显式免费路由与手动覆盖/动态报价配置保持原样。感谢 [@res0Nanz](https://github.com/res0Nanz) 在 [#558](https://github.com/Han-1413141/dsh-cost-meter/issues/558) 提出需求并指明日志字段路径。

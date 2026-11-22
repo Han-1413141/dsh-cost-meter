@@ -3,7 +3,70 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
   const { createElement: el, useState, useEffect, useRef, Fragment } = require('react')
   const subscriptionCatalog = /* SUBSCRIPTION_CATALOG_SOURCE */ {}
   return { mount(helpers) {
-    const { useQuotaRefresh, miniMaxWindowsOf, MiniMaxPlanCard, barDirectionOf, quotaWindowRow, codingPlanWindowLabel, codingPlanWindowEntries, numInput, CredentialField, QuotaCard, resolveLocale, formatMoneyUsd, formatBalanceMoney, quotaPlacementValue, quotaPlacementPatch, quotaPlacementOptions, displayOptions, BalanceBar, segmentsForCustomBalance, customBalanceUnitOf, customBalanceDetailText, formatCustomBalanceMoney, resolveCustomBalanceLabel } = helpers
+    const { miniMaxRow, miniMaxResetText, GATEWAY_PROVIDER_LABELS, useQuotaRefresh, miniMaxWindowsOf, MiniMaxPlanCard, barDirectionOf, quotaWindowRow, codingPlanWindowLabel, codingPlanWindowEntries, numInput, CredentialField, QuotaCard, resolveLocale, formatMoneyUsd, formatBalanceMoney, quotaPlacementValue, quotaPlacementPatch, quotaPlacementOptions, displayOptions, BalanceBar, segmentsForCustomBalance, customBalanceUnitOf, customBalanceDetailText, formatCustomBalanceMoney, resolveCustomBalanceLabel } = helpers
+    const gatewayVarOf = (source, status) => {
+      if (typeof source?.keyVar === 'string' && source.keyVar.length > 0) return source.keyVar
+      if (source?.type === 'antigravity-manager') return null
+      const stem = String(source?.id ?? '').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'GATEWAY'
+      const prefix = 'CLIPROXYAPI_MANAGEMENT_KEY_' + stem
+      return Object.keys(status ?? {}).find(name => name === prefix || name.startsWith(prefix + '_')) ?? prefix
+    }
+    /** 单张网关来源卡片(可多实例:标题行有开关与删除,其余配置收在展开区)。 */
+    function GatewayQuotaCard(props) {
+      const { state, api, t, draft, setDraft, index } = props
+      const config = state.config
+      const base = draft ?? config
+      const sources = base.gatewayQuotas?.sources ?? []
+      const s = sources[index] ?? {}
+      const snapshots = Array.isArray(state.gatewayQuotas) ? state.gatewayQuotas : []
+      const live = snapshots.find(q => q.id === s.id) ?? { id: s.id, status: 'off', accounts: [], unsupportedProviders: [] }
+      const agyLink = s.type === 'agy-link'
+      const saved = config.gatewayQuotas?.sources?.find(source => source.id === s.id)
+      const varName = agyLink ? null : gatewayVarOf(saved ?? s, state.customVarStatus)
+      const [open, setOpen] = useState(false)
+      const [busy, msg, doRefresh] = useQuotaRefresh(t, () => api.refreshGatewayQuota(s.id))
+      const write = next => {
+        if (draft === null) return
+        setDraft({ ...draft, gatewayQuotas: { ...(draft.gatewayQuotas ?? config.gatewayQuotas ?? {}), sources: next } })
+      }
+      const patch = value => write(sources.map((x, i) => i === index ? { ...x, ...value } : x))
+      const field = (label, value, onChange) => el('div', { className: 'cm-field' }, el('label', null, label), el('input', { className: 'cm-input', 'aria-label': label, value: value ?? '', onChange }))
+      const windowRow = (window, i) => {
+        const view = miniMaxRow(window?.label || window?.id || t('gatewaySourceUnknown'), window, agyLink ? 'remaining' : barDirectionOf(config, 'plan'), t)
+        return el(Fragment, { key: window?.id || i }, view.row, window?.resetsAt ? el('div', { className: 'cm-note' }, miniMaxResetText(window, t)) : null)
+      }
+      const pkgRow = (pkg, i) => el('div', { key: pkg.id || i, className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, pkg.label || 'package'), el('span', { className: 'cm-bbox-pct cm-num' }, (pkg.used ?? '—') + ' / ' + (pkg.limit ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, (pkg.remaining ?? '—') + ' remaining'))
+      const credits = value => value == null ? null : el(Fragment, null, el('div', { className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, value.unit || 'credits'), el('span', { className: 'cm-bbox-pct cm-num' }, (value.used ?? '—') + ' / ' + (value.limit ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, (value.remaining ?? '—') + ' remaining')), (value.packages ?? []).map(pkgRow))
+      const account = (a, i) => el('div', { key: a.id || i, className: 'cm-budget', style: { marginTop: '8px', padding: '10px 12px' } }, el('div', { className: 'cm-budget-head' }, el('strong', null, (GATEWAY_PROVIDER_LABELS[a.provider] ?? a.provider ?? t('gatewaySourceUnknown')) + ' · ' + (a.label || t('gatewaySourceUnknown'))), el('span', { className: 'cm-hint' }, a.status)), a.plan ? el('div', { className: 'cm-note' }, a.plan) : null, a.windows.length > 0 ? el('div', { className: 'cm-go-list' }, a.windows.map(windowRow)) : null, credits(a.credits), a.message ? el('div', { className: 'cm-note' }, a.message) : null)
+      return el(QuotaCard, {
+        display: s.display, onSidebar: display => patch({ display }),
+        name: s.label || s.id || t('gatewayQuotaTitle'),
+        enabled: s.enabled === true, saved, busy, open, errorMsg: msg,
+        statusNode: el('div', { className: 'cm-note' }, t('gatewaySourceStatus') + ': ' + (live.status ?? t('gatewaySourceUnknown')) + (live.serverVersion ? ' · ' + live.serverVersion : '') + (live.fetchedAt > 0 ? ' · ' + t('gatewaySourceFetchedAt', { time: new Date(live.fetchedAt).toLocaleTimeString() }) : '') + (live.message ? ' · ' + live.message : '')),
+        configNode: el(Fragment, null,
+          el('div', { className: 'cm-grid' },
+            field(t('gatewaySourceLabel'), s.label, e => patch({ label: e.target.value })),
+            !agyLink && field(t('gatewaySourceBaseURL'), s.baseURL, e => patch({ baseURL: e.target.value })),
+            el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceDisplay')), el('select', { className: 'cm-input', value: s.display ?? 'both', onChange: e => patch({ display: e.target.value }) }, ...displayOptions(t))),
+            el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceRefreshInterval')), numInput({ value: s.refreshMinutes ?? 15 }, v => patch({ refreshMinutes: Math.min(1440, Math.max(1, Math.floor(v))) }))),
+            !agyLink && field(t('gatewaySourceAllowlist'), (s.allowedHosts ?? []).join(', '), e => patch({ allowedHosts: e.target.value.split(/[\s,;]+/).filter(Boolean) })),
+            !agyLink && el('label', { className: 'cm-check' },
+              el('input', { type: 'checkbox', checked: s.allowInsecureHttp === true, onChange: e => patch({ allowInsecureHttp: e.target.checked }) }),
+              el('span', null, t('customBalanceHttp'))),
+          !agyLink && el('label', { className: 'cm-check' },
+            el('input', { type: 'checkbox', checked: s.antigravityOnlyGemini === true, onChange: e => patch({ antigravityOnlyGemini: e.target.checked }) }),
+            el('span', null, t('gatewayOnlyGemini')))),
+          varName ? el('div', { className: 'cm-field' }, el('label', null, t(s.type === 'antigravity-manager' ? 'managerCredential' : 'gatewaySourceCredential')), el(CredentialField, { target: 'customVar:' + varName, configured: state.customVarStatus?.[varName]?.configured === true, source: state.customVarStatus?.[varName]?.source ?? '', t, api, placeholder: varName })) : !agyLink && el('p', { className: 'cm-note' }, t('managerSaveFirst')),
+          live.unsupportedProviders.length > 0 ? el('div', { className: 'cm-note' }, t('gatewaySourceUnsupported') + ': ' + live.unsupportedProviders.join(', ')) : null,
+          live.accounts.length > 0 ? live.accounts.map(account) : ['ok', 'partial'].includes(live.status) ? el('div', { className: 'cm-bal-line' }, t('gatewaySourceNoAccounts')) : null),
+        onToggle: value => patch({ enabled: value }),
+        onRefresh: doRefresh,
+        onRemove: () => write(sources.filter((_, i) => i !== index)),
+        onToggleOpen: () => setOpen(v => !v),
+        t,
+      })
+    }
+
     /* CUSTOM_BALANCE_EDITOR_SOURCE */
     function AccountCredentialField(props) {
       const { state, draft, setDraft, target, api } = props
@@ -344,6 +407,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
         onClick: () => props.onAdd({ adapter: 'fireworks', enabled: false, label: 'Fireworks.ai', labelEn: 'Fireworks.ai', unit: 'USD', display: 'both', refreshMinutes: 15,
             dashboardUrl: 'https://app.fireworks.ai/account/billing', channels: ['fireworks'], allowedHosts: ['api.fireworks.ai'],
             request: { url: '', method: 'GET', headers: { Authorization: 'Bearer {{FIREWORKS_API_KEY}}' } }, extract: { remaining: 'balance' } }) }, '+ Fireworks.ai')
+      if (props.mode === 'gateway') return el(GatewayQuotaCard, props)
       if (props.mode === 'credential') return el(AccountCredentialField, props)
       if (props.mode === 'custom-balance') return el(CustomBalanceEntryPanel, props)
       return el(PlanQuotaCard, props)
