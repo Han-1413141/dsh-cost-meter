@@ -3783,7 +3783,9 @@
     function useSharedFooter(node) {
       const [shared, setShared] = useState(false)
       useEffect(() => {
-        const slot = node?.closest('[data-slot="sidebar.footer.action"]') ?? node?.parentElement
+        const parent = node?.parentElement
+        const legacyFooter = parent?.matches('footer,[class*="footerActions" i],[class*="footer-actions" i],[role="toolbar"]')
+        const slot = node?.closest('[data-slot="sidebar.footer.action"]') ?? (legacyFooter ? parent : null)
         if (!slot) return
         const visible = element => {
           if (element === node || element.hidden) return false
