@@ -5,6 +5,7 @@
 - 新增 **Qoder CN 订阅积分**额度卡：经本机已安装的 `dsh-connect-qoder` 连接插件只读查询（`/plugins/dsh-connect-qoder/usage?region=cn`），无需填写凭据；显示积分余额与套餐到期时间，积分包明细在刷新结果消息中。未安装/未登录/读取失败时给出中性软失败提示，仅支持 CN 区。
 - Qoder CN 渠道（`qoder` / `qoder-cn`）纳入套餐计费归属，可在「按模型统计 → 计费方式」选择；`qoder-global` 保持仅转发，不归属套餐。
 - 订阅目录新增 Qoder CN 条目（积分包 30 天有效、每日签到 100 积分、到期取有余额积分包的最早周期结束）。
+- 修复 DSH Web 只绑定局域网地址时 Qoder CN 积分卡误报「未找到连接插件」：宿主自身 origin 改由 `webServer.getOrigin()` 解析，连接插件的本机读取接受该地址；绑定回环时行为不变，WorkBuddy 连接读取同步放宽。
 
 ## v1.9.81(2026-11-20)—— 侧栏布局截图
 

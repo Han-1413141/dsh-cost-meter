@@ -46,6 +46,14 @@ try {
   webServer.port = 0; await assert.rejects(query(), /not listening/); assert.equal(localReads, count)
   webServer.port = [...ports][0]
   assert.equal(resolveCustomBalanceUrl(entry.request.url, ctx).port, String(webServer.port))
+  // DSH refuses wildcard binds, so a LAN literal may be the only served address;
+  // getOrigin() is then the listener origin the helper must follow.
+  const wildcardHost = webServer.host
+  webServer.host = '192.168.2.1'; webServer.getOrigin = () => `http://127.0.0.1:${webServer.port}`
+  assert.equal(resolveCustomBalanceUrl(entry.request.url, ctx).href, `http://127.0.0.1:${webServer.port}${entry.request.url}`)
+  delete webServer.getOrigin
+  assert.throws(() => resolveCustomBalanceUrl(entry.request.url, ctx), /not listening/)
+  webServer.host = wildcardHost
   process.env.DSH_HOME = work
   const storage = join(work, 'storages', 'cost-meter'); mkdirSync(storage, { recursive: true })
   const config = sanitizeConfig({ locale: 'en', balance: { display: 'off' }, goQuota: { enabled: false }, customBalances: [entry] })

@@ -26,7 +26,7 @@
 2. Connector signed out / region disabled → soft `qoderConnectSignedOut` with actionable text, not stale credits shown as live.
 3. Signed in but malformed credits (`total` missing/NaN/negative, packages malformed) → soft `qoderConnectCreditsFailed`; a malformed package must not poison a valid total.
 4. Identity leakage: accountName/accountId from the usage payload must never appear in serialized results (fixture asserts, WorkBuddy pattern).
-5. Host without loopback webServer (`customBalanceHostOrigin` → null) → soft not-installed, no fetch to a non-loopback origin.
+5. Listener origin unavailable (`customBalanceHostOrigin` → null before bind) → soft not-installed, no fetch. A running listener contributes its own origin from `webServer.getOrigin()`, which DSH may bind to a concrete LAN interface.
 
 ---
 

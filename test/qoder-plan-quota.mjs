@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { queryCodingPlan } from '../lib/coding-plans.js'
+import { customBalanceHostOrigin } from '../lib/custom-balance.js'
 import { planProviderIdOf, billingClassOf } from '../lib/plan-billing.js'
 import { __testServerMessages } from '../lib/index.js'
 import { SUBSCRIPTION_CATALOG } from '../lib/subscription-catalog.js'
@@ -61,6 +62,20 @@ try {
   await assert.rejects(queryCodingPlan('qoder', null, 'en', t), e => e.soft === true && e.message === 'qoderConnectNotInstalled')
   assert.equal(requestLog.length, 0, 'null key never fetches')
   await assert.rejects(queryCodingPlan('qoder', { hostOrigin: null }, 'en', t), e => e.soft === true && e.message === 'qoderConnectNotInstalled')
+
+  // DSH binds one concrete interface literal and may serve no loopback listener;
+  // the plan key follows webServer.getOrigin() instead of assuming 127.0.0.1.
+  const ctxWith = webServer => ({ get: name => name === 'webServer' ? webServer : undefined })
+  const resolved = customBalanceHostOrigin(ctxWith({ host: '192.168.2.1', port: server.address().port, getOrigin: () => hostOrigin }))
+  assert.equal(resolved, hostOrigin)
+  reset()
+  const viaCtx = await queryCodingPlan('qoder', { hostOrigin: resolved }, 'en', t)
+  assert.equal(viaCtx.windows.balance.text, '1,984')
+  assert.equal(requestLog.length, 1)
+  // Legacy hosts (no getOrigin) keep the loopback-only derivation.
+  assert.equal(customBalanceHostOrigin(ctxWith({ host: '192.168.2.1', port: 3080 })), null)
+  assert.equal(customBalanceHostOrigin(ctxWith({ host: '127.0.0.1', port: 3080 })), 'http://127.0.0.1:3080')
+  assert.equal(customBalanceHostOrigin(ctxWith({ host: '192.168.2.1', port: 3080, getOrigin: () => { throw new Error('unbound') } })), null)
 
   // Bilingual soft messages come from the real server dictionary, not the code.
   reset(); httpStatus = 404

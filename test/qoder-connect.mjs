@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { fetchQoderConnectUsage, parseQoderUsage, QODER_USAGE_PATH, QODER_ERROR_CODES } from '../lib/qoder-connect.js'
+import { qoderOrigin } from '../lib/qoder-transport.js'
 
 const baseCredits = { total: 1984, packages: [{ packageName: 'base', remain: 1384, size: 6000 }, { packageName: 'addon', remain: 600, size: 1700 }], planExpiresAtMs: 1797264000000 }
 let status = { status: 'signed-in', enabled: true, accountId: 'DO_NOT_COPY', accountName: 'DO_NOT_COPY', credits: structuredClone(baseCredits), creditsAtMs: 1795142813296 }
@@ -58,14 +59,21 @@ try {
   assert.equal(partial.total, 1984)
   assert.deepEqual(partial.packages, [{ name: 'base', remain: 1384, size: 6000 }])
 
-  // No loopback host: never fetch.
+  // No running host origin: never fetch.
   reset()
   assert.equal(await fetchQoderConnectUsage(null), null)
   assert.equal(requestLog.length, 0)
 
-  // Non-loopback or malformed origins are refused before any request.
+  // DSH binds one concrete interface literal, so the host's own origin may be a
+  // LAN address with no loopback listener; every IP literal is a valid origin.
+  for (const origin of ['http://192.168.2.1:3080', 'http://[fd00::1]:3080', 'https://192.168.2.1:3080', 'http://localhost:3080', 'http://127.0.0.1:3080']) {
+    assert.equal(qoderOrigin(origin).origin, new URL(origin).origin, `origin ${origin}`)
+  }
+
+  // DNS names, credentials, paths, queries, fragments, and other schemes are
+  // refused before any request.
   reset()
-  for (const origin of ['http://example.com', 'https://127.0.0.1', 'http://127.0.0.1.evil.example', 'http://user:pass@127.0.0.1', 'http://127.0.0.1/path', 'http://127.0.0.1/?x=1', 'http://127.0.0.1/#f', 'not a url']) {
+  for (const origin of ['http://example.com', 'https://example.com', 'http://127.0.0.1.evil.example', 'http://user:pass@127.0.0.1', 'http://127.0.0.1/path', 'http://127.0.0.1/?x=1', 'http://127.0.0.1/#f', 'ftp://127.0.0.1', 'not a url']) {
     await assert.rejects(fetchQoderConnectUsage(origin), e => e.code === 'qoderConnectUnavailable', `origin ${origin}`)
   }
   assert.equal(requestLog.length, 0, 'refused origins never reach the connector')
