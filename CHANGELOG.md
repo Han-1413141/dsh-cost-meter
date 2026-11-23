@@ -1,12 +1,35 @@
 # Changelog
 ## [Unreleased]
 
-## [Unreleased]
-
 - 新增 **Qoder CN 订阅积分**额度卡：经本机已安装的 `dsh-connect-qoder` 连接插件只读查询（`/plugins/dsh-connect-qoder/usage?region=cn`），无需填写凭据；显示积分余额与套餐到期时间，积分包明细在刷新结果消息中。未安装/未登录/读取失败时给出中性软失败提示，仅支持 CN 区。
 - Qoder CN 渠道（`qoder` / `qoder-cn`）纳入套餐计费归属，可在「按模型统计 → 计费方式」选择；`qoder-global` 保持仅转发，不归属套餐。
 - 订阅目录新增 Qoder CN 条目（积分包 30 天有效、每日签到 100 积分、到期取有余额积分包的最早周期结束）。
 - 修复 DSH Web 只绑定局域网地址时 Qoder CN 积分卡误报「未找到连接插件」：宿主自身 origin 改由 `webServer.getOrigin()` 解析，连接插件的本机读取接受该地址；绑定回环时行为不变，WorkBuddy 连接读取同步放宽。
+
+## [1.9.85] - 2026-11-22
+
+- 适配 DSH 0.2.3 官方 SQLite 会话存储。历史导入、重新计价和回合费用可以读取已关闭的会话。旧版遗漏的 SQLite 历史会在升级后补入。
+- 修复 JSONL 分支重复计费。即使父子会话在同一毫秒创建，账本和回合费用也只计入分支自己的请求。升级时按逐模型用量和金额核对已导入的分支日账，匹配后备份并纠正。
+- npm 的宿主依赖范围已覆盖 `0.2.3-alpha.1` 和 `0.2.3-alpha.2`，新版本的安装与计费回归使用官方 `0.2.3-alpha.2` 发布包。
+
+## [1.9.84] - 2026-11-22
+
+- 修复安装前历史回填的日期。跨午夜请求按发起时的本地日期计费，每天的会话明细记录当天首笔用量的时间。升级时按请求日志核对旧账，调整费用前自动备份。日志或金额对不上的记录保留原账。@aabbqq1 提供了跨日期的账本明细、调用次数与金额。[#570](https://github.com/Han-1413141/dsh-cost-meter/issues/570)
+- 验证 `dsh-codex-subscription@3.2.28` 的 npm 发布包，更新兼容基线和两套宿主 CI。GitHub Actions 报告了上游版本变化。[#569](https://github.com/Han-1413141/dsh-cost-meter/issues/569)
+
+## [1.9.83] - 2026-11-22
+
+- 新增 Antigravity-Manager 额度来源。设置页和侧栏可按账号查看分组额度与重置时间，也支持旧版接口返回的逐模型额度。由 @snhun 提出。[#566](https://github.com/Han-1413141/dsh-cost-meter/issues/566)
+- 修复 Kimi 余额标签重复。旧版余额数据在英文界面显示为 `Balance ¥83.32`，在中文界面显示为 `余额 ¥83.32`。@Rayawa 提供了问题截图。[#567](https://github.com/Han-1413141/dsh-cost-meter/issues/567)
+- 新增 billion-context 辅助计量开关。关闭后，新请求使用宿主计费。存储维护会回收超龄的无回执预留文件和中断分片，保留待处理回执，并在归档前恢复旧记录的计费归属。@isryanyhliu 提供了文件增长记录、修复代码和回归用例。[#563](https://github.com/Han-1413141/dsh-cost-meter/issues/563) · [PR #564](https://github.com/Han-1413141/dsh-cost-meter/pull/564)
+- 修复 OpenAI API 赠送额度预估漏计当前 UTC 日费用的问题。查询包含当天的费用时间桶，截止时间最晚到赠送额度到期时。@xu-mengnan 提交了修复和分页、到期边界测试。[PR #565](https://github.com/Han-1413141/dsh-cost-meter/pull/565)
+
+## [1.9.82] - 2026-11-21
+
+- **路由响应模型计价回落**：当配置的路由模型 ID（如 `openrouter/auto`）无法识别计价时，自动回落使用供应商实际返回的 `responseModel`（实时流 `finish.replayState.response.responseModel` 与会话日志 `assistant/message` / `compaction/summary`）计算费用并归属到实际模型；已定价、本地、显式免费路由与手动覆盖/动态报价配置保持原样。感谢 [@res0Nanz](https://github.com/res0Nanz) 在 [#558](https://github.com/Han-1413141/dsh-cost-meter/issues/558) 提出需求并指明日志字段路径。
+- **Kimi 降级占位响应保护**：忽略 Kimi Code 上游偶发返回的 68 字节降级占位响应（无 `usage`/`limits` 计数块与 `reset_time` 且 `used_ratio` 恒为 0），保留上一次有效额度读数与采样时间并在冷却后自动重试，不再将真实周额度覆盖为 0%。感谢 [@yzchangle](https://github.com/yzchangle) 在 [#559](https://github.com/Han-1413141/dsh-cost-meter/issues/559) 提供实测响应样本、复现步骤与解析定位。
+- **总览页「今日会话」标题行布局**：将「导出费用记录」按钮对齐到「今日会话」标题行右侧，并与下方会话列表保持统一分组间距。感谢 [@y2bz](https://github.com/y2bz) 在 [#561](https://github.com/Han-1413141/dsh-cost-meter/issues/561) 报告布局问题、附截图并定位组件位置。
+- **Codex Subscription 3.2.27 兼容核验**：验证 `dsh-codex-subscription` 3.2.27 的 npm 发布包 SHA-512 与两套 DSH 宿主回归，更新兼容基线与 CI 矩阵。版本及接口指纹变化由 [github-actions[bot]](https://github.com/apps/github-actions) 在 [#560](https://github.com/Han-1413141/dsh-cost-meter/issues/560) 报告。
 
 ## [1.9.81] - 2026-11-20
 

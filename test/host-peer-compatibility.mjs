@@ -12,14 +12,14 @@ import { pathToFileURL } from 'node:url'
 assert.ok(process.env.DSH_TEST_NODE_MODULES, 'set DSH_TEST_NODE_MODULES to the pinned next host dependencies')
 const req = createRequire(join(resolve(process.env.DSH_TEST_NODE_MODULES), '__peer_test.cjs'))
 const { evaluatePluginCompatibility, getDshRuntimeVersion, loadProfileDirectory } = await import(pathToFileURL(req.resolve('@deepseek-ai/dsh-app-boot')).href)
-const hostVersion = JSON.parse(readFileSync(new URL('fixtures/next-host/package.json', import.meta.url), 'utf8')).dependencies['@deepseek-ai/dsh']
+const hostVersion = process.env.DSH_TEST_HOST_VERSION ?? JSON.parse(readFileSync(new URL('fixtures/next-host/package.json', import.meta.url), 'utf8')).dependencies['@deepseek-ai/dsh']
 assert.equal(getDshRuntimeVersion(), hostVersion, 'run against the pinned host version')
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))
 const peerNames = ['@deepseek-ai/dsh-credentials', '@deepseek-ai/dsh-home-paths']
 const semver = req('semver')
 
 // Every 0.2.x release the plugin claims, and nothing below the 0.2.0 floor.
-const admitted = ['0.2.0-rc.1', '0.2.0-rc.2', '0.2.0', '0.2.1-alpha.1', '0.2.1-alpha.5', '0.2.1-rc.1', '0.2.1-rc.2', hostVersion, '0.2.1', '0.2.2-alpha.3', '0.2.2-rc.1', '0.2.2']
+const admitted = ['0.2.0-rc.1', '0.2.0-rc.2', '0.2.0', '0.2.1-alpha.1', '0.2.1-alpha.5', '0.2.1-rc.1', '0.2.1-rc.2', hostVersion, '0.2.1', '0.2.2-alpha.3', '0.2.2-rc.1', '0.2.2', '0.2.3-alpha.1', '0.2.3-alpha.2']
 const rejected = ['0.1.0-rc.5', '0.1.5-alpha.1', '0.1.7-rc.2', '0.2.0-alpha.1', '0.2.0-rc.0', '0.3.0-alpha.1', '0.3.0', '1.0.0']
 for (const version of admitted) assert.equal(evaluatePluginCompatibility(pkg, {}, version), undefined, `declared requirements admit ${version}`)
 for (const version of rejected) assert.ok(evaluatePluginCompatibility(pkg, {}, version), `declared requirements exclude ${version}`)

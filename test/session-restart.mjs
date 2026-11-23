@@ -17,7 +17,7 @@ const fold = (events, initial = def.init(header, 0)) => events.reduce((state, ev
 const roundTrip = state => def.stateSchema.parse(JSON.parse(JSON.stringify(state)))
 const initialEvents = [request(0), usage(1, 1, 100), endSeed(2), usage(3, 2, 200)]
 
-assert.equal(def.stateVersion, 12, '旧错误 checkpoint 必须失效后重放')
+assert.equal(def.stateVersion, 14, '旧错误 checkpoint 必须失效后重放')
 let ordinary = fold(initialEvents)
 assert.equal(ordinary.totals.input, 300, '普通会话恢复后继续调用，重启前用量保留')
 assert.equal(ordinary.shadow.totals.input, 0, '已知无继承的普通会话无需累计种子影子')
@@ -35,6 +35,7 @@ const inherited = initialEvents.length
 const ownEvents = [endSeed(4), usage(5, 3, 500), endSeed(6), usage(7, 4, 600)]
 const fork = fold([...initialEvents, ...ownEvents], def.init(forkHeader, inherited))
 assert.equal(fork.totals.input, 1100, '只排除父会话拷贝，保留子会话重启前后自己的调用')
+assert.equal(fold([{ ...usage(5, 3, 500), time: at - 1 }], def.init(forkHeader, inherited)).totals.input, 500, '宿主时钟回拨后自己的用量仍按序号计入')
 assert.equal(fork.totals.output, 20)
 assert.ok(Math.abs(fork.totals.cost - 0.0024) < 1e-12)
 assert.equal(fork.shadow.totals.input, 0)

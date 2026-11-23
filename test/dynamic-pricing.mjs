@@ -44,7 +44,9 @@ try {
     assert.ok(rows['other-process'])
     assert.equal(rows.free.cost, 0)
     assert.equal(Object.keys(day.dynamicQuotes).length, 2)
-    assert.doesNotMatch(JSON.stringify(day.dynamicQuotes), /private|999/)
+    assert.doesNotMatch(JSON.stringify(day.dynamicQuotes), /private/)
+    const billedQuotes = Object.values(day.dynamicQuotes[JSON.stringify(['billed', route])]).flat()
+    assert.deepEqual(billedQuotes.map(quote => quote.context), [{ multiplier: 2, version: 1 }])
     const records = [{ type: 'session', id: 'billed', createdAt: at - 2 },
       { type: 'request/header', time: at - 1, data: { header: { config: { provider, model } } } },
       { type: 'step/start', time: at - 1, data: { turn: 1, step: 1 } },

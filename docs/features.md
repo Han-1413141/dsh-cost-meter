@@ -39,7 +39,7 @@
 
 ## 订阅额度与账户余额
 
-套餐卡片显示可用窗口、用量百分比和重置时间；已启用的套餐缺少凭据或查询失败时保留状态及重试入口。支持 Codex / ChatGPT 订阅来源、OpenCode Go、Coding Plan 厂商和 WorkBuddy 积分。CLIProxyAPI 按账号展示额度，自定义余额可配置 HTTP 端点、凭据引用、响应提取规则和控制台链接。
+套餐卡片显示可用窗口、用量百分比和重置时间；已启用的套餐缺少凭据或查询失败时保留状态及重试入口。支持 Codex / ChatGPT 订阅来源、OpenCode Go、Coding Plan 厂商和 WorkBuddy 积分。CLIProxyAPI 和 Antigravity-Manager 按账号展示额度，自定义余额可配置 HTTP 端点、凭据引用、响应提取规则和控制台链接。
 
 [厂商与凭据要求](model-and-plan-adaptation.md) · [余额凭据](balance-credentials.md) · [自定义余额](custom-balance-sources.md) · [网关配置](cliproxyapi-quota.md)
 

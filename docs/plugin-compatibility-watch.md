@@ -124,3 +124,11 @@ SHA-512 校验、静态契约检查和实际发布包回归通过：原生及代
 ### 2026-11-20：Codex Subscription 3.2.26 与 Connect 0.2.0-alpha.16
 
 [#551](https://github.com/Han-1413141/dsh-cost-meter/issues/551) 与 [#552](https://github.com/Han-1413141/dsh-cost-meter/issues/552) 的 npm 发布包 SHA-512 校验通过。Subscription 移除了 `dsh-home-paths` 依赖。Connect 调整了宿主版本范围并移除了 `./invariant` 导出，其当前宿主声明不再包含 DSH `0.2.0-rc.2`。额度相关的函数指纹一致。Subscription 在两套宿主传输上通过额度解析、刷新和授权失效回归，Connect 通过发布包的额度解析及只读 HTTP 回归。测试使用本机数据。
+
+### 2026-11-21：Codex Subscription 3.2.27
+
+[#560](https://github.com/Han-1413141/dsh-cost-meter/issues/560) 报告 `3.2.27` 发布。npm 发布包 SHA-512 校验通过，静态契约匹配。`createSubscriptionRpcHandler` 仅在 `preferences/update` 分支新增了 `customInstructions` 校验，`usage` 额度分支及 `registerSubscriptionTransport`、`parseCodexUsage`、`createCodexUsageReader` 三个额度函数与 `3.2.26` 一致。使用发布包在 DSH `0.2.0-rc.2` 和 `0.2.2-alpha.3` 上通过额度解析、强制刷新、账号切换、授权失效恢复与宿主 RPC 回归；兼容基线与两套 CI 矩阵已加入 `3.2.27`。测试仅使用本机数据，外部请求为 0。
+
+### 2026-11-22：Codex Subscription 3.2.28
+
+`dsh-codex-subscription@3.2.28` 的 npm 发布包通过 SHA-512 校验，四个额度接口函数的指纹与 `3.2.27` 相同。在 DSH `0.2.0-rc.2` 和 `0.2.2-alpha.3` 的宿主传输组件上，用本地数据验证了额度窗口、强制刷新、账号切换和授权失效恢复。两套 CI 均已加入这个版本。[#569](https://github.com/Han-1413141/dsh-cost-meter/issues/569)

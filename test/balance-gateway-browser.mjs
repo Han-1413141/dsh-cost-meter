@@ -29,6 +29,13 @@ let api, balanceCalls = 0, compiled, browser, page, origin
 const server = createServer(async (request, response) => {
   try {
     response.setHeader('content-type', 'application/json')
+    if (request.url === '/api/accounts') {
+      assert.equal(request.method, 'GET')
+      assert.equal(request.headers.authorization, 'Bearer test-local-manager')
+      response.end(JSON.stringify({ accounts: [{ id: 'manager-account', email: 'manager@example.invalid',
+        quota: { quota_groups: [{ display_name: 'Gemini Models', buckets: [{ window: '5h', remaining_fraction: 0.75 }] }] } }] }))
+      return
+    }
     if (Object.values(GATEWAY_MANAGEMENT_PATHS).includes(request.url)) {
       assert.equal(request.headers['x-management-key'], 'TEST_LOCAL_GATEWAY_KEY')
       gatewayCalls.push({ path: request.url, host: request.headers.host })
@@ -68,11 +75,13 @@ try {
       balanceCalls++
       return Response.json({ balance_infos: [{ currency: 'CNY', total_balance: '82.5593', granted_balance: '2', topped_up_balance: '80.5593' }] })
     }
+    if (String(url) === origin + '/api/accounts') return previousFetch(url, options)
     assert.equal(new URL(url).origin, baseURL, 'host never sends fixture credentials to another origin')
     return previousFetch(url, options)
   }
   const context = { on: () => () => {}, inject() {}, logger: { info() {}, warn() {}, error() {} },
-    get: name => name === 'credentials' ? { describe: async () => ({ configured: true, source: 'env' }), resolve: async () => ({ value: 'TEST_LOCAL_GATEWAY_KEY' }) } : undefined,
+    get: name => name === 'credentials' ? { describe: async () => ({ configured: true, source: 'env' }),
+      resolve: async ref => ({ value: String(ref).startsWith('ANTIGRAVITY_MANAGER_ADMIN_KEY_') ? 'test-local-manager' : 'TEST_LOCAL_GATEWAY_KEY' }) } : undefined,
     effect: fn => { const cleanup = fn(); if (typeof cleanup === 'function') cleanups.push(cleanup) },
     provide: (name, service) => { if (name === 'costMeter') api = service },
   }
@@ -82,7 +91,7 @@ try {
     const chunks={};const require=name=>name==='react'?React:{Tooltip:({children})=>children};require.async=async name=>chunks[name];
     window.__ModuleLoader__={load:mod=>window.mainUI=mod.factory(require)};
     ${readFileSync('lib/client.js', 'utf8')}
-    ${['display', 'peak', 'sidebar-order'].map(name => `window.__ModuleLoader__={load:mod=>chunks['./client.${name}.js']=mod.factory(()=>React)};\n${readFileSync('lib/client.' + name + '.js', 'utf8')}`).join('\n')}
+    ${['display', 'peak', 'sidebar-order', 'plan-settings'].map(name => `window.__ModuleLoader__={load:mod=>chunks['./client.${name}.js']=mod.factory(()=>React)};\n${readFileSync('lib/client.' + name + '.js', 'utf8')}`).join('\n')}
     const entries=new Map(),disposers=[],services={};
     services['remote.costMeter']=new Proxy({},{get:(_,method)=>(...args)=>fetch('/rpc',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({method,args})}).then(r=>r.json())});
     services.slots={entries:()=>[],inject:(name,fn)=>fn(),register:(options,component)=>{const id=options.name+':'+options.id;const entry={options,component};entries.set(id,entry);return()=>{if(entries.get(id)===entry)entries.delete(id)}}};
@@ -165,10 +174,23 @@ try {
   assert.equal(state.gatewayQuotas[0].status, 'ok'); assert.equal(state.gatewayQuotas[0].accounts[0].windows[0].percent, 17)
   assert.ok(gatewayCalls.length >= 2); assert.ok(gatewayCalls.every(call => call.host === host))
   await card.getByText('17%', { exact: true }).waitFor()
-  await page.getByRole('button', { name: '添加来源', exact: true }).click()
+  await page.getByRole('button', { name: '添加 Antigravity-Manager', exact: true }).click()
   await page.waitForFunction(() => window.current().config.gatewayQuotas.sources.length === 2)
   const second = (await api.getState()).config.gatewayQuotas.sources[1]
   assert.equal(second.allowInsecureHttp, false); assert.deepEqual(second.allowedHosts, [])
+  assert.equal(second.type, 'antigravity-manager')
+  const managerCard = page.locator('.cm-quota-card').filter({ has: page.locator('.cm-quota-name', { hasText: 'Antigravity-Manager' }) })
+  await managerCard.getByRole('button', { name: 'Antigravity-Manager', exact: true }).click()
+  await managerCard.getByRole('button', { name: '编辑凭据', exact: true }).click()
+  await managerCard.getByPlaceholder(second.keyVar, { exact: true }).waitFor()
+  await managerCard.getByRole('button', { name: '取消', exact: true }).click()
+  await managerCard.getByLabel('Base URL', { exact: true }).fill(origin)
+  await page.waitForFunction(url => window.current().config.gatewayQuotas.sources[1].baseURL === url, origin)
+  await managerCard.locator('.cm-budget-head input[type=checkbox]').check()
+  await page.waitForFunction(() => window.current().config.gatewayQuotas.sources[1].enabled)
+  await page.evaluate(id => window.refreshGateway(id), second.id)
+  await managerCard.getByText('25%', { exact: true }).waitFor()
+  await page.locator('#sidebar').getByText('Gemini · 5h', { exact: true }).waitFor()
   await page.evaluate(() => window.openSettings(false)); await page.evaluate(() => window.openSettings(true))
   await page.getByRole('tab', { name: '额度', exact: true }).click()
   await page.locator('.cm-quota-card').filter({ has: page.locator('.cm-quota-name', { hasText: 'CLIProxyAPI' }) }).first().getByRole('button', { name: 'CLIProxyAPI', exact: true }).click()

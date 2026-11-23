@@ -38,7 +38,7 @@
       "integrity": "sha512-98Q5eSqk0LyemCJ45OrYmZvEd0qpzBjLokthZlQ4yA7yvgUlzuM7fp6iq9dPAJ4N4vaplnvZeld0JxM4S7Ti1A=="
     },
     "dsh-codex-subscription": {
-      "version": "3.2.26",
+      "version": "3.2.28",
       "signature": {
         "main": "./lib/index.js",
         "exports": {
@@ -76,13 +76,13 @@
         },
         "functions": {
           "registerSubscriptionTransport": "bc8cd28620c0c117e12eaf0e6e82bf2454951091a3a6beaa560acf0e363160d4",
-          "createSubscriptionRpcHandler": "f8ae0f7880ede2a228be546fe7a959bc401bf1e6c3b47c69e602fa792073f9e6",
+          "createSubscriptionRpcHandler": "51099de0f21aa46c3793a9110097a3ab6ec603121df54f24b6e54c844adbcab0",
           "parseCodexUsage": "5c72a7a920ed4edb5f9e5610e93bfd84a4ad76f4d72e33283370c8800781df0e",
           "createCodexUsageReader": "cf4c227e1670f5da9e1606e1795bb38d0654c00a2e644cd41c5af61494d7739d"
         }
       },
-      "interfaceHash": "724c00443bcdb78d2699cf5dd895396e6d30fd840f6e527dc99174330987b518",
-      "integrity": "sha512-dYPpjHeBrkDK43bGSBSMTYPihtv7UrZpOZvvgbDZFmN/InrShQwrBM2+J+eFgYI9RakiCXP1+VpyRj0p/bJUuw=="
+      "interfaceHash": "cc6c6a526c386a0733a9a87bc6799623635188c6de73f0f51c58d4305f45a683",
+      "integrity": "sha512-f5XLEMkJqo9mbUlKxKePIfjPDatXdyIc0aV+cjdVamgPJ8UZH4+RpE7LTmIkuRyHtaYy0Ei8fpNXH2iXOY3frg=="
     },
     "dsh-codex-connect": {
       "version": "0.2.0-alpha.16",

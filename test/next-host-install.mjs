@@ -14,7 +14,7 @@ const tarball = resolve(process.argv[2])
 const repo = fileURLToPath(new URL('../', import.meta.url))
 const req = createRequire(join(resolve(process.env.DSH_TEST_NODE_MODULES), '__install_test.cjs'))
 const hostPackage = req.resolve('@deepseek-ai/dsh/package.json')
-const hostVersion = JSON.parse(readFileSync(new URL('fixtures/next-host/package.json', import.meta.url), 'utf8')).dependencies['@deepseek-ai/dsh']
+const hostVersion = process.env.DSH_TEST_HOST_VERSION ?? JSON.parse(readFileSync(new URL('fixtures/next-host/package.json', import.meta.url), 'utf8')).dependencies['@deepseek-ai/dsh']
 assert.equal(req('@deepseek-ai/dsh/package.json').version, hostVersion)
 const cli = join(dirname(hostPackage), 'lib', 'bin.js')
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'))

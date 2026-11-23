@@ -65,13 +65,18 @@ const stateWith = (id, live, locale = 'zh', entry = {}) => ({
 const unavailable = [undefined, { status: 'off', message: '未找到凭据' },
   { status: 'error', message: 'HTTP 503' }, { status: 'loading' }, { status: 'ok', windows: {} }]
 
-const kimiBalance = { status: 'ok', windows: parseKimiBalance({ code: 0, data: { available_balance: 150 } }) }
-for (const [locale, label] of [['zh', '余额'], ['en', 'Balance']]) {
-  for (const wide of [true, false]) {
-    const tree = expanded(ui.renderSidebarFooter(stateWith('kimi', kimiBalance, locale), wide))
-    const expected = label + ' ¥150.00'
-    assert.ok(text(cardOf(tree)).includes(expected))
-    assert.equal(text(tooltipOf(tree).props.label).split(expected).length, 2, 'Kimi 余额提示只显示一次本地化标签')
+const freshKimi = parseKimiBalance({ code: 0, data: { available_balance: 83.32 } })
+for (const amount of [freshKimi.balance.text, '余额 ¥83.32', 'Balance: ¥83.32']) {
+  const kimi = { status: 'ok', windows: { balance: { text: amount } } }
+  for (const [locale, label] of [['zh', '余额'], ['en', 'Balance']]) {
+    for (const wide of [true, false]) {
+      const tree = expanded(ui.renderSidebarFooter(stateWith('kimi', kimi, locale), wide))
+      const expected = label + ' ¥83.32'
+      assert.ok(text(cardOf(tree)).includes(expected))
+      const tooltip = text(tooltipOf(tree).props.label)
+      assert.equal(tooltip.split(expected).length, 2)
+      if (locale === 'en') assert.doesNotMatch(text(cardOf(tree)) + tooltip, /余额/)
+    }
   }
 }
 

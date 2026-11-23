@@ -26,7 +26,7 @@ const state = { config, today: day, month: { ...day, cost: 28, apiCost: 18 }, to
   ] }] }
 const client = readdirSync(join(root, 'src/client')).filter(name => name.endsWith('.js')).sort().map(name => readFileSync(join(root, 'src/client', name), 'utf8')).join('')
   .replace('exports.apply = apply', 'exports.fixture = { CostSection, CostOverview }; exports.apply = apply')
-const chunks = ['billing-storage', 'settings-overview', 'statistics', 'community', 'pricing', 'openrouter', 'display', 'codex'].map(name => readFileSync(join(root, 'lib/client.' + name + '.js'), 'utf8')).join('\n')
+const chunks = ['billing-storage', 'settings-overview', 'statistics', 'community', 'pricing', 'openrouter', 'display', 'codex', 'plan-settings'].map(name => readFileSync(join(root, 'lib/client.' + name + '.js'), 'utf8')).join('\n')
 const code = `import React from ${literal(req.resolve('react'))};import{createRoot}from ${literal(req.resolve('react-dom/client'))};
 const el=React.createElement,modules={};window.fixtureErrors=[];window.fixtureWrites=0;
 window.addEventListener('error',e=>window.fixtureErrors.push(e.message));window.addEventListener('unhandledrejection',e=>window.fixtureErrors.push(String(e.reason)));
