@@ -91,7 +91,7 @@ jobs:
         run: |
           npm install -g pnpm
           pnpm install --frozen-lockfile
-          npm install --prefix .tmp-context-host --no-audit --no-fund @deepseek-ai/dsh@${{ env.DSH_PIN }} react@18.2.0 react-dom@18.2.0 jsdom@28.1.0 playwright-core@1.56.1
+          npm install --prefix .tmp-context-host --no-audit --no-fund @deepseek-ai/dsh@${{ env.DSH_PIN }} react@18.2.0 react-dom@18.2.0 jsdom@28.1.0 @bramus/specificity@2.4.3 playwright-core@1.56.1
           mkdir -p .tmp-context-062 .tmp-context-066 .tmp-context-068
           npm pack dsh-context@0.62.0 --pack-destination .tmp-context-062
           npm pack dsh-context@0.66.0 --pack-destination .tmp-context-066
@@ -257,7 +257,7 @@ jobs:
         run: |
           npm install -g pnpm
           pnpm install --frozen-lockfile
-          npm install --prefix .tmp-sidebar-host --no-audit --no-fund --ignore-scripts "@deepseek-ai/dsh-client-ui-workspace@${{ env.DSH_PIN }}" react@18.2.0 react-dom@18.2.0 jsdom@28.1.0
+          npm install --prefix .tmp-sidebar-host --no-audit --no-fund --ignore-scripts "@deepseek-ai/dsh-client-ui-workspace@${{ env.DSH_PIN }}" react@18.2.0 react-dom@18.2.0 jsdom@28.1.0 @bramus/specificity@2.4.3
       - name: Verify query recovery and scoped credential editor
         run: |
           export DSH_TEST_NODE_MODULES="$PWD/.tmp-sidebar-host/node_modules"
@@ -277,7 +277,7 @@ jobs:
         run: |
           npm install -g pnpm
           pnpm install --frozen-lockfile
-          npm install --prefix .tmp-statistics-client --no-audit --no-fund --ignore-scripts "@deepseek-ai/dsh-api-gateway@${{ env.DSH_PIN }}" "@deepseek-ai/dsh-typert-registry@${{ env.DSH_PIN }}" "@deepseek-ai/dsh-client-ui-model-selection@${{ env.DSH_PIN }}" @deepseek-ai/cordis@4.0.4 react@18.2.0 react-dom@18.2.0 jsdom@28.1.0
+          npm install --prefix .tmp-statistics-client --no-audit --no-fund --ignore-scripts "@deepseek-ai/dsh-api-gateway@${{ env.DSH_PIN }}" "@deepseek-ai/dsh-typert-registry@${{ env.DSH_PIN }}" "@deepseek-ai/dsh-client-ui-model-selection@${{ env.DSH_PIN }}" @deepseek-ai/cordis@4.0.4 react@18.2.0 react-dom@18.2.0 jsdom@28.1.0 @bramus/specificity@2.4.3
       - name: Verify statistics mount together, and that the cost dialog keeps its content on refetch
         run: |
           export DSH_TEST_NODE_MODULES="$PWD/.tmp-statistics-client/node_modules"
