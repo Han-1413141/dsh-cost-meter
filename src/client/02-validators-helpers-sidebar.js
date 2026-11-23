@@ -3791,7 +3791,8 @@
           if (style.display === 'none' || ['hidden', 'collapse'].includes(style.visibility) || ['fixed', 'absolute'].includes(style.position)) return false
           if (element.contains(node) || style.display === 'contents') return Array.from(element.children).some(visible)
           const box = element.getBoundingClientRect()
-          return box.width > 0 && box.height > 0
+          // A full-width card can initially squeeze a flexible sibling to zero width.
+          return box.height > 0 && (box.width > 0 || element.childElementCount > 0 || element.matches('button,a[href],[tabindex]'))
         }
         const update = () => setShared(Array.from(slot.children).some(visible))
         update()

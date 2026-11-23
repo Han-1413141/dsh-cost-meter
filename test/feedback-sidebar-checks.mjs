@@ -76,7 +76,7 @@ export async function checkFeedbackSidebar(page, output) {
   await slot.evaluate(node => {
     const peer = document.createElement('button')
     peer.textContent = '移动访问'
-    peer.style.cssText = 'width:36px;height:36px;flex:none'
+    peer.style.cssText = 'width:0;height:36px;min-width:0;padding:0;border:0;flex:1 1 0'
     peer.id = 'footer-peer'
     node.append(peer)
   })
@@ -84,6 +84,7 @@ export async function checkFeedbackSidebar(page, output) {
   await toggle.waitFor()
   const box = await toggle.boundingBox()
   assert.equal(box.width, 36); assert.equal(box.height, 36)
+  assert.ok((await host.locator('#footer-peer').boundingBox()).width > 0, 'a peer initially squeezed to zero gets its space back')
   assert.equal(await panel.count(), 0)
   assert.equal(await host.locator('.feedback-actions').evaluate(node => getComputedStyle(node).flexWrap), 'nowrap')
   await toggle.focus()
