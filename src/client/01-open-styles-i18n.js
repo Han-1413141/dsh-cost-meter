@@ -343,12 +343,15 @@ window.__ModuleLoader__.load({
       '.cm-bal-line{font-size:13px;color:var(--dsw-alias-label-secondary)}',
       '.cm-bal-line.warn{color:var(--dsw-alias-state-warn-primary,#b45309)}',
       '.cm-balance-heading,.cm-search-note{display:inline-flex;align-items:center}.cm-search-note{position:relative;margin-inline-start:3px}.cm-search-note button{all:unset;box-sizing:border-box;display:grid;place-items:center;width:24px;height:24px;color:var(--dsw-alias-label-tertiary);cursor:pointer;border-radius:5px}.cm-search-note button:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary)}.cm-search-note button:hover{color:var(--dsw-alias-label-primary)}.cm-search-note button span{display:grid;place-items:center;width:12px;height:12px;border:1px solid currentColor;border-radius:50%;font:600 10px/1 sans-serif}.cm-search-note-text:not([hidden]){position:absolute;z-index:3;inset-block-start:100%;inset-inline-start:0;width:max-content;max-width:min(225px,53vw);padding:6px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;white-space:normal}',
-      // A solo card can shrink a tall skin footer. Shared rows use the host's layout.
-      ':has(>[data-cm-footer-solo]:only-child),:has(>[data-slot="sidebar.footer.action"]>[data-cm-footer-solo]:only-child){flex:0 0 auto;height:auto;min-height:0}',
-      // Desktop skins can stretch both footer containers; keep the cards next to settings.
-      ':has(>div>[data-slot="sidebar.footer.action"]>[data-cm-footer-solo]:only-child){flex:0 0 auto;height:auto;min-height:0}',
-      '.cm-shared-footer{flex:0 0 36px;align-self:center;width:36px;height:36px}.cm-footer-toggle{box-sizing:border-box;display:grid;place-items:center;width:36px;height:36px;padding:0;border:0;border-radius:12px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}.cm-footer-toggle:hover,.cm-footer-toggle[aria-expanded=true]{background:var(--dsw-alias-interactive-bg-hover)}.cm-footer-toggle:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:-2px}',
-      '.cm-footer-panel{position:fixed;inset:auto;margin:0;box-sizing:border-box;width:min(300px,calc(100vw - 16px));max-height:calc(100dvh - 16px);overflow:auto;padding:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l1);border-radius:10px;box-shadow:0 4px 18px #0002;z-index:9999}',
+      // Give the cost card a row inside SlotOutlet, or inside the action row on older hosts.
+      '[data-slot="sidebar.footer.action"]:has(>[data-cm-sidebar-card]){display:flex!important;flex:1 1 auto;min-width:0;flex-wrap:wrap;align-content:flex-start}',
+      ':not([data-slot]):has(>[data-cm-sidebar-card]){flex-wrap:wrap;align-content:flex-start}',
+      // Leave enough space between actions to wrap even a peer with a zero flex basis.
+      ':has(>[data-cm-sidebar-card]:not(.rail)){column-gap:1px}',
+      ':has(>[data-cm-sidebar-card].rail){flex-direction:column;flex-wrap:nowrap;align-items:center;gap:6px}',
+      // Some Desktop skins stretch both footer containers above the settings button.
+      ':has(>[data-cm-sidebar-card]),:has(>[data-slot="sidebar.footer.action"]>[data-cm-sidebar-card]),:has(>div>[data-slot="sidebar.footer.action"]>[data-cm-sidebar-card]){height:auto;min-height:0}',
+      ':not([data-slot]):has(>[data-cm-sidebar-card]),:has(>[data-slot="sidebar.footer.action"]>[data-cm-sidebar-card]),:has(>div>[data-slot="sidebar.footer.action"]>[data-cm-sidebar-card]){flex:0 0 auto}',
       '.cm-footer-stack{display:flex;flex:none;order:-1;flex-direction:column;gap:6px;width:100%;min-width:0;max-width:100%;align-items:stretch;box-sizing:border-box}',
       '.cm-footer-stack.rail{align-items:center;order:1}',
       '.cm-footer-stack .cm-bbox{width:100%;min-width:0}',
@@ -441,7 +444,6 @@ window.__ModuleLoader__.load({
         queryFailed: '查询失败',
         reconcileLabel: '官方余额变动与本地账本交叉对账(偏差超阈时提示)',
         searchCoverageNote: '搜索统计说明',
-        footerCostDetails: '费用与余额',
         grantedToppedUp: '赠送 {granted} · 充值 {toppedUp}',
         updatedAt: '更新时间 {time}',
         // 预算图框
@@ -960,7 +962,6 @@ window.__ModuleLoader__.load({
         queryFailed: 'Query failed',
         reconcileLabel: 'Cross-check official balance changes against the local ledger (warn when they diverge)',
         searchCoverageNote: 'Search usage details',
-        footerCostDetails: 'Costs and balance',
         grantedToppedUp: 'Granted {granted} · Topped-up {toppedUp}',
         updatedAt: 'Updated {time}',
         budgetOf: 'Budget ({period})',

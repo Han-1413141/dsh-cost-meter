@@ -3779,81 +3779,8 @@
       return target
     }
 
-    // SlotOutlet uses display:contents; older hosts mount the same children directly.
-    function useSharedFooter(node) {
-      const [shared, setShared] = useState(false)
-      useEffect(() => {
-        const parent = node?.parentElement
-        const legacyFooter = parent?.matches('footer,[class*="footerActions" i],[class*="footer-actions" i],[role="toolbar"]')
-        const slot = node?.closest('[data-slot="sidebar.footer.action"]') ?? (legacyFooter ? parent : null)
-        if (!slot) return
-        const visible = element => {
-          if (element === node || element.hidden) return false
-          const style = getComputedStyle(element)
-          if (style.display === 'none' || ['hidden', 'collapse'].includes(style.visibility) || ['fixed', 'absolute'].includes(style.position)) return false
-          if (element.contains(node) || style.display === 'contents') return Array.from(element.children).some(visible)
-          const box = element.getBoundingClientRect()
-          // A full-width card can initially squeeze a flexible sibling to zero width.
-          return box.height > 0 && (box.width > 0 || element.childElementCount > 0 || element.matches('button,a[href],[tabindex]'))
-        }
-        const update = () => setShared(Array.from(slot.children).some(visible))
-        update()
-        if (typeof MutationObserver === 'undefined') return
-        const observer = new MutationObserver(changes => {
-          if (changes.some(change => !node.contains(change.target))) update()
-        })
-        observer.observe(slot, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden', 'style'] })
-        window.addEventListener('resize', update)
-        return () => { observer.disconnect(); window.removeEventListener('resize', update) }
-      }, [node])
-      return shared
-    }
-
-    function SharedFooterCard({ label, children }) {
-      const [open, setOpen] = useState(false)
-      const trigger = useRef(null), panel = useRef(null), id = React.useId()
-      React.useLayoutEffect(() => {
-        if (!open) return
-        const card = panel.current, button = trigger.current
-        if (typeof card.showPopover === 'function') card.showPopover()
-        else card.removeAttribute('popover')
-        const position = () => {
-          const box = button.getBoundingClientRect()
-          card.style.left = Math.max(8, Math.min(box.left, window.innerWidth - card.offsetWidth - 8)) + 'px'
-          const above = box.top - card.offsetHeight - 4
-          card.style.top = Math.max(8, above >= 8 ? above : Math.min(box.bottom + 4, window.innerHeight - card.offsetHeight - 8)) + 'px'
-        }
-        const outside = event => {
-          if (!card.contains(event.target) && !button.contains(event.target)) setOpen(false)
-        }
-        const escape = event => {
-          if (event.key === 'Escape') { event.stopPropagation(); setOpen(false); button.focus() }
-        }
-        position()
-        const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(position) : null
-        observer?.observe(card)
-        document.addEventListener('pointerdown', outside, true)
-        window.addEventListener('keydown', escape)
-        window.addEventListener('resize', position)
-        window.addEventListener('scroll', position, true)
-        return () => {
-          observer?.disconnect()
-          document.removeEventListener('pointerdown', outside, true)
-          window.removeEventListener('keydown', escape)
-          window.removeEventListener('resize', position)
-          window.removeEventListener('scroll', position, true)
-        }
-      }, [open])
-      return el(Fragment, null,
-        el('button', { ref: trigger, type: 'button', className: 'cm-footer-toggle', title: label, 'aria-label': label,
-          'aria-expanded': open, 'aria-controls': open ? id : undefined, onClick: () => setOpen(value => !value) }, el(WalletIcon, { size: 18 })),
-        open ? el('div', { ref: panel, id, popover: 'manual', role: 'region', 'aria-label': label, className: 'cm-footer-panel' }, children) : null)
-    }
-
     function SidebarFooter(props) {
       const botTarget = useBotFooterTarget()
-      const [footerNode, setFooterNode] = useState(null)
-      const shared = useSharedFooter(footerNode)
       const costStore = props.useCost ? props.useCost(s => s) : undefined
       useCodexQuota(costStore?.state?.config?.codexQuotaEnabled === true && costStore?.state?.config?.codexQuotaSidebar !== false, costStore?.state?.config?.codexQuotaSource)
       // 侧边栏页脚非会话作用域插槽:useProjection 在部分宿主/页面可能不可用或
@@ -3871,14 +3798,11 @@
         try { portal = require('react-dom')?.createPortal } catch {}
         if (portal) return portal(renderSidebarFooter(state, true, props.api, false, projectionUsage?.provider), botTarget)
       }
-      const card = renderSidebarFooter(state, shared || !!props.wide, props.api, false, projectionUsage?.provider, false, shared ? undefined : setFooterNode)
-      if (!card || !shared) return card
-      const label = makeT(resolveLocale(state.config))('footerCostDetails')
-      return el('div', { ref: setFooterNode, className: 'cm-shared-footer' }, el(SharedFooterCard, { label }, card))
+      return renderSidebarFooter(state, !!props.wide, props.api, false, projectionUsage?.provider)
     }
 
     // Shared presentation only: no store, projection or quota subscription.
-    function renderSidebarFooter(state, wide, api, preview = false, provider, examples = preview, footerRef) {
+    function renderSidebarFooter(state, wide, api, preview = false, provider, examples = preview) {
       const config = peakConfigForState(state)
       const t = makeT(resolveLocale(config))
       const showBalance = (config.balance?.display === 'sidebar' || config.balance?.display === 'both')
@@ -3945,5 +3869,5 @@
         const rank = node => { const index = order.indexOf(node.key); return index < 0 ? 999 : index }
         nodes.sort((a, b) => rank(a) - rank(b))
       }
-      return el('div', { ...(footerRef ? { ref: footerRef, 'data-cm-footer-solo': '' } : {}), ...(simple ? { tabIndex: 0, role: 'region', 'aria-label': t('sidebarSimple') } : {}), className: 'cm-footer-stack' + (config.sidebarTodayBalanceInline ? ' same-line' : '') + (wide ? '' : ' rail') + (compactWide ? ' compact' : '') + (simple ? ' simple' : config.sidebarStyle === 'summary' && wide ? ' summary' : '') + (config.sidebarTextOnly ? ' text-only' : '') }, ...(!simple && wide && config.sidebarStyle === 'icons' ? [el(BillingStatistics, { load: loadSidebarIcons, state: { ...state, config }, preview, nodes, fallback: nodes })] : nodes))
+      return el('div', { ...(!preview ? { 'data-cm-sidebar-card': '' } : {}), ...(simple ? { tabIndex: 0, role: 'region', 'aria-label': t('sidebarSimple') } : {}), className: 'cm-footer-stack' + (config.sidebarTodayBalanceInline ? ' same-line' : '') + (wide ? '' : ' rail') + (compactWide ? ' compact' : '') + (simple ? ' simple' : config.sidebarStyle === 'summary' && wide ? ' summary' : '') + (config.sidebarTextOnly ? ' text-only' : '') }, ...(!simple && wide && config.sidebarStyle === 'icons' ? [el(BillingStatistics, { load: loadSidebarIcons, state: { ...state, config }, preview, nodes, fallback: nodes })] : nodes))
     }
