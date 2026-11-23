@@ -2,6 +2,9 @@
   "name": "dsh-cost-meter-test-host-next",
   "private": true,
   "description": "Pinned DSH 0.2.2-alpha.3 host with the updated Cordis baseline for compatibility, installation, RPC and context UI regression tests.",
+  "overrides": {
+    "@bramus/specificity": "2.4.3"
+  },
   "dependencies": {
     "@deepseek-ai/dsh": "0.2.2-alpha.3",
     "@deepseek-ai/dsh-client-ui-slots": "0.2.2-alpha.3",
