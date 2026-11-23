@@ -214,6 +214,9 @@ for (const chunk of ['billing-storage', 'settings-overview', 'statistics', 'open
   if (chunk === 'pricing') source = source.replace('/* PEAK_PANEL_SOURCE */', readFileSync(resolve(projectRoot, 'src/pricing/peak-panel.js'), 'utf8'))
   if (chunk === 'plan-settings') {
     source = source.replace('/* SUBSCRIPTION_CATALOG_SOURCE */ {}', () => javascriptLiteral(SUBSCRIPTION_CATALOG))
+    const headerFilter = readFileSync(resolve(projectRoot, 'lib/secret-headers.js'), 'utf8').replace('export function', 'function')
+    source = source.replace('/* SECRET_HEADER_FILTER */', () => headerFilter)
+    source = source.replace('/* QUOTA_SECTION_SOURCE */', () => readFileSync(resolve(projectRoot, 'src/plan-settings/quota-section.js'), 'utf8'))
     source = source.replace('/* CUSTOM_BALANCE_EDITOR_SOURCE */', readFileSync(resolve(projectRoot, 'src/plan-settings/custom-balance.js'), 'utf8'))
   }
   if (chunk === 'display') {

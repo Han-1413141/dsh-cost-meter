@@ -1,5 +1,11 @@
 # 安装失败与禁用状态
 
+## 打开设置时提示 Failed to load plugins
+
+先看报错里的插件名。例如 `@deepseek-ai/dsh-client-ui-settings` 是 DSH 自带的设置界面，`dsh-cost-meter` 是费用插件。[原始反馈](https://github.com/Han-1413141/dsh-cost-meter/discussions/6#discussioncomment-18216016)
+
+更新后出现 `bundle script … failed to load` 时，Desktop 完全退出后重新打开，Web 强制刷新页面。若仍报错，在开发者工具的「网络」中找到报错指向的 `client.js`。若返回 404，核对当前 Profile 运行的 DSH 版本和设置组件的安装情况。若返回 200，查看控制台紧接着出现的第一条脚本错误。反馈时提供 DSH 和费用插件版本、出错插件名、HTTP 状态码和该行错误即可。
+
 ## Desktop 安装与更新
 
 1. 首次启动 DeepSeek Harness Desktop，让应用初始化 `desktop` Profile。在应用中安装 `dsh` 命令，重新打开终端；若同时安装过 npm 版 CLI，用 `Get-Command dsh` 确认命令指向 Desktop 安装目录的 `resources/runtime/cli/bin/dsh.cmd`。也可直接使用该完整路径。
