@@ -79,6 +79,9 @@ for (const locale of ['zh', 'en']) {
   assert.equal(ui.customBalanceUnitOf(config, { unit: 'CNY' }, { adapter: 'aliyun', unit: 'USD' }), 'CNY')
   assert.equal(ui.customBalanceUnitOf(config, { unit: 'USD' }, { adapter: 'aliyun', unit: 'CNY' }), 'USD')
   button(card, t('quotaRemove')).props.onClick()
+  assert.equal(draft.customBalances.length, 1, '删除前等待确认')
+  card = render(ui.CustomBalanceEntryPanel, entryNode.props)
+  button(card, t('quotaRemoveConfirm')).props.onClick()
   assert.equal(applyConfigPatch(config, draft).config.customBalances.length, 0)
 }
 verifyCreditsUI()
@@ -145,6 +148,9 @@ for (const locale of ['zh', 'en']) {
   assert.equal(ui.segmentsForCustomBalance(state, budgetConfig, live, saved.config.customBalances[0]).cap, null, 'Token Rhythm 不借用其他账户预算生成进度')
   assert.ok(!ui.customBalanceDetailText(live, budgetConfig, t, state, saved.config.customBalances[0]).includes('200'))
   button(card, t('quotaRemove')).props.onClick()
+  assert.equal(draft.customBalances.length, 1, '删除前等待确认')
+  card = render(ui.CustomBalanceEntryPanel, entryNode.props)
+  button(card, t('quotaRemoveConfirm')).props.onClick()
   assert.equal(applyConfigPatch(config, draft).config.customBalances.length, 0)
 }
 

@@ -342,13 +342,13 @@ window.__ModuleLoader__.load({
       '.cm-mm-row.wide .cm-mm-text{flex:1;min-width:0;font-size:12px;color:var(--dsw-alias-label-secondary);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
       '.cm-bal-line{font-size:13px;color:var(--dsw-alias-label-secondary)}',
       '.cm-bal-line.warn{color:var(--dsw-alias-state-warn-primary,#b45309)}',
-      // footer.action 与其它插件共用 flex 容器；宽栏费用独占一行，窄栏图标纵排。
-      // SlotOutlet 会多一层 display:contents 容器（当前宿主同样如此），布局规则需命中外层 flex。
-      // 没有这层包裹时直接子节点就是费用栈，两种结构都要命中；卡片隐藏/卸载后规则自动失效。
-      ':has(>.cm-footer-stack),:has(>[data-slot="sidebar.footer.action"]>.cm-footer-stack){flex-wrap:wrap;flex:0 0 auto;height:auto;min-height:0;align-content:flex-start}',
+      '.cm-balance-heading,.cm-search-note{display:inline-flex;align-items:center}.cm-search-note{position:relative;margin-inline-start:3px}.cm-search-note button{all:unset;box-sizing:border-box;display:grid;place-items:center;width:24px;height:24px;color:var(--dsw-alias-label-tertiary);cursor:pointer;border-radius:5px}.cm-search-note button:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary)}.cm-search-note button:hover{color:var(--dsw-alias-label-primary)}.cm-search-note button span{display:grid;place-items:center;width:12px;height:12px;border:1px solid currentColor;border-radius:50%;font:600 10px/1 sans-serif}.cm-search-note-text:not([hidden]){position:absolute;z-index:3;inset-block-start:100%;inset-inline-start:0;width:max-content;max-width:min(225px,53vw);padding:6px 9px;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-secondary);font-size:12px;line-height:1.5;white-space:normal}',
+      // A solo card can shrink a tall skin footer. Shared rows use the host's layout.
+      ':has(>[data-cm-footer-solo]:only-child),:has(>[data-slot="sidebar.footer.action"]>[data-cm-footer-solo]:only-child){flex:0 0 auto;height:auto;min-height:0}',
       // Desktop skins can stretch both footer containers; keep the cards next to settings.
-      ':has(>div>[data-slot="sidebar.footer.action"]>.cm-footer-stack){flex:0 0 auto;height:auto;min-height:0}',
-      ':has(>.cm-footer-stack.rail),:has(>[data-slot="sidebar.footer.action"]>.cm-footer-stack.rail){flex-direction:column;flex-wrap:nowrap;align-items:center;gap:6px}',
+      ':has(>div>[data-slot="sidebar.footer.action"]>[data-cm-footer-solo]:only-child){flex:0 0 auto;height:auto;min-height:0}',
+      '.cm-shared-footer{flex:0 0 36px;align-self:center;width:36px;height:36px}.cm-footer-toggle{box-sizing:border-box;display:grid;place-items:center;width:36px;height:36px;padding:0;border:0;border-radius:12px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer}.cm-footer-toggle:hover,.cm-footer-toggle[aria-expanded=true]{background:var(--dsw-alias-interactive-bg-hover)}.cm-footer-toggle:focus-visible{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:-2px}',
+      '.cm-footer-panel{position:fixed;inset:auto;margin:0;box-sizing:border-box;width:min(300px,calc(100vw - 16px));max-height:calc(100dvh - 16px);overflow:auto;padding:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);border:1px solid var(--dsw-alias-border-l1);border-radius:10px;box-shadow:0 4px 18px #0002;z-index:9999}',
       '.cm-footer-stack{display:flex;flex:none;order:-1;flex-direction:column;gap:6px;width:100%;min-width:0;max-width:100%;align-items:stretch;box-sizing:border-box}',
       '.cm-footer-stack.rail{align-items:center;order:1}',
       '.cm-footer-stack .cm-bbox{width:100%;min-width:0}',
@@ -440,6 +440,8 @@ window.__ModuleLoader__.load({
         quotaAllPositions: '全部位置',
         queryFailed: '查询失败',
         reconcileLabel: '官方余额变动与本地账本交叉对账(偏差超阈时提示)',
+        searchCoverageNote: '搜索统计说明',
+        footerCostDetails: '费用与余额',
         grantedToppedUp: '赠送 {granted} · 充值 {toppedUp}',
         updatedAt: '更新时间 {time}',
         // 预算图框
@@ -868,6 +870,7 @@ window.__ModuleLoader__.load({
         usageEmpty: '暂无历史数据,开始对话后每日用量会汇总在这里',
         // 设置页标签(issue #29)
         tabOverview: '概览',
+        quotaRemoveConfirm: '确认删除',
         tabQuotas: '额度',
         tabUsage: '用量',
         tabPricing: '价格',
@@ -956,6 +959,8 @@ window.__ModuleLoader__.load({
         quotaAllPositions: 'All locations',
         queryFailed: 'Query failed',
         reconcileLabel: 'Cross-check official balance changes against the local ledger (warn when they diverge)',
+        searchCoverageNote: 'Search usage details',
+        footerCostDetails: 'Costs and balance',
         grantedToppedUp: 'Granted {granted} · Topped-up {toppedUp}',
         updatedAt: 'Updated {time}',
         budgetOf: 'Budget ({period})',
@@ -1377,6 +1382,7 @@ window.__ModuleLoader__.load({
         usageEmpty: 'No history yet — daily usage will accumulate here',
         // Settings tabs (issue #29)
         tabOverview: 'Overview',
+        quotaRemoveConfirm: 'Confirm removal',
         tabQuotas: 'Quotas',
         tabUsage: 'Usage',
         tabPricing: 'Pricing',

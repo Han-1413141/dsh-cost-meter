@@ -331,6 +331,9 @@ function harness(overrides = {}) {
     const ledger = { path: join(root, 'ledger.json'), account() {} }
     installNativeSearchBilling(ctx, ledger)
     assert.equal(nativeSearchReconcile(ledger, 'zh', { ok: true, message: '' }).ok, false)
+    assert.equal(nativeSearchReconcile(ledger, 'zh', { ok: true, message: '' }).balanceMessage, '')
+    assert.equal(nativeSearchReconcile(ledger, 'zh', { ok: false, message: '余额存在差异' }).balanceMessage, '余额存在差异')
+    assert.equal(nativeSearchReconcile(ledger, 'zh', { ok: true, message: '' }).searchMessage, '今日 2 次搜索未完整计入统计。')
     assert.equal(nativeSearchReconcile(ledger, 'zh', { ok: true, message: '' }).message, '今日 2 次搜索未完整计入统计。')
     assert.equal(nativeSearchReconcile(ledger, 'en', { ok: true, message: '' }).message, '2 search request(s) today could not be fully recorded.')
     assert.equal(nativeSearchReconcile(ledger, 'zh', { ok: false, message: '余额与账本不一致' }).message, '余额与账本不一致\n今日 2 次搜索未完整计入统计。', 'short copy retains an existing reconciliation warning')

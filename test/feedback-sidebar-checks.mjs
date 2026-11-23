@@ -20,7 +20,7 @@ export async function checkFeedbackSidebar(page, output) {
     host.style.cssText = 'width:352px;height:579px;display:flex;flex-direction:column;background:#d0dff6;padding:14px;box-sizing:border-box;font:14px/1.6 "Segoe UI","Microsoft YaHei",sans-serif;color:var(--dsw-alias-label-primary)'
     host.innerHTML = '<div style="flex:1;min-height:0">工作区</div><div class="feedback-footer"><div class="feedback-actions"><div data-slot="sidebar.footer.action" style="display:contents"></div></div><div class="feedback-user">用户 · 设置</div></div>'
     document.body.prepend(host)
-    window.attachFixtureSidebar(host.querySelector('[data-slot]'), true)
+    window.attachFixtureSidebar(host.querySelector('[data-slot]'))
     window.setFixtureState({
       today: { input: 5600000, output: 50, cacheRead: 0, cacheWrite: 0, calls: 1, cost: 1.7386, apiCost: 1.7386, byProviderModel: {} },
       balance: { status: 'ok', totalBalance: 122.22, grantedBalance: 0, toppedUpBalance: 122.22, currency: 'CNY', fetchedAt: Date.now() },
@@ -72,6 +72,92 @@ export async function checkFeedbackSidebar(page, output) {
   const summaryGap = await host.evaluate(node => node.querySelector('.feedback-user').getBoundingClientRect().top - node.querySelector('.cm-footer-stack').getBoundingClientRect().bottom)
   assert.ok(summaryGap >= -1 && summaryGap <= 8, 'the light summary card also stays next to user controls')
   await host.locator('.feedback-footer').screenshot({ path: join(output, 'feedback-summary-light.png') })
+  const slot = host.locator('[data-slot]')
+  await slot.evaluate(node => {
+    const peer = document.createElement('button')
+    peer.textContent = '移动访问'
+    peer.style.cssText = 'width:36px;height:36px;flex:none'
+    peer.id = 'footer-peer'
+    node.append(peer)
+  })
+  const toggle = host.locator('.cm-footer-toggle'), panel = host.locator('.cm-footer-panel')
+  await toggle.waitFor()
+  const box = await toggle.boundingBox()
+  assert.equal(box.width, 36); assert.equal(box.height, 36)
+  assert.equal(await panel.count(), 0)
+  assert.equal(await host.locator('.feedback-actions').evaluate(node => getComputedStyle(node).flexWrap), 'nowrap')
+  await toggle.focus()
+  await page.keyboard.press('Enter')
+  await panel.locator('.cm-footer-stack.summary').waitFor()
+  await page.keyboard.press('Escape')
+  await panel.waitFor({ state: 'detached' })
+  assert.equal(await toggle.evaluate(node => node === document.activeElement), true)
+  await toggle.click()
+  await host.locator('#footer-peer').click()
+  await panel.waitFor({ state: 'detached' })
+  await host.locator('#footer-peer').evaluate(node => { node.hidden = true })
+  await host.locator('.cm-footer-stack.summary').waitFor()
+  await host.locator('#footer-peer').evaluate(node => node.remove())
+  await page.evaluate(() => window.configure({ balance: { ...window.current().balance, display: 'both' } }))
+  await page.getByRole('tab', { name: '概览', exact: true }).click()
+  const message = '今日 12 次搜索未完整计入统计。'
+  await page.evaluate(searchMessage => window.setFixtureState({ reconcile: { ok: false, message: searchMessage, searchMessage, balanceMessage: '' } }), message)
+  const note = page.locator('.cm-search-note'), button = note.getByRole('button'), text = note.locator('.cm-search-note-text')
+  await button.waitFor()
+  assert.equal(await text.isVisible(), false)
+  assert.equal(await page.locator('.cm-bal-line.warn').count(), 0)
+  await button.hover()
+  await text.waitFor()
+  assert.equal(await text.textContent(), message)
+  await page.mouse.move(2, 2)
+  await text.waitFor({ state: 'hidden' })
+  await button.click()
+  await page.mouse.move(2, 2)
+  assert.equal(await text.isVisible(), true)
+  await button.click()
+  await text.waitFor({ state: 'hidden' })
+  await button.focus()
+  await page.keyboard.press('Enter')
+  await text.waitFor()
+  await page.keyboard.press('Escape')
+  await text.waitFor({ state: 'hidden' })
+  await page.evaluate(searchMessage => window.setFixtureState({ reconcile: { ok: false, message: '余额存在差异\n' + searchMessage, balanceMessage: '余额存在差异', searchMessage } }), message)
+  assert.equal(await page.locator('.cm-bal-line.warn').textContent(), '⚠ 余额存在差异')
+  assert.equal(await text.isVisible(), false)
+  await page.evaluate(() => window.setFixtureState({ reconcile: { ok: true, message: '' } }))
+  await button.waitFor({ state: 'detached' })
+  const removedSource = { id: 'gateway-restore', label: '本机网关', type: 'cliproxyapi', baseURL: 'http://127.0.0.1:8317',
+    enabled: false, display: 'both', refreshMinutes: 15, includeProviders: ['codex'], allowedHosts: [], allowInsecureHttp: false }
+  const otherSource = { ...removedSource, id: 'gateway-other', label: '保留的网关' }
+  await page.evaluate(async sources => { await window.configure({ gatewayQuotas: { sources } }); window.remount() }, [removedSource, otherSource])
+  await page.getByRole('tab', { name: '额度', exact: true }).click()
+  const card = page.locator('.cm-quota-card').filter({ has: page.getByRole('button', { name: '本机网关', exact: true }) })
+  await card.getByRole('button', { name: '删除', exact: true }).click()
+  await card.getByRole('button', { name: '取消', exact: true }).click()
+  assert.equal(await card.count(), 1)
+  const removeSource = async () => {
+    await card.getByRole('button', { name: '删除', exact: true }).click()
+    await card.getByRole('button', { name: '确认删除', exact: true }).click()
+    await card.waitFor({ state: 'detached' })
+  }
+  await removeSource()
+  await page.getByRole('button', { name: '撤销删除' }).click()
+  await card.waitFor()
+  await removeSource()
+  await page.waitForFunction(() => window.current().gatewayQuotas.sources.length === 1)
+  await page.evaluate(source => { window.savedQuotaSources = { gatewayQuotas: { sources: [source] }, customBalances: [] } }, removedSource)
+  await page.getByRole('tab', { name: '概览', exact: true }).click()
+  await page.getByRole('tab', { name: '额度', exact: true }).click()
+  const recovery = page.locator('.cm-quota-recovery')
+  await recovery.locator('summary').click()
+  await recovery.getByRole('button', { name: '恢复', exact: true }).click()
+  await page.waitForFunction(() => window.current().gatewayQuotas.sources.length === 2)
+  const imported = { ...removedSource, id: 'from-before-upgrade', label: '旧备份中的网关' }
+  await recovery.locator('input[type=file]').setInputFiles({ name: 'ledger.json.config-bak', mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify({ config: { gatewayQuotas: { sources: [imported, otherSource] } } })) })
+  await recovery.getByRole('button', { name: '恢复', exact: true }).click()
+  await page.waitForFunction(() => window.current().gatewayQuotas.sources.length === 3)
+  assert.deepEqual(await page.evaluate(() => window.current().gatewayQuotas.sources.map(row => row.id)), [otherSource.id, removedSource.id, imported.id])
   // Plugin removal releases its CSS constraints and does not mutate host styles.
   await page.evaluate(() => window.configure({ sidebar: false, hideOfficialBalance: true, peakNotice: false, codingPlans: { opendesign: { enabled: false } } }))
   await host.locator('.cm-footer-stack').waitFor({ state: 'detached' })
@@ -84,5 +170,5 @@ export async function checkFeedbackSidebar(page, output) {
     if (previous.style === null) document.documentElement.removeAttribute('style')
     else document.documentElement.setAttribute('style', previous.style)
   }, theme)
-  return { desktopFooterGap: true, opendesignBalanceInTitle: true, restoredHostLayout: true }
+  return { desktopFooterGap: true, opendesignBalanceInTitle: true, restoredHostLayout: true, sharedFooter: true, searchDisclosure: true, quotaSourceRecovery: true }
 }

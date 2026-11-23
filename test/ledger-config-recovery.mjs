@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Ledger, sanitizeConfig, stripSecrets } from '../lib/store.js'
-import { withLedgerLock, writeLedger } from '../lib/ledger-persistence.js'
+import { withLedgerLock, writeLedger, writeLedgerConfigBackup, readLedgerConfigBackup } from '../lib/ledger-persistence.js'
 
 const root = fs.mkdtempSync(join(tmpdir(), 'cm-config-recovery-'))
 const ledgers = []
@@ -127,6 +127,22 @@ try {
     const broken = load(path)
     assert.equal(broken.config.customBalances.length, 0, 'invalid backup falls back to defaults')
     await broken.close()
+
+    const recoveryPath = join(root, 'sources.json')
+    const sources = [{ id: 'previous', label: 'One', baseURL: 'http://127.0.0.1:8317' }, { id: 'keep', label: 'Two' }]
+    const first = stripSecrets(sanitizeConfig({ ...fixtureConfig(), gatewayQuotas: { sources } }))
+    const next = { ...first, customBalances: [], gatewayQuotas: { sources: [first.gatewayQuotas.sources[1]] } }
+    writeLedgerConfigBackup(recoveryPath, { config: first })
+    writeLedgerConfigBackup(recoveryPath, { config: next })
+    const savedSources = readLedgerConfigBackup(recoveryPath).quotaRecovery
+    assert.deepEqual(savedSources.gatewayQuotas.sources.map(row => row.id), ['previous'])
+    assert.deepEqual(savedSources.customBalances, first.customBalances)
+    assert.equal(savedSources.customBalances[0].request.headers.Authorization, '{{BALANCE_TOKEN}}')
+    assert.ok(!JSON.stringify(savedSources).includes('fixture-balance-secret'))
+    writeLedgerConfigBackup(recoveryPath, { config: { ...next, locale: 'zh' } })
+    assert.deepEqual(readLedgerConfigBackup(recoveryPath).quotaRecovery, savedSources)
+    writeLedgerConfigBackup(recoveryPath, { config: first })
+    assert.equal(readLedgerConfigBackup(recoveryPath).quotaRecovery, undefined, 'restored sources disappear from recovery')
 
     const child = spawnSync(process.execPath, [fileURLToPath(import.meta.url), '--io-faults'], { encoding: 'utf8', timeout: 30000 })
     assert.equal(child.status, 0, `${child.stdout}\n${child.stderr}`)

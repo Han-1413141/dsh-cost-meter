@@ -1,4 +1,4 @@
-// Browser regression for #192. Start with:
+// Browser regression for the solo and shared sidebar footer (#192, #576). Start with:
 // node test/sidebar-footer-layout.mjs <directory containing react and react-dom> [--baseline v1.7.42]
 // Open the printed URL and click Run regression. No real host/account is contacted.
 import { readFileSync, readdirSync } from 'node:fs'
@@ -65,25 +65,27 @@ function measure(section){
  const host=section.querySelector('.host'), parent=section.querySelector('.footerActions'), stack=parent.querySelector('.cm-footer-stack');
  const context=parent.querySelector('.lc-ov-entry'), extra=parent.querySelector('.extra'), wide=!host.classList.contains('collapsed');
  const rect=n=>n.getBoundingClientRect(), p=rect(parent), label=section.getAttribute('data-case');
- if(stack){const s=rect(stack);check(Math.abs(s.width-p.width)<1,label+' cost has full footer width');
-  for(const button of [context,extra].filter(Boolean)){const b=rect(button);check(wide?b.top>=s.bottom-1:b.bottom<=s.top+1,label+' sibling does not share cost row');}
+ const shared=parent.querySelector('.cm-shared-footer'), cost=shared??stack;
+ if(stack){const s=rect(stack);check(!context&&!extra&&Math.abs(s.width-p.width)<1,label+' solo card uses available width');
   check(stack.scrollWidth<=stack.clientWidth+1,label+' cost has no horizontal overflow');
  }
- if(context){const c=rect(context);check(Math.abs(c.width-(wide?p.width+4-(!stack&&extra?36:0):36))<1,label+' context keeps native width');
+ if(shared){const s=rect(shared);check(s.width===36&&s.height===36,label+' shared cost button stays 36px');
+  for(const peer of [context,extra].filter(Boolean)){const b=rect(peer);check(b.top<s.bottom&&b.bottom>s.top,label+' siblings share one row');}}
+ if(context){const c=rect(context);check(Math.abs(c.width-(wide?p.width+4-(extra?36:0)-(shared?36:0):36))<1,label+' context keeps native width');
   const text=context.querySelector('.lc-ov-entry-label');if(text)check(text.scrollWidth<=text.clientWidth+1,label+' context label visible');}
  if(extra)check(Math.abs(rect(extra).width-36)<1,label+' extra button stays 36px');
  const slot=parent.querySelector('[data-slot="sidebar.footer.action"]');
  if(slot)check(slot.style.cssText==='display: contents;',label+' slot remains layout-neutral');
- const order=[...(slot??parent).children].map(n=>n.classList.contains('lc-ov-entry')?'context':n.classList.contains('cm-footer-stack')?'cost':'extra');
- check(order.join(',')===[context&&'context',stack&&'cost',extra&&'extra'].filter(Boolean).join(','),label+' React DOM order unchanged');
+ const order=[...(slot??parent).children].map(n=>n===context?'context':n===cost?'cost':'extra');
+ check(order.join(',')===[context&&'context',cost&&'cost',extra&&'extra'].filter(Boolean).join(','),label+' React DOM order unchanged');
  check(parent.getAttribute('style')===null,label+' host inline styles untouched');
- if(!stack){const style=getComputedStyle(parent);check(style.flexDirection==='row'&&style.flexWrap==='nowrap',label+' host layout restored');}
+ const style=getComputedStyle(parent);check(style.flexDirection==='row'&&style.flexWrap==='nowrap',label+' host keeps its own flex direction and wrapping');
 }
 const frame=()=>new Promise(resolve=>requestAnimationFrame(resolve));
 async function run(){const result=document.getElementById('result');checks=0;try{
  document.querySelectorAll('main section').forEach(measure);
- for(const wrapped of [true,false])for(const next of [{width:56},{width:56,hidden:true},{width:56,enabled:false},{width:280},{width:280,context:false},{width:280,context:true,extra:false},{width:56,simple:true},{width:360,compact:true},{width:280,hidden:true},{width:280}]){
-  flushSync(()=>update({...next,wrapped}));await frame();measure(document.querySelector('#dynamic section'));
+ for(const wrapped of [true,false])for(const next of [{width:56},{width:56,hidden:true},{width:56,enabled:false},{width:280},{width:280,context:false,extra:false},{width:280,context:true,extra:false},{width:56,simple:true},{width:360,compact:true},{width:280,hidden:true},{width:280}]){
+  flushSync(()=>update({...next,wrapped}));await frame();await frame();measure(document.querySelector('#dynamic section'));
  }
  result.textContent='PASS: 48 layouts + 20 transitions, '+checks+' assertions';
  }catch(error){result.textContent='FAIL: '+error.message;console.error(error)}}

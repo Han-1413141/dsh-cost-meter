@@ -958,6 +958,27 @@
       el('option', { key: 'off', value: 'off' }, t('off')),
     ]
     const cmMsg = m => (m != null ? el('div', { className: 'cm-msg ' + m.kind }, m.text) : null)
+    function SearchCoverageNote({ message, t }) {
+      const [shown, setShown] = useState(null)
+      const id = React.useId(), anchor = useRef(null)
+      useEffect(() => {
+        if (!shown) return
+        const outside = event => { if (!anchor.current?.contains(event.target)) setShown(null) }
+        const escape = event => { if (event.key === 'Escape') setShown(null) }
+        document.addEventListener('pointerdown', outside, true)
+        document.addEventListener('keydown', escape)
+        return () => { document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', escape) }
+      }, [shown])
+      return el('span', { ref: anchor, className: 'cm-search-note',
+        onPointerEnter: event => { if (event.pointerType === 'mouse') setShown(value => value ?? 'hover') },
+        onPointerLeave: () => setShown(value => value === 'hover' ? null : value),
+        onBlur: () => setShown(null),
+        onKeyDown: event => { if (event.key === 'Escape' && shown) { event.stopPropagation(); setShown(null) } } },
+        el('button', { type: 'button', 'aria-label': t('searchCoverageNote'), 'aria-expanded': !!shown, 'aria-controls': id,
+          onClick: () => setShown(value => value === 'pinned' ? null : 'pinned') }, el('span', { 'aria-hidden': true }, 'i')),
+        el('span', { id, className: 'cm-search-note-text', hidden: !shown }, message))
+    }
+
     function BalancePanel(props) {
       const { state, api, t, draft, setDraft } = props
       const [busy, msg, doRefresh] = useQuotaRefresh(t, () => api.refreshBalance())
@@ -984,7 +1005,8 @@
           : el('div', { className: 'cm-bal-line' }, t('balanceNotQueried'))
       return el('div', { className: 'cm-budget' },
         el('div', { className: 'cm-budget-head' },
-          el('h3', { className: 'cm-h' }, t('accountBalance')),
+          el('div', { className: 'cm-balance-heading' }, el('h3', { className: 'cm-h' }, t('accountBalance')),
+            reconcile?.searchMessage ? el(SearchCoverageNote, { message: reconcile.searchMessage, t }) : null),
           el('button', { className: 'cm-btn small', onClick: doRefresh, disabled: busy }, busy ? t('refreshing') : t('refreshBalance'))),
         body,
         el('div', { className: 'cm-field' }, el('label', null, t('balanceSourceChoice')),
@@ -994,7 +1016,7 @@
         el('p', { className: 'cm-hint' }, t('balanceSourceHint')),
         el('label', null, t('balanceApiKey')),
         el(AccountCredentialLauncher, { state, draft, setDraft, target: 'balance', configured: balance.keyConfigured, source: balance.keySource, t, api, placeholder: 'sk-…' }),
-        reconcile !== undefined && reconcile.ok === false ? el('div', { className: 'cm-bal-line warn' }, '⚠ ' + reconcile.message) : null,
+        balanceWarning(reconcile) ? el('div', { className: 'cm-bal-line warn' }, '⚠ ' + balanceWarning(reconcile)) : null,
         el('label', { className: 'cm-check' },
           el('input', { type: 'checkbox', checked: reconcileOn, onChange: toggleReconcile }),
           t('reconcileLabel')),
@@ -1011,6 +1033,7 @@
       useEffect(() => { if (props.targeted) { card.current?.scrollIntoView({ block: 'start' }); card.current?.focus({ preventScroll: true }) } }, [props.targeted])
       const { name, enabled, saved, busy, open, statusNode, configNode, errorMsg, onToggle, onRefresh, onLogin, loginRequired, onRemove, onToggleOpen, t } = props
       const expandable = configNode != null
+      const [confirmRemove, setConfirmRemove] = useState(false)
       const buttonAction = loginRequired ? onLogin : onRefresh
       const buttonText = busy === true ? t(loginRequired ? 'loggingIn' : 'refreshing') : loginRequired ? t('loginCodingPlan') : t('refresh')
       return el('div', { ref: card, 'data-quota-plan': props.planId, tabIndex: props.targeted ? -1 : undefined, className: 'cm-budget cm-quota-card' },
@@ -1022,7 +1045,10 @@
           enabled && props.onSidebar ? el('label', { className: 'cm-check cm-quota-sidebar' },
             el('input', { type: 'checkbox', checked: ['both', 'sidebar'].includes(props.display),
               'aria-label': name + ' · ' + t('quotaSidebar'), onChange: event => props.onSidebar(event.target.checked ? 'both' : 'settings') }), t('quotaSidebar')) : null,
-          onRemove ? el('button', { className: 'cm-btn small', onClick: onRemove }, t('quotaRemove')) : null,
+          onRemove ? confirmRemove ? el(Fragment, null,
+            el('button', { type: 'button', className: 'cm-btn small', onClick: () => { setConfirmRemove(false); onRemove() } }, t('quotaRemoveConfirm')),
+            el('button', { type: 'button', className: 'cm-btn small', onClick: () => setConfirmRemove(false) }, t('cancel')))
+            : el('button', { type: 'button', className: 'cm-btn small', onClick: () => setConfirmRemove(true) }, t('quotaRemove')) : null,
           el('button', {
             className: 'cm-btn small', onClick: buttonAction,
             disabled: busy === true || enabled !== true || saved?.enabled !== true || saved.display === 'off' && saved.showInComposer !== true,
@@ -1160,7 +1186,7 @@
     /** 单个 Coding Plan 订阅卡片(11 家共用:开关在标题行,展示/间隔/计划额度/凭据收在展开区)。 */
     let planSettingsPage
     function loadPlanSettings() {
-      return planSettingsPage ??= require.async('./client.plan-settings.js').then(module => module.mount({ miniMaxRow, miniMaxResetText, GATEWAY_PROVIDER_LABELS, useQuotaRefresh, miniMaxWindowsOf, MiniMaxPlanCard, barDirectionOf, quotaWindowRow, codingPlanWindowLabel, codingPlanWindowEntries, numInput, CredentialField, QuotaCard, resolveLocale, formatMoneyUsd, formatBalanceMoney, quotaPlacementValue, quotaPlacementPatch, quotaPlacementOptions, displayOptions, BalanceBar, segmentsForCustomBalance, customBalanceUnitOf, customBalanceDetailText, formatCustomBalanceMoney, resolveCustomBalanceLabel })).catch(error => { planSettingsPage = null; throw error })
+      return planSettingsPage ??= require.async('./client.plan-settings.js').then(module => module.mount({ GoQuotaCard, sortQuotaCards, CODING_PLAN_ROWS, GATEWAY_PROVIDERS, miniMaxRow, miniMaxResetText, GATEWAY_PROVIDER_LABELS, useQuotaRefresh, miniMaxWindowsOf, MiniMaxPlanCard, barDirectionOf, quotaWindowRow, codingPlanWindowLabel, codingPlanWindowEntries, numInput, CredentialField, QuotaCard, resolveLocale, formatMoneyUsd, formatBalanceMoney, quotaPlacementValue, quotaPlacementPatch, quotaPlacementOptions, displayOptions, BalanceBar, segmentsForCustomBalance, customBalanceUnitOf, customBalanceDetailText, formatCustomBalanceMoney, resolveCustomBalanceLabel })).catch(error => { planSettingsPage = null; throw error })
     }
     function PlanQuotaCard(props) { return el(BillingStatistics, { ...props, load: loadPlanSettings }) }
     function AccountCredentialLauncher(props) {
@@ -1170,100 +1196,8 @@
         : el(Fragment, null, el(CredentialField, props), el('button', { type: 'button', className: 'cm-btn small', onClick: () => setOpen(true) }, resolveLocale(props.state.config) === 'en' ? 'Manage accounts' : '管理账号'))
     }
 
-    /** 额度区总装:四类来源归一成同一串卡片,已启用的排前面(顺序纯由 enabled 派生,不落盘)。 */
     function QuotasSection(props) {
-      const { state, api, t, draft, setDraft } = props
-      const config = state.config
-      const base = draft ?? config
-      const plans = base.codingPlans ?? {}
-      const sources = base.gatewayQuotas?.sources ?? []
-      const entries = draft?.customBalances ?? config.customBalances ?? []
-      // 多配置形态(v1.7.0,issue #79):entries 为运行期真源;旧单配置 customBalance
-      // 由 parseConfig/sanitizeConfig 迁移包装为 entries(编辑写回也走数组,单条键
-      // 由服务端镜像),旧宿主快照自动兼容。
-      const setEntries = (next, showSidebar = false) => {
-        if (draft === null) return
-        setDraft({ ...draft, ...(showSidebar ? { hideCustomBalance: false } : {}), customBalances: next, ...(next.length === 0 ? { customBalance: { ...(config.customBalance ?? {}), enabled: false, request: { url: '', headers: {} } } } : {}) })
-      }
-      const identities = useRef({ next: 0, keys: [] }).current
-      while (identities.keys.length < entries.length) identities.keys.push(identities.next++)
-      identities.keys.length = entries.length
-      const removeEntry = index => { identities.keys.splice(index, 1); setEntries(entries.filter((_, i) => i !== index)) }
-      const setEntry = (index, patch, showSidebar) => setEntries(entries.map((e, i) => i === index ? { ...e, ...patch } : e), showSidebar)
-      const addEntry = (adapter = 'custom') => {
-        if (entries.length >= 8) return
-        if (adapter === 'openai-credits') {
-          if (entries.some(entry => entry.adapter === adapter)) return
-          setEntries([...entries, { adapter, enabled: false, label: 'OpenAI API 赠送额度（预估）', labelEn: 'OpenAI API credits (estimate)',
-            grantAmount: 0, grantStart: '', grantExpiry: '', display: 'both', unit: 'USD', refreshMinutes: 15,
-            dashboardUrl: 'https://platform.openai.com/settings/organization/billing/credit-grants',
-            request: { url: 'https://api.openai.com/v1/organization/costs', method: 'GET', headers: {} }, extract: {} }])
-          return
-        }
-        if (adapter === 'workbuddy2api') {
-          setEntries([...entries, { enabled: false, label: 'WorkBuddy2API 积分', labelEn: 'WorkBuddy2API credits', display: 'both', unit: 'CREDITS', refreshMinutes: 15,
-            request: { url: 'http://127.0.0.1:8790/api/credits/expiry?package_limit=1', method: 'GET', headers: { 'X-Admin-Token': '{{WORKBUDDY2API_ADMIN_TOKEN}}' } },
-            extract: { remaining: 'summary.available_remaining' }, allowedHosts: ['127.0.0.1:8790'], allowInsecureHttp: false }])
-          return
-        }
-        setEntries([...entries, {
-          ...(adapter !== 'custom' ? { adapter } : {}),
-          enabled: false,
-          label: adapter === 'tokenrhythm' ? 'Token Rhythm' : adapter === 'aliyun' ? '千问 / 阿里云' : '',
-          labelEn: adapter === 'tokenrhythm' ? 'Token Rhythm' : adapter === 'aliyun' ? 'Qianwen / Alibaba Cloud' : '',
-          display: 'both',
-          unit: adapter !== 'custom' ? 'CNY' : 'USD',
-          refreshMinutes: 15,
-          request: { url: adapter === 'tokenrhythm' ? 'https://tokenrhythm.studio/api/wallet/summary' : adapter === 'aliyun' ? 'https://business.aliyuncs.com/' : '', method: adapter === 'aliyun' ? 'POST' : 'GET', headers: {} },
-          extract: {},
-          allowedHosts: [],
-        }])
-      }
-      const addGateway = (type = 'cliproxyapi') => {
-        if (sources.length >= 4 || draft === null) return
-        const agyLink = type === 'agy-link', manager = type === 'antigravity-manager'
-        const label = agyLink ? 'Antigravity' : manager ? 'Antigravity-Manager' : 'CLIProxyAPI'
-        const baseURL = agyLink ? '' : manager ? 'http://127.0.0.1:8045' : 'http://127.0.0.1:8317'
-        setDraft({
-          ...draft,
-          gatewayQuotas: {
-            ...(draft.gatewayQuotas ?? config.gatewayQuotas ?? {}),
-            sources: [...sources, { id: agyLink ? 'agy-link' : 'gateway-' + Date.now().toString(36), type, label, baseURL, enabled: agyLink, display: 'both', refreshMinutes: 15, includeProviders: manager || agyLink ? ['antigravity'] : GATEWAY_PROVIDERS, allowedHosts: [], allowInsecureHttp: false }],
-          },
-        })
-      }
-      // 四类归一成同一种卡片形状,排序只认 enabled:已启用组在前,两组各自保持默认顺序。
-      const items = [
-        ...sources.map((source, index) => ({ kind: 'gateway', key: 'gw-' + (source.id ?? index), index, enabled: source.enabled === true })),
-        { kind: 'go', key: 'go', enabled: base.goQuota?.enabled !== false },
-        ...CODING_PLAN_ROWS.map(row => ({ kind: 'plan', key: 'plan-' + row.id, planId: row.id, labelKey: row.labelKey, enabled: plans[row.id]?.enabled === true })),
-        ...entries.map((entry, index) => ({ kind: 'custom', key: 'cb-' + identities.keys[index], index, enabled: entry.enabled === true })),
-      ]
-      const cardOf = item => {
-        if (item.kind === 'plan') return el(PlanQuotaCard, { key: item.key, planId: item.planId, labelKey: item.labelKey, targeted: item.planId === props.targetPlan, state, api, t, draft, setDraft })
-        if (item.kind === 'go') return el(GoQuotaCard, { key: item.key, state, api, t, draft, setDraft })
-        if (item.kind === 'gateway') return el(PlanQuotaCard, { key: item.key, mode: 'gateway', index: item.index, state, api, t, draft, setDraft })
-        return el(CustomBalanceEntryPanel, {
-          key: item.key, state, api, t, entry: entries[item.index], index: item.index, canRemove: true,
-          sidebarHidden: base.hideCustomBalance, onPatch: (patch, showSidebar) => setEntry(item.index, patch, showSidebar),
-          onRemove: () => removeEntry(item.index),
-        })
-      }
-      return el('div', null,
-        el('div', { className: 'cm-budget-head' }, el('p', { className: 'cm-note' }, t('quotaSectionNote')),
-          el('button', { type: 'button', className: 'cm-btn small', onClick: props.openDisplay }, t('quotaOpenDisplay'))),
-        el('div', { className: 'cm-quota-list' }, sortQuotaCards(items).map(cardOf)),
-        el('div', { className: 'cm-buttons' },
-          el('button', { className: 'cm-btn small', onClick: () => addGateway(), disabled: sources.length >= 4 }, t('gatewaySourceAdd')),
-          el('button', { className: 'cm-btn small', onClick: () => addGateway('antigravity-manager'), disabled: sources.length >= 4 }, t('managerQuotaAdd')),
-          el('button', { className: 'cm-btn small', onClick: () => addGateway('agy-link'), disabled: sources.length >= 4 || sources.some(source => source.type === 'agy-link') }, t('agyLinkQuotaAdd')),
-          el('button', { className: 'cm-btn small', onClick: () => addEntry(), disabled: entries.length >= 8 }, t('customBalanceAdd')),
-          el('button', { className: 'cm-btn small', onClick: () => addEntry('aliyun'), disabled: entries.length >= 8 }, t('aliyunBalanceAdd')),
-          el('button', { className: 'cm-btn small', onClick: () => addEntry('tokenrhythm'), disabled: entries.length >= 8 }, t('tokenRhythmBalanceAdd')),
-          el('button', { className: 'cm-btn small', onClick: () => addEntry('openai-credits'), disabled: entries.length >= 8 || entries.some(entry => entry.adapter === 'openai-credits') }, t('openAiCreditAdd')),
-          el(PlanQuotaCard, { mode: 'add-fireworks', disabled: entries.length >= 8, onAdd: entry => setEntries([...entries, entry]) }),
-          el('button', { className: 'cm-btn small', onClick: () => addEntry('workbuddy2api'), disabled: entries.length >= 8 }, t('workBuddyBalanceAdd')),
-          el('p', { className: 'cm-note' }, t('workBuddyBalanceNote'))))
+      return el(PlanQuotaCard, { ...props, mode: 'quotas' })
     }
 
     // ── Token 用量统计(历史总量 + 每日格子热图;显示位置可配) ────────────────
@@ -1907,6 +1841,7 @@
       }
       const api = {
         loadBillingStorage: () => loadPage('billing-storage'),
+        getQuotaSourceRecovery: () => call('getQuotaSourceRecovery', []),
         billingStorage: async options => call('billingStorage', [billingStorageOptionsCodec.parse(options)]),
         loadSettingsOverview: () => loadPage('settings-overview'),
         loadStatistics: () => loadPage('statistics'),

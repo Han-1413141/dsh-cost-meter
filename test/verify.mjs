@@ -1458,7 +1458,7 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   assert.ok(clientSource.includes("useClickRefresh(api ? () => api.refreshCodingPlan('minimax') : null)"), 'MiniMax 图框接 refreshCodingPlan(minimax)')
   const footerSource = clientSource.match(/function renderSidebarFooter\([^)]*\) \{([\s\S]*?)\n    \}/)?.[0] ?? ''
   assert.equal((footerSource.match(/api: api/g) ?? []).length, 6, '共享侧栏六类图框透传 api')
-  assert.ok(footerSource.includes("el(CodexPlanBox, { key: 'codex', state, wide, api, preview })") && /renderSidebarFooter\(state, !!props\.wide, props\.api[,)]/.test(clientSource), '实际侧栏传入 api，预览显式禁用查询')
+  assert.ok(footerSource.includes("el(CodexPlanBox, { key: 'codex', state, wide, api, preview })") && clientSource.includes('renderSidebarFooter(state, shared || !!props.wide, props.api, false'), '实际侧栏和共用时展开的卡片都传入 api，预览显式禁用查询')
   // 可点击语义与视觉反馈:a11y(role/tabIndex/aria-busy/键盘)、CSS(cursor/hover/busy 呼吸)。
   assert.ok(clientSource.includes('const clickableRefreshProps = (busy, run) => ({'), '可点击属性 helper 存在')
   assert.ok(clientSource.includes("role: 'button'") && clientSource.includes("tabIndex: 0") && clientSource.includes("'aria-busy': busy ? 'true' : 'false'"), 'role=button + tabIndex + aria-busy')
@@ -5802,7 +5802,8 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
 {
   const client79 = readClientSource()
   assert.ok(client79.includes('function CustomBalanceEntryPanel('), '设置页逐条编辑组件存在')
-  assert.ok(client79.includes("t('customBalanceAdd')") && client79.includes("t('quotaRemove')"), '添加/删除条目按钮接线(双语)')
+  const quotaSection = readFileSync(new URL('../src/plan-settings/quota-section.js', import.meta.url), 'utf8')
+  assert.ok(quotaSection.includes("t('customBalanceAdd')") && client79.includes("t('quotaRemove')"), '添加/删除条目按钮接线(双语)')
   assert.ok(client79.includes('function visibleCustomEntries(state, config)'), '侧边栏可见条目统一判定 helper 存在')
   assert.ok(client79.includes('api.refreshCustomBalance(index)'), '侧边栏逐条按 index 刷新')
   assert.ok(client79.includes('const visibleCustom = visibleCustomEntries(state, config)'), 'SidebarFooter 用可见条目集门控')
@@ -7003,6 +7004,7 @@ await import('./ollama-cloud-upgrade.mjs')
 await import('./ollama-snapshot-upgrade.mjs')
 await import('./subagent-billing.mjs')
 await import('./agent-team-costs.mjs')
+await import('./ds-bot-group-costs.mjs')
 await import('./billing-integrity.mjs')
 await import('./session-restart.mjs')
 await import('./native-search-billing.mjs')
