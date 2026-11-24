@@ -47,7 +47,7 @@ const code = `
 import * as ReactDOMPortal from ${literal(req.resolve('react-dom'))};import React from ${literal(req.resolve('react'))};import{createRoot}from ${literal(req.resolve('react-dom/client'))};
 const h=React.createElement;
 const tooltipText=value=>Array.isArray(value)?value.map(tooltipText).join(' '):typeof value==='string'||typeof value==='number'?String(value):value?.props?tooltipText(value.props.children):'';
-const mainRequire=name=>name==='react'?React:name==='react-dom'?ReactDOMPortal:{Tooltip:({children,label})=>React.cloneElement(children,{'data-test-tooltip':tooltipText(label)})};mainRequire.async=async path=>{const chunk={'./client.plan-settings.js':window.planSettingsUI,'./client.local-savings.js':window.localSavingsUI,'./client.peak.js':window.peakUI,'./client.sidebar-icons.js':window.sidebarIconsUI}[path];if(!chunk)throw Error('Unexpected test chunk: '+path);return chunk};
+const mainRequire=name=>name==='react'?React:name==='react-dom'?ReactDOMPortal:{Tooltip:({children,label})=>React.cloneElement(children,{'data-test-tooltip':tooltipText(label)})};mainRequire.async=async path=>{const chunk={'./client.plan-settings.js':window.planSettingsUI,'./client.local-savings.js':window.localSavingsUI,'./client.peak.js':window.peakUI,'./client.sidebar-icons.js':window.sidebarIconsUI,'./client.footer-chip.js':window.footerChipUI}[path];if(!chunk)throw Error('Unexpected test chunk: '+path);return chunk};
 window.__ModuleLoader__={load:mod=>window.mainUI=mod.factory(mainRequire)};
 ${client}
 window.__ModuleLoader__={load:mod=>window.planSettingsUI=mod.factory(()=>React)};
@@ -56,6 +56,8 @@ window.__ModuleLoader__={load:mod=>window.peakUI=mod.factory(name=>name==='react
 ${readFileSync('lib/client.peak.js', 'utf8')}
 window.__ModuleLoader__={load:mod=>window.sidebarIconsUI=mod.factory(name=>name==='react'?React:{})};
 ${readFileSync('lib/client.sidebar-icons.js', 'utf8')}
+window.__ModuleLoader__={load:mod=>window.footerChipUI=mod.factory(name=>name==='react'?React:name==='react-dom'?ReactDOMPortal:{})};
+${readFileSync('lib/client.footer-chip.js', 'utf8')}
 window.__ModuleLoader__={load:mod=>window.localSavingsUI=mod.factory(()=>React)};
 ${readFileSync('lib/client.local-savings.js', 'utf8')}
 window.__ModuleLoader__={load:mod=>window.displayUI=mod.factory(()=>React)};
@@ -291,14 +293,19 @@ try {
   assert.equal(await page.locator('.cm-display-toggles').count(),0,'visibility controls are only in the right inspector')
   assert.equal(await page.locator('.cm-inspector-layout').getAttribute('aria-expanded'), 'true', 'sidebar layouts start expanded and remain open when selecting components')
   const previews=page.locator('.cm-style-thumbnail')
-  assert.equal(await previews.count(),5)
+  assert.equal(await previews.count(),6)
   await page.locator('.cm-style-thumbnail .cm-icons-row').waitFor()
+  let entryThumbnails=0
   for(const preview of await previews.all()) {
     if(await preview.locator('.cm-icons-row').count()) {
       assert.ok(await preview.locator('.cm-icons-button').count()>0,'Icons preview uses the real icon presentation')
       assert.equal(await preview.locator('.cm-mm-row .cm-bbox-bar').count(),0,'Icons keeps native details collapsed')
+    } else if(await preview.locator('.cm-style-thumbnail-content > .cm-footer-stack > .cm-btn.small svg').count()) {
+      entryThumbnails++
+      assert.equal(await preview.locator('.cm-mm-row .cm-bbox-bar').count(),0,'Entry keeps native details collapsed behind a single entry button')
     } else assert.equal(await preview.locator('.cm-mm-row .cm-bbox-bar').count(),2,'each existing style preview retains its real quota progress rows')
   }
+  assert.equal(entryThumbnails,1,'Entry layout thumbnail renders once')
   const progressRows=await page.evaluate(()=>['standard','compact'].map(mode=>[...document.querySelectorAll('.cm-style-thumbnail .cm-footer-stack'+(mode==='compact'?'.compact':':not(.simple):not(.compact)')+' .cm-mm-row')].map(n=>n.getBoundingClientRect().y)))
   assert.ok(progressRows[0][1]>progressRows[0][0],'standard rows stack vertically')
   assert.ok(Math.abs(progressRows[1][1]-progressRows[1][0])<1,'compact rows sit side by side')
