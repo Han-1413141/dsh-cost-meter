@@ -146,11 +146,16 @@ for (const metric of ['cost', 'tokens', 'both']) {
   assert.deepEqual(summary.children[0], upstreamValue, 'same upstream currency/token formatter')
 }
 coarse = true
-const mobile = Component({ ...loader.props })
-assert.equal(mobile.children.length, loader.props.nodes.length, 'small/coarse devices render original nodes once')
-mobile.children.forEach((node, index) => assert.equal(node, loader.props.nodes[index]))
+const mobileStandard = Component({ ...loader.props, state: { ...state, config: { ...config, sidebarStyle: 'standard' } } })
+assert.equal(mobileStandard.children.length, loader.props.nodes.length, 'small/coarse devices render original nodes once')
+mobileStandard.children.forEach((node, index) => assert.equal(node, loader.props.nodes[index]))
+// The icon row is built for narrow bars, so an explicit choice of it is honoured on touch screens
+// too (it is the narrowest form: one 36px row, horizontally scrollable, details expand inline).
+const mobileIcons = Component({ ...loader.props })
+assert.ok(walk(mobileIcons).some(node => node.props.className === 'cm-icons-row'), 'explicit icon layout renders on small/coarse devices')
 coarse = false; pocket = true
-Component({ ...loader.props }).children.forEach((node, index) => assert.equal(node, loader.props.nodes[index], 'forced Pocket layout keeps original cards'))
+Component({ ...loader.props, state: { ...state, config: { ...config, sidebarStyle: 'standard' } } }).children.forEach((node, index) => assert.equal(node, loader.props.nodes[index], 'forced Pocket layout keeps original cards'))
+assert.ok(walk(Component({ ...loader.props })).some(node => node.props.className === 'cm-icons-row'), 'forced Pocket layout also honours an explicit icon choice')
 pocket = false
 // Selecting an icon opens exactly the upstream node rather than a fork of its implementation.
 override = [false, now, 'plan:qwen']

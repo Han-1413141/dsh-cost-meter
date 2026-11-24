@@ -95,7 +95,10 @@ window.__ModuleLoader__.load({
         const details = paired ? entries.filter(entry => entry === todayEntry || balanceDetails.includes(entry)) : chosen?.entries ?? []
         useEffect(() => { if (open !== null && !chosen) setOpen(null) }, [open, !!chosen])
         // Pointer/viewport/forced Pocket modes use the original nodes, with no hidden duplicate cards.
-        if (native) return el(Fragment, null, ...nodes)
+        // An explicit choice of the icon layout wins: the icon row is built for narrow bars (one
+        // 36px row, horizontally scrollable, details expand inline), so it is also the most compact
+        // option on touch screens. Only the implicit default falls back to the cards.
+        if (native && config.sidebarStyle !== 'icons') return el(Fragment, null, ...nodes)
         const phase = peakView(config, now)
         const tone = phaseTone(phase)
         const windowView = phase && countdownWindow(phase.nextAtMs, now)
