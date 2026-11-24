@@ -156,11 +156,11 @@
         sidebarModels: Object.fromEntries(Object.entries(MODEL_SIDEBAR_DEFAULTS).map(([k, v0]) => [k, v.sidebarModels?.[k] ?? v0])),
         codexQuotaSidebar: v.codexQuotaSidebar !== false,
         codexQuotaStrip: v.codexQuotaStrip !== false,
-        codexQuotaSource: ['connect', 'subscription', 'chatgpt', 'pi-ai', 'chatgpt-sub'].includes(v.codexQuotaSource) ? v.codexQuotaSource : 'auto',
+        codexQuotaSource: ['connect', 'subscription', 'chatgpt', 'pi-ai', 'chatgpt-sub', 'subscriptions'].includes(v.codexQuotaSource) ? v.codexQuotaSource : 'auto',
         // Codex 订阅兼容(契约 B-5):用户已关闭一次性提示 / 已应用历史归类的时点。
         // 直通白名单缺失会导致关闭后重开页面又弹提示,或应用后状态行回落「未应用」。
         codexCompatHistoryAppliedAt: num0(v.codexCompatHistoryAppliedAt),
-        sidebarStyle: oneOf(v.sidebarStyle, ['standard', 'compact', 'summary', 'icons'], 'standard'),
+        sidebarStyle: oneOf(v.sidebarStyle, ['standard', 'compact', 'summary', 'icons', 'entry'], 'standard'),
         planQuotaStyle: v.planQuotaStyle === 'gauge' ? 'gauge' : 'bars',
         ...mapFields(v, ['sidebarSimplePromptSeen', 'sidebarSummaryPromptSeen', 'peakProgressPromptSeen'].filter(key => Object.hasOwn(v, key)), value => value === true),
         billionContextNoticeEnabled: v.billionContextNoticeEnabled !== false,
@@ -220,6 +220,7 @@
                 ...(id === 'minimax' ? { baseUrl: typeof e.baseUrl === 'string' ? e.baseUrl : '' } : {}),
                 ...(id === 'factory' ? { orgId: typeof e.orgId === 'string' ? e.orgId : '', factoryPool: ['core', 'both'].includes(e.factoryPool) ? e.factoryPool : 'standard' } : {}),
                 ...(id === 'workbuddy' ? { accountScope: e.accountScope ?? 'current', accountIds: Array.isArray(e.accountIds) ? e.accountIds : [], ...(typeof e.accountSource === 'string' ? { accountSource: e.accountSource } : {}) } : {}),
+                ...(id === 'trae' ? { editionScope: ['auto', 'cn', 'enterprise', 'ai'].includes(e.editionScope) ? e.editionScope : 'auto' } : {}),
                 ...(id === 'opendesign' ? { workspaceId: typeof e.workspaceId === 'string' ? e.workspaceId : '' } : {}),
                 ...(id === 'qwen' ? { quotaSource: ['cli', 'bailian'].includes(e.quotaSource) ? e.quotaSource : 'local' } : {}),
                 // SCNet / 千问本地计量字段(issue #26/#78):其余厂商无此键,缺省剔除。
@@ -284,7 +285,7 @@
           const raw = Array.isArray(v.gatewayQuotas) ? v.gatewayQuotas : v.gatewayQuotas?.sources
           const sources = Array.isArray(raw) ? raw.slice(0, 4).filter(x => x !== null && typeof x === 'object' && !Array.isArray(x)).map(x => ({
             id: typeof x.id === 'string' ? x.id.slice(0, 48) : '',
-            type: oneOf(x.type, ['agy-link', 'antigravity-manager'], 'cliproxyapi'),
+            type: oneOf(x.type, ['agy-link', 'subscriptions', 'antigravity-manager'], 'cliproxyapi'),
             label: typeof x.label === 'string' ? x.label.slice(0, 80) : '',
             baseURL: typeof x.baseURL === 'string' ? x.baseURL : '',
             enabled: x.enabled !== false,
@@ -406,7 +407,7 @@
       const n = x => numOrNull(x)
       const windowOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { id: s0(x.id), label: s0(x.label), ...(n(x.percent) === null ? {} : { percent: n(x.percent) }), resetsAt: s0(x.resetsAt), periodHours: n(x.periodHours), scope: s0(x.scope) } : null
       const creditsOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { unit: s0(x.unit, 'credits'), used: n(x.used), remaining: n(x.remaining), limit: n(x.limit), fetchedAt: s0(x.fetchedAt), packages: Array.isArray(x.packages) ? x.packages.filter(p => p !== null && typeof p === 'object' && !Array.isArray(p)).map(p => ({ id: s0(p.id), label: s0(p.label), used: n(p.used), remaining: n(p.remaining), limit: n(p.limit), startsAt: s0(p.startsAt), resetsAt: s0(p.resetsAt) })) : [] } : undefined
-      return { browserAccessDenied: v.browserAccessDenied === true, id: s0(v.id), type: oneOf(v.type, ['agy-link', 'antigravity-manager'], 'cliproxyapi'), label: s0(v.label), status: gatewaySourceStatuses.has(v.status) ? v.status : 'error', message: s0(v.message), fetchedAt: n(v.fetchedAt) ?? 0, attemptedAt: n(v.attemptedAt) ?? 0, serverVersion: s0(v.serverVersion), keyConfigured: v.keyConfigured === true, keySource: s0(v.keySource, 'none'), accounts: Array.isArray(v.accounts) ? v.accounts.filter(a => a !== null && typeof a === 'object' && !Array.isArray(a)).slice(0, 16).map(a => ({ id: s0(a.id), provider: s0(a.provider, 'unknown'), label: s0(a.label, 'unknown'), status: gatewayAccountStatuses.has(a.status) ? a.status : 'unknown', message: s0(a.message), plan: s0(a.plan), windows: Array.isArray(a.windows) ? a.windows.map(windowOf).filter(Boolean) : [], credits: creditsOf(a.credits) })) : [], unsupportedProviders: Array.isArray(v.unsupportedProviders) ? v.unsupportedProviders.filter(x => typeof x === 'string').slice(0, 32) : [] }
+      return { browserAccessDenied: v.browserAccessDenied === true, id: s0(v.id), type: oneOf(v.type, ['agy-link', 'subscriptions', 'antigravity-manager'], 'cliproxyapi'), label: s0(v.label), status: gatewaySourceStatuses.has(v.status) ? v.status : 'error', message: s0(v.message), fetchedAt: n(v.fetchedAt) ?? 0, attemptedAt: n(v.attemptedAt) ?? 0, serverVersion: s0(v.serverVersion), keyConfigured: v.keyConfigured === true, keySource: s0(v.keySource, 'none'), accounts: Array.isArray(v.accounts) ? v.accounts.filter(a => a !== null && typeof a === 'object' && !Array.isArray(a)).slice(0, 64).map(a => ({ id: s0(a.id), provider: s0(a.provider, 'unknown'), label: s0(a.label, 'unknown'), status: gatewayAccountStatuses.has(a.status) ? a.status : 'unknown', message: s0(a.message), plan: s0(a.plan), windows: Array.isArray(a.windows) ? a.windows.map(windowOf).filter(Boolean) : [], credits: creditsOf(a.credits) })) : [], unsupportedProviders: Array.isArray(v.unsupportedProviders) ? v.unsupportedProviders.filter(x => typeof x === 'string').slice(0, 32) : [] }
     }
     function parsePlanStats(v) {
       if (v === null || typeof v !== 'object' || Array.isArray(v)) return null
@@ -1363,6 +1364,7 @@
       commandcode: ['commandcode', 'command-code'],
       clinepass: ['clinepass', 'cline-pass'],
       workbuddy: ['workbuddy', 'workbuddy-subscription', 'workbuddy-ai', 'workbuddy-global', 'xdpool', 'xdpool-global'],
+      trae: ['trae', 'trae-cn', 'trae-global', 'trae-enterprise', 'dsh-connect-trae'],
       antigravity: ['antigravity'],
       stepfun: ['stepfun', 'step-code'],
       'volcengine-agent': ['volcengine-agent', 'ark-agent-plan', 'volcengine-agent-plan'],
@@ -1375,7 +1377,7 @@
       mimo: ['mimo', 'xiaomimimo', 'mimo-token-plan', 'xiaomi-token-plan', 'xiaomi-token-plan-cn', 'xiaomi-token-plan-sgp', 'xiaomi-token-plan-ams'],
       factory: ['factory', 'droid', 'factory-a', 'factory-g', 'factory-o'],
     }
-    const PLAN_PROVIDER_IDS_LOCAL = ['opendesign', 'anthropic', 'zai', 'minimax', 'kimi', 'openrouter', 'siliconflow', 'commandcode', 'clinepass', 'scnet', 'volcengine', 'qwen', 'mimo', 'factory', 'go', 'codex', 'volcengine-agent', 'tencent-coding', 'tencent-token', 'baidu-coding', 'workbuddy', 'antigravity', 'stepfun']
+    const PLAN_PROVIDER_IDS_LOCAL = ['opendesign', 'anthropic', 'zai', 'minimax', 'kimi', 'openrouter', 'siliconflow', 'commandcode', 'clinepass', 'scnet', 'volcengine', 'qwen', 'mimo', 'factory', 'go', 'codex', 'volcengine-agent', 'tencent-coding', 'tencent-token', 'baidu-coding', 'workbuddy', 'trae', 'antigravity', 'stepfun']
     const PLAN_NAME_HINTS_LOCAL = {
       opendesign: 'opendesign|open[._-]?design',
       codex: 'codex|chatgpt', 'baidu-coding': 'baidu|qianfan|百度|千帆',
@@ -1384,7 +1386,7 @@
       kimi: 'kimi|moonshot|moonshotai|月之暗面', openrouter: 'openrouter', siliconflow: 'siliconflow|硅基',
       commandcode: 'commandcode', clinepass: 'cline[._-]?pass|clinepass', scnet: 'scnet|sugon|超算',
       volcengine: 'volcengine|volcano|volc|ark|火山|方舟', qwen: 'qwen|qianwen|千问|通义',
-      mimo: 'mimo|xiaomi|小米', factory: 'factory|droid', go: 'opencode(?:[-_\\s]?go)?|zen|go',
+      mimo: 'mimo|xiaomi|小米', factory: 'factory|droid', go: 'opencode(?:[-_\\s]?go)?|zen|go', trae: 'trae',
     }
     const PLAN_NAME_MATCHERS_LOCAL = Object.entries(PLAN_NAME_HINTS_LOCAL).map(([id, hints]) => [id, new RegExp('(?:^|[^a-z0-9])(?:' + hints + ')(?=$|[^a-z0-9])')])
     function inferPlanProviderIdLocal(provider, modelId) {
@@ -3129,6 +3131,9 @@
             const resp = await fetch(CODEX_STATUS_PATH, { credentials: 'same-origin', headers: { accept: 'application/json' }, signal: AbortSignal.timeout(8000) })
             if (resp.ok) windows = parseCodexStatus(await resp.json().catch(() => null)) ?? {}
           }
+          if (Object.keys(windows).length === 0 && (source === 'auto' || source === 'subscriptions')) {
+            try { windows = await boundedCodexRead(signal => require.async('./client.codex.js').then(page => page.readSubscriptionsCodexQuota(codexQuotaCache.rpc, force, { signal }))) ?? {} } catch {}
+          }
         } catch {} finally {
           // Only the latest selected source may publish or clear its request.
           if (codexQuotaCache.request !== request) return
@@ -3289,7 +3294,7 @@
       const gauge = wide !== false && state.config.planQuotaStyle === 'gauge' && !state.config.sidebarTextOnly
       // 余额放在标题行右端,正文只保留额度窗口;
       // 窗口文本只装数值,标题行自己补「余额:」标签。textWindowOf 只产非空文本,真值检查即可。
-      const titleValue = (id === 'workbuddy' || id === 'opendesign') && windows.balance?.text
+      const titleValue = (id === 'workbuddy' || id === 'opendesign' || id === 'trae') && windows.balance?.text
         ? t('codingPlanWindowBalance') + ': ' + windows.balance.text : null
       const locale = resolveLocale(state.config)
       const rows = (titleValue ? entries.filter(([name]) => name !== 'balance') : entries).map(([name, win]) => {
@@ -3359,7 +3364,7 @@
       const refresh = useClickRefresh(api ? () => api.refreshGatewayQuota(source.id) : null)
       const agyLink = source.type === 'agy-link'
       const direction = agyLink ? 'remaining' : barDirectionOf(state.config, 'plan')
-      const maxRows = agyLink ? 10 : 4
+      const maxRows = agyLink ? 10 : source.type === 'subscriptions' ? 6 : 4
       const multi = snapshot.accounts.length > 1
       const selectedId = selection.source === source.id ? selection.id : readGatewayAccountLS(source.id)
       const selectedIdx = snapshot.accounts.findIndex(a => a.id === selectedId)
@@ -3377,7 +3382,11 @@
           rows.push({ win, name, view: miniMaxRow(name, win, direction, t) })
         }
         if (account.windows.length === 0 && account.credits != null) {
-          rows.push({ win: null, name: prefix(account) + (account.credits.unit || 'credits'), text: (account.credits.used ?? '—') + ' / ' + (account.credits.limit ?? '—') })
+          const c = account.credits
+          const creditText = c.used == null && c.limit == null
+            ? (c.remaining != null ? (c.unit === 'USD' ? '$' + c.remaining : String(c.remaining)) : (account.plan || '—'))
+            : (c.used ?? '—') + ' / ' + (c.limit ?? '—')
+          rows.push({ win: null, name: prefix(account) + (c.unit || 'credits'), text: creditText })
         }
       }
       if (rows.length === 0) rows.push({ name: t('gatewayQuotaEmpty'), text: '—' })
@@ -3463,6 +3472,7 @@
       qwen: 'Qwen',
       mimo: 'MiMo',
       'baidu-coding': '千帆',
+      trae: 'Trae',
       factory: 'Factory', opendesign: 'OpenDesign',
     }
 
@@ -3779,8 +3789,39 @@
       return target
     }
 
+    function isMobileSidebarLayout() {
+      const pocket = typeof document !== 'undefined' ? document.body?.getAttribute?.('data-dsh-pocket-layout') : null
+      if (pocket === 'desktop') return false
+      if (pocket === 'mobile') return true
+      return typeof window !== 'undefined' && window.matchMedia?.('(max-width:1023px), (pointer:coarse)')?.matches === true
+    }
+
+    function useMobileSidebarLayout() {
+      const [mobile, setMobile] = useState(isMobileSidebarLayout)
+      useEffect(() => {
+        const media = typeof window !== 'undefined' ? window.matchMedia?.('(max-width:1023px), (pointer:coarse)') : null
+        const update = () => setMobile(isMobileSidebarLayout())
+        if (media?.addEventListener) media.addEventListener('change', update)
+        else media?.addListener?.(update)
+        const MO = typeof MutationObserver === 'function' ? MutationObserver : null
+        const observer = MO && typeof document !== 'undefined' && document.body ? new MO(update) : null
+        observer?.observe(document.body, { attributes: true, attributeFilter: ['data-dsh-pocket-layout'] })
+        update()
+        return () => {
+          if (media?.removeEventListener) media.removeEventListener('change', update)
+          else media?.removeListener?.(update)
+          observer?.disconnect()
+        }
+      }, [])
+      return mobile
+    }
+
+    let footerChipPage
+    const loadFooterChip = () => footerChipPage ??= require.async('./client.footer-chip.js').then(module => module.mount({ WalletIcon })).catch(error => { footerChipPage = null; throw error })
+
     function SidebarFooter(props) {
       const botTarget = useBotFooterTarget()
+      const mobile = useMobileSidebarLayout()
       const costStore = props.useCost ? props.useCost(s => s) : undefined
       useCodexQuota(costStore?.state?.config?.codexQuotaEnabled === true && costStore?.state?.config?.codexQuotaSidebar !== false, costStore?.state?.config?.codexQuotaSource)
       // 侧边栏页脚非会话作用域插槽:useProjection 在部分宿主/页面可能不可用或
@@ -3798,11 +3839,27 @@
         try { portal = require('react-dom')?.createPortal } catch {}
         if (portal) return portal(renderSidebarFooter(state, true, props.api, false, projectionUsage?.provider), botTarget)
       }
-      return renderSidebarFooter(state, !!props.wide, props.api, false, projectionUsage?.provider)
+      const simple = state.config?.sidebarSimple === true
+      const entryMode = !simple && state.config?.sidebarStyle === 'entry'
+      const explicitIcons = !simple && state.config?.sidebarStyle === 'icons'
+      const fallback = renderSidebarFooter(state, !!props.wide, props.api, false, projectionUsage?.provider, false, entryMode)
+      if (fallback && (entryMode || (mobile && !explicitIcons))) {
+        return el(BillingStatistics, {
+          load: loadFooterChip,
+          quiet: true,
+          entryMode,
+          mobile,
+          wide: !!props.wide,
+          label: makeT(resolveLocale(state.config))('sidebarChip'),
+          renderCard: cardWide => renderSidebarFooter(state, cardWide, props.api, false, projectionUsage?.provider, false, true),
+          fallback,
+        })
+      }
+      return fallback
     }
 
     // Shared presentation only: no store, projection or quota subscription.
-    function renderSidebarFooter(state, wide, api, preview = false, provider, examples = preview) {
+    function renderSidebarFooter(state, wide, api, preview = false, provider, examples = preview, bare = false) {
       const config = peakConfigForState(state)
       const t = makeT(resolveLocale(config))
       const showBalance = (config.balance?.display === 'sidebar' || config.balance?.display === 'both')
@@ -3869,5 +3926,6 @@
         const rank = node => { const index = order.indexOf(node.key); return index < 0 ? 999 : index }
         nodes.sort((a, b) => rank(a) - rank(b))
       }
-      return el('div', { ...(!preview ? { 'data-cm-sidebar-card': '' } : {}), ...(simple ? { tabIndex: 0, role: 'region', 'aria-label': t('sidebarSimple') } : {}), className: 'cm-footer-stack' + (config.sidebarTodayBalanceInline ? ' same-line' : '') + (wide ? '' : ' rail') + (compactWide ? ' compact' : '') + (simple ? ' simple' : config.sidebarStyle === 'summary' && wide ? ' summary' : '') + (config.sidebarTextOnly ? ' text-only' : '') }, ...(!simple && wide && config.sidebarStyle === 'icons' ? [el(BillingStatistics, { load: loadSidebarIcons, state: { ...state, config }, preview, nodes, fallback: nodes })] : nodes))
+      const showIcons = !simple && config.sidebarStyle === 'icons' && (wide || (!preview && isMobileSidebarLayout()))
+      return el('div', { ...(!preview && !bare ? { 'data-cm-sidebar-card': '' } : {}), ...(simple ? { tabIndex: 0, role: 'region', 'aria-label': t('sidebarSimple') } : {}), className: 'cm-footer-stack' + (config.sidebarTodayBalanceInline ? ' same-line' : '') + (wide ? '' : ' rail') + (compactWide ? ' compact' : '') + (simple ? ' simple' : config.sidebarStyle === 'summary' && wide ? ' summary' : '') + (config.sidebarTextOnly ? ' text-only' : '') }, ...(showIcons ? [el(BillingStatistics, { load: loadSidebarIcons, state: { ...state, config }, preview, nodes, fallback: nodes })] : nodes))
     }

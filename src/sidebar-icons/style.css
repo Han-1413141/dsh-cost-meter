@@ -28,4 +28,9 @@
 .cm-icons-panel{margin-top:4px;max-height:min(38dvh,320px);overflow:auto;overscroll-behavior:contain;padding:6px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1);box-sizing:border-box}
 .cm-icons-panel[hidden]{display:none}
 .cm-icons-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:600;margin-bottom:6px}
+/* Mobile/touch/Pocket §20 touch geometry; desktop keeps 32px / 7px unchanged. */
+.cm-icons[data-cm-mobile=true] .cm-icons-row{min-height:36px;margin:4px 2px;padding:0 2px}
+.cm-icons[data-cm-mobile=true] .cm-icons-button{min-width:36px;height:36px;border-radius:var(--dsw-radius-md,12px)}
+.cm-icons[data-cm-mobile=true] .cm-icons-button:not(.cm-icons-today):not(.cm-icons-amount-btn){width:36px}
+.cm-icons[data-cm-mobile=true] .cm-icons-button:focus-visible{outline-color:var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary))}
 @media(prefers-reduced-motion:reduce){.cm-icons *{animation:none;transition:none}}

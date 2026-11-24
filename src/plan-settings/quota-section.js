@@ -71,14 +71,14 @@
       }
       const addGateway = (type = 'cliproxyapi') => {
         if (sources.length >= 4 || draft === null) return
-        const agyLink = type === 'agy-link', manager = type === 'antigravity-manager'
-        const label = agyLink ? 'Antigravity' : manager ? 'Antigravity-Manager' : 'CLIProxyAPI'
-        const baseURL = agyLink ? '' : manager ? 'http://127.0.0.1:8045' : 'http://127.0.0.1:8317'
+        const agyLink = type === 'agy-link', subs = type === 'subscriptions', manager = type === 'antigravity-manager'
+        const label = subs ? 'dsh-plugin-subscriptions' : agyLink ? 'Antigravity' : manager ? 'Antigravity-Manager' : 'CLIProxyAPI'
+        const baseURL = agyLink || subs ? '' : manager ? 'http://127.0.0.1:8045' : 'http://127.0.0.1:8317'
         setDraft({
           ...draft,
           gatewayQuotas: {
             ...(draft.gatewayQuotas ?? config.gatewayQuotas ?? {}),
-            sources: [...sources, { id: agyLink ? 'agy-link' : 'gateway-' + Date.now().toString(36), type, label, baseURL, enabled: agyLink, display: 'both', refreshMinutes: 15, includeProviders: manager || agyLink ? ['antigravity'] : GATEWAY_PROVIDERS, allowedHosts: [], allowInsecureHttp: false }],
+            sources: [...sources, { id: subs ? 'subscriptions' : agyLink ? 'agy-link' : 'gateway-' + Date.now().toString(36), type, label, baseURL, enabled: agyLink || subs, display: 'both', refreshMinutes: 15, includeProviders: subs ? ['codex', 'claude', 'antigravity', 'xai'] : manager || agyLink ? ['antigravity'] : GATEWAY_PROVIDERS, allowedHosts: [], allowInsecureHttp: false }],
           },
         })
       }
@@ -108,6 +108,7 @@
           el('button', { className: 'cm-btn small', onClick: () => addGateway(), disabled: sources.length >= 4 }, t('gatewaySourceAdd')),
           el('button', { className: 'cm-btn small', onClick: () => addGateway('antigravity-manager'), disabled: sources.length >= 4 }, t('managerQuotaAdd')),
           el('button', { className: 'cm-btn small', onClick: () => addGateway('agy-link'), disabled: sources.length >= 4 || sources.some(source => source.type === 'agy-link') }, t('agyLinkQuotaAdd')),
+          el('button', { className: 'cm-btn small', onClick: () => addGateway('subscriptions'), disabled: sources.length >= 4 || sources.some(source => source.type === 'subscriptions') }, t('subscriptionsQuotaAdd')),
           el('button', { className: 'cm-btn small', onClick: () => addEntry(), disabled: entries.length >= 8 }, t('customBalanceAdd')),
           el('button', { className: 'cm-btn small', onClick: () => addEntry('aliyun'), disabled: entries.length >= 8 }, t('aliyunBalanceAdd')),
           el('button', { className: 'cm-btn small', onClick: () => addEntry('tokenrhythm'), disabled: entries.length >= 8 }, t('tokenRhythmBalanceAdd')),

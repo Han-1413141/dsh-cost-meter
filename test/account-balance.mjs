@@ -709,8 +709,42 @@ try {
     assert.match(row.props.label, /sanitized account failure/)
     const panel = ui.BalancePanel({ state: errorState, api: retry.service, t: ui.makeT(locale), draft: null })
     assert.match(textOf(panel), /sanitized account failure/, '设置页渲染失败原因')
+    const offWithReason = ui.BalancePanel({ state: { ...errorState, balance: { ...errorState.balance, status: 'off', message: 'relay host rejected' } }, api: retry.service, t: ui.makeT(locale), draft: null })
+    assert.match(textOf(offWithReason), /relay host rejected/, 'off 状态携带原因时在设置页可见')
     assert.equal(ui.BalanceRowContent({ state: { ...errorState, balance: { ...errorState.balance, status: 'off' } }, wide: true }), null)
   }
+
+  // 非官方端点消息必须脱敏(不能泄露 userinfo/query/path),且晚到的账号登录在缺事件时可节流自愈。
+  useHome('nonofficial-url-redaction')
+  const leakyRelay = mount({
+    section: { apiKeyEnv: 'DSH_DEEPSEEK_API_KEY', baseURL: 'https://alice:topsecret@relay.example.com/v1/secret?api_key=sk-leak' },
+    secrets: { DSH_DEEPSEEK_API_KEY: modelKey },
+  })
+  const leakyRes = await leakyRelay.service.refreshBalance()
+  assert.equal(leakyRes.state.balance.status, 'off')
+  assert.match(leakyRes.state.balance.message, /relay\.example\.com/)
+  assert.doesNotMatch(leakyRes.state.balance.message, /topsecret|sk-leak|alice|v1\/secret/, 'non-official baseURL message strips credentials, query and path')
+  await leakyRelay.dispose()
+
+  useHome('late-account-signin-recovery')
+  let signedInNow = false
+  let fakeNow = originalNow()
+  Date.now = () => fakeNow
+  const lateSignin = mount({
+    account: () => signedInNow ? { status: 'ready', value: [{ currency: 'CNY', balance: '9.30' }], bonusWallets: [] } : null,
+    accountState: () => signedInNow ? 'credential-stored' : 'signed-out',
+  })
+  const beforeLogin = await lateSignin.service.getState()
+  assert.equal(beforeLogin.balance.status, 'off')
+  signedInNow = true
+  // Advance mock clock past the 3s throttle without emitting credentials/record-updated.
+  fakeNow += 3500
+  const afterLogin = await lateSignin.service.getState()
+  assert.equal(afterLogin.balance.status, 'ok', 'late desktop sign-in recovers without waiting for refreshMinutes')
+  assert.equal(afterLogin.balance.totalBalance, 9.3)
+  assert.equal(afterLogin.balance.currency, 'CNY')
+  await lateSignin.dispose()
+  Date.now = originalNow
 
   console.log('[ok] 账号渠道余额(优先级/脱敏可见错误/重试节流/钱包校验/账号生命周期/取消/磁盘基准/UI 渲染)通过')
 } finally {

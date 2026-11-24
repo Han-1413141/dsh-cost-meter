@@ -67,15 +67,33 @@ export async function checkSidebarIcons(page, output) {
   assert.match(await account.innerText(), /10/)
   assert.match(await sidebar.locator('.cm-icons-panel [data-cm-display="balance"]').last().innerText(), /20/)
   await page.setViewportSize({ width: 390, height: 844 })
-  await sidebar.locator('.cm-icons').waitFor({ state: 'detached' })
-  assert.equal(await sidebar.locator('[data-cm-display="balance"]').count(), 2)
-  await page.setViewportSize({ width: 1100, height: 900 })
-  await icon.waitFor()
-  await page.evaluate(() => document.body.dataset.dshPocketLayout = 'mobile')
-  await sidebar.locator('.cm-icons').waitFor({ state: 'detached' })
+  await page.waitForFunction(() => document.querySelector('#actual-sidebar .cm-icons')?.getAttribute('data-cm-mobile') === 'true')
+  const mobileGeom = await sidebar.locator('.cm-icons-button:not(.cm-icons-today):not(.cm-icons-amount-btn)').first().evaluate(el => ({
+    w: el.getBoundingClientRect().width,
+    h: el.getBoundingClientRect().height,
+    r: getComputedStyle(el).borderRadius,
+  }))
+  assert.equal(mobileGeom.w, 36)
+  assert.equal(mobileGeom.h, 36)
+  assert.equal(mobileGeom.r, '12px')
+  await page.evaluate(() => document.body.dataset.dshPocketLayout = 'desktop')
+  await page.waitForFunction(() => document.querySelector('#actual-sidebar .cm-icons')?.getAttribute('data-cm-mobile') === null)
   await page.evaluate(() => delete document.body.dataset.dshPocketLayout)
-  await icon.waitFor()
+  await page.setViewportSize({ width: 1100, height: 900 })
+  await page.waitForFunction(() => document.querySelector('#actual-sidebar .cm-icons')?.getAttribute('data-cm-mobile') === null)
+  const desktopGeom = await sidebar.locator('.cm-icons-button:not(.cm-icons-today):not(.cm-icons-amount-btn)').first().evaluate(el => ({
+    w: el.getBoundingClientRect().width,
+    h: el.getBoundingClientRect().height,
+    r: getComputedStyle(el).borderRadius,
+  }))
+  assert.equal(desktopGeom.w, 32)
+  assert.equal(desktopGeom.h, 32)
+  assert.equal(desktopGeom.r, '7px')
+  await page.evaluate(() => document.body.dataset.dshPocketLayout = 'mobile')
+  await page.waitForFunction(() => document.querySelector('#actual-sidebar .cm-icons')?.getAttribute('data-cm-mobile') === 'true')
+  await page.evaluate(() => delete document.body.dataset.dshPocketLayout)
+  await page.waitForFunction(() => document.querySelector('#actual-sidebar .cm-icons')?.getAttribute('data-cm-mobile') === null)
   await page.reload()
   await page.waitForFunction(() => window.current().sidebarStyle === 'icons')
-  console.log('[ok] Icons browser: opt-in, light/dark, two accounts, collapse/Escape, narrow/Pocket fallback and reopening')
+  console.log('[ok] Icons browser: opt-in, light/dark, two accounts, collapse/Escape, mobile §20 geometry vs desktop 32px invariant and reopening')
 }
