@@ -33,7 +33,7 @@ function PeakStyleSample({ render, config, data, style }) {
   return el('span', { className: 'cm-peak-choice-sample', 'aria-hidden': true, inert: '' }, sample)
 }
 
-function DisplayInspector({ props, config, set, selected, selectedPlan, selectPlan, openQuota, select, labels, registry, text, region, general = false, examples, previewData, stylesOpen = false, setStylesOpen, currencyChoices, currencyPatch }) {
+function DisplayInspector({ props, config, set, selected, selectedPlan, selectPlan, openQuota, openBalance, select, labels, registry, text, region, general = false, examples, previewData, stylesOpen = false, setStylesOpen, currencyChoices, currencyPatch }) {
   const { t, numInput, displayOptions, quotaPlacementValue, quotaPlacementPatch, quotaPlacementOptions, USAGE_POSITION_SWITCHABLE } = props
   const nested = (key, patch) => set({ [key]: { ...config[key], ...patch } })
   const check = (label, value, change, extra = {}) => el('label', { className: 'cm-check cm-display-switch', key: label },
@@ -73,7 +73,13 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
     ]
   }
   const quickHide = () => check(text('点击名称快速隐藏余额', 'Click name to hide balance'), config.balance?.quickHide === true, value => nested('balance', { quickHide: value }), { 'data-display-option': 'balance-quick-hide', title: text('点击名称隐藏或显示，点击金额刷新。', 'Click the name to hide/show; click the amount to refresh.') })
-  if (selected === 'balance') controls = [display('balance'), quickHide(),
+  if (selected === 'balance') controls = [display('balance'),
+    React.cloneElement(choice(t('balanceSourceChoice'), config.balance?.source ?? 'auto',
+      [['auto', t('balanceSourceAuto')], ['account', t('balanceSourceAccount')]],
+      value => nested('balance', { source: value })),
+    { 'data-inspector-wide': true, 'data-display-option': 'balance-source-choice' }),
+    el('p', { className: 'cm-inspector-note cm-inspector-help' }, t('balanceSourceHint')),
+    quickHide(),
     // 控件区在面板够宽时是两列;这一项跨满整行(与上方「调整组件」同宽),
     // 保留完整的币种名称也不会被半宽列截断。
     React.cloneElement(choice(text('余额显示币种', 'Balance currency'), config.balance?.currency ?? 'native',
@@ -88,7 +94,8 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
     number(t('refreshIntervalLabel'), config.balance?.refreshMinutes ?? 5, value => nested('balance', { refreshMinutes: Math.floor(value) }), 1),
     config.balance?.showProgressBar === true && !config.balance?.budgetCap
       ? el('p', { className: 'cm-inspector-note' }, t('balanceNoCap')) : null,
-    direction('balance')]
+    direction('balance'),
+    openBalance && config.hideOfficialBalance !== true ? el('button', { type: 'button', className: 'cm-btn small', 'data-display-action': 'open-balance', onClick: openBalance }, text('官方账户余额设置 →', 'Account balance settings →')) : null]
   if (selected === 'go') controls = [
     props.state.goQuota?.status !== 'ok' && !examples ? el('p', { className: 'cm-inspector-note' }, text('配置并获取 Go 额度后显示；这里只调整外观。', 'Shown after Go quota is configured and available.')) : null,
     field(text('显示位置', 'Placement'), el('select', { className: 'cm-input', value: quotaPlacementValue(config.goQuota, config.quotaStrip, 'go'), onChange: e => nested('goQuota', quotaPlacementPatch(e.target.value)) }, ...quotaPlacementOptions(t).filter(option => option.props.value !== 'off'))), choice(text('主进度条', 'Primary window'), config.goQuota?.main ?? 'rolling', [['rolling', '5h'], ['weekly', text('周', 'Week')], ['monthly', text('月', 'Month')]], value => nested('goQuota', { main: value })),
@@ -149,9 +156,9 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
   if (selected === 'codex' || selected === 'strip-codex') controls = [
     check(t('codexQuotaEnabled'), config.codexQuotaEnabled === true, value => set({ codexQuotaEnabled: value }), { 'data-display-option': 'codex-enabled' }),
     choice(text('数据源', 'Data source'), config.codexQuotaSource ?? 'auto',
-      [['auto', text('自动检测', 'Auto-detect')], ['pi-ai', text('DSH pi-ai 登录', 'DSH pi-ai login')], ['chatgpt-sub', 'dsh-chatgpt-sub'], ['connect', 'dsh-codex-connect'], ['subscription', 'dsh-codex-subscription'], ['chatgpt', '@eddyskywalker/dsh-chatgpt-subscription']],
+      [['auto', text('自动检测', 'Auto-detect')], ['pi-ai', text('DSH pi-ai 登录', 'DSH pi-ai login')], ['chatgpt-sub', 'dsh-chatgpt-sub'], ['connect', 'dsh-codex-connect'], ['subscription', 'dsh-codex-subscription'], ['chatgpt', '@eddyskywalker/dsh-chatgpt-subscription'], ['subscriptions', 'dsh-plugin-subscriptions']],
       value => set({ codexQuotaSource: value })),
-    el('p', { className: 'cm-inspector-note cm-inspector-help' }, text('自动检测依次尝试 Codex 订阅插件、DSH pi-ai 登录、dsh-chatgpt-sub、多渠道订阅插件和 Codex Connect。指定数据源只显示该来源当前账号的额度。', 'Auto tries Codex Subscription, DSH pi-ai, dsh-chatgpt-sub, multi-provider subscriptions, then Codex Connect. Selecting a source shows only that source’s current account.')),
+    el('p', { className: 'cm-inspector-note cm-inspector-help' }, text('自动检测依次尝试 Codex 订阅插件、DSH pi-ai 登录、dsh-chatgpt-sub、ChatGPT 订阅插件、Codex Connect 与 dsh-plugin-subscriptions。指定数据源只显示该来源当前账号的额度。', 'Auto tries Codex Subscription, DSH pi-ai, dsh-chatgpt-sub, ChatGPT Subscription, Codex Connect, then dsh-plugin-subscriptions. Selecting a source shows only that source’s current account.')),
     config.codexQuotaEnabled !== true ? el('p', { className: 'cm-inspector-note' }, text('额度查询未开启。打开上方开关后，可在侧栏和输入区显示。', 'Quota queries are disabled. Enable the switch above to show quota in the sidebar and composer.')) : null,
     el('button', { type: 'button', className: 'cm-btn small', onClick: openQuota }, text('账户与额度设置 →', 'Account and quota settings →'))]
   if (selected === 'general') controls = [
@@ -167,7 +174,7 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
     el('summary', null, text('通用设置 · 外观、金额与语言', 'General · appearance, currency and language')),
     el('div', { className: 'cm-display-preferences' }, el(SkinTransparency, { config, set, text })),
     el('div', { className: 'cm-general-grid' }, ...controls))
-  const mode = config.sidebarSimple ? 'simple' : config.sidebarStyle === 'icons' ? 'icons' : config.sidebarStyle === 'summary' ? 'summary' : config.sidebarStyle === 'compact' ? 'compact' : 'standard'
+  const mode = config.sidebarSimple ? 'simple' : config.sidebarStyle === 'entry' ? 'entry' : config.sidebarStyle === 'icons' ? 'icons' : config.sidebarStyle === 'summary' ? 'summary' : config.sidebarStyle === 'compact' ? 'compact' : 'standard'
   const showStyles = region === 'sidebar' && stylesOpen
   const selection = registry[selected]
   const scope = region === 'sidebar' ? text('在侧栏显示', 'Show in sidebar') : region === 'composer' ? text('在输入区显示', 'Show in composer') : text('在会话内容显示', 'Show in conversation')
@@ -185,7 +192,14 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
   if (selection && !selection.on) status = text('当前已关闭显示', 'Display is off')
   else if (region === 'sidebar' && config.sidebarSimple && ['budget', 'go', 'models'].includes(selected) && !waitingForData[selected]) {
     status = text('简洁布局中只显示摘要', 'Simple layout shows a summary')
-  } else if (region === 'sidebar' && waitingForData[selected]) status = text('允许显示，暂无可用数据', 'Display is on, awaiting data')
+  } else if (region === 'sidebar' && waitingForData[selected]) {
+    if (selected === 'balance') {
+      const detail = typeof state.balance?.message === 'string' ? state.balance.message.trim() : ''
+      status = detail
+        ? text('允许显示，暂无可用数据：' + detail, 'Display is on, awaiting data: ' + detail)
+        : text('允许显示，暂无可用数据：若已登录 DSH DeepSeek 账号，可将下方「余额来源」切为「DSH 登录钱包」，或在「概览 → 官方账户余额」配置开放平台 API Key 后刷新。', 'Display is on, awaiting data: if signed in to a DSH DeepSeek account, switch Balance source below to "DSH account wallet", or configure an Open Platform API key in Overview → Account balance and refresh.')
+    } else status = text('允许显示，暂无可用数据', 'Display is on, awaiting data')
+  }
   return el('aside', { className: 'cm-display-inspector cm-inspector-unified', 'data-component': selected ?? '', 'aria-label': text('外观与组件设置', 'Appearance and component settings') },
     field(text('调整组件', 'Customize'), el('select', { className: 'cm-input', value: selected ?? '', onChange: event => select(event.target.value) },
       ...(region === 'sidebar' ? ['sessionList','budget','balance','today','peak','models','go','plan','customBalance','codex','localSavings'] : region === 'composer' ? ['strip-budget','strip-go','strip-plans','strip-codex','dock-cost','corner','models'] : ['session-header','badge','turn']).map(key => el('option', { key, value: key }, labels[key])))),
@@ -196,9 +210,9 @@ function DisplayInspector({ props, config, set, selected, selectedPlan, selectPl
       el('h3', null, text('侧栏全局设置', 'Sidebar-wide settings')),
       check(text('今日消费与余额同行', 'Today and balance on one line'), config.sidebarTodayBalanceInline === true, value => set({ sidebarTodayBalanceInline: value, ...(value ? { sidebarTodayMetric: 'cost' } : {}) }), { 'data-display-option': 'today-balance-inline' }),
       check(text('隐藏进度条，仅显示紧凑文本', 'Hide progress bars, show compact text'), config.sidebarTextOnly === true, value => set({ sidebarTextOnly: value }), { 'data-display-option': 'sidebar-text-only' }),
-      el('button', { type: 'button', className: 'cm-inspector-layout', 'aria-expanded': stylesOpen, onClick: () => setStylesOpen?.(!stylesOpen) }, text('侧栏布局', 'Sidebar layout'), el('span', null, text(mode === 'icons' ? '图标' : mode === 'summary' ? '合并卡片' : mode === 'simple' ? '简洁' : mode === 'compact' ? '紧凑' : '标准', mode === 'icons' ? 'Icons' : mode === 'summary' ? 'Combined card' : mode === 'simple' ? 'Simple' : mode === 'compact' ? 'Compact' : 'Standard'), stylesOpen ? ' ▴' : ' ▾'))) : null,
+      el('button', { type: 'button', className: 'cm-inspector-layout', 'aria-expanded': stylesOpen, onClick: () => setStylesOpen?.(!stylesOpen) }, text('侧栏布局', 'Sidebar layout'), el('span', null, text(mode === 'entry' ? '入口' : mode === 'icons' ? '图标' : mode === 'summary' ? '合并卡片' : mode === 'simple' ? '简洁' : mode === 'compact' ? '紧凑' : '标准', mode === 'entry' ? 'Button' : mode === 'icons' ? 'Icons' : mode === 'summary' ? 'Combined card' : mode === 'simple' ? 'Simple' : mode === 'compact' ? 'Compact' : 'Standard'), stylesOpen ? ' ▴' : ' ▾'))) : null,
     showStyles ? el('div', { className: 'cm-preview-style-options', role: 'group', 'aria-label': text('侧栏布局', 'Sidebar layout') },
-      ...[['icons', text('图标', 'Icons')], ['summary', text('合并卡片', 'Combined card')], ['simple', text('简洁', 'Simple')], ['standard', text('标准', 'Standard')], ['compact', text('紧凑', 'Compact')]].map(([value, label]) =>
+      ...[['icons', text('图标', 'Icons')], ['entry', text('入口', 'Button')], ['summary', text('合并卡片', 'Combined card')], ['simple', text('简洁', 'Simple')], ['standard', text('标准', 'Standard')], ['compact', text('紧凑', 'Compact')]].map(([value, label]) =>
         el('div', { key: value, role: 'button', tabIndex: 0, 'aria-pressed': mode === value,
           onKeyDown: event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.currentTarget.click() } },
           onClick: () => set({ sidebarSimple: value === 'simple', sidebarSimplePromptSeen: true, ...(value === 'simple' ? {} : { sidebarStyle: value }), ...(value === 'summary' ? { ...(Object.hasOwn(config, 'sidebarSummaryPromptSeen') ? { sidebarSummaryPromptSeen: true } : {}), sidebarTodayMetric: 'both', peakStyle: 'progress', ...(Object.hasOwn(config, 'sidebarOrder') ? { sidebarOrder: ['today', 'balance', 'peak', ...(config.sidebarOrder ?? []).filter(key => !['today', 'balance', 'peak'].includes(key))] } : {}) } : {}) }) },

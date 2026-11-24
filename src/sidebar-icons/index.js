@@ -47,8 +47,10 @@ window.__ModuleLoader__.load({
     }
 
     function nativeLayout() {
+      const pocket = document.body?.getAttribute('data-dsh-pocket-layout')
+      if (pocket === 'desktop') return false
+      if (pocket === 'mobile') return true
       return window.matchMedia?.('(max-width:1023px), (pointer:coarse)')?.matches === true
-        || document.body?.getAttribute('data-dsh-pocket-layout') === 'mobile'
     }
     function useNativeLayout(preview) {
       const [native, setNative] = useState(() => !preview && nativeLayout())
@@ -77,7 +79,7 @@ window.__ModuleLoader__.load({
         const config = state.config, locale = resolveLocale(config), t = makeT(locale)
         const text = (zh, en) => locale === 'en' ? en : zh
         const native = useNativeLayout(preview)
-        const now = usePeakClock(config, preview || native ? Date.now() : undefined)
+        const now = usePeakClock(config, preview || (native && config.sidebarStyle !== 'icons') ? Date.now() : undefined)
         const [open, setOpen] = useState(null), root = useRef(null), instance = useId()
         const entries = sidebarIconEntries(nodes, state, t, CODING_PLAN_ROWS, text)
         const slots = sidebarIconSlots(entries, config.peakProvider)
@@ -94,8 +96,8 @@ window.__ModuleLoader__.load({
         const balanceDetails = paired ? slots.find(slot => slot.host === balanceEntry).entries : []
         const details = paired ? entries.filter(entry => entry === todayEntry || balanceDetails.includes(entry)) : chosen?.entries ?? []
         useEffect(() => { if (open !== null && !chosen) setOpen(null) }, [open, !!chosen])
-        // Pointer/viewport/forced Pocket modes use the original nodes, with no hidden duplicate cards.
-        if (native) return el(Fragment, null, ...nodes)
+        // Explicit 'icons' layout also works on mobile/touch/Pocket with §20 touch targets; implicit defaults keep native cards.
+        if (native && config.sidebarStyle !== 'icons') return el(Fragment, null, ...nodes)
         const phase = peakView(config, now)
         const tone = phaseTone(phase)
         const windowView = phase && countdownWindow(phase.nextAtMs, now)
@@ -132,7 +134,7 @@ window.__ModuleLoader__.load({
             balanceAmount ? el('span', { className: 'cm-icons-amount' }, balanceAmount) : null)
         }
         return el(Fragment, null, el('style', null, css),
-          el('div', { className: 'cm-icons', ref: root, onKeyDownCapture: event => { if (event.key === 'Escape' && open !== null) { event.stopPropagation(); close() } } },
+          el('div', { className: 'cm-icons', 'data-cm-mobile': native ? 'true' : undefined, ref: root, onKeyDownCapture: event => { if (event.key === 'Escape' && open !== null) { event.stopPropagation(); close() } } },
             el('div', { className: 'cm-icons-row', role: 'group', 'aria-label': text('费用图标，点击展开', 'Cost icons; click for details') },
               el('div', { className: 'cm-icons-list' }, ...sidebarIconOrder(slots).map(button))),
             el('div', { id: instance + '-detail', hidden: !chosen, role: 'region', 'aria-label': chosen?.title, className: 'cm-icons-panel' }, chosen ? el(Fragment, null,

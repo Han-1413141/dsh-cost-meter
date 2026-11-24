@@ -83,9 +83,9 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
       const s = sources[index] ?? {}
       const snapshots = Array.isArray(state.gatewayQuotas) ? state.gatewayQuotas : []
       const live = snapshots.find(q => q.id === s.id) ?? { id: s.id, status: 'off', accounts: [], unsupportedProviders: [] }
-      const agyLink = s.type === 'agy-link'
+      const agyLink = s.type === 'agy-link', clientOnly = agyLink || s.type === 'subscriptions'
       const saved = config.gatewayQuotas?.sources?.find(source => source.id === s.id)
-      const varName = agyLink ? null : gatewayVarOf(saved ?? s, state.customVarStatus)
+      const varName = clientOnly ? null : gatewayVarOf(saved ?? s, state.customVarStatus)
       const [open, setOpen] = useState(false)
       const [busy, msg, doRefresh] = useQuotaRefresh(t, () => api.refreshGatewayQuota(s.id))
       const write = next => {
@@ -99,7 +99,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
         return el(Fragment, { key: window?.id || i }, view.row, window?.resetsAt ? el('div', { className: 'cm-note' }, miniMaxResetText(window, t)) : null)
       }
       const pkgRow = (pkg, i) => el('div', { key: pkg.id || i, className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, pkg.label || 'package'), el('span', { className: 'cm-bbox-pct cm-num' }, (pkg.used ?? '—') + ' / ' + (pkg.limit ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, (pkg.remaining ?? '—') + ' remaining'))
-      const credits = value => value == null ? null : el(Fragment, null, el('div', { className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, value.unit || 'credits'), el('span', { className: 'cm-bbox-pct cm-num' }, (value.used ?? '—') + ' / ' + (value.limit ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, (value.remaining ?? '—') + ' remaining')), (value.packages ?? []).map(pkgRow))
+      const credits = value => value == null ? null : el(Fragment, null, el('div', { className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, value.unit || 'credits'), value.used == null && value.limit == null ? el('span', { className: 'cm-bbox-pct cm-num' }, value.remaining == null ? '—' : (value.unit === 'USD' ? '$' + value.remaining : value.remaining + ' remaining')) : el(Fragment, null, el('span', { className: 'cm-bbox-pct cm-num' }, (value.used ?? '—') + ' / ' + (value.limit ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, (value.remaining ?? '—') + ' remaining'))), (value.packages ?? []).map(pkgRow))
       const account = (a, i) => el('div', { key: a.id || i, className: 'cm-budget', style: { marginTop: '8px', padding: '10px 12px' } }, el('div', { className: 'cm-budget-head' }, el('strong', null, (GATEWAY_PROVIDER_LABELS[a.provider] ?? a.provider ?? t('gatewaySourceUnknown')) + ' · ' + (a.label || t('gatewaySourceUnknown'))), el('span', { className: 'cm-hint' }, a.status)), a.plan ? el('div', { className: 'cm-note' }, a.plan) : null, a.windows.length > 0 ? el('div', { className: 'cm-go-list' }, a.windows.map(windowRow)) : null, credits(a.credits), a.message ? el('div', { className: 'cm-note' }, a.message) : null)
       return el(QuotaCard, {
         display: s.display, onSidebar: display => patch({ display }),
@@ -109,17 +109,17 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
         configNode: el(Fragment, null,
           el('div', { className: 'cm-grid' },
             field(t('gatewaySourceLabel'), s.label, e => patch({ label: e.target.value })),
-            !agyLink && field(t('gatewaySourceBaseURL'), s.baseURL, e => patch({ baseURL: e.target.value })),
+            !clientOnly && field(t('gatewaySourceBaseURL'), s.baseURL, e => patch({ baseURL: e.target.value })),
             el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceDisplay')), el('select', { className: 'cm-input', value: s.display ?? 'both', onChange: e => patch({ display: e.target.value }) }, ...displayOptions(t))),
             el('div', { className: 'cm-field' }, el('label', null, t('gatewaySourceRefreshInterval')), numInput({ value: s.refreshMinutes ?? 15 }, v => patch({ refreshMinutes: Math.min(1440, Math.max(1, Math.floor(v))) }))),
-            !agyLink && field(t('gatewaySourceAllowlist'), (s.allowedHosts ?? []).join(', '), e => patch({ allowedHosts: e.target.value.split(/[\s,;]+/).filter(Boolean) })),
-            !agyLink && el('label', { className: 'cm-check' },
+            !clientOnly && field(t('gatewaySourceAllowlist'), (s.allowedHosts ?? []).join(', '), e => patch({ allowedHosts: e.target.value.split(/[\s,;]+/).filter(Boolean) })),
+            !clientOnly && el('label', { className: 'cm-check' },
               el('input', { type: 'checkbox', checked: s.allowInsecureHttp === true, onChange: e => patch({ allowInsecureHttp: e.target.checked }) }),
               el('span', null, t('customBalanceHttp'))),
-          !agyLink && el('label', { className: 'cm-check' },
+          !clientOnly && el('label', { className: 'cm-check' },
             el('input', { type: 'checkbox', checked: s.antigravityOnlyGemini === true, onChange: e => patch({ antigravityOnlyGemini: e.target.checked }) }),
             el('span', null, t('gatewayOnlyGemini')))),
-          varName ? el('div', { className: 'cm-field' }, el('label', null, t(s.type === 'antigravity-manager' ? 'managerCredential' : 'gatewaySourceCredential')), el(CredentialField, { target: 'customVar:' + varName, configured: state.customVarStatus?.[varName]?.configured === true, source: state.customVarStatus?.[varName]?.source ?? '', t, api, placeholder: varName })) : !agyLink && el('p', { className: 'cm-note' }, t('managerSaveFirst')),
+          varName ? el('div', { className: 'cm-field' }, el('label', null, t(s.type === 'antigravity-manager' ? 'managerCredential' : 'gatewaySourceCredential')), el(CredentialField, { target: 'customVar:' + varName, configured: state.customVarStatus?.[varName]?.configured === true, source: state.customVarStatus?.[varName]?.source ?? '', t, api, placeholder: varName })) : !clientOnly && el('p', { className: 'cm-note' }, t('managerSaveFirst')),
           live.unsupportedProviders.length > 0 ? el('div', { className: 'cm-note' }, t('gatewaySourceUnsupported') + ': ' + live.unsupportedProviders.join(', ')) : null,
           live.accounts.length > 0 ? live.accounts.map(account) : ['ok', 'partial'].includes(live.status) ? el('div', { className: 'cm-bal-line' }, t('gatewaySourceNoAccounts')) : null),
         onToggle: value => patch({ enabled: value }),
@@ -223,6 +223,67 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
             el('div', { key, style: { padding: 8, borderRadius: 6, background: 'var(--dsw-alias-bg-layer-1)', minWidth: 0, overflowWrap: 'anywhere' } }, el('small', null, label), el('strong', { style: { display: 'block' } }, number(data?.incomplete ? null : sum(key)))))),
         el('p', { className: 'cm-note' }, text('从首次成功查询开始记录；充值或赠送不计为减少，积分过期可能计入减少。不是官方扣费账单，积分不折算成人民币。', 'Recorded from the first successful query. Grants are not decreases; expiry may be. This is not an official charge statement and credits are not converted to currency.')),
         el('p', { className: 'cm-note' }, text('全部 WorkBuddy 调用 API 等值：今日 ', 'API-equivalent value of all WorkBuddy calls: today ') + formatMoneyUsd(equiv(state.today), state.config) + text('；累计 ', '; total ') + formatMoneyUsd(equiv(state.total), state.config) + text('。调用记录没有账号标识，此项不随账号筛选。', '. Call records have no account identifiers; this value is not filtered by account.')))
+    }
+    function TraeAccounts({ live, config, setPlan, state }) {
+      const text = (zh, en) => resolveLocale(state.config) === 'en' ? en : zh
+      const data = live.trae
+      const editions = Array.isArray(data?.editions) ? data.editions : []
+      const scope = config.editionScope ?? 'auto'
+      const numText = value => typeof value === 'number' && Number.isFinite(value)
+        ? (Math.round(value * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })
+        : '—'
+      const equiv = bucket => Object.entries(bucket?.byProviderModel ?? {}).reduce((sum, [key, row]) => /^(trae|trae-cn|trae-global|trae-enterprise|dsh-connect-trae):/.test(key) ? sum + (row.cost ?? 0) : sum, 0)
+      const panelLabel = panel => panel === 'cn' ? text('国内版 (CN)', 'CN') : panel === 'enterprise' ? text('企业版 (Enterprise)', 'Enterprise') : text('国际版 (AI)', 'International (AI)')
+      const checkinLabel = checkin => {
+        if (!checkin) return '—'
+        if (checkin.checkedIn) return text('今日已签到', 'Checked in today')
+        if (checkin.didCheckedIn) return text('本设备已签到（其他账号已用）', 'Device already checked in (other account)')
+        return checkin.enabled ? text('今日未签到', 'Not checked in') : text('未开启', 'Disabled')
+      }
+      const expiryNotice = credits => {
+        const exp = credits?.expiry
+        if (exp) {
+          for (const [key, zh, en] of [['within24h', '24 小时内到期', 'expiring within 24h'], ['within3d', '3 天内到期', 'expiring within 3 days'], ['within7d', '7 天内到期', 'expiring within 7 days'], ['expired', '已过期包余额', 'expired pack credits']]) {
+            if ((exp[key]?.total ?? 0) > 0) {
+              const date = exp[key].earliestExpiresAtMs ? ' · ' + new Date(exp[key].earliestExpiresAtMs).toLocaleDateString() : ''
+              return text(`${numText(exp[key].total)} 积分${zh}${date}`, `${numText(exp[key].total)} credits ${en}${date}`)
+            }
+          }
+        }
+        return credits?.nearestExpiryMs ? text('最近包到期：', 'Nearest pack expiry: ') + new Date(credits.nearestExpiryMs).toLocaleDateString() : ''
+      }
+      return el('section', { className: 'cm-trae-accounts', style: { minWidth: 0 } },
+        el('div', { className: 'cm-field' }, el('label', null, text('查询版本', 'Trae edition')),
+          el('select', { className: 'cm-input', 'aria-label': text('查询版本', 'Trae edition'), value: scope, onChange: e => setPlan('editionScope', e.target.value) },
+            ...[['auto', text('全部已登录版本（自动）', 'All signed-in editions (Auto)')], ['cn', text('国内版 (CN)', 'CN')], ['enterprise', text('企业版 (Enterprise)', 'Enterprise')], ['ai', text('国际版 (AI)', 'International (AI)')]].map(([value, label]) => el('option', { value, key: value }, label)))),
+        data?.incomplete ? el('p', { className: 'cm-note', role: 'status' }, text('部分版本查询失败，当前结果不完整。', 'Some Trae editions failed to query.')) : null,
+        data?.unsupportedRegion ? el('p', { className: 'cm-note', role: 'status' }, text(`检测到 ${String(data.unsupportedRegion.region).toUpperCase()} 区域账号（${data.unsupportedRegion.count} 个），dsh-connect-trae 暂不支持该区域。`, `Detected ${data.unsupportedRegion.count} ${String(data.unsupportedRegion.region).toUpperCase()} account(s); not supported yet by dsh-connect-trae.`)) : null,
+        editions.length ? editions.map(ed => el('div', { key: ed.panel, style: { marginTop: 8, padding: 8, border: '1px solid var(--dsw-alias-border-l1)', borderRadius: 8 } },
+          el('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 } },
+            el('strong', null, panelLabel(ed.panel)),
+            el('small', { style: { opacity: .7 } }, ed.accountName || text(`${ed.accountCount} 个账号`, `${ed.accountCount} account(s)`))),
+          ed.panel === 'cn' && ed.credits ? el(Fragment, null,
+            el('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', gap: 6 } },
+              ...[
+                [text('通用可用积分', 'General credits'), numText(ed.credits.generalAvailable)],
+                [text('Work 积分', 'Work credits'), numText(ed.credits.workAvailable)],
+                [text('已消耗 / 总额', 'Consumed / Total'), numText(ed.credits.consumed) + ' / ' + numText(ed.credits.total)],
+                [text('今日签到', 'Daily check-in'), checkinLabel(ed.checkin)],
+              ].map(([label, val]) => el('div', { key: label, style: { padding: 6, borderRadius: 6, background: 'var(--dsw-alias-bg-layer-1)' } }, el('small', null, label), el('strong', { style: { display: 'block' } }, val)))),
+            expiryNotice(ed.credits) ? el('p', { className: 'cm-note', style: { marginTop: 6 } }, expiryNotice(ed.credits)) : null) : null,
+          ed.panel === 'cn' && ed.creditsFailed ? el('p', { className: 'cm-note' }, text('国内版积分查询失败，请在 dsh-connect-trae 插件卡片查看。', 'CN credits failed; check dsh-connect-trae plugin card.')) : null,
+          ed.panel === 'cn' && ed.accounts?.length ? el('div', { style: { marginTop: 6, maxHeight: 180, overflow: 'auto', borderTop: '1px solid var(--dsw-alias-border-l1)', paddingTop: 4 } },
+            ...ed.accounts.map((row, idx) => el('div', { key: row.id, style: { display: 'flex', justifyContent: 'space-between', gap: 8, padding: '4px 0', fontSize: 12 } },
+              el('span', null, (row.name || text('账号 ', 'Account ') + (idx + 1)) + (row.selected ? text('（当前）', ' (current)') : '')),
+              el('strong', { className: 'cm-num' }, numText(row.generalAvailable))))) : null,
+          ed.panel === 'enterprise' ? el('p', { className: 'cm-note' }, text('Trae 企业版无上游余额查询接口，请前往 console.enterprise.trae.cn 查看租户额度（不以个人 CN 积分替代）。', 'Trae Enterprise has no balance API; view tenant balance in console.enterprise.trae.cn (personal CN credits are never substituted).')) : null,
+          ed.panel === 'ai' && ed.payStatus ? el('p', { className: 'cm-note' },
+            text('套餐：', 'Plan: ') + (ed.payStatus.payIdentityStr || (ed.payStatus.paid ? text('已订阅', 'Paid') : 'Free'))
+            + (ed.payStatus.inTrial ? text('（试用中', ' (Trial') + (ed.payStatus.trialEndTimeMs ? text('，至 ', ', until ') + new Date(ed.payStatus.trialEndTimeMs).toLocaleDateString() : '') + ')' : '')
+            + (ed.payStatus.isDollarUsageBilling ? text(' · 按美元计费', ' · Dollar usage billing') : '')) : null,
+          ed.panel === 'ai' && ed.payStatusFailed ? el('p', { className: 'cm-note' }, text('国际版订阅状态查询失败，请在 dsh-connect-trae 插件卡片查看。', 'International plan status query failed; check dsh-connect-trae card.')) : null))
+          : el('p', { className: 'cm-note' }, text('启用并刷新后自动读取 dsh-connect-trae 中已登录的国内版、企业版和国际版状态。', 'Enable and refresh to read signed-in CN, Enterprise and International editions from dsh-connect-trae.')),
+        el('p', { className: 'cm-note', style: { marginTop: 8 } }, text('全部 Trae 调用 API 等值：今日 ', 'API-equivalent value of all Trae calls: today ') + formatMoneyUsd(equiv(state.today), state.config) + text('；累计 ', '; total ') + formatMoneyUsd(equiv(state.total), state.config) + text('。', '.')))
     }
     function PlanQuotaCard(props) {
       const { state, api, t, draft, setDraft, planId, labelKey } = props
@@ -439,6 +500,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
               }),
               el('p', { className: 'cm-note' }, (resolveLocale(state.config) === 'en' ? 'Volcano Ark needs AK/SK, ArkReadOnlyAccess and BillingCenterReadOnlyAccess. Enter credentials or export VOLC_ACCESSKEY/VOLC_SECRETKEY. Only open.volcengineapi.com is contacted.' : '火山方舟需 AK/SK、ArkReadOnlyAccess 和 BillingCenterReadOnlyAccess；可填凭据或导出 VOLC_ACCESSKEY/VOLC_SECRETKEY。只连接 open.volcengineapi.com。')))
             : planId === 'workbuddy' ? el(Fragment, null, el('p', { className: 'cm-note' }, t('wbH')), el(WorkBuddyAccounts, { live, config: cfgEntry, setPlan, state }))
+            : planId === 'trae' ? el(Fragment, null, el('p', { className: 'cm-note' }, t('traeH')), el(TraeAccounts, { live, config: cfgEntry, setPlan, state }))
             : el(Fragment, null,
               el('div', { className: 'cm-field' },
                 el('label', null, planId === 'baidu-coding' ? 'Cookie (console.bce.baidu.com)' : planId === 'mimo' ? 'Cookie (platform.xiaomimimo.com)' : planId === 'factory' ? 'Factory Token' : planId === 'opendesign' ? 'OpenDesign Cookie / Control Key' : t(planId === 'zai' ? 'zaiPlanKeyLabel' : 'codingPlanKeyLabel'))),

@@ -2,7 +2,7 @@
 // Explicit initials are identifiers, not third-party brand logos. Coverage is checked against CODING_PLAN_ROWS.
 export const PLAN_ICON_MARKS = { opendesign: 'OD', anthropic: 'CL', zai: 'GL', minimax: 'MM', kimi: 'KI',
   openrouter: 'OR', siliconflow: 'SF', commandcode: 'CC', clinepass: 'CP', scnet: 'SC',
-  volcengine: 'VA', qwen: 'QW', mimo: 'MI', 'baidu-coding': 'BD', workbuddy: 'WB', factory: 'FD' }
+  volcengine: 'VA', qwen: 'QW', mimo: 'MI', 'baidu-coding': 'BD', workbuddy: 'WB', trae: 'TR', factory: 'FD' }
 export function iconMark(kind, id, title) {
   if (kind === 'plan') return PLAN_ICON_MARKS[id] ?? (String(id || title).replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase() || 'PL')
   if (kind === 'gateway') return Array.from(String(title).trim()).slice(0, 2).join('').toUpperCase() || 'GW'

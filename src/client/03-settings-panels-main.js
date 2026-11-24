@@ -1002,8 +1002,8 @@
           })))
         : balance.status === 'error'
           ? el('div', { className: 'cm-bal-line err' }, t('balanceQueryFailedHint', { message: balance.message || t('unknownError') }))
-          : el('div', { className: 'cm-bal-line' }, t('balanceNotQueried'))
-      return el('div', { className: 'cm-budget' },
+          : el('div', { className: 'cm-bal-line' + (balance.message ? ' warn' : '') }, balance.message || t('balanceNotQueried'))
+      return el('div', { tabIndex: -1, 'data-balance-panel': '', className: 'cm-budget' },
         el('div', { className: 'cm-budget-head' },
           el('div', { className: 'cm-balance-heading' }, el('h3', { className: 'cm-h' }, t('accountBalance')),
             reconcile?.searchMessage ? el(SearchCoverageNote, { message: reconcile.searchMessage, t }) : null),
@@ -1180,6 +1180,7 @@
       { id: 'mimo', labelKey: 'codingPlanMimo' },
       { id: 'baidu-coding', labelKey: 'codingPlanBaidu' },
       { id: 'workbuddy', labelKey: 'wbT' },
+      { id: 'trae', labelKey: 'traeT' },
       { id: 'factory', labelKey: 'codingPlanFactory' },
     ]
 
@@ -1326,6 +1327,13 @@
       const tab = activeTab === 'export' ? 'statistics' : activeTab === 'codex' && !codexInstalled ? 'overview' : activeTab
       useEffect(() => { if (!codexInstalled) setTab(current => current === 'codex' ? 'overview' : current) }, [codexInstalled])
       const [quotaTarget, setQuotaTarget] = useState(null)
+      useEffect(() => {
+        if (tab !== 'overview' && quotaTarget === 'balance') { setQuotaTarget(null); return }
+        if (tab !== 'overview' || quotaTarget !== 'balance' || typeof document === 'undefined') return
+        const node = document.querySelector('[data-balance-panel]')
+        node?.scrollIntoView?.({ block: 'start' })
+        node?.focus?.({ preventScroll: true })
+      }, [tab, quotaTarget])
       // 自动保存状态:idle(无改动) | saving | saved | error。
       const [saveState, setSaveState] = useState({ status: 'idle', at: 0, error: null })
       const savedRef = React.useRef(null)
@@ -1574,8 +1582,8 @@
           el(TodaySessions, { state, t })),
         // 预算
         el(BudgetPanel, { state, draft, setDraft, t }),
-        // 官方余额(按显示配置;hideOfficialBalance 开启时整体不渲染,issue #45)
-        (config.balance?.display === 'settings' || config.balance?.display === 'both') && config.hideOfficialBalance !== true
+        // 官方余额(按显示配置;hideOfficialBalance 开启时整体不渲染,issue #45;从显示设置跳转时允许定位)
+        (config.balance?.display === 'settings' || config.balance?.display === 'both' || quotaTarget === 'balance') && config.hideOfficialBalance !== true
           ? el(BalancePanel, { state, api, t, draft, setDraft })
           : null)
         : null,
@@ -1633,6 +1641,10 @@
           renderSidebar: (preview, data = state, examples = true) => renderSidebarFooter({ ...data, config: preview }, true, undefined, true, undefined, examples),
           renderCorner: data => el(CornerChips, { useCost: () => ({ state: data }) }),
           renderStyleSample: (preview, data = state, examples = true) => {
+            if (preview.sidebarStyle === 'entry' && !preview.sidebarSimple) {
+              return el('div', { className: 'cm-footer-stack', style: { alignItems: 'flex-start' } },
+                el('span', { className: 'cm-btn small', style: { display: 'inline-grid', placeItems: 'center', width: '36px', height: '36px', padding: 0, borderRadius: '12px' } }, el(WalletIcon, { size: 18 })))
+            }
             if (!examples || preview.sidebarStyle === 'icons') return renderSidebarFooter({ ...data, config: preview }, true, undefined, true)
             const simple = preview.sidebarSimple === true
             const sampleConfig = { ...preview, peakNotice: false, hideBudget: false, hideTodayCost: false,
@@ -1715,18 +1727,24 @@
       ctx.effect(() => () => { unmount() }, 'cost-meter: remote contribution')
       const costMeter = ctx.get('remote.costMeter')
       if (costMeter === undefined) return
+      let subsRpc = null, desktopSubs, loadingSubs
       ctx.inject(['connection'], connectionCtx => connectionCtx.effect(() => {
         const rpc = connectionCtx.get('connection')?.rpc
+        subsRpc = rpc ?? null
+        desktopSubs?.setRpc(subsRpc)
         resetCodexQuota(rpc, () => costMeter.getPiAiCodexQuota(), () => costMeter.getChatgptSubQuota())
         notifyCodexQuota()
-        return () => { if (codexQuotaCache.rpc === rpc) { resetCodexQuota(null); notifyCodexQuota() } }
+        return () => {
+          if (subsRpc === rpc) { subsRpc = null; desktopSubs?.setRpc(null) }
+          if (codexQuotaCache.rpc === rpc) { resetCodexQuota(null); notifyCodexQuota() }
+        }
       }, 'cost-meter: Codex quota transport'))
       const readLocale = () => {
         try { return supportedLocale(ctx.get('locale')?.getSnapshot?.().active) }
         catch { return null }
       }
       let desktopAgy, loadingAgy, agyDisposed = false
-      ctx.effect(() => () => { agyDisposed = true; desktopAgy?.dispose() }, 'cost-meter: Desktop quota transport')
+      ctx.effect(() => () => { agyDisposed = true; desktopAgy?.dispose(); desktopSubs?.dispose() }, 'cost-meter: Desktop quota transport')
       const store = makeStore({ status: 'loading', error: null, state: null }, snapshot => {
         const locale = readLocale() || supportedLocale(snapshot.state?.meta?.locale) || detectBrowserLocale()
         if (!desktopAgy && !loadingAgy && snapshot.state?.gatewayQuotas?.some(row => row.browserAccessDenied) && require.async) {
@@ -1737,7 +1755,16 @@
             update()
           }).catch(() => {}).finally(() => { loadingAgy = null })
         }
+        if (!desktopSubs && !loadingSubs && snapshot.state?.config?.gatewayQuotas?.sources?.some(row => row.type === 'subscriptions' && row.enabled && row.display !== 'off') && require.async) {
+          loadingSubs = require.async('./client.subscriptions-quota.js').then(module => {
+            if (agyDisposed) return
+            const update = () => store.set(store.getSnapshot())
+            desktopSubs = module.mount(update, subsRpc)
+            update()
+          }).catch(() => {}).finally(() => { loadingSubs = null })
+        }
         if (desktopAgy && snapshot.state) snapshot = { ...snapshot, state: desktopAgy.decorate(snapshot.state, locale) }
+        if (desktopSubs && snapshot.state) snapshot = { ...snapshot, state: desktopSubs.decorate(snapshot.state, locale) }
         return { ...snapshot, locale, ...(snapshot.state ? { state: { ...snapshot.state, config: { ...snapshot.state.config, activeLocale: locale } } } : {}) }
       })
 
@@ -1899,14 +1926,30 @@
         refreshGoQuota: async () => receive(costMeter.refreshGoQuota()),
         refreshGatewayQuota: async (sourceId = null) => {
           if (loadingAgy) await loadingAgy
-          const local = desktopAgy?.refresh(sourceId)
-          if (local) return local
-          const result = await receive(sourceId == null ? costMeter.refreshGatewayQuota() : costMeter.refreshGatewayQuota(sourceId))
-          if (!result.ok && sourceId) {
-            if (loadingAgy) await loadingAgy
-            return desktopAgy?.refresh(sourceId) ?? result
+          if (loadingSubs) await loadingSubs
+          if (sourceId != null) {
+            const local = desktopSubs?.refresh(sourceId) ?? desktopAgy?.refresh(sourceId)
+            if (local) return local
+            const result = await receive(costMeter.refreshGatewayQuota(sourceId))
+            if (!result.ok) {
+              if (loadingAgy) await loadingAgy
+              if (loadingSubs) await loadingSubs
+              return desktopSubs?.refresh(sourceId) ?? desktopAgy?.refresh(sourceId) ?? result
+            }
+            return result
           }
-          return result
+          const tasks = []
+          const subsTask = desktopSubs?.refresh(null)
+          if (subsTask) tasks.push(subsTask)
+          const agyTask = desktopAgy?.refresh(null)
+          if (agyTask) tasks.push(agyTask)
+          const sources = store.getSnapshot().state?.config?.gatewayQuotas?.sources ?? []
+          if (sources.some(row => row.type !== 'subscriptions')) {
+            tasks.push(receive(costMeter.refreshGatewayQuota()))
+          }
+          if (tasks.length === 0) return receive(costMeter.refreshGatewayQuota())
+          const results = await Promise.all(tasks)
+          return results.find(r => r && !r.ok) ?? results[0]
         },
         refreshCustomBalance: async (index = null) => receive(index == null ? costMeter.refreshCustomBalance() : costMeter.refreshCustomBalance(index)),
         refreshCodingPlan: async provider => receive(costMeter.refreshCodingPlan(provider)),

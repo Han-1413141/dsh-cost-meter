@@ -7,6 +7,8 @@ window.__ModuleLoader__.load({
   factory: require => {
     const React = require('react')
     const { createElement: el, useState, useEffect, useRef } = React
+    /* SUBSCRIPTIONS_QUOTA_SOURCE */
+    const readSubsCodex = typeof readSubscriptionsCodexQuota === 'function' ? readSubscriptionsCodexQuota : async () => null
 
     // Read quota through the signed-in plugin; only window facts leave this helper.
     async function readChatgptQuota(force = false) {
@@ -189,6 +191,6 @@ window.__ModuleLoader__.load({
     function mount() {
       return props => el(props.view === 'prompt' ? CodexCompatPrompt : CodexCompatPanel, props)
     }
-    return { mount, CodexCompatPrompt, CodexCompatPanel, readChatgptQuota, readChatgptSubQuota }
+    return { mount, CodexCompatPrompt, CodexCompatPanel, readChatgptQuota, readChatgptSubQuota, readSubscriptionsCodexQuota: readSubsCodex }
   },
 })

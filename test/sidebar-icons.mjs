@@ -29,7 +29,7 @@ assert.equal(sanitizeConfig({ sidebarStyle: 'bad' }).sidebarStyle, 'standard')
 assert.equal(sanitizeConfig({ sidebarSimple: true }).sidebarSimple, true)
 const wire = stateSchema.shape.config.parse(patch.config)
 
-let registration, override = [], coarse = false, pocket = false, queryCount = 0
+let registration, override = [], coarse = false, pocket = null, queryCount = 0
 const stateWrites = [], recordedEffects = []
 let recordEffects = false
 class Clock extends Date { static now() { return now } }
@@ -37,7 +37,7 @@ const element = (type, props, ...children) => ({ type, key: props?.key ?? null, 
 const React = { createElement: element, Fragment: 'fragment', useSyncExternalStore: (_, read) => read(), useId: () => 'test-id', useRef: value => ({ current: value }),
   useEffect(effect) { if (recordEffects) recordedEffects.push(effect) }, useState: value => [override.length ? override.shift() : typeof value === 'function' ? value() : value, value => stateWrites.push(value)] }
 const context = vm.createContext({ Date: Clock, URL, navigator: { language: 'en' }, console,
-  document: { body: { getAttribute: () => pocket ? 'mobile' : null } },
+  document: { body: { getAttribute: () => pocket } },
   window: { matchMedia: () => ({ matches: coarse }), __ModuleLoader__: { load: v => { registration = v } } },
   fetch: () => { queryCount++; throw Error('Presentation must not fetch') },
 })
@@ -146,12 +146,23 @@ for (const metric of ['cost', 'tokens', 'both']) {
   assert.deepEqual(summary.children[0], upstreamValue, 'same upstream currency/token formatter')
 }
 coarse = true
-const mobile = Component({ ...loader.props })
-assert.equal(mobile.children.length, loader.props.nodes.length, 'small/coarse devices render original nodes once')
-mobile.children.forEach((node, index) => assert.equal(node, loader.props.nodes[index]))
-coarse = false; pocket = true
-Component({ ...loader.props }).children.forEach((node, index) => assert.equal(node, loader.props.nodes[index], 'forced Pocket layout keeps original cards'))
-pocket = false
+const mobileExplicitIcons = Component({ ...loader.props })
+const mobileRoot = walk(mobileExplicitIcons).find(node => node.props.className === 'cm-icons')
+assert.ok(mobileRoot, 'explicit icons style stays active on mobile/touch devices')
+assert.equal(mobileRoot.props['data-cm-mobile'], 'true', 'mobile icons apply §20 touch geometry marker')
+assert.ok(walk(mobileExplicitIcons).some(node => node.props.className === 'cm-icons-row'))
+const mobileStandardFallback = Component({ ...loader.props, state: { ...state, config: { ...config, sidebarStyle: 'standard' } } })
+assert.equal(mobileStandardFallback.children.length, loader.props.nodes.length, 'non-icons styles keep original nodes on mobile')
+mobileStandardFallback.children.forEach((node, index) => assert.equal(node, loader.props.nodes[index]))
+pocket = 'desktop'
+const desktopOverride = Component({ ...loader.props })
+assert.equal(walk(desktopOverride).find(node => node.props.className === 'cm-icons').props['data-cm-mobile'], undefined, 'data-dsh-pocket-layout=desktop keeps desktop geometry even on coarse pointers')
+coarse = false; pocket = 'mobile'
+const pocketMobile = Component({ ...loader.props })
+assert.equal(walk(pocketMobile).find(node => node.props.className === 'cm-icons').props['data-cm-mobile'], 'true', 'forced Pocket mobile layout marks icons as mobile')
+const mobileNarrowFooter = core.renderSidebarFooter(state, false)
+assert.equal(mobileNarrowFooter.children[0].props.load, core.loadSidebarIcons, 'explicit icons style renders even in narrow mobile footer')
+pocket = null
 // Selecting an icon opens exactly the upstream node rather than a fork of its implementation.
 override = [false, now, 'plan:qwen']
 const opened = Component({ ...loader.props })
