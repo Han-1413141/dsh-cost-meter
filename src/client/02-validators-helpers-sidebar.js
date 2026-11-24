@@ -3801,6 +3801,57 @@
       return renderSidebarFooter(state, !!props.wide, props.api, false, projectionUsage?.provider)
     }
 
+    // ── §25.6(社区 UI 约定):纵向栈 ⇒ 卡片降级为 36×36 钱包按钮 + 浮层 ──
+    // 方案 A 的「有邻居就收窄」按同一行的 rowWidth 判定,在纵向栈(flex-direction:column)下
+    // 永不成立;这里只补纵向栈分支。不用宽度判定:桌面 268px 侧栏独占时卡片
+    // 本就是正常形态,用宽度会误降级。浮层绝对定位,不撑高侧栏。
+    function FooterOccupancy(props) {
+      const { className, t, enabled = true, children: rawChildren, ...rest } = props
+      const children = rawChildren == null ? [] : (Array.isArray(rawChildren) ? rawChildren : [rawChildren])
+      const rootRef = useRef(null)
+      const [chip, setChip] = useState(false)
+      const [open, setOpen] = useState(false)
+      useEffect(() => {
+        if (!enabled) { setChip(false); return }
+        const node = rootRef.current
+        if (!node) return
+        const slotOf = () => node.closest('[data-slot="sidebar.footer.action"]') || node.parentElement
+        const measure = () => {
+          const slot = slotOf()
+          if (!slot) return
+          let direction = ''
+          try { direction = globalThis.getComputedStyle(slot).flexDirection || '' } catch (_) {}
+          const next = direction === 'column'
+          setChip(previous => (previous === next ? previous : next))
+        }
+        measure()
+        const Observer = globalThis.ResizeObserver
+        const observer = typeof Observer === 'function' ? new Observer(measure) : null
+        if (observer) { observer.observe(node); const slot = slotOf(); if (slot && slot !== node) observer.observe(slot) }
+        if (typeof globalThis.addEventListener === 'function') globalThis.addEventListener('resize', measure)
+        return () => {
+          if (observer) observer.disconnect()
+          if (typeof globalThis.removeEventListener === 'function') globalThis.removeEventListener('resize', measure)
+        }
+      }, [enabled])
+      useEffect(() => { if (!chip) setOpen(false) }, [chip])
+      useEffect(() => {
+        if (!open) return
+        const onKey = event => { if (event.key === 'Escape') setOpen(false) }
+        const onPointer = event => { const node = rootRef.current; if (node && !node.contains(event.target)) setOpen(false) }
+        document.addEventListener('keydown', onKey)
+        document.addEventListener('pointerdown', onPointer, true)
+        return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('pointerdown', onPointer, true) }
+      }, [open])
+      if (!chip) return el('div', { ref: rootRef, className, ...rest }, ...children)
+      return el('div', { ref: rootRef, className, ...rest, 'data-cm-occupancy': 'chip' },
+        el('button', {
+          type: 'button', className: 'cm-chip', 'aria-expanded': String(open), 'aria-label': t('sidebarChip'), title: t('sidebarChip'),
+          onClick: () => setOpen(value => !value),
+        }, el(WalletIcon, { size: 18 })),
+        open ? el('div', { className: 'cm-chip-pop', role: 'dialog', 'aria-label': t('sidebarChip') }, ...children) : null)
+    }
+
     // Shared presentation only: no store, projection or quota subscription.
     function renderSidebarFooter(state, wide, api, preview = false, provider, examples = preview) {
       const config = peakConfigForState(state)
@@ -3869,5 +3920,11 @@
         const rank = node => { const index = order.indexOf(node.key); return index < 0 ? 999 : index }
         nodes.sort((a, b) => rank(a) - rank(b))
       }
-      return el('div', { ...(!preview ? { 'data-cm-sidebar-card': '' } : {}), ...(simple ? { tabIndex: 0, role: 'region', 'aria-label': t('sidebarSimple') } : {}), className: 'cm-footer-stack' + (config.sidebarTodayBalanceInline ? ' same-line' : '') + (wide ? '' : ' rail') + (compactWide ? ' compact' : '') + (simple ? ' simple' : config.sidebarStyle === 'summary' && wide ? ' summary' : '') + (config.sidebarTextOnly ? ' text-only' : '') }, ...(!simple && wide && config.sidebarStyle === 'icons' ? [el(BillingStatistics, { load: loadSidebarIcons, state: { ...state, config }, preview, nodes, fallback: nodes })] : nodes))
+      const footerClass = 'cm-footer-stack' + (config.sidebarTodayBalanceInline ? ' same-line' : '') + (wide ? '' : ' rail') + (compactWide ? ' compact' : '') + (simple ? ' simple' : config.sidebarStyle === 'summary' && wide ? ' summary' : '') + (config.sidebarTextOnly ? ' text-only' : '')
+      const footerAttrs = { ...(!preview ? { 'data-cm-sidebar-card': '' } : {}), ...(simple ? { tabIndex: 0, role: 'region', 'aria-label': t('sidebarSimple') } : {}) }
+      const footerChildren = !simple && wide && config.sidebarStyle === 'icons'
+        ? [el(BillingStatistics, { load: loadSidebarIcons, state: { ...state, config }, preview, nodes, fallback: nodes })]
+        : nodes
+      const footerProps = { className: footerClass, t, enabled: !preview, ...footerAttrs, children: footerChildren };
+  return el(FooterOccupancy, footerProps, ...footerChildren)
     }
