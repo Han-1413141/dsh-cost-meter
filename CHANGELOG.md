@@ -1,6 +1,10 @@
 # Changelog
 ## [Unreleased]
 
+## [1.9.89] - 2026-11-24
+
+- **修复大配置树下主线程持续 100% CPU 热点**：新增单命名空间轻量宿主配置读取器（`lib/host-settings.js`），在读取 `locale` 与官方余额模型路由时优先使用 `settings.get(ns)`（DSH 0.2.0）或 `configEditor.entries()` 内存直接读取活跃条目并解包 Cosmokit `Volatile` 引用（DSH 0.2.1+/0.2.2+/0.2.3+），彻底避免反复调用 `settings.describe({ redactSecrets: true })` 触发 `cordis.patch.yml` 磁盘解析与全量 Schemastery `volatileForm` / `toJSON` 序列化；仅在无直读能力的宿主上回退到 `settings.describe()`，并合并为跨 locale/路由共享的单重入保护与 60 秒缓存。同时将 `settings/document-updated` 监听按 `ns === 'locale'` 过滤并改为惰性失效，跳过 15 个非本地化只读统计/会话 RPC 的 `syncMessageLocale()` 包装，以及在余额晚登录自愈检查中补齐 `getBalance` 存在性与 3 秒冷却保持。感谢 @sigmaraye 报告问题并提供 V8 CPU profiler 采样、调用栈定位与版本对比分析。[#586](https://github.com/Han-1413141/dsh-cost-meter/issues/586)
+
 ## [1.9.88] - 2026-11-24
 
 - **手机端侧栏专用适配（不影响桌面端默认界面）**：仅在手机/触屏/Pocket 端生效——侧栏底部处于纵向排列或与其他插件共存时自动收为 36 × 36 钱包按钮，点击在安全区内居中浮出完整卡片（按 Esc 捕获关闭或点外部关闭，邻居插件移除后自动恢复整卡）；显式选择「图标」布局时在手机端按 §20 触控几何生效（36 × 36 / 12px 圆角），桌面端标准/图标/折叠窄栏保持原样零改动。侧栏布局新增主动勾选的「入口（`entry`）」模式供需要按钮形态的用户使用。@abworks-dev 提供了手机端布局分析、纵向降级方案（#581）、§20 图标几何方案（#582）与入口模式讨论建议（#576）。[#576](https://github.com/Han-1413141/dsh-cost-meter/issues/576) [#581](https://github.com/Han-1413141/dsh-cost-meter/pull/581) [#582](https://github.com/Han-1413141/dsh-cost-meter/pull/582)
