@@ -16,6 +16,12 @@ const group = selected => ({ selected, accounts: [{ id: a, label: 'Work' }, { id
 const queryAccounts = Object.fromEntries(QUERY_ACCOUNT_SOURCES.map(source => [source, group(a)]))
 const config = sanitizeConfig({ queryAccounts })
 assert.deepEqual(config.queryAccounts, queryAccounts)
+const withVisibility = sanitizeConfig({ queryAccounts: { 'codingPlans.zai': { ...group(a), displayed: ['default', a] } } })
+const replaceAccounts = { selected: 'default', accounts: [{ id: b, label: 'Personal' }, { id: 'account-c3', label: 'Third' }] }
+const legacyEdit = applyConfigPatch(withVisibility, { queryAccounts: { 'codingPlans.zai': replaceAccounts } })
+assert.deepEqual(legacyEdit.errors, [])
+assert.deepEqual(legacyEdit.config.queryAccounts['codingPlans.zai'].displayed, ['default', 'account-c3'])
+assert.ok(applyConfigPatch(withVisibility, { queryAccounts: { 'codingPlans.zai': { ...replaceAccounts, displayed: [a] } } }).errors.length)
 for (const bad of [null, [], { unknown: group(a) }, { balance: { ...group(a), selected: 'absent-id' } },
   { balance: { ...group(a), accounts: [{ id: a, label: 'Work', apiKey: 'DO-NOT-PERSIST' }] } },
   { balance: { ...group(a), accounts: [group(a).accounts[0], group(a).accounts[0]] } },
