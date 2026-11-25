@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { DEFAULT_PROVIDER_PRICE_TABLE, normalizePrice, providerPriceEntryFor, buildPriceCatalog, tierFor, costOf, upgradeProviderPriceDefaults } from '../lib/pricing.js'
 import { VERIFIED_PROVIDER_PRICES } from '../lib/provider-prices.js'
 import { billingClassOf, enabledPlanSetOf, planProviderIdOf } from '../lib/plan-billing.js'
-import { defaultConfig, sanitizeConfig, applyConfigPatch, Ledger } from '../lib/store.js'
+import { defaultConfig, sanitizeConfig, applyConfigPatch, Ledger, resolveAccountBilling } from '../lib/store.js'
 import { stateSchema } from '../lib/typert.host.js'
 
 const config = defaultConfig()
@@ -31,7 +31,7 @@ for (const [provider, table] of Object.entries(VERIFIED_PROVIDER_PRICES)) {
     assert.ok(normalized, `${provider}:${id} has a valid catalog row`)
     assert.equal(providerPriceEntryFor(provider, id, config.prices, { mode: 'exact' }).priced, raw.unpriced !== true, `${provider}:${id} exact mounted price`)
     assert.match(raw.sourceUrl, /^https:\/\//)
-    assert.ok(['2026-10-03', '2026-10-15', '2026-10-16', '2026-10-28', '2026-11-05'].includes(raw.checkedAt))
+    assert.ok(['2026-10-03', '2026-10-15', '2026-10-16', '2026-10-28', '2026-11-05', '2026-11-25'].includes(raw.checkedAt))
     if (raw.unpriced !== true) for (const value of [normalized.cacheHit, normalized.cacheMiss, normalized.output]) assert.ok(Number.isFinite(value) && value >= 0)
   }
 }
@@ -40,6 +40,8 @@ assert.ok(Object.values(catalog).flatMap(f => Object.values(f).flatMap(Object.ke
 
 // New issue #224 models and official cache-write/full-input context tiers.
 const expected = [
+  ['openai', 'gpt-6.2-sol', 2, 0.1, 2.5, 10],
+  ['openai', 'gpt-6.2-astra', 8, 0.4, 10, 40],
   ['openai', 'gpt-6-sol', 2, 0.2, 2.5, 10],
   ['openai', 'gpt-6.1-sol', 2, 0.1, 2.5, 10],
   ['openai', 'gpt-6-luna', 0.1, 0.01, 0.125, 0.5],
@@ -60,6 +62,18 @@ const sol = providerPriceEntryFor('openai', 'gpt-6.1-sol', config.prices).entry
 near(costOf({ input: 100000, cacheRead: 100000, cacheWrite: 72000, output: 1000 }, sol, now), 0.4)
 near(costOf({ input: 100000, cacheRead: 100000, cacheWrite: 72001, output: 1000 }, sol, now), 0.795005)
 near(costOf({ input: 272000, output: 1000000 }, sol, now), 10.544, 'output does not affect OpenAI input threshold')
+
+for (const [id, shortCost, longCost] of [
+  ['gpt-6.2-sol', 0.4, 0.795005],
+  ['gpt-6.2-astra', 1.6, 3.18002],
+]) {
+  const { entry } = providerPriceEntryFor('openai', id, config.prices)
+  const tokens = { input: 100000, cacheRead: 100000, cacheWrite: 72000, output: 1000 }
+  near(costOf(tokens, entry, now), shortCost)
+  near(costOf({ ...tokens, cacheWrite: 72001 }, entry, now), longCost)
+  assert.equal(entry.longContext.aboveInputTokens, 272000)
+  assert.equal(catalog.openai['GPT-6.2'][id].sourceUrl, `https://developers.openai.com/api/docs/models/${id}`)
+}
 
 // Same model, separate direct/Zen/Go routes; hourly cache storage is not cache writes.
 const directGemini = providerPriceEntryFor('google', 'gemini-3.8-flash', config.prices)
@@ -116,6 +130,30 @@ try {
   assert.equal(twice.config.prices.providers.openai.models['gpt-6-luna'], undefined, 'unmount survives reload after catalog migration')
   assert.deepEqual(twice.config.prices.providers.google.models['gemini-3.8-flash'], { unpriced: true, notes: 'disabled' })
   twice.close()
+
+  const upgradePath = join(path, 'gpt-6.2-upgrade.json')
+  const migration = 'openai-gpt-6.2-prices-2026-11-25'
+  const oldConfig = sanitizeConfig({ prices: { providers: { openai: { models: {
+    'gpt-6.1-sol': manual,
+    'gpt-6.2-astra': { unpriced: true, notes: 'disabled' },
+  } } } } })
+  const old = new Ledger(oldConfig, {}, upgradePath, twice.migrations.filter(id => id !== migration))
+  const before = Date.now() - 60_000
+  const usage = { input: 1000 }
+  old.account(usage, 'gpt-6.2-sol', 'gpt-6.2-history', before, 'openai')
+  old.flush()
+  old.close()
+
+  const upgraded = Ledger.load(upgradePath)
+  assert.ok(upgraded.migrations.includes(migration))
+  const openaiModels = upgraded.config.prices.providers.openai.models
+  assert.deepEqual(openaiModels['gpt-6.2-sol'], config.prices.providers.openai.models['gpt-6.2-sol'])
+  assert.deepEqual(openaiModels['gpt-6.2-astra'], { unpriced: true, notes: 'disabled' })
+  assert.equal(openaiModels['gpt-6-luna'], undefined, 'upgrade does not restore other removed entries')
+  assert.equal(Object.values(upgraded.days)[0].apiCost, 0)
+  assert.equal(resolveAccountBilling(upgraded, 'openai', 'gpt-6.2-sol', '', usage, before, 'gpt-6.2-history').resolved.priced, false)
+  assert.equal(resolveAccountBilling(upgraded, 'openai', 'gpt-6.2-sol', '', usage, Date.now(), 'gpt-6.2-history').resolved.priced, true)
+  upgraded.close()
 } finally { rmSync(path, { recursive: true, force: true }) }
 
 // Exercise emitted browser codecs and token arithmetic, including the separate UTC calendar.
