@@ -14,6 +14,11 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
     /** 单张网关来源卡片(可多实例:标题行有开关与删除,其余配置收在展开区)。 */
     /* SECRET_HEADER_FILTER */
 
+    function randomSourceId() {
+      return crypto.randomUUID?.() ?? Array.from(crypto.getRandomValues(new Uint8Array(16)),
+        byte => byte.toString(16).padStart(2, '0')).join('')
+    }
+
     function QuotaSourceRecovery({ sources, entries, api, removed, restore, locale }) {
       const en = locale === 'en'
       const [saved, setSaved] = useState(null), [file, setFile] = useState(null), [error, setError] = useState('')
@@ -33,28 +38,34 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
         input.value = ''; setError(''); setFile(null)
         try {
           const backup = JSON.parse(await selected.text())
-          const sources = [], customBalances = []
+          const importedGateways = new Map(), customBalances = []
           const pick = (row, keys) => Object.fromEntries(keys.filter(key => Object.hasOwn(row, key)).map(key => [key, row[key]]))
           for (const config of [backup.quotaRecovery, backup.config ?? backup].filter(Boolean)) {
             const gateways = config.gatewayQuotas?.sources ?? (Array.isArray(config.gatewayQuotas) ? config.gatewayQuotas : [])
-            for (const row of gateways) if (typeof row?.id === 'string') {
-              sources.push(pick(row, ['id', 'type', 'label', 'baseURL', 'enabled', 'display', 'refreshMinutes', 'includeProviders', 'allowedHosts', 'allowInsecureHttp', 'antigravityOnlyGemini']))
+            for (const row of gateways) if (typeof row?.id === 'string' && !importedGateways.has(row.id)) {
+              importedGateways.set(row.id, { ...pick(row, ['type', 'label', 'baseURL', 'display', 'refreshMinutes', 'includeProviders', 'antigravityOnlyGemini']),
+                id: randomSourceId(), enabled: false, allowedHosts: [], allowInsecureHttp: false })
             }
             const custom = config.customBalances ?? (config.customBalance?.request?.url ? [config.customBalance] : [])
             for (const row of custom) if (typeof row?.request?.url === 'string') {
-              const source = pick(row, ['adapter', 'label', 'labelEn', 'enabled', 'display', 'unit', 'convertToDisplayCurrency', 'refreshMinutes', 'channels', 'dashboardUrl', 'extract', 'allowedHosts', 'allowInsecureHttp', 'grantAmount', 'grantStart', 'grantExpiry'])
-              const headers = Object.entries(row.request.headers ?? {}).filter(([name, value]) => typeof value === 'string' && !looksLikeSecretHeaderValue(name, value))
+              const source = pick(row, ['adapter', 'label', 'labelEn', 'display', 'unit', 'convertToDisplayCurrency', 'refreshMinutes', 'channels', 'dashboardUrl', 'extract', 'grantAmount', 'grantStart', 'grantExpiry'])
+              const headers = Object.entries(row.request.headers ?? {}).filter(([name, value]) => typeof value === 'string' && !value.includes('{{') && !looksLikeSecretHeaderValue(name, value))
               source.request = { ...pick(row.request, ['url', 'method', 'body']), headers: Object.fromEntries(headers) }
-              customBalances.push(source)
+              customBalances.push({ ...source, enabled: false, allowedHosts: [], allowInsecureHttp: false })
             }
           }
-          if (!sources.length && !customBalances.length) throw Error()
-          setFile({ gatewayQuotas: { sources }, customBalances })
+          if (!importedGateways.size && !customBalances.length) throw Error()
+          setFile({ importedGateways, customBalances })
         } catch { setError(en ? 'This file contains no readable quota sources.' : '这个文件中没有可读取的额度来源。') }
       }
       const identity = row => JSON.stringify([row.adapter ?? '', row.label ?? '', row.request?.url ?? '', row.request?.method ?? 'GET'])
       const candidates = new Map()
-      for (const config of [saved, file]) {
+      // The backup ID only identifies already configured sources. Credentials use the new local ID.
+      for (const [backupId, row] of file?.importedGateways ?? []) {
+        if (!sources.some(source => source.id === backupId || source.id === row.id))
+          candidates.set('import:' + row.id, { kind: 'gateway', source: row })
+      }
+      for (const config of [file, saved]) {
         for (const row of config?.gatewayQuotas?.sources ?? []) if (typeof row?.id === 'string' && !sources.some(source => source.id === row.id))
           candidates.set('gateway:' + row.id, { kind: 'gateway', source: row })
         for (const row of config?.customBalances ?? []) if (typeof row?.request?.url === 'string' && !entries.some(source => identity(source) === identity(row)))
@@ -68,9 +79,9 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
         el('details', { className: 'cm-quota-recovery', onToggle: readSaved },
           el('summary', { className: 'cm-note' }, en ? 'Restore quota sources' : '恢复额度来源'),
           saved && !candidates.size ? el('p', { className: 'cm-note' }, en ? 'No removed sources found. Choose a backup from before deletion or add the source again below.' : '没有可恢复的记录。可以选择删除前的配置备份，也可以用页面底部的按钮重新添加来源。') : null,
-          [...candidates].map(([key, { kind, source }]) => el('div', { key, className: 'cm-buttons' }, el('span', null, name(source) + (kind === 'gateway' ? ' · ' + source.id : '')),
+          [...candidates].map(([key, { kind, source }]) => el('div', { key, className: 'cm-buttons' }, el('span', null, name(source) + ' · ' + (source.baseURL || source.request?.url || source.id)),
             el('button', { type: 'button', className: 'cm-btn small', disabled: full(kind), onClick: () => restore(kind, source) }, en ? 'Restore' : '恢复'))),
-          el('label', { className: 'cm-note' }, en ? 'Choose a previous ledger or configuration backup' : '选择删除前的账本或配置备份',
+          el('label', { className: 'cm-note' }, en ? 'Import a backup. Check the address and configure credentials before enabling imported sources.' : '导入账本或配置备份。请核对地址、配置凭据后启用导入的来源。',
             el('input', { type: 'file', accept: '.json,.config-bak,.bak', onChange: openFile })),
           error ? el('p', { role: 'status' }, error) : null))
     }
@@ -137,6 +148,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
       const { state, draft, setDraft, target, api } = props
       const text = (zh, en) => resolveLocale(state.config) === 'en' ? en : zh
       const source = target.replace(/\.(ak|sk)$/, '')
+      const multiple = source !== 'balance'
       const selectionLabel = source === 'balance' ? text('当前账号', 'Current account') : text('查询并显示的账号', 'Account to query and display')
       const groups = (draft ?? state.config).queryAccounts ?? {}
       const group = groups[source] ?? { selected: 'default', accounts: [] }
@@ -151,8 +163,8 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
         const label = name.trim()
         if (!label || group.accounts.length >= 10 || pending) return
         if (group.accounts.some(row => row.label.toLowerCase() === label.toLowerCase())) { setError(text('账号名称已存在', 'Account name already exists')); return }
-        const id = crypto.randomUUID()
-        change({ selected: id, accounts: [...group.accounts, { id, label }] }); setName(''); setError('')
+        const id = randomSourceId()
+        change({ ...group, selected: id, accounts: [...group.accounts, { id, label }], ...(multiple ? { displayed: [...new Set([...(group.displayed ?? []), ...(group.selected !== 'default' || props.configured ? [group.selected] : []), id])] } : {}) }); setName(''); setError('')
       }
       const saveName = () => {
         const label = rename.trim()
@@ -167,7 +179,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
           const targets = source === 'codingPlans.volcengine' ? [source + '.ak', source + '.sk'] : [source]
           for (const key of targets) await api.clearCredential(key + '@' + group.selected)
           const accounts = group.accounts.filter(row => row.id !== group.selected)
-          change({ selected: source === 'balance' ? accounts[0]?.id ?? 'default' : 'default', accounts })
+          change({ ...group, selected: source === 'balance' ? accounts[0]?.id ?? 'default' : 'default', accounts, ...(group.displayed ? { displayed: group.displayed.filter(id => id !== group.selected) } : {}) })
         } catch (e) { setError(String(e?.message ?? e)) }
         finally { setBusy(false) }
       }
@@ -184,6 +196,16 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
           current ? el('div', { className: 'cm-buttons' },
             el('input', { className: 'cm-input', value: rename, maxLength: 64, 'aria-label': text('账号名称', 'Account name'), disabled: pending, onChange: e => setRename(e.target.value), style: { minWidth: 0, flex: 1 } }),
             el('button', { className: 'cm-btn small', type: 'button', disabled: pending || !rename.trim() || rename.trim() === current.label, onClick: saveName }, text('保存名称', 'Save name'))) : null,
+          multiple && group.accounts.length > 0 ? el('fieldset', { className: 'cm-field' },
+            el('legend', null, text('同时显示额度的账号', 'Accounts shown together')),
+            ...[{ id: 'default', label: text('默认账号', 'Default account') }, ...group.accounts].map(row =>
+              el('label', { key: row.id }, el('input', { type: 'checkbox',
+                disabled: pending || row.id === group.selected, checked: row.id === group.selected || (group.displayed ?? []).includes(row.id),
+                onChange: event => {
+                  const displayed = new Set(group.displayed ?? [])
+                  if (event.target.checked) displayed.add(row.id); else displayed.delete(row.id)
+                  change({ ...group, displayed: [...displayed] })
+                } }), ' ', row.label))) : null,
           source === 'balance' && state.balanceAccounts?.length ? el('div', { className: 'cm-scroll', 'data-balance-accounts': true },
             ...state.balanceAccounts.map(row => el('div', { key: row.id, style: { display: 'flex', gap: 10, alignItems: 'center', padding: '8px 10px' } },
               el('span', { style: { flex: 1, minWidth: 0, overflowWrap: 'anywhere' } }, row.label),
@@ -285,6 +307,37 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
           : el('p', { className: 'cm-note' }, text('启用并刷新后自动读取 dsh-connect-trae 中已登录的国内版、企业版和国际版状态。', 'Enable and refresh to read signed-in CN, Enterprise and International editions from dsh-connect-trae.')),
         el('p', { className: 'cm-note', style: { marginTop: 8 } }, text('全部 Trae 调用 API 等值：今日 ', 'API-equivalent value of all Trae calls: today ') + formatMoneyUsd(equiv(state.today), state.config) + text('；累计 ', '; total ') + formatMoneyUsd(equiv(state.total), state.config) + text('。', '.')))
     }
+    function LocalPlanAccounts({ config, setPlan, state }) {
+      const rows = config.localAccounts ?? []
+      const en = resolveLocale(state.config) === 'en'
+      const [name, setName] = useState(''), [provider, setProvider] = useState(''), [limit, setLimit] = useState(''), [start, setStart] = useState('')
+      const patch = (id, fields) => setPlan('localAccounts', rows.map(row => row.id === id ? { ...row, ...fields } : row))
+      return el('fieldset', { className: 'cm-field' }, el('legend', null, en ? 'Additional local plan accounts' : '其他账号的本地额度'),
+        el('p', { className: 'cm-note' }, en ? 'Bind each account to the provider ID used in DSH. Its usage is counted separately from the primary local estimate.' : '每个账号绑定在 DSH 中实际使用的渠道 ID。该渠道的用量单独估算，并从原账号的本地估算中移出。'),
+        ...rows.map(row => el('div', { key: row.id, className: 'cm-buttons' }, el('label', null,
+          el('input', { type: 'checkbox', checked: row.enabled, onChange: e => patch(row.id, { enabled: e.target.checked }) }), ' ', row.label + ' · ' + row.provider),
+          el('button', { type: 'button', className: 'cm-btn small', onClick: () => setPlan('localAccounts', rows.filter(item => item.id !== row.id)) }, en ? 'Remove' : '移除'))),
+        ...[[en ? 'Account name' : '账号名称', name, setName, 'text'], [en ? 'DSH provider ID' : 'DSH 渠道 ID', provider, setProvider, 'text'],
+          [en ? 'Plan credits' : '套餐总 Credits', limit, setLimit, 'number'], [en ? 'Cycle start (optional)' : '周期开始日期（可选）', start, setStart, 'date']].map(([label, value, set, type]) =>
+            el('label', { key: label }, label, el('input', { className: 'cm-input', type, maxLength: 128, value, onChange: e => set(e.target.value) }))),
+        el('button', { className: 'cm-btn small', type: 'button', disabled: !name.trim() || !provider.trim() || provider.includes(':') || !(Number(limit) > 0) || rows.length >= 10 || rows.some(row => row.provider === provider.trim()),
+          onClick: () => {
+            setPlan('localAccounts', [...rows, { id: crypto.randomUUID(), enabled: true, label: name.trim(), provider: provider.trim(), planCredits: Number(limit), planStart: start }])
+            setName(''); setProvider(''); setLimit(''); setStart('')
+          } }, en ? 'Add plan account' : '添加套餐账号'))
+    }
+
+    function AccountQuotaRow({ row, planId, api, t, config }) {
+      const [busy, msg, refresh] = useQuotaRefresh(t, () => api.refreshCodingPlan(planId + '@' + row.accountId))
+      return el('div', { className: 'cm-go-list', 'data-plan-account': row.accountId },
+        el('strong', null, row.accountLabel), ' ',
+        el('button', { type: 'button', className: 'cm-btn small', disabled: busy, onClick: refresh }, t('refreshCodingPlan')),
+        row.status === 'ok' ? codingPlanWindowEntries(row.windows, planId).map(([name, win]) =>
+          quotaWindowRow(t, codingPlanWindowLabel(name, t), win, barDirectionOf(config, 'plan'), false, name))
+          : el('p', { className: 'cm-note' }, row.message || t('codingPlanNotQueried')),
+        msg?.text && el('p', { className: 'cm-note' }, msg.text))
+    }
+
     function PlanQuotaCard(props) {
       const { state, api, t, draft, setDraft, planId, labelKey } = props
       const config = state.config
@@ -369,6 +422,9 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
               ? el('p', { className: 'cm-note' }, live.message)
               : el('div', { className: 'cm-bal-line' }, t('codingPlanNotQueried'))
       const configNode = el(Fragment, null,
+        ['qwen', 'scnet'].includes(planId) ? el(LocalPlanAccounts, { config: cfgEntry, setPlan, state }) : null,
+        ['workbuddy', 'trae'].includes(planId) ? el('label', { className: 'cm-field' }, el('input', { type: 'checkbox', checked: cfgEntry.showAccountQuotas === true,
+          onChange: e => setPlan('showAccountQuotas', e.target.checked) }), resolveLocale(config) === 'en' ? 'Show each account reported by the connector' : '分别显示连接插件提供的各账号额度') : null,
         subscriptionCatalog[planId] ? el('p', { className: 'cm-note', 'data-cm-plan-catalog': planId },
           subscriptionCatalog[planId][resolveLocale(state.config) === 'en' ? 'en' : 'zh'], ' ',
           el('a', { href: subscriptionCatalog[planId].sourceUrl, target: '_blank', rel: 'noopener noreferrer', style: { whiteSpace: 'nowrap' } }, resolveLocale(state.config) === 'en' ? 'Plan details' : '套餐详情')) : null,
@@ -518,7 +574,8 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
         display: cfgEntry.display, onSidebar: value => setPlan('display', value),
         planId, targeted: props.targeted,
         name: t(labelKey), enabled, saved: config.codingPlans?.[planId], busy, open, errorMsg: msg?.text === live.message ? null : msg,
-        statusNode, configNode,
+        statusNode: live.accountQuotas?.length ? el(Fragment, null, el('strong', null, live.accountLabel), statusNode,
+          ...live.accountQuotas.map(row => el(AccountQuotaRow, { key: row.accountId, row, planId, api, t, config }))) : statusNode, configNode,
         onToggle: value => setPlan('enabled', value),
         onRefresh: doRefresh,
         onLogin: doRefresh,

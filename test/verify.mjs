@@ -1454,7 +1454,7 @@ assert.deepEqual(CODING_PLAN_PROVIDERS.scnet.credentialEnvs, [], 'scnet 不需�
   // 六类图框接线:官方余额(框+行)、自定义余额(框+行)、Coding Plan(通用+MiniMax)。
   assert.equal((clientSource.match(/useClickRefresh\(api \? \(\) => api\.refreshBalance\(\) : null\)/g) ?? []).length, 2, '官方余额框/行均接 refreshBalance')
   assert.equal((clientSource.match(/useClickRefresh\(api \? \(\) => api\.refreshCustomBalance\(index\) : null\)/g) ?? []).length, 2, '自定义余额框/行均接 refreshCustomBalance(多配置形态按条目 index 刷新,issue #79)')
-  assert.ok(clientSource.includes("useClickRefresh(api ? () => api.refreshCodingPlan(id) : null)"), '通用 Coding Plan 图框接 refreshCodingPlan(id)')
+  assert.ok(clientSource.includes("useClickRefresh(api ? () => api.refreshCodingPlan(live?.accountId ? id + '@' + live.accountId : id) : null)"), '通用套餐卡按账号选择刷新目标')
   assert.ok(clientSource.includes("useClickRefresh(api ? () => api.refreshCodingPlan('minimax') : null)"), 'MiniMax 图框接 refreshCodingPlan(minimax)')
   const footerSource = clientSource.match(/function renderSidebarFooter\([^)]*\) \{([\s\S]*?)\n    \}/)?.[0] ?? ''
   assert.equal((footerSource.match(/api: api/g) ?? []).length, 6, '共享侧栏六类图框透传 api')

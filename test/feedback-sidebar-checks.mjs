@@ -145,12 +145,18 @@ export async function checkFeedbackSidebar(page, output) {
   await recovery.locator('summary').click()
   await recovery.getByRole('button', { name: '恢复', exact: true }).click()
   await page.waitForFunction(() => window.current().gatewayQuotas.sources.length === 2)
-  const imported = { ...removedSource, id: 'from-before-upgrade', label: '旧备份中的网关' }
+  const imported = { ...removedSource, id: 'from-before-upgrade', label: '旧备份中的网关', enabled: true }
   await recovery.locator('input[type=file]').setInputFiles({ name: 'ledger.json.config-bak', mimeType: 'application/json',
     buffer: Buffer.from(JSON.stringify({ config: { gatewayQuotas: { sources: [imported, otherSource] } } })) })
   await recovery.getByRole('button', { name: '恢复', exact: true }).click()
   await page.waitForFunction(() => window.current().gatewayQuotas.sources.length === 3)
-  assert.deepEqual(await page.evaluate(() => window.current().gatewayQuotas.sources.map(row => row.id)), [otherSource.id, removedSource.id, imported.id])
+  const restored = await page.evaluate(() => window.current().gatewayQuotas.sources)
+  assert.deepEqual(restored.slice(0, 2).map(row => row.id), [otherSource.id, removedSource.id])
+  assert.equal(restored[2].label, imported.label)
+  assert.equal(restored[2].baseURL, imported.baseURL)
+  assert.ok(restored[2].id && ![otherSource.id, removedSource.id, imported.id].includes(restored[2].id))
+  assert.equal(restored[2].enabled, false)
+  assert.equal(await recovery.getByRole('button', { name: '恢复', exact: true }).count(), 0)
   // Plugin removal releases its CSS constraints and does not mutate host styles.
   await page.evaluate(() => window.configure({ sidebar: false, hideOfficialBalance: true, peakNotice: false, codingPlans: { opendesign: { enabled: false } } }))
   await host.locator('.cm-footer-stack').waitFor({ state: 'detached' })

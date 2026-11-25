@@ -91,7 +91,7 @@
       ]
       const cardOf = item => {
         if (item.kind === 'plan') return el(QuotaSettingsCard, { key: item.key, planId: item.planId, labelKey: item.labelKey, targeted: item.planId === props.targetPlan, state, api, t, draft, setDraft })
-        if (item.kind === 'go') return el(GoQuotaCard, { key: item.key, state, api, t, draft, setDraft })
+        if (item.kind === 'go') return el(GoQuotaCard, { key: item.key, state, api, t, draft, setDraft, accountRows: state.goQuota?.accountQuotas?.map(row => el(AccountQuotaRow, { key: row.accountId, row, planId: 'go', api, t, config })) })
         if (item.kind === 'gateway') return el(QuotaSettingsCard, { key: item.key, mode: 'gateway', index: item.index, state, api, t, draft, setDraft, onRemove: () => removeGateway(item.index) })
         return el(CustomBalanceEntryPanel, {
           key: item.key, state, api, t, entry: entries[item.index], index: item.index, canRemove: true,
@@ -109,6 +109,9 @@
           el('button', { className: 'cm-btn small', onClick: () => addGateway('antigravity-manager'), disabled: sources.length >= 4 }, t('managerQuotaAdd')),
           el('button', { className: 'cm-btn small', onClick: () => addGateway('agy-link'), disabled: sources.length >= 4 || sources.some(source => source.type === 'agy-link') }, t('agyLinkQuotaAdd')),
           el('button', { className: 'cm-btn small', onClick: () => addGateway('subscriptions'), disabled: sources.length >= 4 || sources.some(source => source.type === 'subscriptions') }, t('subscriptionsQuotaAdd')),
+          el('button', { className: 'cm-btn small', disabled: entries.length >= 8,
+            onClick: () => setEntries([...entries, { adapter: 'manual-quota', enabled: false, label: '手动套餐账号', labelEn: 'Manual plan account', display: 'both', unit: 'CREDITS', refreshMinutes: 15,
+              request: { url: '', method: 'GET', headers: {} }, extract: {} }]) }, resolveLocale(config) === 'en' ? 'Add any plan account manually' : '添加任意套餐账号（手动记录）'),
           el('button', { className: 'cm-btn small', onClick: () => addEntry(), disabled: entries.length >= 8 }, t('customBalanceAdd')),
           el('button', { className: 'cm-btn small', onClick: () => addEntry('aliyun'), disabled: entries.length >= 8 }, t('aliyunBalanceAdd')),
           el('button', { className: 'cm-btn small', onClick: () => addEntry('tokenrhythm'), disabled: entries.length >= 8 }, t('tokenRhythmBalanceAdd')),

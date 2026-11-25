@@ -1127,7 +1127,7 @@
     function GoQuotaCard(props) {
       const { state, api, t, draft, setDraft } = props
       const [open, setOpen] = useState(false)
-      const goQuota = state.goQuota
+      const goQuota = state.goQuota ?? {}
       const config = state.config
       const enabled = draft?.goQuota?.enabled ?? config.goQuota?.enabled ?? true
       const setGoQuota = (field, value) => {
@@ -1154,7 +1154,7 @@
               : el('div', { className: 'cm-bal-line' }, t('goQuotaNotQueried'))
       return el(QuotaCard, {
         display: (draft ?? config).goQuota?.display, onSidebar: value => setGoQuota('display', value),
-        name: t('goQuotaTitle'), enabled, saved: config.goQuota, busy, open, statusNode: body, errorMsg: msg,
+        name: t('goQuotaTitle'), enabled, saved: config.goQuota, busy, open, statusNode: el(Fragment, null, goQuota.accountLabel && el('strong', null, goQuota.accountLabel), body, props.accountRows), errorMsg: msg,
         configNode: el(GoQuotaSettings, { config, draft, setDraft, t, api }), onToggleOpen: () => setOpen(v => !v),
         onToggle: value => setGoQuota('enabled', value),
         onRefresh: doRefresh,
@@ -1743,10 +1743,19 @@
         try { return supportedLocale(ctx.get('locale')?.getSnapshot?.().active) }
         catch { return null }
       }
-      let desktopAgy, loadingAgy, agyDisposed = false
-      ctx.effect(() => () => { agyDisposed = true; desktopAgy?.dispose(); desktopSubs?.dispose() }, 'cost-meter: Desktop quota transport')
+      let desktopTrae, loadingTrae, desktopAgy, loadingAgy, agyDisposed = false
+      ctx.effect(() => () => { agyDisposed = true; desktopAgy?.dispose(); desktopSubs?.dispose(); desktopTrae?.dispose() }, 'cost-meter: Desktop quota transport')
       const store = makeStore({ status: 'loading', error: null, state: null }, snapshot => {
         const locale = readLocale() || supportedLocale(snapshot.state?.meta?.locale) || detectBrowserLocale()
+        if (!desktopTrae && !loadingTrae && snapshot.state?.codingPlans?.trae?.browserFallback && require.async) {
+          loadingTrae = require.async('./client.trae-quota.js').then(module => {
+            if (agyDisposed) return
+            const update = () => store.set(store.getSnapshot())
+            desktopTrae = module.mount(update)
+            update()
+          }).catch(() => {}).finally(() => { loadingTrae = null })
+        }
+        if (desktopTrae && snapshot.state) snapshot = { ...snapshot, state: desktopTrae.decorate(snapshot.state, locale) }
         if (!desktopAgy && !loadingAgy && snapshot.state?.gatewayQuotas?.some(row => row.browserAccessDenied) && require.async) {
           loadingAgy = require.async('./client.agy-quota.js').then(module => {
             if (agyDisposed) return
@@ -1952,7 +1961,17 @@
           return results.find(r => r && !r.ok) ?? results[0]
         },
         refreshCustomBalance: async (index = null) => receive(index == null ? costMeter.refreshCustomBalance() : costMeter.refreshCustomBalance(index)),
-        refreshCodingPlan: async provider => receive(costMeter.refreshCodingPlan(provider)),
+        refreshCodingPlan: async provider => {
+          const trae = provider.split('@')[0] === 'trae'
+          if (trae) {
+            const local = desktopTrae?.refresh()
+            if (local) return local
+          }
+          const result = await receive(costMeter.refreshCodingPlan(provider))
+          if (!trae || !result.state?.codingPlans?.trae?.browserFallback) return result
+          await loadingTrae
+          return desktopTrae?.refresh() ?? result
+        },
         loginCodingPlan: async provider => receive(costMeter.loginCodingPlan(provider)),
         // OpenDesign 设备码授权:一次点击 = 开授权页 + 轮询 + 写凭据库 + 立刻刷新额度。
         loginOpenDesign: async () => receive(costMeter.loginOpenDesign()),

@@ -113,7 +113,8 @@
     }
     function parseConfig(v, path) {
     const parseCustomEntry = e => (e == null ? undefined : {
-      ...(['aliyun', 'tokenrhythm', 'openai-credits', 'fireworks'].includes(e.adapter) ? { adapter: e.adapter } : {}),
+      ...(['aliyun', 'tokenrhythm', 'openai-credits', 'fireworks', 'manual-quota'].includes(e.adapter) ? { adapter: e.adapter } : {}),
+      ...(e.quotaReading ? { quotaReading: e.quotaReading } : {}),
       ...(e.adapter === 'openai-credits' ? { grantAmount: num0(e.grantAmount), grantStart: e.grantStart ?? '', grantExpiry: e.grantExpiry ?? '' } : {}),
       enabled: e.enabled === true,
       label: typeof e.label === 'string' ? e.label : '',
@@ -211,7 +212,7 @@
               const e = v.codingPlans[id]
               if (e === null || typeof e !== 'object' || Array.isArray(e)) continue
               out[id] = {
-                enabled: e.enabled === true,
+                enabled: e.enabled === true, localAccounts: e.localAccounts, showAccountQuotas: e.showAccountQuotas,
                 display: e.display === 'sidebar' || e.display === 'both' || e.display === 'off' ? e.display : 'settings',
                 ...(typeof e.sidebarAfterSuccess === 'boolean' ? { sidebarAfterSuccess: e.sidebarAfterSuccess } : {}),
                 ...(typeof e.showInComposer === 'boolean' ? { showInComposer: e.showInComposer } : {}),
@@ -377,6 +378,7 @@
     function parseGoQuota(v, path) {
       return {
         ...parseSnapshotStatus(v, path),
+        accountLabel: v.accountLabel, accountQuotas: Array.isArray(v.accountQuotas) ? v.accountQuotas : [],
         rolling: parseGoWindow(v.rolling, path + '.rolling'),
         weekly: parseGoWindow(v.weekly, path + '.weekly'),
         monthly: parseGoWindow(v.monthly, path + '.monthly'),
@@ -828,6 +830,7 @@
       const base = normalizeClientTier(raw)
       if (base === undefined) return null
       Object.assign(base, priceMultiplierSettings(raw), peakScheduleSettings(raw))
+      if (raw.currency === 'CNY') base.currency = 'CNY'
       if (raw.billingMode === 'utc-peak') base.billingMode = 'utc-peak'
       if (raw.peakSchedule === 'volcengine') base.peakSchedule = 'volcengine'
       // 峰谷/历史子档必须随主档一起保留:usageSplit 回退计价与 Plan 拆分靠 tierFor
@@ -1292,6 +1295,7 @@
       if (!result.currency && !result.priced) {
         result = legacyDeepseekOverride(normalized, config?.priceOverrides?.[normalized + ':' + modelId], config?.prices ?? {}, config?.priceMatch === 'exact' ? 'exact' : 'auto') ?? result
       }
+      if (!result.currency && result.entry?.currency === 'CNY') result.currency = 'CNY'
       if (!result.currency) {
         result = result.priced && config?.prices?.currency === 'CNY' && result.entry?.cny
           ? { ...result, entry: cnyPrice(result.entry), currency: 'CNY' }
@@ -1916,9 +1920,9 @@
         prettyProviderKey(row.provider + ':' + row.model) + ' · ' + (names[row.bucket] || (row.bucket === 'fetchRequests' ? (en ? 'Fetch requests' : '抓取请求') : (en ? 'Search requests' : '搜索请求'))) + (row.plan ? ' (Plan)' : '') + ': ' + (row.requests ? row.requests + (en ? ' requests' : ' 次') : row.tokens.toLocaleString()) + ' × ' + (row.priced ? unitPrice(row.rate) : '?') + (row.requests ? ' ≈ ' : ' / 1,000,000 ≈ ') + (row.priced ? money(row.cost) : '?'),
         !row.priced ? (en ? ' (price unavailable)' : '（未配置价格）') : row.bucket === 'reasoning' && row.rate === 0 ? (en ? ' (no separate charge)' : '（不单独收费）') : '')
       return el('details', { className: 'cm-note', style: { fontSize: 12, marginTop: 6 } },
-        el('summary', { style: { cursor: 'pointer' }, title: en ? 'Log estimate at configured prices; session cost uses recorded ledger amounts.' : '本轮按日志和配置价格估算，本会话按账本已入账金额汇总。' }, en ? 'Turn cost' : '本轮费用', value?.found ? ' ≈ ' + money(displayCostOf(value, config)) + (value.rows.some(r => !r.priced) ? (en ? ' + unpriced usage' : ' + 未定价用量') : '') : value?.inherited ? (en ? ' · inherited history' : ' · 继承历史') : error ? ' ⚠' : ''),
+        el('summary', { style: { cursor: 'pointer' }, title: en ? 'Calls in this session and turn. Find team and subagent totals in session billing details.' : '本轮费用按当前会话的调用估算。团队和子代理费用见会话账单明细。' }, en ? 'Turn cost' : '本轮费用', value?.found ? ' ≈ ' + money(displayCostOf(value, config)) + (value.rows.some(r => !r.priced) ? (en ? ' + unpriced usage' : ' + 未定价用量') : '') : value?.inherited ? (en ? ' · inherited history' : ' · 继承历史') : error ? ' ⚠' : ''),
         error ? el('div', { role: 'alert' }, error) : !value ? (en ? 'Loading…' : '加载中…') : !value.found ? value.inherited ? (en ? 'Inherited usage is not billed again in this conversation.' : '继承的历史用量不在本会话重复计费。') : (en ? 'Complete usage records unavailable' : '没有完整用量记录') :
-          el(Fragment, null, el('p', null, en ? 'Estimated from recorded usage and configured prices; rates per 1M tokens.' : '按已记录用量和配置价格估算；单价单位为每百万 Token。'),
+          el(Fragment, null, el('p', null, en ? 'Estimated from this session’s calls in this turn, at rates per 1M tokens. Team calls are listed in session billing details.' : '按当前会话本轮的调用估算，单价单位为每百万 Token。团队成员的调用列在会话账单明细中。'),
             el('p', null, 'API ≈ ' + money(displayCostOf(value, { ...config, showTotalWithPlan: false })) + ' · Plan ≈ ' + money(displayCostOf(value, { ...config, showTotalWithPlan: true }) - displayCostOf(value, { ...config, showTotalWithPlan: false })) + (en ? ' (equivalent)' : '（等值）')),
             value.rows.map(rowView),
             el('details', null, el('summary', { style: { cursor: 'pointer' } }, (en ? 'Individual calls' : '逐次调用明细') + ' (' + value.calls.length + ')'),
@@ -2847,7 +2851,7 @@
         rail: barView.label === null ? '—' : Math.round(barView.label) + '%',
         body: el(Fragment, null,
           el('div', { className: 'cm-bbox-head' },
-            el('span', { className: 'cm-bbox-label' }, t('goQuotaRowLabel') + ' ' + shortOf(mainKey)),
+            el('span', { className: 'cm-bbox-label' }, [t('goQuotaRowLabel'), goQuota.accountLabel, shortOf(mainKey)].filter(Boolean).join(' ')),
             el('span', { className: 'cm-bbox-pct cm-num' }, barView.label === null ? '—' : Math.round(barView.label) + '%')),
           el('div', { className: 'cm-bbox-bar' },
             el('div', { className: 'cm-bbox-fill', style: { width: barView.width + '%' } })),
@@ -3279,14 +3283,15 @@
     function CodingPlanBox(props) {
       const hoverProps = useQuotaHoverRefresh()
       const { id, state, wide, api } = props
-      const live = state.codingPlans?.[id]
+      const live = props.account ?? state.codingPlans?.[id]
       const t = makeT(resolveLocale(state.config))
-      const refresh = useClickRefresh(api ? () => api.refreshCodingPlan(id) : null)
-      const rowDef = CODING_PLAN_ROWS.find(r => r.id === id)
+      const refresh = useClickRefresh(api ? () => api.refreshCodingPlan(live?.accountId ? id + '@' + live.accountId : id) : null)
+      const rowDef = id === 'go' ? { labelKey: 'goQuotaTitle' } : CODING_PLAN_ROWS.find(r => r.id === id)
       if (!rowDef) return null
+      const title = [t(rowDef.labelKey), live?.accountLabel].filter(Boolean).join(' · ')
       const windows = live?.windows !== null && typeof live?.windows === 'object' ? live.windows : {}
       const entries = codingPlanWindowEntries(windows, id)
-      if (live?.status !== 'ok' || entries.length === 0) return codingPlanPlaceholder(id, t(rowDef.labelKey), live, t, wide, refresh)
+      if (live?.status !== 'ok' || entries.length === 0) return codingPlanPlaceholder(id, title, live, t, wide, refresh)
       const pctOf = win => win !== null && typeof win === 'object' && typeof win.percent === 'number'
         ? Math.max(0, Math.min(100, Math.round(Number(win.percent) || 0))) : null
       // 条形方向(issue #67):Plan 卡默认已用方向,剩余方向时填充与标签显示剩余%。
@@ -3324,7 +3329,7 @@
       if (live.fetchedAt > 0) detailParts.push(t('goQuotaFetchedAt', { time: new Date(live.fetchedAt).toLocaleTimeString() }))
       if (live.message) detailParts.push(live.message)
       detailParts.push(...clickRefreshTipLines(t, refresh))
-      const detail = [t(rowDef.labelKey), ...detailParts].join('\n')
+      const detail = [title, ...detailParts].join('\n')
       const pcts = entries.map(([, win]) => pctOf(win)).filter(p => p !== null)
       const level = codingPlanQuotaLevel(Math.max(0, ...pcts), id)
       const railText = pcts.length > 0
@@ -3337,7 +3342,7 @@
             : el(Fragment, null,
               // 标题和余额共用一行,保留悬停提示中的完整余额标签。
               el('div', { className: titleValue ? 'cm-mm-title cm-mm-row wide' : 'cm-mm-title' },
-                t(rowDef.labelKey),
+                title,
                 titleValue && el('span', { className: 'cm-mm-text' }, titleValue)),
               el(gauge ? 'div' : Fragment, gauge ? { className: 'cm-plan-gauges' } : null, ...rows))))
     }
@@ -3537,8 +3542,7 @@
         }
       }
       // Go chip:主窗口一档(与右下角 chips 的主窗口口径一致)。
-      if (quotaInComposer(config.goQuota, strip, 'go')) {
-        const goQuota = state.goQuota
+      if (quotaInComposer(config.goQuota, strip, 'go')) for (const goQuota of [state.goQuota, ...(state.goQuota?.accountQuotas ?? []).map(row => ({ ...row, ...row.windows }))]) {
         if (config?.goQuota?.enabled !== false && goQuota?.status === 'ok') {
           const mainKey = config.goQuota.main === 'weekly' || config.goQuota.main === 'monthly' ? config.goQuota.main : 'rolling'
           const win = mainKey === 'rolling' ? goQuota.rolling : mainKey === 'weekly' ? goQuota.weekly : goQuota.monthly
@@ -3548,8 +3552,8 @@
             const resets = typeof win.resetsAt === 'string' && win.resetsAt.length > 0
               ? ' · ' + t('goResetAt', { time: new Date(win.resetsAt).toLocaleString() }) : ''
             chips.push({
-              key: 'go',
-              label: 'Go ' + t(mainKey === 'rolling' ? 'goShortRolling' : mainKey === 'weekly' ? 'goShortWeekly' : 'goShortMonthly'),
+              key: goQuota.accountId ? 'go@' + goQuota.accountId : 'go',
+              label: 'Go ' + (goQuota.accountLabel ? goQuota.accountLabel + ' ' : '') + t(mainKey === 'rolling' ? 'goShortRolling' : mainKey === 'weekly' ? 'goShortWeekly' : 'goShortMonthly'),
               level,
               tip: goQuotaDetail(goQuota, config, t),
               segs: [{ name: 'main', pct: Math.round(simpleBarByDirection(pct, barDirectionOf(config, 'go')).width) }],
@@ -3559,8 +3563,7 @@
       }
       // Coding Plan chip:每家厂商一条(多窗口融合为段,竖线分隔;点击刷新整家,issue #52)。
       {
-        for (const rowDef of CODING_PLAN_ROWS) {
-          const live = state.codingPlans?.[rowDef.id]
+        for (const rowDef of CODING_PLAN_ROWS) for (const live of [state.codingPlans?.[rowDef.id], ...(state.codingPlans?.[rowDef.id]?.accountQuotas ?? [])]) {
           if (!quotaInComposer(config.codingPlans?.[rowDef.id], strip, 'plans') || !live || live.status !== 'ok') continue
           const windows = live.windows !== null && typeof live.windows === 'object' ? live.windows : {}
           const allEntries = codingPlanWindowEntries(windows, rowDef.id)
@@ -3596,8 +3599,8 @@
           if (live.fetchedAt > 0) detailParts.push(t('goQuotaFetchedAt', { time: new Date(live.fetchedAt).toLocaleTimeString() }))
           if (segs.length === 0) continue
           chips.push({
-            key: rowDef.id + (group ? ':core' : ''),
-            label: vendor + (rowDef.id === 'factory' ? group ? ' Core' : ' Standard' : ''),
+            key: rowDef.id + (live.accountId ? '@' + live.accountId : '') + (group ? ':core' : ''),
+            label: vendor + (live.accountLabel ? ' · ' + live.accountLabel : '') + (rowDef.id === 'factory' ? group ? ' Core' : ' Standard' : ''),
             level: ['ok', 'warn', 'over'][worst],
             tip: detailParts.join('; '),
             segs,
@@ -3642,7 +3645,7 @@
           .then(() => (key === 'budget' ? api.reload()
             : key === 'go' ? api.refreshGoQuota()
               : key === 'codex' ? fetchCodexQuota(true, config.codexQuotaEnabled === true, config.codexQuotaSource)
-                : key === 'factory:core' ? api.refreshCodingPlan('factory') : api.refreshCodingPlan(key)))
+                : key.endsWith(':core') ? api.refreshCodingPlan(key.slice(0, -5)) : api.refreshCodingPlan(key)))
           .catch(error => { setErrs(m => ({ ...m, [key]: error?.message ?? String(error) })) })
           .finally(() => setBusyKey(null))
       }
@@ -3882,9 +3885,9 @@
           const entry = config.codingPlans?.[id]
           if (entry?.enabled !== true) return false
           if (entry.display !== 'sidebar' && entry.display !== 'both') return false
-          return entry.sidebarAfterSuccess !== true || state.codingPlans?.[id]?.status === 'ok'
+          return entry.sidebarAfterSuccess !== true || state.codingPlans?.[id]?.status === 'ok' || state.codingPlans?.[id]?.accountQuotas?.some(row => row.status === 'ok')
         })
-      const plansOn = sidebarPlanIds.length > 0
+      const plansOn = sidebarPlanIds.length > 0 || Boolean(state.goQuota?.accountQuotas?.length && ['sidebar', 'both'].includes(config.goQuota?.display))
       // 网关额度侧边栏卡片(issue #96):按来源 display 门控,卡片本体见 GatewayQuotaBox。
       const gatewayNodes = gatewaySidebarCards(state, config, wide, api)
       // 启用后始终保留卡片,避免未登录/接口失败时没有提示和手动重试入口。
@@ -3908,12 +3911,17 @@
       if (showCustomBalanceBar) nodes.push(el(CustomBalanceBox, { key: 'customBalance', state, wide, api: api }))
       else if (showCustomBalance) nodes.push(el(CustomBalanceRowContent, { key: 'customBalance', state, wide, api: api }))
       const afterBalance = nodes.length
-      if (plansOn) nodes.push(...sidebarPlanIds.map(id => id === 'minimax'
+      if (plansOn) nodes.push(...sidebarPlanIds.map(id => state.codingPlans?.[id]?.accountQuotas?.length
+        ? el(Fragment, { key: 'plan:' + id }, ...[state.codingPlans[id], ...state.codingPlans[id].accountQuotas]
+          .filter(row => !config.codingPlans[id].sidebarAfterSuccess || row.status === 'ok')
+          .map(row => el(CodingPlanBox, { key: row.accountId ?? 'selected', account: row, id, state, wide, api })))
+        : id === 'minimax'
         ? el(MiniMaxPlanBox, { key: 'plan:' + id, state, wide, api: api })
         : el(CodingPlanBox, { key: 'plan:' + id, id, state, wide, api: api })))
       nodes.push(...gatewayNodes)
       if (codexOn) nodes.push(el(CodexPlanBox, { key: 'codex', state, wide, api, preview }))
-      if (goOk) nodes.push(el(GoQuotaBox, { key: 'go', state, wide }))
+      if (goOk || state.goQuota?.accountQuotas?.length && ['sidebar', 'both'].includes(config.goQuota?.display)) nodes.push(el(Fragment, { key: 'go' },
+        el(GoQuotaBox, { state, wide }), ...(state.goQuota?.accountQuotas ?? []).map(row => el(CodingPlanBox, { key: row.accountId, account: row, id: 'go', state, wide, api }))))
       if (budgetOn) nodes.push(el(BudgetBoxContent, { key: 'budget', state, wide, summary: simple && wide }))
       if (showToday && (!(simple && wide) || config.sidebarTodayBalanceInline)) nodes.push(el(BudgetBoxContent, { key: 'today', state, wide, todayOnly: true }))
       // Each display target owns its visibility; hiding another card cannot hide it.
