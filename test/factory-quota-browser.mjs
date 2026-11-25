@@ -33,10 +33,10 @@ const code = `
 import React from ${literal(req.resolve('react'))};
 import * as ReactDOMPortal from ${literal(req.resolve('react-dom'))};
 import {createRoot} from ${literal(req.resolve('react-dom/client'))};
-const require=name=>name==='react'?React:{Tooltip:({children})=>children};require.async=async path=>{const chunk=path==='./client.plan-settings.js'?window.planUI:path==='./client.sidebar-icons.js'?window.sidebarIconsUI:path==='./client.peak.js'?window.peakUI:null;if(!chunk)throw Error('Unexpected test chunk: '+path);return chunk};window.__ModuleLoader__={load:mod=>window.costUI=mod.factory(require)};
+const require=name=>name==='react'?React:{Tooltip:({children})=>children};require.async=async path=>{const chunk=path==='./client.plan-accounts.js'?window.planUI:path==='./client.sidebar-icons.js'?window.sidebarIconsUI:path==='./client.peak.js'?window.peakUI:null;if(!chunk)throw Error('Unexpected test chunk: '+path);return chunk};window.__ModuleLoader__={load:mod=>window.costUI=mod.factory(require)};
 ${client}
 window.__ModuleLoader__={load:mod=>window.planUI=mod.factory(require)};
-${readFileSync('lib/client.plan-settings.js','utf8')}
+${readFileSync('lib/client.plan-accounts.js','utf8')}
 window.__ModuleLoader__={load:mod=>window.sidebarIconsUI=mod.factory(name=>name==='react'?React:{})};
 ${readFileSync('lib/client.sidebar-icons.js','utf8')}
 window.__ModuleLoader__={load:mod=>window.peakUI=mod.factory(name=>name==='react-dom'?ReactDOMPortal:React)};

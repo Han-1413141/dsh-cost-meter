@@ -3885,7 +3885,7 @@
           const entry = config.codingPlans?.[id]
           if (entry?.enabled !== true) return false
           if (entry.display !== 'sidebar' && entry.display !== 'both') return false
-          return entry.sidebarAfterSuccess !== true || state.codingPlans?.[id]?.status === 'ok' || state.codingPlans?.[id]?.accountQuotas?.some(row => row.status === 'ok')
+          return entry.sidebarAfterSuccess !== true || state.codingPlans?.[id]?.status === 'ok' || state.codingPlans?.[id]?.accountQuotas?.length > 0
         })
       const plansOn = sidebarPlanIds.length > 0 || Boolean(state.goQuota?.accountQuotas?.length && ['sidebar', 'both'].includes(config.goQuota?.display))
       // 网关额度侧边栏卡片(issue #96):按来源 display 门控,卡片本体见 GatewayQuotaBox。
@@ -3913,7 +3913,6 @@
       const afterBalance = nodes.length
       if (plansOn) nodes.push(...sidebarPlanIds.map(id => state.codingPlans?.[id]?.accountQuotas?.length
         ? el(Fragment, { key: 'plan:' + id }, ...[state.codingPlans[id], ...state.codingPlans[id].accountQuotas]
-          .filter(row => !config.codingPlans[id].sidebarAfterSuccess || row.status === 'ok')
           .map(row => el(CodingPlanBox, { key: row.accountId ?? 'selected', account: row, id, state, wide, api })))
         : id === 'minimax'
         ? el(MiniMaxPlanBox, { key: 'plan:' + id, state, wide, api: api })

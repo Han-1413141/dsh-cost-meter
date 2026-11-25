@@ -79,7 +79,13 @@ try {
   const dayKey = new Date().toLocaleDateString('sv-SE')
   const day = zeroDay(dayKey)
   day.byProviderModel = { 'my-qwen-account:qwen3.8-max-preview': { input: 1000000, calls: 1 } }
-  writeFileSync(ledgerPath, JSON.stringify({ version: 1, days: { [dayKey]: day }, config: { locale: 'en', goQuota: { enabled: false }, balance: { display: 'off' } } }))
+  const zai = 'codingPlans.zai'
+  const oldGroup = { selected: b, accounts: [{ id: b, label: '我的智谱' }] }
+  const legacyConfig = { locale: 'zh', goQuota: { enabled: false }, balance: { display: 'off' },
+    codingPlans: { zai: { enabled: true, display: 'sidebar', refreshMinutes: 2 } }, queryAccounts: { [zai]: oldGroup } }
+  writeFileSync(ledgerPath, JSON.stringify({ version: 1, days: { [dayKey]: day }, config: legacyConfig }))
+  values.set(queryAccountTarget(legacyConfig, zai + '@default', secretRefOf).ref, 'KEY-A')
+  values.set(queryAccountTarget(legacyConfig, zai + '@' + b, secretRefOf).ref, 'KEY-B')
   globalThis.fetch = async (url, init) => {
     const key = init.headers.authorization.replace(/^Bearer /, '')
     requests.push({ url: String(url), key })
@@ -95,6 +101,20 @@ try {
     provide: (name, service) => { if (name === 'costMeter') api = service }, on: () => () => {}, inject() {}, logger: { info() {}, warn() {}, error() {} },
     effect: (fn, label) => { const cleanup = fn(); if (label === 'cost-meter: backfill timer' || label === 'cost-meter: openrouter refresh timer') cleanup?.(); else if (typeof cleanup === 'function') cleanups.push(cleanup) },
   })
+  const wire = CLIENT_CONTRIBUTION.descriptors.find(d => d.method === 'getState').result.create()
+  const migrated = await api.getState()
+  assert.deepEqual(migrated.config.queryAccounts[zai].displayed, ['default', b], 'upgrade should retain the configured default and named account')
+  const refreshDefault = await api.refreshCodingPlan('zai@default')
+  assert.ok(refreshDefault.ok, refreshDefault.message)
+  const restored = wire.parse(stateSchema.parse(refreshDefault.state))
+  assert.deepEqual(Array.from(restored.config.queryAccounts[zai].displayed), ['default', b])
+  assert.equal(restored.codingPlans.zai.accountLabel, '我的智谱')
+  assert.equal(restored.codingPlans.zai.windows.fiveHour.percent, 22)
+  assert.equal(restored.codingPlans.zai.accountQuotas[0].accountId, 'default')
+  assert.equal(restored.codingPlans.zai.accountQuotas[0].windows.fiveHour.percent, 11)
+  await api.updateConfig({ locale: 'en', queryAccounts: { [zai]: { ...oldGroup, displayed: [] } } })
+  assert.deepEqual((await api.getState()).codingPlans.zai.accountQuotas ?? [], [], 'keep intentionally hidden accounts hidden')
+  assert.ok(!(await api.refreshCodingPlan('zai@default')).ok)
   await api.updateConfig({ queryAccounts: { balance: group(a), 'codingPlans.openrouter': group(a) } })
   for (const target of ['balance', 'codingPlans.openrouter']) {
     assert.equal((await api.setCredential(target + '@' + a, 'KEY-A')).ok, true)
@@ -129,7 +149,6 @@ try {
   assert.equal(requests.filter(row => row.url.startsWith('https://openrouter.ai/')).at(-1).key, 'KEY-B')
   await api.clearCredential('codingPlans.openrouter@' + a)
   assert.equal(values.get(queryAccountTarget(config, 'codingPlans.openrouter@' + b, secretRefOf).ref), 'KEY-B', 'clearing one account preserves another')
-  const zai = 'codingPlans.zai'
   await api.updateConfig({ queryAccounts: { [zai]: { ...group(a), displayed: [a, b] } } })
   await api.setCredential(zai + '@' + a, 'KEY-A')
   await api.setCredential(zai + '@' + b, 'KEY-B')

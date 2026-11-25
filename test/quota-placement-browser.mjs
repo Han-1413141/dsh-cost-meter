@@ -46,7 +46,7 @@ const h=React.createElement;const require=name=>name==='react'?React:{Tooltip:({
 window.__ModuleLoader__={load:mod=>window.mainUI=mod.factory(require)};
 ${source}
 window.__ModuleLoader__={load:mod=>window.planUI=mod.factory(require)};
-${readFileSync('lib/client.plan-settings.js', 'utf8')}
+${readFileSync('lib/client.plan-accounts.js', 'utf8')}
 const {PlanQuotaCard,QuotaStrip,renderSidebarFooter,makeT,css}=window.mainUI.placementUI;
 let state={config:window.initialConfig,today:${literal(day)},month:${literal(day)},total:${literal(day)},history:[],budgetUsed:0,balance:{status:'ok',totalBalance:15.41,grantedBalance:5.41,toppedUpBalance:10,currency:'CNY'},codingPlans:{zai:{status:'ok',fetchedAt:1,windows:{fiveHour:{percent:30},weekly:{percent:100}}}}};
 const listeners=new Set();const publish=()=>{for(const fn of listeners)fn(state)};const setConfig=async next=>{const config=await window.persist(next);state={...state,config};publish()};window.current=()=>state.config;window.changeLocale=locale=>setConfig({...state.config,locale});window.refreshes=0;

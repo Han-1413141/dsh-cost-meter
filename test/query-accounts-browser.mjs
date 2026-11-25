@@ -10,12 +10,13 @@ import { javascriptLiteral as literal } from '../scripts/javascript-literal.mjs'
 const req = createRequire(resolve(process.env.DSH_TEST_UI_MODULES ?? '.tmp-context-host/node_modules', '__accounts.cjs'))
 const { chromium } = req('playwright-core')
 const client = readdirSync('src/client').filter(n => n.endsWith('.js')).sort().map(n => readFileSync('src/client/' + n, 'utf8')).join('')
-  .replace('exports.apply = apply', 'exports.accountTest = { CredentialField, CostSection }; exports.apply = apply')
+  .replace('exports.apply = apply', 'exports.accountTest = { CredentialField, CostSection, css }; exports.apply = apply')
 const code = `import React from ${literal(req.resolve('react'))};import{createRoot}from ${literal(req.resolve('react-dom/client'))};
 const h=React.createElement,mainRequire=()=>React;mainRequire.async=async()=>window.accounts;window.__ModuleLoader__={load:m=>window.main=m.factory(mainRequire)};
 ${client}
+const style=document.createElement('style');style.textContent=window.main.accountTest.css;document.head.append(style);
 window.__ModuleLoader__={load:m=>window.accounts=m.factory(()=>React)};
-${readFileSync('lib/client.plan-settings.js', 'utf8')}
+${readFileSync('lib/client.plan-accounts.js', 'utf8')}
 const Component=window.accounts.mount({CredentialField:window.main.accountTest.CredentialField,resolveLocale:c=>c.locale});
 let config=${literal(sanitizeConfig({ locale: 'zh' }))},draft=config,target='balance';const values=new Map();window.writes=[];
 const labels={credentialEdit:'Edit credential',credentialInputHint:'Credential',credentialSave:'Save',credentialSaving:'Saving',credentialClear:'Clear',cancel:'Cancel',credentialNotConfigured:'Not configured',credentialConfiguredOf:'Configured'};
@@ -63,6 +64,25 @@ try {
     await page.getByRole('button', { name: 'Save', exact: true }).click()
     const personal = await select.inputValue()
     assert.notEqual(work, personal)
+    for (const width of [735, 320]) {
+      await page.setViewportSize({ width, height: 840 })
+      const layout = await select.evaluate(select => {
+        const editor = select.closest('[data-query-account]')
+        const controls = [...editor.querySelectorAll('button,input,select')].map(n => n.getBoundingClientRect())
+        const rename = editor.querySelector('.cm-account-actions:last-of-type input') ?? editor.querySelector('.cm-account-actions input')
+        const credentials = editor.lastElementChild.getBoundingClientRect()
+        const label = document.createRange()
+        label.selectNodeContents(select.parentElement.firstChild)
+        return {
+          separateLabel: label.getBoundingClientRect().bottom <= select.getBoundingClientRect().top,
+          credentialGap: credentials.top - rename.getBoundingClientRect().bottom,
+          fits: controls.every(r => r.left >= 0 && r.right <= window.innerWidth),
+          overlaps: controls.some((a, i) => controls.slice(i + 1).some(b =>
+            a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top)),
+        }
+      })
+      assert.ok(layout.separateLabel && layout.fits && !layout.overlaps && layout.credentialGap >= 8, JSON.stringify({ target, width, layout }))
+    }
     if (target !== 'balance') {
       const mark = page.getByRole('checkbox', { name: 'Work renamed', exact: true })
       assert.equal(await mark.isChecked(), true)

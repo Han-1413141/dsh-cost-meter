@@ -1,5 +1,5 @@
 /** On-demand subscription settings, including WorkBuddy account statistics. */
-window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-settings.js', factory: require => {
+window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-accounts.js', factory: require => {
   const { createElement: el, useState, useEffect, useRef, Fragment } = require('react')
   const subscriptionCatalog = /* SUBSCRIPTION_CATALOG_SOURCE */ {}
   return { mount(helpers) {
@@ -144,6 +144,17 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
     /* CUSTOM_BALANCE_EDITOR_SOURCE */
 
     /* QUOTA_SECTION_SOURCE */
+    const accountEditorCss = `
+      .cm-account-editor,.cm-account-fields,.cm-account-select{display:grid;min-width:0;gap:10px}
+      .cm-account-editor{gap:14px}
+      .cm-account-select{gap:4px}
+      .cm-account-select select.cm-input{box-sizing:border-box;width:100%;max-width:100%}
+      .cm-account-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;min-width:0}
+      .cm-account-actions input.cm-input{box-sizing:border-box;flex:1 1 13rem;min-width:0;max-width:100%}
+      .cm-account-actions button{flex:none}
+      .cm-account-visible{display:flex;flex-wrap:wrap;gap:6px 14px;min-width:0;margin:0;padding:7px 10px 10px}
+      .cm-account-visible label{display:inline-flex;align-items:center;gap:5px;min-width:0;overflow-wrap:anywhere}
+    `
     function AccountCredentialField(props) {
       const { state, draft, setDraft, target, api } = props
       const text = (zh, en) => resolveLocale(state.config) === 'en' ? en : zh
@@ -159,12 +170,19 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
       useEffect(() => setRename(current?.label ?? ''), [current?.id, current?.label])
       const pending = saved !== group.selected || draft === null || busy
       const change = value => setDraft({ ...draft, queryAccounts: { ...groups, [source]: value } })
+      const shown = group.displayed ?? group.accounts.map(row => row.id)
       const add = () => {
         const label = name.trim()
         if (!label || group.accounts.length >= 10 || pending) return
         if (group.accounts.some(row => row.label.toLowerCase() === label.toLowerCase())) { setError(text('账号名称已存在', 'Account name already exists')); return }
         const id = randomSourceId()
-        change({ ...group, selected: id, accounts: [...group.accounts, { id, label }], ...(multiple ? { displayed: [...new Set([...(group.displayed ?? []), ...(group.selected !== 'default' || props.configured ? [group.selected] : []), id])] } : {}) }); setName(''); setError('')
+        const next = { ...group, selected: id, accounts: [...group.accounts, { id, label }] }
+        // If the existing default key is still being detected, let the host
+        // resolve it before persisting a list that would exclude that account.
+        if (multiple && (group.displayed || group.selected !== 'default' || props.configured))
+          next.displayed = [...new Set([...shown, group.selected, id])]
+        change(next)
+        setName(''); setError('')
       }
       const saveName = () => {
         const label = rename.trim()
@@ -183,26 +201,27 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
         } catch (e) { setError(String(e?.message ?? e)) }
         finally { setBusy(false) }
       }
-      return el('div', { 'data-query-account': target },
-        !target.endsWith('.sk') ? el('div', { className: 'cm-field' },
-          el('label', null, selectionLabel,
+      return el('div', { className: 'cm-account-editor', 'data-query-account': target },
+        el('style', null, accountEditorCss),
+        !target.endsWith('.sk') ? el('div', { className: 'cm-account-fields' },
+          el('label', { className: 'cm-account-select' }, selectionLabel,
             el('select', { className: 'cm-input', 'aria-label': selectionLabel, value: group.selected, disabled: busy || draft === null, onChange: e => change({ ...group, selected: e.target.value }) },
               el('option', { value: 'default' }, text('默认账号（现有配置）', 'Default account (existing configuration)')),
               ...group.accounts.map(row => el('option', { key: row.id, value: row.id }, row.label)))),
-          el('div', { className: 'cm-buttons' },
-            el('input', { className: 'cm-input', type: 'text', value: name, maxLength: 64, autoComplete: 'off', 'aria-label': text('新账号名称', 'New account name'), placeholder: text('如：工作账号', 'e.g. Work account'), disabled: pending, onChange: e => setName(e.target.value), style: { minWidth: 0, flex: 1 } }),
+          el('div', { className: 'cm-account-actions' },
+            el('input', { className: 'cm-input', type: 'text', value: name, maxLength: 64, autoComplete: 'off', 'aria-label': text('新账号名称', 'New account name'), placeholder: text('如：工作账号', 'e.g. Work account'), disabled: pending, onChange: e => setName(e.target.value) }),
             el('button', { className: 'cm-btn small', type: 'button', disabled: pending || !name.trim() || group.accounts.length >= 10, onClick: add }, text('添加账号', 'Add account')),
             group.selected !== 'default' ? el('button', { className: 'cm-btn small', type: 'button', disabled: pending, onClick: remove }, text('移除账号', 'Remove account')) : null),
-          current ? el('div', { className: 'cm-buttons' },
-            el('input', { className: 'cm-input', value: rename, maxLength: 64, 'aria-label': text('账号名称', 'Account name'), disabled: pending, onChange: e => setRename(e.target.value), style: { minWidth: 0, flex: 1 } }),
+          current ? el('div', { className: 'cm-account-actions' },
+            el('input', { className: 'cm-input', value: rename, maxLength: 64, 'aria-label': text('账号名称', 'Account name'), disabled: pending, onChange: e => setRename(e.target.value) }),
             el('button', { className: 'cm-btn small', type: 'button', disabled: pending || !rename.trim() || rename.trim() === current.label, onClick: saveName }, text('保存名称', 'Save name'))) : null,
-          multiple && group.accounts.length > 0 ? el('fieldset', { className: 'cm-field' },
+          multiple && group.accounts.length > 0 ? el('fieldset', { className: 'cm-account-visible' },
             el('legend', null, text('同时显示额度的账号', 'Accounts shown together')),
             ...[{ id: 'default', label: text('默认账号', 'Default account') }, ...group.accounts].map(row =>
               el('label', { key: row.id }, el('input', { type: 'checkbox',
-                disabled: pending || row.id === group.selected, checked: row.id === group.selected || (group.displayed ?? []).includes(row.id),
+                disabled: pending || row.id === group.selected, checked: row.id === group.selected || shown.includes(row.id),
                 onChange: event => {
-                  const displayed = new Set(group.displayed ?? [])
+                  const displayed = new Set(shown)
                   if (event.target.checked) displayed.add(row.id); else displayed.delete(row.id)
                   change({ ...group, displayed: [...displayed] })
                 } }), ' ', row.label))) : null,

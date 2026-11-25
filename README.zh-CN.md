@@ -3,7 +3,7 @@
 <p align="center">DeepSeek Harness 费用统计与订阅额度插件</p>
 
 <p align="center">
-  <a href="https://github.com/Han-1413141/dsh-cost-meter/releases/latest"><img src="https://img.shields.io/badge/version-1.9.90-4176E6?style=flat-square" alt="version"></a>
+  <a href="https://github.com/Han-1413141/dsh-cost-meter/releases/latest"><img src="https://img.shields.io/badge/version-1.9.91-4176E6?style=flat-square" alt="version"></a>
   <a href="https://www.npmjs.com/package/dsh-cost-meter"><img src="https://img.shields.io/npm/dm/dsh-cost-meter?label=downloads&style=flat-square&color=4176E6" alt="npm monthly downloads"></a>
   <a href="https://github.com/Han-1413141/dsh-cost-meter/stargazers"><img src="https://img.shields.io/github/stars/Han-1413141/dsh-cost-meter?label=stars&style=flat-square&color=D9A400" alt="GitHub stars"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT license"></a>
@@ -42,20 +42,20 @@ dsh plugin --profile web add dsh-cost-meter
 PowerShell 脚本自动检查 pnpm 和 Git，默认安装到 `web` Profile：
 
 ```powershell
-irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.90/install.ps1 | iex
+irm https://raw.githubusercontent.com/Han-1413141/dsh-cost-meter/v1.9.91/install.ps1 | iex
 ```
 
 固定 Git tag 安装：
 
 ```sh
-dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.90
+dsh plugin --profile web add github:Han-1413141/dsh-cost-meter#v1.9.91
 ```
 
 更新、卸载及无 Git 的安装方法见[安装说明](docs/install.md)。
 
 </details>
 
-当前版本 **v1.9.90**：[更新说明](docs/release-notes/v1.9.90.md) · [安装排障](docs/install-troubleshooting.md)
+当前版本 **v1.9.91**：[更新说明](docs/release-notes/v1.9.91.md) · [安装排障](docs/install-troubleshooting.md)
 
 要同时查看两个智谱账号，打开「设置 → 额度 → 智谱 GLM Coding Plan」，展开凭据设置，添加并命名第二个账号，保存其凭据，勾选要同时显示的账号。每个账号显示自己的额度和刷新结果。其他套餐的密钥、账号池、本地估算及手动记录方式见本版更新说明。
 
