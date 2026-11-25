@@ -3377,7 +3377,7 @@
       const selectedIdx = snapshot.accounts.findIndex(a => a.id === selectedId)
       const manualIdx = selection.source === source.id && selection.id ? selectedIdx : -1
       const focusKey = state.config?.sidebarFocusProvider !== false && focusProvider ? gwFocusKey(focusProvider) : ''
-      const focusIdx = focusKey ? snapshot.accounts.findIndex(a => { const p = gwFocusKey(a.provider); return p === focusKey || p.endsWith('-' + focusKey) }) : -1
+      const focusIdx = focusKey ? snapshot.accounts.findIndex(a => { const p = gwFocusKey(a.provider); return p === focusKey || p.startsWith(focusKey + '-') || focusKey.startsWith(p + '-') }) : -1
       const activeIdx = manualIdx >= 0 ? manualIdx : focusIdx >= 0 ? focusIdx : selectedIdx >= 0 ? selectedIdx : Math.max(0, snapshot.accounts.findIndex(a => a.windows.length > 0 || a.credits != null))
       const currentAccount = snapshot.accounts[activeIdx] ?? snapshot.accounts[0]
       const currentAccountName = currentAccount?.label || currentAccount?.id || ''
@@ -3839,18 +3839,20 @@
         try { projectionUsage = props.useProjection('costUsage') } catch { projectionUsage = undefined }
       }
       useProjectionRefresh(props, projectionUsage)
+      let sp = projectionUsage?.provider
+      try { sp ||= Object.keys(projectionUsage?.byProviderModel ?? {}).pop()?.split(':')[0] } catch {}
       const current = costStore?.state
       const state = current ? { ...current, config: peakConfigForState(current, projectionUsage?.provider) } : null
       if (!state) return null
       if (botTarget) {
         let portal
         try { portal = require('react-dom')?.createPortal } catch {}
-        if (portal) return portal(renderSidebarFooter(state, true, props.api, false, projectionUsage?.provider), botTarget)
+        if (portal) return portal(renderSidebarFooter(state, true, props.api, false, sp), botTarget)
       }
       const simple = state.config?.sidebarSimple === true
       const entryMode = !simple && state.config?.sidebarStyle === 'entry'
       const explicitIcons = !simple && state.config?.sidebarStyle === 'icons'
-      const fallback = renderSidebarFooter(state, !!props.wide, props.api, false, projectionUsage?.provider, false, entryMode)
+      const fallback = renderSidebarFooter(state, !!props.wide, props.api, false, sp, false, entryMode)
       if (fallback && (entryMode || (mobile && !explicitIcons))) {
         return el(BillingStatistics, {
           load: loadFooterChip,
