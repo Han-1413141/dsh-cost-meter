@@ -612,16 +612,18 @@ window.__ModuleLoader__.load({
           el('span', { className: 'cm-note', role: 'status' }, en ? `${total} models` : `${total} 个模型`)),
         ...groups.map(({ id, ids }) => {
           const expanded = open[id] ?? (id === 'deepseek' || words.length > 0 || vendor === id)
-          const currency = id === 'deepseek' ? prices.currency ?? 'USD' : 'USD', limit = limits[id] ?? 16
+          const tableCurrency = id === 'deepseek' ? prices.currency ?? 'USD' : 'USD', limit = limits[id] ?? 16
+          const units = [...new Set(ids.map(model => tables[id].models[model]?.currency ?? tableCurrency))].join(' / ')
           return el('section', { key: id, className: 'cm-catalog-group' },
             el('button', { type: 'button', className: 'cm-catalog-vendor cm-vendor-toggle', 'aria-expanded': expanded, onClick: () => setOpen(value => ({ ...value, [id]: !expanded })) },
               el('span', null, el(Chevron, { className: 'cm-catalog-caret', open: expanded }), vendorLabels[id] ?? id, el('small', null, ids.length)),
-              el('span', { className: 'cm-catalog-unit' }, currency + (en ? ' / 1M tokens' : ' / 百万 Token'))),
+              el('span', { className: 'cm-catalog-unit' }, units + (en ? ' / 1M tokens' : ' / 百万 Token'))),
             expanded ? el('div', { className: 'cm-catalog-list' },
               el('div', { className: 'cm-catalog-columns', 'aria-hidden': true }, ...[en ? 'Model' : '模型', en ? 'Input' : '输入', en ? 'Cached input' : '缓存读取', en ? 'Output' : '输出', ''].map((text, i) => el('span', { key: i }, text))),
               ...ids.slice(0, limit).map(model => {
                 const key = id + ':' + model, entry = tables[id].models[model], active = editing === key
                 const name = model === '__default__' ? t('defaultModelId') : model
+                const currency = entry?.currency ?? tableCurrency
                 const variants = entry?.peak || entry?.offPeak ? (en ? 'Peak / off-peak' : '含峰谷价格') : entry?.longContext ? (en ? 'Long context' : '含长上下文档位') : entry?.cny ? (en ? 'USD + CNY' : '美元 / 人民币') : null
                 return el('div', { key, className: 'cm-catalog-entry' + (active ? ' editing' : '') },
                   el('button', { type: 'button', className: 'cm-catalog-model', 'aria-label': name + (en ? ' · Edit price' : ' · 编辑价格'), 'aria-expanded': active, onClick: () => setEditing(active ? null : key) },

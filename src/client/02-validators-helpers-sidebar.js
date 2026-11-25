@@ -828,6 +828,7 @@
       const base = normalizeClientTier(raw)
       if (base === undefined) return null
       Object.assign(base, priceMultiplierSettings(raw), peakScheduleSettings(raw))
+      if (raw.currency === 'CNY') base.currency = 'CNY'
       if (raw.billingMode === 'utc-peak') base.billingMode = 'utc-peak'
       if (raw.peakSchedule === 'volcengine') base.peakSchedule = 'volcengine'
       // 峰谷/历史子档必须随主档一起保留:usageSplit 回退计价与 Plan 拆分靠 tierFor
@@ -1292,6 +1293,7 @@
       if (!result.currency && !result.priced) {
         result = legacyDeepseekOverride(normalized, config?.priceOverrides?.[normalized + ':' + modelId], config?.prices ?? {}, config?.priceMatch === 'exact' ? 'exact' : 'auto') ?? result
       }
+      if (!result.currency && result.entry?.currency === 'CNY') result.currency = 'CNY'
       if (!result.currency) {
         result = result.priced && config?.prices?.currency === 'CNY' && result.entry?.cny
           ? { ...result, entry: cnyPrice(result.entry), currency: 'CNY' }

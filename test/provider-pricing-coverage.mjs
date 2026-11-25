@@ -6,6 +6,8 @@ import vm from 'node:vm'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { DEFAULT_PROVIDER_PRICE_TABLE, normalizePrice, providerPriceEntryFor, buildPriceCatalog, tierFor, costOf, upgradeProviderPriceDefaults } from '../lib/pricing.js'
+import { NOVEMBER_PROVIDER_PRICES } from '../lib/provider-prices-2026-11-25.js'
+import { upgradeNovemberProviderPrices } from '../lib/pricing.js'
 import { VERIFIED_PROVIDER_PRICES } from '../lib/provider-prices.js'
 import { billingClassOf, enabledPlanSetOf, planProviderIdOf } from '../lib/plan-billing.js'
 import { defaultConfig, sanitizeConfig, applyConfigPatch, Ledger, resolveAccountBilling } from '../lib/store.js'
@@ -21,8 +23,8 @@ assert.equal(billingClassOf('deepseek', 'qwen3.8-flash', config.planBilling, new
 
 const near = (actual, expected) => assert.ok(Math.abs(actual - expected) < 1e-10, `${actual} != ${expected}`)
 const modelsOf = p => VERIFIED_PROVIDER_PRICES[p].models
-assert.equal(Object.keys(modelsOf('opencode-zen')).length, 96, '83 current Zen endpoints and 13 retained historical IDs')
-assert.equal(Object.keys(modelsOf('opencode-go')).length, 41, '30 current Go endpoints and 11 retained historical IDs')
+assert.equal(Object.keys(modelsOf('opencode-zen')).length, 96 + Object.keys(NOVEMBER_PROVIDER_PRICES['opencode-zen'].models).length, 'October Zen routes and November additions')
+assert.equal(Object.keys(modelsOf('opencode-go')).length, 41 + Object.keys(NOVEMBER_PROVIDER_PRICES['opencode-go'].models).length, 'October Go routes and November additions')
 const shipped = JSON.parse(readFileSync(new URL('../docs/provider-pricing.json', import.meta.url)))
 assert.deepEqual(shipped.providers, DEFAULT_PROVIDER_PRICE_TABLE, 'shipped catalog and executable prices agree')
 for (const [provider, table] of Object.entries(VERIFIED_PROVIDER_PRICES)) {
@@ -176,6 +178,30 @@ assert.equal(frontGo.currency, 'USD')
 assert.equal(frontGo.billingMode, 'utc-peak')
 assert.equal(client.tierFor(client.normalizeClientPrice(frontGo.entry), Date.parse('2026-10-01T02:00:00Z'), peak).cacheMiss, 1.32)
 console.log('[ok] #224 provider catalogs: complete Zen/Go coverage, verified new API rates, cache/context tiers, scoped prices, UTC Go calendar, codecs and manual-price persistence')
+
+const promoCases = [
+  ['google', 'gemini-4-carbon', '2026-11-30T23:59:59Z', 2, 'USD'],
+  ['opencode-zen', 'gemini-4-carbon', '2026-12-01T00:00:00Z', 4, 'USD'],
+  ['tencent', 'hy4-flash', '2026-11-30T03:59:59Z', .035, 'USD'],
+  ['tencent', 'hy4-flash', '2026-11-30T04:00:00Z', .07, 'USD'],
+  ['baidu', 'ernie-5.5-flash-preview', '2026-11-25T02:00:00Z', 1, 'CNY'],
+  ['baidu', 'ernie-5.5-flash-preview', '2026-12-01T02:00:00Z', 2, 'CNY'],
+  ['baidu', 'ernie-5.5-flash-preview', '2026-12-01T15:00:00Z', 1, 'CNY'],
+]
+for (const [provider, model, time, expected, currency] of promoCases) {
+  const back = providerPriceEntryFor(provider, model, config.prices)
+  const front = client.resolveClientPrice(provider, model, parsedConfig)
+  assert.equal(back.currency, currency)
+  assert.equal(front.currency, currency)
+  const at = Date.parse(time)
+  near(tierFor(back.entry, at, peak).cacheMiss, expected)
+  near(client.tierFor(client.normalizeClientPrice(front.entry), at, peak).cacheMiss, expected)
+}
+const novConfig = { prices: { providers: { google: { models: { 'gemini-4-carbon': manual, 'gemini-4-neon': { unpriced: true } } } } } }
+upgradeNovemberProviderPrices(novConfig)
+assert.deepEqual(novConfig.prices.providers.google.models['gemini-4-carbon'], manual)
+assert.deepEqual(novConfig.prices.providers.google.models['gemini-4-neon'], { unpriced: true })
+assert.equal(novConfig.prices.providers.baidu.models['ernie-light-dt-1.0'].currency, 'CNY')
 
 const sourceAudit = spawnSync(process.execPath, [fileURLToPath(new URL('./check-opencode-catalog.mjs', import.meta.url)), '--fixture=' + fileURLToPath(new URL('./fixtures/opencode-pricing-2026-10-28.json', import.meta.url))], { encoding: 'utf8' })
 assert.equal(sourceAudit.status, 0, sourceAudit.stdout + sourceAudit.stderr)
