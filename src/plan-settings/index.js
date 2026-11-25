@@ -14,6 +14,11 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
     /** 单张网关来源卡片(可多实例:标题行有开关与删除,其余配置收在展开区)。 */
     /* SECRET_HEADER_FILTER */
 
+    function randomSourceId() {
+      return crypto.randomUUID?.() ?? Array.from(crypto.getRandomValues(new Uint8Array(16)),
+        byte => byte.toString(16).padStart(2, '0')).join('')
+    }
+
     function QuotaSourceRecovery({ sources, entries, api, removed, restore, locale }) {
       const en = locale === 'en'
       const [saved, setSaved] = useState(null), [file, setFile] = useState(null), [error, setError] = useState('')
@@ -38,14 +43,15 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
           for (const config of [backup.quotaRecovery, backup.config ?? backup].filter(Boolean)) {
             const gateways = config.gatewayQuotas?.sources ?? (Array.isArray(config.gatewayQuotas) ? config.gatewayQuotas : [])
             for (const row of gateways) if (typeof row?.id === 'string') {
-              sources.push(pick(row, ['id', 'type', 'label', 'baseURL', 'enabled', 'display', 'refreshMinutes', 'includeProviders', 'allowedHosts', 'allowInsecureHttp', 'antigravityOnlyGemini']))
+              sources.push({ ...pick(row, ['type', 'label', 'baseURL', 'display', 'refreshMinutes', 'includeProviders', 'antigravityOnlyGemini']),
+                id: randomSourceId(), enabled: false, allowedHosts: [], allowInsecureHttp: false })
             }
             const custom = config.customBalances ?? (config.customBalance?.request?.url ? [config.customBalance] : [])
             for (const row of custom) if (typeof row?.request?.url === 'string') {
-              const source = pick(row, ['adapter', 'label', 'labelEn', 'enabled', 'display', 'unit', 'convertToDisplayCurrency', 'refreshMinutes', 'channels', 'dashboardUrl', 'extract', 'allowedHosts', 'allowInsecureHttp', 'grantAmount', 'grantStart', 'grantExpiry'])
-              const headers = Object.entries(row.request.headers ?? {}).filter(([name, value]) => typeof value === 'string' && !looksLikeSecretHeaderValue(name, value))
+              const source = pick(row, ['adapter', 'label', 'labelEn', 'display', 'unit', 'convertToDisplayCurrency', 'refreshMinutes', 'channels', 'dashboardUrl', 'extract', 'grantAmount', 'grantStart', 'grantExpiry'])
+              const headers = Object.entries(row.request.headers ?? {}).filter(([name, value]) => typeof value === 'string' && !value.includes('{{') && !looksLikeSecretHeaderValue(name, value))
               source.request = { ...pick(row.request, ['url', 'method', 'body']), headers: Object.fromEntries(headers) }
-              customBalances.push(source)
+              customBalances.push({ ...source, enabled: false, allowedHosts: [], allowInsecureHttp: false })
             }
           }
           if (!sources.length && !customBalances.length) throw Error()
@@ -54,7 +60,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
       }
       const identity = row => JSON.stringify([row.adapter ?? '', row.label ?? '', row.request?.url ?? '', row.request?.method ?? 'GET'])
       const candidates = new Map()
-      for (const config of [saved, file]) {
+      for (const config of [file, saved]) {
         for (const row of config?.gatewayQuotas?.sources ?? []) if (typeof row?.id === 'string' && !sources.some(source => source.id === row.id))
           candidates.set('gateway:' + row.id, { kind: 'gateway', source: row })
         for (const row of config?.customBalances ?? []) if (typeof row?.request?.url === 'string' && !entries.some(source => identity(source) === identity(row)))
@@ -68,9 +74,9 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
         el('details', { className: 'cm-quota-recovery', onToggle: readSaved },
           el('summary', { className: 'cm-note' }, en ? 'Restore quota sources' : '恢复额度来源'),
           saved && !candidates.size ? el('p', { className: 'cm-note' }, en ? 'No removed sources found. Choose a backup from before deletion or add the source again below.' : '没有可恢复的记录。可以选择删除前的配置备份，也可以用页面底部的按钮重新添加来源。') : null,
-          [...candidates].map(([key, { kind, source }]) => el('div', { key, className: 'cm-buttons' }, el('span', null, name(source) + (kind === 'gateway' ? ' · ' + source.id : '')),
+          [...candidates].map(([key, { kind, source }]) => el('div', { key, className: 'cm-buttons' }, el('span', null, name(source) + ' · ' + (source.baseURL || source.request?.url || source.id)),
             el('button', { type: 'button', className: 'cm-btn small', disabled: full(kind), onClick: () => restore(kind, source) }, en ? 'Restore' : '恢复'))),
-          el('label', { className: 'cm-note' }, en ? 'Choose a previous ledger or configuration backup' : '选择删除前的账本或配置备份',
+          el('label', { className: 'cm-note' }, en ? 'Import a backup. Check the address and configure credentials before enabling imported sources.' : '导入账本或配置备份。请核对地址、配置凭据后启用导入的来源。',
             el('input', { type: 'file', accept: '.json,.config-bak,.bak', onChange: openFile })),
           error ? el('p', { role: 'status' }, error) : null))
     }
@@ -151,7 +157,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
         const label = name.trim()
         if (!label || group.accounts.length >= 10 || pending) return
         if (group.accounts.some(row => row.label.toLowerCase() === label.toLowerCase())) { setError(text('账号名称已存在', 'Account name already exists')); return }
-        const id = crypto.randomUUID()
+        const id = randomSourceId()
         change({ selected: id, accounts: [...group.accounts, { id, label }] }); setName(''); setError('')
       }
       const saveName = () => {
