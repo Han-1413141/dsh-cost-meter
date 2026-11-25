@@ -1,7 +1,9 @@
 # Changelog
-## [Unreleased]
 
-- **新增 Magpie 网关额度来源。** 在「费用 → 额度」可直接「添加 Magpie 网关」，填入网关地址与该 Key 即可。插件读取 `GET <地址>/magpie/quotas/cards`，按返回的 `provider` 自动分组：每个 provider/账号一张卡，显示各窗口（5 小时 / 周 / 月）的已用百分比、重置时间、套餐名与剩余额度，网关新增上游时无需改插件。地址允许带路径前缀（如 `/v1`），请求只读、不跟随重定向，凭据仍保存在 DSH 凭据库。
+## [1.9.92] - 2026-11-25
+
+- 在「设置 → 费用 → 额度」添加并启用 Magpie 网关，可查看各提供商和账号的使用比例、重置时间及余额。已配置 Magpie 连接器的用户可以留空地址，直接使用连接器线路。手动配置支持含 `/v1` 的地址，非本机 HTTP 需要显式启用。感谢 @abworks-dev 实现 Magpie 额度来源与连接器接入。[PR #591](https://github.com/Han-1413141/dsh-cost-meter/pull/591)
+- Codex Subscription 兼容基线更新至 3.2.30，覆盖额度读取、手动刷新、账号切换和授权失效恢复。[Issue #592](https://github.com/Han-1413141/dsh-cost-meter/issues/592)
 
 ## [1.9.91] - 2026-11-25
 
