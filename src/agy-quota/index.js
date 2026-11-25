@@ -43,7 +43,7 @@ window.__ModuleLoader__.load({
             if (signal.aborted) return { ok: false, message: '' }
             slot.nextRead = Date.now() + slot.interval
             const ok = ['ok', 'partial'].includes(value.status) && value.browserAccessDenied !== true
-            slot.value = ok ? value : { ...(slot.value ?? slot.base), status: (slot.value ?? slot.base).accounts?.length ? 'stale' : 'error', message: value.message }
+            slot.value = ok || value.browserAccessDenied ? value : { ...(slot.value ?? slot.base), status: (slot.value ?? slot.base).accounts?.length ? 'stale' : 'error', message: value.message }
             onChange()
             return { ok, message: value.message || (slot.locale === 'en' ? 'Quota updated' : '额度已更新') }
           }).catch(() => ({ ok: false, message: slot.base.message })).finally(() => { slot.pending = null })
@@ -62,7 +62,7 @@ window.__ModuleLoader__.load({
           if (!slot) { slot = { controller: new AbortController(), nextRead: 0 }; caches.set(source.id, slot) }
           // Strip the transport marker before passing the base to the common parser.
           const { browserAccessDenied, ...base } = snapshot
-          Object.assign(slot, { base, locale, interval: Math.max(1, source.refreshMinutes || 15) * 60000 })
+          Object.assign(slot, { base: { ...base, accounts: [], fetchedAt: 0 }, locale, interval: Math.max(1, source.refreshMinutes || 15) * 60000 })
           if (Date.now() >= slot.nextRead && !slot.pending) void start(slot, false)
           return slot.value ? { ...slot.value, browserAccessDenied: true } : snapshot
         })
