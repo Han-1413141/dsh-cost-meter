@@ -67,7 +67,10 @@ window.__ModuleLoader__.load({
         }
         slot.plan = plan
         if (Date.now() >= slot.next) void refresh()
-        return slot.value ? { ...state, codingPlans: { ...state.codingPlans, trae: { ...plan, ...slot.value } } } : state
+        if (!slot.value) return state
+        const display = state.config?.codingPlans?.trae?.showAccountQuotas === true
+          ? { accountLabel: locale === 'en' ? 'Plan overview' : '套餐概览', accountQuotas: traeAccountQuotas(slot.value.trae, slot.value.fetchedAt) } : {}
+        return { ...state, codingPlans: { ...state.codingPlans, trae: { ...plan, ...slot.value, ...display } } }
       }
       return { decorate, refresh, dispose }
     }

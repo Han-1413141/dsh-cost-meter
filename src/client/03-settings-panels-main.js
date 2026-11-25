@@ -1962,12 +1962,13 @@
         },
         refreshCustomBalance: async (index = null) => receive(index == null ? costMeter.refreshCustomBalance() : costMeter.refreshCustomBalance(index)),
         refreshCodingPlan: async provider => {
-          if (provider === 'trae') {
+          const trae = provider.split('@')[0] === 'trae'
+          if (trae) {
             const local = desktopTrae?.refresh()
             if (local) return local
           }
           const result = await receive(costMeter.refreshCodingPlan(provider))
-          if (provider !== 'trae' || !result.state?.codingPlans?.trae?.browserFallback) return result
+          if (!trae || !result.state?.codingPlans?.trae?.browserFallback) return result
           await loadingTrae
           return desktopTrae?.refresh() ?? result
         },

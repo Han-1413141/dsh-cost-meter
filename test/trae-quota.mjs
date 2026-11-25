@@ -1,3 +1,5 @@
+import vm from 'node:vm'
+import { readFileSync } from 'node:fs'
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import { fetchTraeQuota, formatTraeCredits } from '../lib/trae.js'
@@ -101,6 +103,24 @@ try {
       unsupportedRegion: { region: 'us', accounts: ['us-secret@example.com'] },
     }),
   }
+
+  let transport
+  vm.runInNewContext(readFileSync(new URL('../lib/client.trae-quota.js', import.meta.url), 'utf8'), {
+    AbortController, AbortSignal, TextDecoder, window: { __ModuleLoader__: { load: m => { transport = m.factory() } },
+      fetch: (path, init) => {
+        assert.ok(path.startsWith('/plugins/dsh-connect-trae/'))
+        assert.equal(init.credentials, 'same-origin')
+        return fetch(origin + path, init)
+      } },
+  })
+  const desktop = transport.mount(() => {})
+  const desktopState = { config: { codingPlans: { trae: { showAccountQuotas: true } } },
+    codingPlans: { trae: { enabled: true, display: 'both', editionScope: 'cn', browserFallback: true } } }
+  desktop.decorate(desktopState, 'en')
+  assert.equal((await desktop.refresh()).ok, true)
+  const accounts = desktop.decorate(desktopState, 'en').codingPlans.trae.accountQuotas
+  assert.deepEqual(Array.from(accounts, row => [row.accountLabel, row.windows.balance.text]), [['Alice CN', '88.7'], ['Bob CN', '0']])
+  desktop.dispose()
 
   const full = await fetchTraeQuota(origin, { editionScope: 'auto' }, { locale: 'zh' })
   assert.equal(full.windows.balance.text, '88.7')
