@@ -1,6 +1,8 @@
 # Changelog
 ## [Unreleased]
 
+- 新增 OpenAI `gpt-6.2-sol` 和 `gpt-6.2-astra` 内置 Standard 定价，包含 30 分钟缓存写入及超过 272,000 输入 Token 的长上下文档。升级会补齐缺失的价目，保留已配置的单价和历史金额。
+
 ## [1.9.89] - 2026-11-24
 
 - **修复大配置树下主线程持续 100% CPU 热点**：新增单命名空间轻量宿主配置读取器（`lib/host-settings.js`），在读取 `locale` 与官方余额模型路由时优先使用 `settings.get(ns)`（DSH 0.2.0）或 `configEditor.entries()` 内存直接读取活跃条目并解包 Cosmokit `Volatile` 引用（DSH 0.2.1+/0.2.2+/0.2.3+），彻底避免反复调用 `settings.describe({ redactSecrets: true })` 触发 `cordis.patch.yml` 磁盘解析与全量 Schemastery `volatileForm` / `toJSON` 序列化；仅在无直读能力的宿主上回退到 `settings.describe()`，并合并为跨 locale/路由共享的单重入保护与 60 秒缓存。同时将 `settings/document-updated` 监听按 `ns === 'locale'` 过滤并改为惰性失效，跳过 15 个非本地化只读统计/会话 RPC 的 `syncMessageLocale()` 包装，以及在余额晚登录自愈检查中补齐 `getBalance` 存在性与 3 秒冷却保持。感谢 @sigmaraye 报告问题并提供 V8 CPU profiler 采样、调用栈定位与版本对比分析。[#586](https://github.com/Han-1413141/dsh-cost-meter/issues/586)
