@@ -264,8 +264,8 @@ console.log('[ok] 浏览器端 bundle 语法门禁(client.js vm 编译)通过')
   assert.ok(src96.includes('live.accounts.length === 0') && src96.includes("if (rows.length === 0) rows.push({ name: t('gatewayQuotaEmpty')"), '无账号的来源隐藏；空额度账号保留切换入口')
   // 挂载:SidebarFooter 早退条件与节点插入都包含网关卡片(此前整条路径无 gateway 分支)。
   assert.ok(src96.includes('!showToday && !peakOn && gatewayNodes.length === 0) return null'), 'issue #96:SidebarFooter 早退条件纳入网关卡片与独立峰谷条')
-  assert.ok(src96.includes('nodes.push(...gatewayNodes)'), 'issue #96:SidebarFooter 节点序列插入网关卡片(计划卡之后、Codex 之前)')
-  assert.ok(src96.indexOf('nodes.push(...gatewayNodes)') > src96.indexOf("MiniMaxPlanBox, { key: 'plan:' + id, state, wide, api: api }") && src96.indexOf('nodes.push(...gatewayNodes)') < src96.indexOf('el(CodexPlanBox'), 'issue #96:网关卡片排序在计划卡之后、Codex 探测卡之前')
+  const gatewayInsert = src96.indexOf('nodes.push(...(filterGateways ? filterGateways(gatewayNodes) : gatewayNodes))')
+  assert.ok(gatewayInsert > src96.indexOf("MiniMaxPlanBox, { key: 'plan:' + id, state, wide, api: api }") && gatewayInsert < src96.indexOf('el(CodexPlanBox'), 'issue #96:网关卡片排序在计划卡之后、Codex 探测卡之前')
   // 行渲染:复用 MiniMax 行(已用口径/告警阈值一致),Provider 前缀与 credits 兜底都在。
   assert.ok(/function GatewayQuotaBox[\s\S]*miniMaxRow\(name, win, direction, t\)/.test(src96), 'issue #96:网关卡片行渲染复用 miniMaxRow(与计划卡同口径)')
   assert.ok(/function GatewayQuotaBox[\s\S]*GATEWAY_PROVIDER_LABELS\[account\.provider\]/.test(src96), 'issue #96:多账号时行标签带 Provider 前缀')
@@ -1935,6 +1935,16 @@ console.log('[ok] 宽泛匹配与跨厂商兑底(路由 provider 费用为零修
   assert.ok(def.schema !== undefined, '旧宿主 0.1.0 的 schema 字段保留')
   // 冷启动:init state 可被 stateSchema parse(checkpoint 空会话路径)。
   usageProjectionStateSchema.parse(def.init())
+  // The host forwards the raw projection with api-session/added before any JSON normalization.
+  const blankSummary = { projections: { values: { costUsage: def.wire.view(def.init()) } } }
+  assert.deepEqual(JSON.parse(JSON.stringify(blankSummary)), blankSummary, '新会话摘要必须可无损转发，不能含 undefined 字段')
+  const routedMessage = response => ({ type: 'assistant/message', data: { message: { source: {
+    provider: 'dsh-magpie-connector-routing', model: 'group/team', replayState: { response },
+  } } } })
+  const routed = def.apply(def.init(), routedMessage({ kind: 'dsh-magpie-connector-pi', version: 1, magpieProvider: 'workbuddy' }))
+  assert.deepEqual(def.wire.viewSchema.parse(def.wire.view(routed)).magpieRoute, { requestedModel: 'group/team', provider: 'workbuddy' })
+  const unconfirmed = def.apply(routed, routedMessage({ kind: 'dsh-magpie-connector-pi', version: 1 }))
+  assert.equal(Object.hasOwn(def.wire.view(unconfirmed), 'magpieRoute'), false, '缺少实际路由信息时清除上一次归属')
   // 喂事件到真实 state:header + 流式样本 + 最终样本替换 + 多轮去重。
   const events = [
     { type: 'session', createdAt: 1720000000000 },

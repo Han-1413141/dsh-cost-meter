@@ -148,7 +148,7 @@
         hideTodayCost: v.hideTodayCost === true,
         sessionListCostPeriod: v.sessionListCostPeriod === 'today' ? 'today' : 'total',
         modelStatistics: v.modelStatistics ?? {},
-        ...mapFields(v, ['hideSessionCostHeader', 'hideSessionCostDock', 'hideTurnCost', 'followSkinTransparency', 'sidebarTodayBalanceInline', 'sessionListCosts', 'hideBudget', 'sessionCostCompact', 'contextCostsEnabled', 'contextCostsPromptSeen', 'showTotalWithPlan', 'sidebarSimple', 'sidebarFocusProvider', 'codexQuotaEnabled', 'codexCompatPromptDismissed', 'includeSubagentCost', 'peakEnabled', 'peakAlertWebNotify'], value => value === true),
+        ...mapFields(v, ['hideSessionCostHeader', 'hideSessionCostDock', 'hideTurnCost', 'followSkinTransparency', 'sidebarTodayBalanceInline', 'sessionListCosts', 'hideBudget', 'sessionCostCompact', 'contextCostsEnabled', 'contextCostsPromptSeen', 'showTotalWithPlan', 'sidebarSimple', 'sidebarFocusProvider', 'sidebarMagpieOverview', 'codexQuotaEnabled', 'codexCompatPromptDismissed', 'includeSubagentCost', 'peakEnabled', 'peakAlertWebNotify'], value => value === true),
         sidebarTodayMetric: ['tokens', 'both'].includes(v.sidebarTodayMetric) ? v.sidebarTodayMetric : 'cost',
         sidebarTextOnly: v.sidebarTextOnly === true,
         localSavings: v.localSavings,
@@ -1764,13 +1764,9 @@
 
     function WalletIcon({ size = 16, className }) {
       return el('svg', { width: size, height: size, className, viewBox: '0 0 16 16', fill: 'none', xmlns: 'http://www.w3.org/2000/svg' },
-        el('path', {
-          d: 'M4 4H12A2 2 0 0 1 14 6V11.5A2 2 0 0 1 12 13.5H4A2 2 0 0 1 2 11.5V6A2 2 0 0 1 4 4ZM4 5.3H12A0.7 0.7 0 0 1 12.7 6V11.5A0.7 0.7 0 0 1 12 12.2H4A0.7 0.7 0 0 1 3.3 11.5V6A0.7 0.7 0 0 1 4 5.3Z',
-          fill: 'currentColor',
-          fillRule: 'evenodd',
-        }),
-        el('path', { d: 'M3.3 5.3H12.7V7.1H3.3Z', fill: 'currentColor' }),
-        el('path', { d: 'M8 2.8A1.3 1.3 0 1 0 8 5.4A1.3 1.3 0 1 0 8 2.8Z', fill: 'currentColor' }))
+        el('path', { d: 'M3 5.6A2 2 0 0 1 5 3.6H11', stroke: 'currentColor', strokeWidth: '1.3', strokeLinecap: 'round' }),
+        el('rect', { x: '3', y: '5.6', width: '10', height: '8', rx: '1.9', stroke: 'currentColor', strokeWidth: '1.3' }),
+        el('circle', { cx: '10.6', cy: '9.6', r: '0.9', fill: 'currentColor' }))
     }
 
     function costDetailsLabel(en) {
@@ -3365,19 +3361,23 @@
     // 防撑爆;仅有 credits 无窗口的账号(如 WorkBuddy)退化为文本行。
     function GatewayQuotaBox(props) {
       const hoverProps = useQuotaHoverRefresh()
-      const { source, snapshot, state, wide, api, focusProvider } = props
+      const { source, snapshot, state, wide, api, focusProvider, grouped, routePending } = props
       const t = makeT(resolveLocale(state.config))
-      const [selection, setSelection] = useState(() => ({ source: source.id, id: readGatewayAccountLS(source.id) }))
+      const [manual, setManual] = useState(null)
+      const manualId = manual?.source === source.id ? manual.id : null
       const refresh = useClickRefresh(api ? () => api.refreshGatewayQuota(source.id) : null)
       const agyLink = source.type === 'agy-link'
       const direction = agyLink ? 'remaining' : barDirectionOf(state.config, 'plan')
-      const maxRows = agyLink ? 10 : source.type === 'subscriptions' ? 6 : 4
-      const multi = snapshot.accounts.length > 1
-      const selectedId = selection.source === source.id ? selection.id : readGatewayAccountLS(source.id)
-      const selectedIdx = snapshot.accounts.findIndex(a => a.id === selectedId)
-      const manualIdx = selection.source === source.id && selection.id ? selectedIdx : -1
+      const maxRows = grouped ? Infinity : agyLink ? 10 : source.type === 'subscriptions' ? 6 : 4
+      const multi = !grouped && snapshot.accounts.length > 1
+      const selectedIdx = snapshot.accounts.findIndex(a => a.id === (manualId ?? readGatewayAccountLS(source.id)))
+      const manualIdx = manualId ? selectedIdx : -1
       const focusKey = state.config?.sidebarFocusProvider !== false && focusProvider ? gwFocusKey(focusProvider) : ''
-      const focusIdx = focusKey ? snapshot.accounts.findIndex(a => { const p = gwFocusKey(a.provider); return p === focusKey || p.startsWith(focusKey + '-') || focusKey.startsWith(p + '-') }) : -1
+      let focusIdx = focusKey ? snapshot.accounts.findIndex(a => gwFocusKey(a.provider) === focusKey) : -1
+      if (focusKey && focusIdx < 0) focusIdx = snapshot.accounts.findIndex(a => {
+        const provider = gwFocusKey(a.provider)
+        return provider && (provider.startsWith(focusKey + '-') || focusKey.startsWith(provider + '-'))
+      })
       const activeIdx = manualIdx >= 0 ? manualIdx : focusIdx >= 0 ? focusIdx : selectedIdx >= 0 ? selectedIdx : Math.max(0, snapshot.accounts.findIndex(a => a.windows.length > 0 || a.credits != null))
       const currentAccount = snapshot.accounts[activeIdx] ?? snapshot.accounts[0]
       const currentAccountName = currentAccount?.label || currentAccount?.id || ''
@@ -3386,6 +3386,7 @@
       const rows = []
       for (const account of accountsToRender) {
         if (rows.length >= maxRows) break
+        if (grouped) rows.push({ name: account.label || account.id, heading: true })
         for (const win of account.windows) {
           if (rows.length >= maxRows) break
           const name = prefix(account) + (win.label || win.id || t('gatewaySourceUnknown'))
@@ -3402,6 +3403,7 @@
       if (rows.length === 0) rows.push({ name: t('gatewayQuotaEmpty'), text: '—' })
       const level = rows.some(r => r.view?.level === 'over') ? 'over' : rows.some(r => r.view?.level === 'warn') ? 'warn' : 'ok'
       const detailParts = rows.map(r => {
+        if (r.heading) return r.name
         if (r.text != null) return r.name + ' ' + r.text
         const reset = miniMaxResetText(r.win, t)
         return r.name + ' ' + quotaValueText(r.view.label, direction, t) + (reset ? ' · ' + reset : '')
@@ -3412,7 +3414,7 @@
         ? `${source.label || source.id} (${activeIdx + 1}/${snapshot.accounts.length} · ${currentAccountName})`
         : (source.label || source.id)
       const detail = [accHeader, ...detailParts].join('\n')
-      const bodyRows = rows.map((r, i) => r.text != null
+      const bodyRows = rows.map((r, i) => r.heading ? el('div', { key: i, className: 'cm-gw-sub' }, r.name) : r.text != null
         ? el('div', { key: i, className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, r.name), el('span', { className: 'cm-mm-text cm-num' }, r.text))
         : el(Fragment, { key: i }, r.view.row))
 
@@ -3421,8 +3423,8 @@
           e.stopPropagation()
           e.preventDefault?.()
           const next = snapshot.accounts[(activeIdx + 1) % snapshot.accounts.length]
-          writeGatewayAccountLS(source.id, next.id)
-          setSelection({ source: source.id, id: next.id })
+          if (focusIdx < 0) writeGatewayAccountLS(source.id, next.id)
+          setManual({ source: source.id, id: next.id })
         }
       }
 
@@ -3442,11 +3444,15 @@
         ? el('div', { className: 'cm-gw-sub' }, (focusIdx >= 0 && activeIdx === focusIdx ? '★ ' : '') + currentAccountName)
         : null
 
-      const body = el(Fragment, null, titleRow, accSub, ...bodyRows)
+      const unresolved = routePending && !grouped
+      const routeLabel = resolveLocale(state.config) === 'en' ? 'Route provider unavailable' : '路由供应商未确认'
+      const body = unresolved
+        ? el(Fragment, null, el('div', { className: 'cm-mm-title' }, source.label || source.id), el('div', { className: 'cm-gw-sub' }, routeLabel))
+        : el(Fragment, null, titleRow, accSub, ...bodyRows)
       const pcts = rows.filter(r => r.view).map(r => r.view.label).filter(p => p !== null)
       const railText = pcts.length > 0 ? pcts.slice(0, 2).map(p => p + '%').join(' ') : (rows[0].text ?? '—')
-      const rail = el('div', { className: 'cm-bbox-rail cm-num' }, railText)
-      return el(Tooltip, { portal: true, label: el('span', { style: { whiteSpace: 'pre-line' } }, detail), side: 'right', delayMs: 300 },
+      const rail = el('div', { className: 'cm-bbox-rail cm-num' }, unresolved ? '—' : railText)
+      return el(Tooltip, { portal: true, label: el('span', { style: { whiteSpace: 'pre-line' } }, unresolved ? routeLabel : detail), side: 'right', delayMs: 300 },
         el('div', {
           ...hoverProps, 'data-cm-display': 'gateway', 'data-cm-source': source.id, className: 'cm-bbox cm-mm clickable' + (level === 'ok' ? '' : ' ' + level) + (wide === false ? ' rail' : '') + (refresh.busy ? ' busy' : ''),
           ...clickableRefreshProps(refresh.busy, refresh.run),
@@ -3454,14 +3460,22 @@
     }
 
     /** 侧边栏网关卡片列表:按来源配置(display/enabled)与快照状态过滤,见 GatewayQuotaBox 注释。 */
-    function gatewaySidebarCards(state, config, wide, api, provider) {
+    function gatewaySidebarCards(state, config, wide, api, session) {
       const snaps = Array.isArray(state.gatewayQuotas) ? state.gatewayQuotas : []
       const nodes = []
       for (const source of config.gatewayQuotas?.sources ?? []) {
         if (source.enabled === false || (source.display !== 'sidebar' && source.display !== 'both')) continue
         const live = snaps.find(q => q.id === source.id)
         if (!live || (live.status !== 'ok' && live.status !== 'partial' && live.status !== 'stale') || live.accounts.length === 0) continue
-        nodes.push(el(GatewayQuotaBox, { key: 'gateway:' + source.id, source, snapshot: live, state, wide, api, focusProvider: provider }))
+        const follow = config.sidebarFocusProvider !== false && session
+        // Magpie routing aliases can share one provider ID across distinct owners.
+        const owner = source.type === 'magpie' && follow?.model?.match(/^([^/]+)\//)?.[1]
+        const routed = (owner === 'group' || owner === 'auto') && gwFocusKey(follow?.provider) === 'routing'
+        const actual = follow?.route?.requestedModel === follow?.model ? follow?.route?.provider : undefined
+        const routePending = routed && !live.accounts.some(a => a.provider === actual)
+        const focusProvider = routed ? (routePending ? undefined : actual) : live.accounts.some(a => a.provider === owner) ? owner : follow?.provider
+        const key = 'gateway:' + [source.id, follow?.id, focusProvider].filter(Boolean).join(':')
+        nodes.push(el(GatewayQuotaBox, { key, source, snapshot: live, state, wide, api, focusProvider, routePending }))
       }
       return nodes
     }
@@ -3825,7 +3839,10 @@
     }
 
     let footerChipPage
-    const loadFooterChip = () => footerChipPage ??= require.async('./client.footer-chip.js').then(module => module.mount({ WalletIcon })).catch(error => { footerChipPage = null; throw error })
+    const loadFooterChip = () => footerChipPage ??= require.async('./client.footer-chip.js').then(module => module.mount({ WalletIcon, gatewayLabels: GATEWAY_PROVIDER_LABELS })).catch(error => { footerChipPage = null; throw error })
+
+    // Root slots read the same session list as dsh-quota. Older hosts expose current.
+    const visibleSessionId = list => Object.values(list.byId ?? {}).find(row => row?.retainedBy?.mainView > 0)?.id ?? list.current
 
     function SidebarFooter(props) {
       const botTarget = useBotFooterTarget()
@@ -3839,20 +3856,26 @@
         try { projectionUsage = props.useProjection('costUsage') } catch { projectionUsage = undefined }
       }
       useProjectionRefresh(props, projectionUsage)
-      let sp = projectionUsage?.provider
-      try { sp ||= Object.keys(projectionUsage?.byProviderModel ?? {}).pop()?.split(':')[0] } catch {}
+      const id = props.useSessions?.(visibleSessionId)
+      const model = props.useSessions?.(list => {
+        const selection = list.projectionsBySession?.[visibleSessionId(list)]?.values?.modelSelection
+        return selection?.next ?? selection?.lastUsed
+      })
+      const sp = model?.provider ?? projectionUsage?.provider
+      const route = props.useSessions?.(list => list.projectionsBySession?.[visibleSessionId(list)]?.values?.costUsage?.magpieRoute)
+      const session = id && { id, ...model, route }
       const current = costStore?.state
-      const state = current ? { ...current, config: peakConfigForState(current, projectionUsage?.provider) } : null
+      const state = current ? { ...current, config: peakConfigForState(current, sp) } : null
       if (!state) return null
       if (botTarget) {
         let portal
         try { portal = require('react-dom')?.createPortal } catch {}
-        if (portal) return portal(renderSidebarFooter(state, true, props.api, false, sp), botTarget)
+        if (portal) return portal(renderSidebarFooter(state, true, props.api, false, sp, false, false, session), botTarget)
       }
       const simple = state.config?.sidebarSimple === true
       const entryMode = !simple && state.config?.sidebarStyle === 'entry'
       const explicitIcons = !simple && state.config?.sidebarStyle === 'icons'
-      const fallback = renderSidebarFooter(state, !!props.wide, props.api, false, sp, false, entryMode)
+      const fallback = renderSidebarFooter(state, !!props.wide, props.api, false, sp, false, entryMode, session)
       if (fallback && (entryMode || (mobile && !explicitIcons))) {
         return el(BillingStatistics, {
           load: loadFooterChip,
@@ -3861,7 +3884,9 @@
           mobile,
           wide: !!props.wide,
           label: makeT(resolveLocale(state.config))('sidebarChip'),
-          renderCard: cardWide => renderSidebarFooter(state, cardWide, props.api, false, projectionUsage?.provider, false, true),
+          locale: resolveLocale(state.config),
+          magpieOverview: state.config.sidebarMagpieOverview,
+          renderCard: (cardWide, filterGateways) => renderSidebarFooter(state, cardWide, props.api, false, sp, false, true, session, filterGateways),
           fallback,
         })
       }
@@ -3869,7 +3894,7 @@
     }
 
     // Shared presentation only: no store, projection or quota subscription.
-    function renderSidebarFooter(state, wide, api, preview = false, provider, examples = preview, bare = false) {
+    function renderSidebarFooter(state, wide, api, preview = false, provider, examples = preview, bare = false, session, filterGateways) {
       const config = peakConfigForState(state)
       const t = makeT(resolveLocale(config))
       const showBalance = (config.balance?.display === 'sidebar' || config.balance?.display === 'both')
@@ -3896,7 +3921,7 @@
         })
       const plansOn = sidebarPlanIds.length > 0 || Boolean(state.goQuota?.accountQuotas?.length && ['sidebar', 'both'].includes(config.goQuota?.display))
       // 网关额度侧边栏卡片(issue #96):按来源 display 门控,卡片本体见 GatewayQuotaBox。
-      const gatewayNodes = gatewaySidebarCards(state, config, wide, api, provider)
+      const gatewayNodes = gatewaySidebarCards(state, config, wide, api, session)
       // 启用后始终保留卡片,避免未登录/接口失败时没有提示和手动重试入口。
       const codexOn = config.codexQuotaSidebar !== false && (config.codexQuotaEnabled === true || state.codexCompat?.enabled === true)
       const budgetOn = (config.budget ?? {}).enabled === true && config.hideBudget !== true
@@ -3924,7 +3949,7 @@
         : id === 'minimax'
         ? el(MiniMaxPlanBox, { key: 'plan:' + id, state, wide, api: api })
         : el(CodingPlanBox, { key: 'plan:' + id, id, state, wide, api: api })))
-      nodes.push(...gatewayNodes)
+      nodes.push(...(filterGateways ? filterGateways(gatewayNodes) : gatewayNodes))
       if (codexOn) nodes.push(el(CodexPlanBox, { key: 'codex', state, wide, api, preview }))
       if (goOk || state.goQuota?.accountQuotas?.length && ['sidebar', 'both'].includes(config.goQuota?.display)) nodes.push(el(Fragment, { key: 'go' },
         el(GoQuotaBox, { state, wide }), ...(state.goQuota?.accountQuotas ?? []).map(row => el(CodingPlanBox, { key: row.accountId, account: row, id: 'go', state, wide, api }))))

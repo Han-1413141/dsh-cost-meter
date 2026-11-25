@@ -574,6 +574,61 @@ assert.equal(refreshes, 0, '鼠标/Enter/Space切账号均不触发外层额度�
 assert.equal(gateway.storage.get('cm.gw.source-a'), 'a', '切换来源不覆盖其他来源的选择')
 card.dispose(); gateway.dispose()
 
+// The root footer has useSessions but no session-scoped useProjection.
+const follow = environment()
+const magpie = { id: 'magpie', type: 'magpie', label: 'Magpie', display: 'both' }
+const workbuddy = { ...account('workbuddy', 30), provider: 'workbuddy' }
+const followState = { config: { ...config, sidebarStyle: 'entry', gatewayQuotas: { sources: [magpie] } },
+  gatewayQuotas: [{ id: magpie.id, status: 'ok', accounts: [a, workbuddy] }] }
+const row = id => ({ id, retainedBy: { mainView: 1 } })
+const modelProjection = owner => ({ values: { modelSelection: {
+  lastUsed: { provider: 'openai-codex' }, next: { provider: 'dsh-magpie-connector-routing', model: `${owner}/model` },
+} } })
+const sessionList = { current: 'old', byId: { wb: row('wb') }, projectionsBySession: { wb: modelProjection('workbuddy'), cx: modelProjection('codex') } }
+follow.storage.set('cm.gw.magpie', 'a')
+const footer = follow.mount(follow.ui.SidebarFooter, { wide: true, useSessions: pick => pick(sessionList), useCost: pick => pick({ state: followState }) })
+const entryCard = () => nodes(footer.tree.props.renderCard(true)).find(node => node.type === follow.ui.GatewayQuotaBox)
+let view = entryCard()
+assert.equal(view.props.focusProvider, 'workbuddy')
+const followed = follow.mount(view.type, view.props)
+assert.match(textOf(followed.tree), /★.*window-workbuddy/, 'the entry card follows WorkBuddy even with Codex saved')
+nodes(followed.tree).find(node => node.props.className === 'cm-gw-switcher').props.onClick({ stopPropagation() {} })
+await follow.flush()
+assert.match(textOf(followed.tree), /window-a/, 'manual switching remains available within the current session')
+assert.equal(follow.storage.get('cm.gw.magpie'), 'a')
+sessionList.byId = { cx: row('cx') }
+footer.render()
+const codexCard = entryCard()
+assert.notEqual(codexCard.props.key, view.props.key, 'changing sessions resets the manual selection')
+assert.equal(codexCard.props.focusProvider, 'codex')
+for (const alias of ['group', 'auto']) {
+  sessionList.byId = { routed: row('routed') }
+  sessionList.projectionsBySession.routed = modelProjection(alias)
+  footer.render()
+  const route = entryCard()
+  assert.equal(route.props.focusProvider, undefined)
+  assert.equal(route.props.routePending, true)
+  const routeText = textOf(follow.mount(route.type, route.props).tree)
+  assert.match(routeText, /Route provider unavailable/)
+  assert.doesNotMatch(routeText, /window-a|window-workbuddy/)
+  sessionList.projectionsBySession.routed.values.costUsage = { magpieRoute: { requestedModel: `${alias}/model`, provider: 'workbuddy' } }
+  footer.render()
+  const confirmed = entryCard()
+  assert.equal(confirmed.props.routePending, false)
+  assert.equal(confirmed.props.focusProvider, 'workbuddy')
+  assert.match(textOf(follow.mount(confirmed.type, confirmed.props).tree), /★.*window-workbuddy/)
+  sessionList.projectionsBySession.routed.values.costUsage.magpieRoute = { requestedModel: `${alias}/other`, provider: 'workbuddy' }
+  footer.render()
+  assert.equal(entryCard().props.routePending, true, 'route evidence belongs to the selected model')
+}
+sessionList.byId = { wb: row('wb') }
+followState.config.sidebarFocusProvider = false
+footer.render()
+view = entryCard()
+assert.equal(view.props.focusProvider, undefined)
+assert.match(textOf(follow.mount(view.type, view.props).tree), /window-a/, 'turning off follow restores the saved account')
+follow.dispose()
+
 // 同一官方价经过 RPC parser、客户端规范化与计费后,缓存写和长上下文边界与服务器一致。
 const astra = DEFAULT_PROVIDER_PRICE_TABLE.openai.models['gpt-6-astra']
 const serverPrice = normalizePrice(astra)

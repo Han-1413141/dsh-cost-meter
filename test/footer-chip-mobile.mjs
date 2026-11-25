@@ -260,4 +260,23 @@ docListeners.get('pointerdown')({ target: {} })
 assert.equal(stateWrites.at(-1), false)
 cleanup()
 
+const gatewayNode = (type, id, focusProvider, accounts) => element('quota', { source: { type, id }, snapshot: { accounts }, focusProvider })
+const wb = Array.from({ length: 3 }, (_, i) => ({ id: `wb-${i}`, provider: 'workbuddy' }))
+const codex = { id: 'codex-1', provider: 'codex' }
+const other = gatewayNode('cli-proxy', 'other', '', [codex])
+const gatewayCards = [gatewayNode('magpie', 'magpie', 'workbuddy', [codex, ...wb]), other]
+const grouped = chipChunk.groupMagpieCards(gatewayCards, { workbuddy: 'WorkBuddy' })
+assert.equal(grouped.list.length, 1)
+assert.equal(grouped.pinned.length, 1)
+assert.equal(grouped.other[0], other)
+assert.equal(grouped.pinned[0].props.source.label, 'WorkBuddy')
+assert.deepEqual(Array.from(grouped.pinned[0].props.snapshot.accounts), wb)
+assert.equal(grouped.pinned[0].props.grouped, true)
+assert.equal(chipChunk.groupMagpieCards([gatewayNode('magpie', 'magpie', 'routing', wb)], {}).pinned.length, 0)
+stateOverrides = [null, true, true, false]
+const overview = mountedChip({ entryMode: true, magpieOverview: true, renderCard: (_, filter) => element('summary', null, ...filter(gatewayCards)) }).children[1].children[1]
+assert.match(overview.props.className, /cm-magpie-overview/)
+assert.equal(overview.children[0].children[0].props.className, 'cm-magpie-list')
+assert.equal(overview.children[0].children[1].props.className, 'cm-magpie-pinned')
+
 console.log('[ok] mobile-only footer chip, desktop immunity, sibling recovery, entry opt-in, and popover contract')
