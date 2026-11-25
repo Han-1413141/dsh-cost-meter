@@ -4,6 +4,10 @@
       const tokenrhythm = entry.adapter === 'tokenrhythm'
       const openAi = entry.adapter === 'openai-credits'
       const fireworks = entry.adapter === 'fireworks'
+      const manual = entry.adapter === 'manual-quota'
+      const en = resolveLocale(state.config) === 'en'
+      const [remaining, setRemaining] = useState(String(entry.quotaReading?.remaining ?? ''))
+      const [limit, setLimit] = useState(String(entry.quotaReading?.total ?? ''))
       const fixedAdapter = aliyun || tokenrhythm || openAi
       const [open, setOpen] = useState(false)
       const readJsonText = () => ({
@@ -198,7 +202,13 @@
       return el(QuotaCard, {
         display: (props.sidebarHidden ? 'settings' : entry.display), onSidebar: display => onPatch({ display }, display === 'both'),
         name: `#${index + 1} · ` + (resolveCustomBalanceLabel(entry, resolveLocale(config)) || t('customBalanceTitle')),
-        enabled, saved: JSON.stringify(entry) === JSON.stringify(config.customBalances?.[index]) ? config.customBalances[index] : null, busy, open, statusNode: el(Fragment, null, preview, custom?.status === 'ok' && custom.fetchedAt > 0 && el('span', { className: 'cm-hint' }, t('gatewaySourceFetchedAt', { time: new Date(custom.fetchedAt).toLocaleString() }))), configNode: configFields, errorMsg: msg,
+        enabled, saved: JSON.stringify(entry) === JSON.stringify(config.customBalances?.[index]) ? config.customBalances[index] : null, busy, open, statusNode: el(Fragment, null, preview, custom?.status === 'ok' && custom.fetchedAt > 0 && el('span', { className: 'cm-hint' }, t('gatewaySourceFetchedAt', { time: new Date(custom.fetchedAt).toLocaleString() }))), configNode: manual ? el('div', { className: 'cm-field' },
+          el('p', { className: 'cm-note' }, en ? 'Use the values from this account’s billing page. The displayed time is when you recorded them.' : '按该账号账单或控制台填写，显示时间取自此次记录。'),
+          el('label', null, en ? 'Plan and account name' : '套餐及账号名称', el('input', { className: 'cm-input', value: entry.label, onChange: e => onPatch({ label: e.target.value, labelEn: e.target.value }) })),
+          el('label', null, en ? 'Unit' : '单位', el('select', { value: entry.unit, onChange: e => setField('unit', e.target.value) }, ...['CREDITS', 'USD', 'CNY', 'EUR'].map(unit => el('option', { key: unit, value: unit }, unit)))),
+          ...[[en ? 'Remaining' : '剩余额度', remaining, setRemaining], [en ? 'Total (optional)' : '总额度（可选）', limit, setLimit]].map(([label, v, change]) => el('label', { key: label }, label, el('input', { className: 'cm-input', type: 'number', min: 0, step: 'any', value: v, onChange: e => change(e.target.value) }))),
+          el('button', { type: 'button', className: 'cm-btn small', disabled: remaining === '' || Number(remaining) < 0 || limit !== '' && (Number(limit) <= 0 || Number(limit) < Number(remaining)),
+            onClick: () => onPatch({ quotaReading: { remaining: Number(remaining), total: limit === '' ? null : Number(limit), observedAt: Date.now() } }) }, en ? 'Record quota' : '记录额度')) : configFields, errorMsg: msg,
         onToggle: value => setField('enabled', value),
         onRefresh: doRefresh,
         onRemove: canRemove ? onRemove : null,

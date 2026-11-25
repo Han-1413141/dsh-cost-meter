@@ -143,6 +143,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
       const { state, draft, setDraft, target, api } = props
       const text = (zh, en) => resolveLocale(state.config) === 'en' ? en : zh
       const source = target.replace(/\.(ak|sk)$/, '')
+      const multiple = source !== 'balance'
       const selectionLabel = source === 'balance' ? text('当前账号', 'Current account') : text('查询并显示的账号', 'Account to query and display')
       const groups = (draft ?? state.config).queryAccounts ?? {}
       const group = groups[source] ?? { selected: 'default', accounts: [] }
@@ -158,7 +159,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
         if (!label || group.accounts.length >= 10 || pending) return
         if (group.accounts.some(row => row.label.toLowerCase() === label.toLowerCase())) { setError(text('账号名称已存在', 'Account name already exists')); return }
         const id = randomSourceId()
-        change({ selected: id, accounts: [...group.accounts, { id, label }] }); setName(''); setError('')
+        change({ ...group, selected: id, accounts: [...group.accounts, { id, label }], ...(multiple ? { displayed: [...new Set([...(group.displayed ?? []), ...(group.selected !== 'default' || props.configured ? [group.selected] : []), id])] } : {}) }); setName(''); setError('')
       }
       const saveName = () => {
         const label = rename.trim()
@@ -173,7 +174,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
           const targets = source === 'codingPlans.volcengine' ? [source + '.ak', source + '.sk'] : [source]
           for (const key of targets) await api.clearCredential(key + '@' + group.selected)
           const accounts = group.accounts.filter(row => row.id !== group.selected)
-          change({ selected: source === 'balance' ? accounts[0]?.id ?? 'default' : 'default', accounts })
+          change({ ...group, selected: source === 'balance' ? accounts[0]?.id ?? 'default' : 'default', accounts, ...(group.displayed ? { displayed: group.displayed.filter(id => id !== group.selected) } : {}) })
         } catch (e) { setError(String(e?.message ?? e)) }
         finally { setBusy(false) }
       }
@@ -190,6 +191,16 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
           current ? el('div', { className: 'cm-buttons' },
             el('input', { className: 'cm-input', value: rename, maxLength: 64, 'aria-label': text('账号名称', 'Account name'), disabled: pending, onChange: e => setRename(e.target.value), style: { minWidth: 0, flex: 1 } }),
             el('button', { className: 'cm-btn small', type: 'button', disabled: pending || !rename.trim() || rename.trim() === current.label, onClick: saveName }, text('保存名称', 'Save name'))) : null,
+          multiple && group.accounts.length > 0 ? el('fieldset', { className: 'cm-field' },
+            el('legend', null, text('同时显示额度的账号', 'Accounts shown together')),
+            ...[{ id: 'default', label: text('默认账号', 'Default account') }, ...group.accounts].map(row =>
+              el('label', { key: row.id }, el('input', { type: 'checkbox',
+                disabled: pending || row.id === group.selected, checked: row.id === group.selected || (group.displayed ?? []).includes(row.id),
+                onChange: event => {
+                  const displayed = new Set(group.displayed ?? [])
+                  if (event.target.checked) displayed.add(row.id); else displayed.delete(row.id)
+                  change({ ...group, displayed: [...displayed] })
+                } }), ' ', row.label))) : null,
           source === 'balance' && state.balanceAccounts?.length ? el('div', { className: 'cm-scroll', 'data-balance-accounts': true },
             ...state.balanceAccounts.map(row => el('div', { key: row.id, style: { display: 'flex', gap: 10, alignItems: 'center', padding: '8px 10px' } },
               el('span', { style: { flex: 1, minWidth: 0, overflowWrap: 'anywhere' } }, row.label),
@@ -291,6 +302,37 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
           : el('p', { className: 'cm-note' }, text('启用并刷新后自动读取 dsh-connect-trae 中已登录的国内版、企业版和国际版状态。', 'Enable and refresh to read signed-in CN, Enterprise and International editions from dsh-connect-trae.')),
         el('p', { className: 'cm-note', style: { marginTop: 8 } }, text('全部 Trae 调用 API 等值：今日 ', 'API-equivalent value of all Trae calls: today ') + formatMoneyUsd(equiv(state.today), state.config) + text('；累计 ', '; total ') + formatMoneyUsd(equiv(state.total), state.config) + text('。', '.')))
     }
+    function LocalPlanAccounts({ config, setPlan, state }) {
+      const rows = config.localAccounts ?? []
+      const en = resolveLocale(state.config) === 'en'
+      const [name, setName] = useState(''), [provider, setProvider] = useState(''), [limit, setLimit] = useState(''), [start, setStart] = useState('')
+      const patch = (id, fields) => setPlan('localAccounts', rows.map(row => row.id === id ? { ...row, ...fields } : row))
+      return el('fieldset', { className: 'cm-field' }, el('legend', null, en ? 'Additional local plan accounts' : '其他账号的本地额度'),
+        el('p', { className: 'cm-note' }, en ? 'Bind each account to the provider ID used in DSH. Its usage is counted separately from the primary local estimate.' : '每个账号绑定在 DSH 中实际使用的渠道 ID。该渠道的用量单独估算，并从原账号的本地估算中移出。'),
+        ...rows.map(row => el('div', { key: row.id, className: 'cm-buttons' }, el('label', null,
+          el('input', { type: 'checkbox', checked: row.enabled, onChange: e => patch(row.id, { enabled: e.target.checked }) }), ' ', row.label + ' · ' + row.provider),
+          el('button', { type: 'button', className: 'cm-btn small', onClick: () => setPlan('localAccounts', rows.filter(item => item.id !== row.id)) }, en ? 'Remove' : '移除'))),
+        ...[[en ? 'Account name' : '账号名称', name, setName, 'text'], [en ? 'DSH provider ID' : 'DSH 渠道 ID', provider, setProvider, 'text'],
+          [en ? 'Plan credits' : '套餐总 Credits', limit, setLimit, 'number'], [en ? 'Cycle start (optional)' : '周期开始日期（可选）', start, setStart, 'date']].map(([label, value, set, type]) =>
+            el('label', { key: label }, label, el('input', { className: 'cm-input', type, maxLength: 128, value, onChange: e => set(e.target.value) }))),
+        el('button', { className: 'cm-btn small', type: 'button', disabled: !name.trim() || !provider.trim() || provider.includes(':') || !(Number(limit) > 0) || rows.length >= 10 || rows.some(row => row.provider === provider.trim()),
+          onClick: () => {
+            setPlan('localAccounts', [...rows, { id: crypto.randomUUID(), enabled: true, label: name.trim(), provider: provider.trim(), planCredits: Number(limit), planStart: start }])
+            setName(''); setProvider(''); setLimit(''); setStart('')
+          } }, en ? 'Add plan account' : '添加套餐账号'))
+    }
+
+    function AccountQuotaRow({ row, planId, api, t, config }) {
+      const [busy, msg, refresh] = useQuotaRefresh(t, () => api.refreshCodingPlan(planId + '@' + row.accountId))
+      return el('div', { className: 'cm-go-list', 'data-plan-account': row.accountId },
+        el('strong', null, row.accountLabel), ' ',
+        el('button', { type: 'button', className: 'cm-btn small', disabled: busy, onClick: refresh }, t('refreshCodingPlan')),
+        row.status === 'ok' ? codingPlanWindowEntries(row.windows, planId).map(([name, win]) =>
+          quotaWindowRow(t, codingPlanWindowLabel(name, t), win, barDirectionOf(config, 'plan'), false, name))
+          : el('p', { className: 'cm-note' }, row.message || t('codingPlanNotQueried')),
+        msg?.text && el('p', { className: 'cm-note' }, msg.text))
+    }
+
     function PlanQuotaCard(props) {
       const { state, api, t, draft, setDraft, planId, labelKey } = props
       const config = state.config
@@ -375,6 +417,9 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
               ? el('p', { className: 'cm-note' }, live.message)
               : el('div', { className: 'cm-bal-line' }, t('codingPlanNotQueried'))
       const configNode = el(Fragment, null,
+        ['qwen', 'scnet'].includes(planId) ? el(LocalPlanAccounts, { config: cfgEntry, setPlan, state }) : null,
+        ['workbuddy', 'trae'].includes(planId) ? el('label', { className: 'cm-field' }, el('input', { type: 'checkbox', checked: cfgEntry.showAccountQuotas === true,
+          onChange: e => setPlan('showAccountQuotas', e.target.checked) }), resolveLocale(config) === 'en' ? 'Show each account reported by the connector' : '分别显示连接插件提供的各账号额度') : null,
         subscriptionCatalog[planId] ? el('p', { className: 'cm-note', 'data-cm-plan-catalog': planId },
           subscriptionCatalog[planId][resolveLocale(state.config) === 'en' ? 'en' : 'zh'], ' ',
           el('a', { href: subscriptionCatalog[planId].sourceUrl, target: '_blank', rel: 'noopener noreferrer', style: { whiteSpace: 'nowrap' } }, resolveLocale(state.config) === 'en' ? 'Plan details' : '套餐详情')) : null,
@@ -524,7 +569,8 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
         display: cfgEntry.display, onSidebar: value => setPlan('display', value),
         planId, targeted: props.targeted,
         name: t(labelKey), enabled, saved: config.codingPlans?.[planId], busy, open, errorMsg: msg?.text === live.message ? null : msg,
-        statusNode, configNode,
+        statusNode: live.accountQuotas?.length ? el(Fragment, null, el('strong', null, live.accountLabel), statusNode,
+          ...live.accountQuotas.map(row => el(AccountQuotaRow, { key: row.accountId, row, planId, api, t, config }))) : statusNode, configNode,
         onToggle: value => setPlan('enabled', value),
         onRefresh: doRefresh,
         onLogin: doRefresh,

@@ -17,7 +17,7 @@ const today = new Date()
 const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 const out = {
   generatedAt: date,
-  note: 'Auto-generated from lib/pricing.js DEFAULT_PROVIDER_PRICE_TABLE. USD per 1M tokens; unpriced entries have no verified official price.',
+  note: 'Auto-generated from lib/pricing.js DEFAULT_PROVIDER_PRICE_TABLE. Per 1M tokens in USD unless currency or a regional tier specifies otherwise. Unpriced entries require a different unit or lack a public token rate.',
   providers: JSON.parse(JSON.stringify(DEFAULT_PROVIDER_PRICE_TABLE)),
 }
 const target = join(repoRoot, 'docs', 'provider-pricing.json')

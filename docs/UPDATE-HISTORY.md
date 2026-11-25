@@ -1,5 +1,12 @@
 # dsh-cost-meter 版本更新历史
 
+## v1.9.90(2026-11-25)—— 同套餐多账号与 11 月模型定价
+
+- **同一套餐并排显示多个账号。** 在「设置 → 额度」展开套餐，在凭据区给账号命名并勾选「同时显示额度的账号」。智谱、Claude、Kimi、MiniMax、OpenRouter、火山方舟、OpenCode Go 等分别查询每个账号，支持设置、侧栏和输入框上方的额度显示。工作账号和个人账号可以独立刷新，旧的单账号配置继续生效。
+- **账本与账号池来源。** 千问和 SCNet 可将不同的 DSH 渠道分别绑定到套餐账号，单独估算 Credits。WorkBuddy 和 Trae 可展示连接插件返回的逐账号额度。Codex 等订阅可通过已有的 dsh-plugin-subscriptions 账号池查询。没有查询接口的套餐可添加多个手动账号，录入余额后保留记录时间。
+- **模型计价。** 感谢 [@Z-Only 的 PR #588](https://github.com/Han-1413141/dsh-cost-meter/pull/588) 补齐 GPT-6.2 Sol 和 Astra 的标准价、缓存写入与长上下文档。本版另收录 14 个供应商和网关的 92 条目录记录，含 82 条可按 Token 计算的价格及 10 条需按其他单位或等待公开报价的记录。补齐人民币原价、促销到期和 OpenRouter 分档，升级保留用户自定价格和已记账金额。
+- **Trae 额度。** 针对 [@2TimesMeta 在 #583 中反馈的账号池读取失败](https://github.com/Han-1413141/dsh-cost-meter/issues/583#issuecomment-7149462556)，宿主读取被拒时提供同源浏览器读取，并显示具体状态。同步收紧额度来源导入、缓存和凭据处理。
+
 ## v1.9.89（2026-11-24）—— 修复主线程高 CPU 热点（#586）
 
 - **消除反复全量序列化配置树导致的 100% CPU**：读取宿主 `locale` 与官方余额模型路由时，改为优先走单命名空间内存直读（`settings.get(ns)` / `configEditor.entries()` 活跃条目 + `Volatile` 解包），不再在大型 `cordis.patch.yml` 实例上反复触发 `settings.describe({ redactSecrets: true })`；回退路径共享单次描述与 60 秒缓存，事件监听按命名空间过滤并改为惰性失效，非本地化只读 RPC 不再触发语言同步，同时加固余额晚登录自愈的 3 秒冷却守卫。感谢 @sigmaraye 在 [#586](https://github.com/Han-1413141/dsh-cost-meter/issues/586) 中的问题报告、V8 CPU 采样与根因定位。

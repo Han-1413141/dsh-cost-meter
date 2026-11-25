@@ -32,14 +32,17 @@ window.__ModuleLoader__.load({
       }
       if (config.goQuota?.enabled !== false && config.goQuota?.display !== 'off') {
         const live = state.goQuota
-        cards.push(section('go', t('goQuotaTitle'), status(live, windows({
+        for (const row of live?.accountQuotas ?? []) cards.push(section('go@' + row.accountId, t('goQuotaTitle') + ' · ' + row.accountLabel, status(row, windows(row.windows, 'go'))))
+        cards.push(section('go', [t('goQuotaTitle'), live?.accountLabel].filter(Boolean).join(' · '), status(live, windows({
           [t('goWindowRolling')]: live?.rolling, [t('goWindowWeekly')]: live?.weekly, [t('goWindowMonthly')]: live?.monthly,
         }))))
       }
       if (config.codexQuotaEnabled === true) cards.push(section('codex', t('codexQuotaTitle'), status(codex, windows(codex.windows))))
       for (const { id, labelKey } of h.CODING_PLAN_ROWS) {
         const cfg = config.codingPlans?.[id], live = state.codingPlans?.[id]
-        if (cfg?.enabled === true && cfg.display !== 'off') cards.push(section(id, t(labelKey), status(live, windows(live?.windows, id))))
+        if (cfg?.enabled === true && cfg.display !== 'off') for (const row of [live, ...(live?.accountQuotas ?? [])]) {
+          cards.push(section(id + (row?.accountId ? '@' + row.accountId : ''), [t(labelKey), row?.accountLabel].filter(Boolean).join(' · '), status(row, windows(row?.windows, id))))
+        }
       }
       const customEntries = config.customBalances?.length ? config.customBalances : config.customBalance ? [config.customBalance] : []
       customEntries.forEach((entry, index) => {

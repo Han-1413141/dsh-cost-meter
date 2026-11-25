@@ -63,6 +63,14 @@ try {
     await page.getByRole('button', { name: 'Save', exact: true }).click()
     const personal = await select.inputValue()
     assert.notEqual(work, personal)
+    if (target !== 'balance') {
+      const mark = page.getByRole('checkbox', { name: 'Work renamed', exact: true })
+      assert.equal(await mark.isChecked(), true)
+      await mark.uncheck()
+      await page.waitForFunction(([source, id]) => !window.saved.queryAccounts[source].displayed.includes(id), [target.replace(/\.(ak|sk)$/, ''), work])
+      await mark.check()
+      await page.waitForFunction(([source, id]) => window.saved.queryAccounts[source].displayed.includes(id), [target.replace(/\.(ak|sk)$/, ''), work])
+    }
     await page.getByRole('button', { name: 'Edit credential', exact: true }).click()
     await page.getByLabel('Credential', { exact: true }).fill('UNSAVED-KEY')
     await select.selectOption(work)

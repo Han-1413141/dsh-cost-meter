@@ -152,4 +152,17 @@ for (const id of ['minimax', 'zai']) {
   assert.doesNotMatch(text(success), /Quota not queried|Query failed/)
 }
 
+const accountWindow = percent => ({ fiveHour: { percent, resetsAt: '' } })
+const twoZai = stateWith('zai', { status: 'ok', accountLabel: 'Work', windows: accountWindow(11), accountQuotas: [
+  { accountId: 'personal-02', accountLabel: 'Personal', status: 'ok', windows: accountWindow(22) },
+] }, 'en')
+const refreshed = []
+const dualCards = nodes(expanded(ui.renderSidebarFooter(twoZai, true, { refreshCodingPlan: async id => { refreshed.push(id); return { ok: true } } }))).filter(n => n.props['data-cm-plan'] === 'zai')
+assert.equal(dualCards.length, 2)
+assert.match(text(dualCards[0]), /Work.*11%/)
+assert.match(text(dualCards[1]), /Personal.*22%/)
+dualCards[1].props.onClick()
+await new Promise(done => setImmediate(done))
+assert.deepEqual(refreshed, ['zai@personal-02'])
+
 console.log('[ok] #477: enabled Coding Plan cards retain status, real errors, keyboard retry and successful quota updates')

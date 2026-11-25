@@ -1154,7 +1154,7 @@
               : el('div', { className: 'cm-bal-line' }, t('goQuotaNotQueried'))
       return el(QuotaCard, {
         display: (draft ?? config).goQuota?.display, onSidebar: value => setGoQuota('display', value),
-        name: t('goQuotaTitle'), enabled, saved: config.goQuota, busy, open, statusNode: body, errorMsg: msg,
+        name: t('goQuotaTitle'), enabled, saved: config.goQuota, busy, open, statusNode: el(Fragment, null, goQuota.accountLabel && el('strong', null, goQuota.accountLabel), body, props.accountRows), errorMsg: msg,
         configNode: el(GoQuotaSettings, { config, draft, setDraft, t, api }), onToggleOpen: () => setOpen(v => !v),
         onToggle: value => setGoQuota('enabled', value),
         onRefresh: doRefresh,
