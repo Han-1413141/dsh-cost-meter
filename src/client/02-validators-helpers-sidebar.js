@@ -148,7 +148,7 @@
         hideTodayCost: v.hideTodayCost === true,
         sessionListCostPeriod: v.sessionListCostPeriod === 'today' ? 'today' : 'total',
         modelStatistics: v.modelStatistics ?? {},
-        ...mapFields(v, ['hideSessionCostHeader', 'hideSessionCostDock', 'hideTurnCost', 'followSkinTransparency', 'sidebarTodayBalanceInline', 'sessionListCosts', 'hideBudget', 'sessionCostCompact', 'contextCostsEnabled', 'contextCostsPromptSeen', 'showTotalWithPlan', 'sidebarSimple', 'codexQuotaEnabled', 'codexCompatPromptDismissed', 'includeSubagentCost', 'peakEnabled', 'peakAlertWebNotify'], value => value === true),
+        ...mapFields(v, ['hideSessionCostHeader', 'hideSessionCostDock', 'hideTurnCost', 'followSkinTransparency', 'sidebarTodayBalanceInline', 'sessionListCosts', 'hideBudget', 'sessionCostCompact', 'contextCostsEnabled', 'contextCostsPromptSeen', 'showTotalWithPlan', 'sidebarSimple', 'sidebarFocusProvider', 'codexQuotaEnabled', 'codexCompatPromptDismissed', 'includeSubagentCost', 'peakEnabled', 'peakAlertWebNotify'], value => value === true),
         sidebarTodayMetric: ['tokens', 'both'].includes(v.sidebarTodayMetric) ? v.sidebarTodayMetric : 'cost',
         sidebarTextOnly: v.sidebarTextOnly === true,
         localSavings: v.localSavings,
@@ -3354,6 +3354,8 @@
       try { window.localStorage?.setItem?.('cm.gw.' + id, accountId) } catch {}
     }
 
+    const gwFocusKey = raw => String(raw || '').toLowerCase().replace(/^(?:dsh-)?magpie(?:-connector)?-/, '')
+
     // ── 网关(CLIProxyAPI)额度侧边栏卡片(issue #96)─────────────────────────
     // 此前 display=sidebar/both 是未接线开关:宿主每刷新周期正常下发 state.gatewayQuotas,
     // 但侧边栏渲染路径没有任何 gateway 分支,配置侧边栏显示后什么也看不到。
@@ -3363,7 +3365,7 @@
     // 防撑爆;仅有 credits 无窗口的账号(如 WorkBuddy)退化为文本行。
     function GatewayQuotaBox(props) {
       const hoverProps = useQuotaHoverRefresh()
-      const { source, snapshot, state, wide, api } = props
+      const { source, snapshot, state, wide, api, focusProvider } = props
       const t = makeT(resolveLocale(state.config))
       const [selection, setSelection] = useState(() => ({ source: source.id, id: readGatewayAccountLS(source.id) }))
       const refresh = useClickRefresh(api ? () => api.refreshGatewayQuota(source.id) : null)
@@ -3373,7 +3375,10 @@
       const multi = snapshot.accounts.length > 1
       const selectedId = selection.source === source.id ? selection.id : readGatewayAccountLS(source.id)
       const selectedIdx = snapshot.accounts.findIndex(a => a.id === selectedId)
-      const activeIdx = selectedIdx >= 0 ? selectedIdx : Math.max(0, snapshot.accounts.findIndex(a => a.windows.length > 0 || a.credits != null))
+      const manualIdx = selection.source === source.id && selection.id ? selectedIdx : -1
+      const focusKey = state.config?.sidebarFocusProvider !== false && focusProvider ? gwFocusKey(focusProvider) : ''
+      const focusIdx = focusKey ? snapshot.accounts.findIndex(a => { const p = gwFocusKey(a.provider); return p === focusKey || p.endsWith('-' + focusKey) }) : -1
+      const activeIdx = manualIdx >= 0 ? manualIdx : focusIdx >= 0 ? focusIdx : selectedIdx >= 0 ? selectedIdx : Math.max(0, snapshot.accounts.findIndex(a => a.windows.length > 0 || a.credits != null))
       const currentAccount = snapshot.accounts[activeIdx] ?? snapshot.accounts[0]
       const currentAccountName = currentAccount?.label || currentAccount?.id || ''
       const prefix = account => multi && !agyLink ? (GATEWAY_PROVIDER_LABELS[account.provider] ?? account.provider) + ' · ' : ''
@@ -3434,7 +3439,7 @@
         ? el('div', { className: 'cm-bbox-head' }, el('div', { className: 'cm-mm-title' }, source.label || source.id), switchBtn)
         : el('div', { className: 'cm-mm-title' }, source.label || source.id)
       const accSub = multi && currentAccountName
-        ? el('div', { className: 'cm-gw-sub' }, currentAccountName)
+        ? el('div', { className: 'cm-gw-sub' }, (focusIdx >= 0 && activeIdx === focusIdx ? '★ ' : '') + currentAccountName)
         : null
 
       const body = el(Fragment, null, titleRow, accSub, ...bodyRows)
@@ -3449,14 +3454,14 @@
     }
 
     /** 侧边栏网关卡片列表:按来源配置(display/enabled)与快照状态过滤,见 GatewayQuotaBox 注释。 */
-    function gatewaySidebarCards(state, config, wide, api) {
+    function gatewaySidebarCards(state, config, wide, api, provider) {
       const snaps = Array.isArray(state.gatewayQuotas) ? state.gatewayQuotas : []
       const nodes = []
       for (const source of config.gatewayQuotas?.sources ?? []) {
         if (source.enabled === false || (source.display !== 'sidebar' && source.display !== 'both')) continue
         const live = snaps.find(q => q.id === source.id)
         if (!live || (live.status !== 'ok' && live.status !== 'partial' && live.status !== 'stale') || live.accounts.length === 0) continue
-        nodes.push(el(GatewayQuotaBox, { key: 'gateway:' + source.id, source, snapshot: live, state, wide, api }))
+        nodes.push(el(GatewayQuotaBox, { key: 'gateway:' + source.id, source, snapshot: live, state, wide, api, focusProvider: provider }))
       }
       return nodes
     }
@@ -3889,7 +3894,7 @@
         })
       const plansOn = sidebarPlanIds.length > 0 || Boolean(state.goQuota?.accountQuotas?.length && ['sidebar', 'both'].includes(config.goQuota?.display))
       // 网关额度侧边栏卡片(issue #96):按来源 display 门控,卡片本体见 GatewayQuotaBox。
-      const gatewayNodes = gatewaySidebarCards(state, config, wide, api)
+      const gatewayNodes = gatewaySidebarCards(state, config, wide, api, provider)
       // 启用后始终保留卡片,避免未登录/接口失败时没有提示和手动重试入口。
       const codexOn = config.codexQuotaSidebar !== false && (config.codexQuotaEnabled === true || state.codexCompat?.enabled === true)
       const budgetOn = (config.budget ?? {}).enabled === true && config.hideBudget !== true
