@@ -38,12 +38,12 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
         input.value = ''; setError(''); setFile(null)
         try {
           const backup = JSON.parse(await selected.text())
-          const sources = [], customBalances = []
+          const importedGateways = new Map(), customBalances = []
           const pick = (row, keys) => Object.fromEntries(keys.filter(key => Object.hasOwn(row, key)).map(key => [key, row[key]]))
           for (const config of [backup.quotaRecovery, backup.config ?? backup].filter(Boolean)) {
             const gateways = config.gatewayQuotas?.sources ?? (Array.isArray(config.gatewayQuotas) ? config.gatewayQuotas : [])
-            for (const row of gateways) if (typeof row?.id === 'string') {
-              sources.push({ ...pick(row, ['type', 'label', 'baseURL', 'display', 'refreshMinutes', 'includeProviders', 'antigravityOnlyGemini']),
+            for (const row of gateways) if (typeof row?.id === 'string' && !importedGateways.has(row.id)) {
+              importedGateways.set(row.id, { ...pick(row, ['type', 'label', 'baseURL', 'display', 'refreshMinutes', 'includeProviders', 'antigravityOnlyGemini']),
                 id: randomSourceId(), enabled: false, allowedHosts: [], allowInsecureHttp: false })
             }
             const custom = config.customBalances ?? (config.customBalance?.request?.url ? [config.customBalance] : [])
@@ -54,12 +54,17 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-setting
               customBalances.push({ ...source, enabled: false, allowedHosts: [], allowInsecureHttp: false })
             }
           }
-          if (!sources.length && !customBalances.length) throw Error()
-          setFile({ gatewayQuotas: { sources }, customBalances })
+          if (!importedGateways.size && !customBalances.length) throw Error()
+          setFile({ importedGateways, customBalances })
         } catch { setError(en ? 'This file contains no readable quota sources.' : '这个文件中没有可读取的额度来源。') }
       }
       const identity = row => JSON.stringify([row.adapter ?? '', row.label ?? '', row.request?.url ?? '', row.request?.method ?? 'GET'])
       const candidates = new Map()
+      // The backup ID only identifies already configured sources. Credentials use the new local ID.
+      for (const [backupId, row] of file?.importedGateways ?? []) {
+        if (!sources.some(source => source.id === backupId || source.id === row.id))
+          candidates.set('import:' + row.id, { kind: 'gateway', source: row })
+      }
       for (const config of [file, saved]) {
         for (const row of config?.gatewayQuotas?.sources ?? []) if (typeof row?.id === 'string' && !sources.some(source => source.id === row.id))
           candidates.set('gateway:' + row.id, { kind: 'gateway', source: row })
