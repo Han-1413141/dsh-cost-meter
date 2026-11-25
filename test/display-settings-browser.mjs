@@ -47,11 +47,11 @@ const code = `
 import * as ReactDOMPortal from ${literal(req.resolve('react-dom'))};import React from ${literal(req.resolve('react'))};import{createRoot}from ${literal(req.resolve('react-dom/client'))};
 const h=React.createElement;
 const tooltipText=value=>Array.isArray(value)?value.map(tooltipText).join(' '):typeof value==='string'||typeof value==='number'?String(value):value?.props?tooltipText(value.props.children):'';
-const mainRequire=name=>name==='react'?React:name==='react-dom'?ReactDOMPortal:{Tooltip:({children,label})=>React.cloneElement(children,{'data-test-tooltip':tooltipText(label)})};mainRequire.async=async path=>{const chunk={'./client.plan-settings.js':window.planSettingsUI,'./client.local-savings.js':window.localSavingsUI,'./client.peak.js':window.peakUI,'./client.sidebar-icons.js':window.sidebarIconsUI,'./client.footer-chip.js':window.footerChipUI}[path];if(!chunk)throw Error('Unexpected test chunk: '+path);return chunk};
+const mainRequire=name=>name==='react'?React:name==='react-dom'?ReactDOMPortal:{Tooltip:({children,label})=>React.cloneElement(children,{'data-test-tooltip':tooltipText(label)})};mainRequire.async=async path=>{const chunk={'./client.plan-accounts.js':window.planSettingsUI,'./client.local-savings.js':window.localSavingsUI,'./client.peak.js':window.peakUI,'./client.sidebar-icons.js':window.sidebarIconsUI,'./client.footer-chip.js':window.footerChipUI}[path];if(!chunk)throw Error('Unexpected test chunk: '+path);return chunk};
 window.__ModuleLoader__={load:mod=>window.mainUI=mod.factory(mainRequire)};
 ${client}
 window.__ModuleLoader__={load:mod=>window.planSettingsUI=mod.factory(()=>React)};
-${readFileSync('lib/client.plan-settings.js', 'utf8')}
+${readFileSync('lib/client.plan-accounts.js', 'utf8')}
 window.__ModuleLoader__={load:mod=>window.peakUI=mod.factory(name=>name==='react-dom'?ReactDOMPortal:React)};
 ${readFileSync('lib/client.peak.js', 'utf8')}
 window.__ModuleLoader__={load:mod=>window.sidebarIconsUI=mod.factory(name=>name==='react'?React:{})};

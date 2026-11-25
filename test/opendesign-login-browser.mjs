@@ -17,7 +17,7 @@ const h=React.createElement;const require=name=>name==='react'?React:{Tooltip:({
 window.__ModuleLoader__={load:mod=>window.mainUI=mod.factory(require)};
 ${source}
 window.__ModuleLoader__={load:mod=>window.planUI=mod.factory(require)};
-${readFileSync('lib/client.plan-settings.js','utf8')}
+${readFileSync('lib/client.plan-accounts.js','utf8')}
 const {PlanQuotaCard,makeT,css}=window.mainUI.loginTest;
 let state={config:${literal(config)},today:${literal(zeroDay())},month:${literal(zeroDay())},total:${literal(zeroDay())},codingPlans:{opendesign:{status:'error',message:'Synthetic missing credential',windows:{},keyConfigured:false}}};
 window.loginCalls=0;window.refreshCalls=0;

@@ -81,6 +81,8 @@ for (const mode of ['native', 'shim-before-main', 'shim-after-main']) for (const
     assert.equal(typeof a.mount, 'function', file + ' remains usable')
     assert.equal(await load(file), a, file + ' repeated import uses cache')
   }
+  const legacySettings = await load('client.plan-settings.js')
+  assert.equal(typeof await legacySettings.mount({}), 'function', 'older main bundles can mount the multi-account settings through the previous path')
   assert.equal(f.loads.length, files.length, 'one script transport per entry/chunk')
   assert.equal(f.facade.load, wrapper, 'compatibility does not mutate the global loader')
   assert.throws(() => f.run(sources.get('client.js')), /duplicate factory registration/, 'genuine duplicate execution still fails')

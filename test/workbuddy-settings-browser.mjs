@@ -20,7 +20,7 @@ import React from ${literal(req.resolve('react'))};import{createRoot}from ${lite
 const require=name=>name==='react'?React:{Tooltip:({children})=>children};require.async=async()=>window.planUI;window.__ModuleLoader__={load:mod=>window.ui=mod.factory(require)};
 ${source}
 window.__ModuleLoader__={load:mod=>window.planUI=mod.factory(require)};
-${readFileSync('lib/client.plan-settings.js','utf8')}
+${readFileSync('lib/client.plan-accounts.js','utf8')}
 const {PlanQuotaCard,makeT,css}=window.ui.test;
 function App(){const [state,setState]=React.useState(${literal(initial)});window.populateAccounts=()=>setState(s=>({...s,codingPlans:{workbuddy:{status:'ok',windows:{balance:{text:'120',resetsAt:''}},workbuddy:{scope:'all',incomplete:false,accounts:[{id:'cn:a',name:'测试账号 A',region:'cn',current:true,remaining:100,observedToday:10,observedWeek:30,observedTotal:50},{id:'global:b',name:'测试账号 B',region:'global',current:false,remaining:20,observedToday:0,observedWeek:5,observedTotal:8}]}}}}));window.config=state.config;const api={refreshCodingPlan:async()=>{const result=await fetch('/refresh').then(r=>r.json());setState(s=>({...s,codingPlans:{workbuddy:result.live}}));return result}};return React.createElement(React.Fragment,null,React.createElement('style',null,css),React.createElement(PlanQuotaCard,{planId:'workbuddy',labelKey:'wbT',state,api,t:makeT('zh'),draft:state.config,setDraft:config=>setState(s=>({...s,config}))}))}
 createRoot(document.getElementById('root')).render(React.createElement(App));

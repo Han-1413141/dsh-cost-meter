@@ -91,7 +91,7 @@ try {
     const chunks={};const require=name=>name==='react'?React:{Tooltip:({children})=>children};require.async=async name=>chunks[name];
     window.__ModuleLoader__={load:mod=>window.mainUI=mod.factory(require)};
     ${readFileSync('lib/client.js', 'utf8')}
-    ${['display', 'peak', 'sidebar-order', 'plan-settings'].map(name => `window.__ModuleLoader__={load:mod=>chunks['./client.${name}.js']=mod.factory(()=>React)};\n${readFileSync('lib/client.' + name + '.js', 'utf8')}`).join('\n')}
+    ${['display', 'peak', 'sidebar-order', 'plan-accounts'].map(name => `window.__ModuleLoader__={load:mod=>chunks['./client.${name}.js']=mod.factory(()=>React)};\n${readFileSync('lib/client.' + name + '.js', 'utf8')}`).join('\n')}
     const entries=new Map(),disposers=[],services={};
     services['remote.costMeter']=new Proxy({},{get:(_,method)=>(...args)=>fetch('/rpc',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({method,args})}).then(r=>r.json())});
     services.slots={entries:()=>[],inject:(name,fn)=>fn(),register:(options,component)=>{const id=options.name+':'+options.id;const entry={options,component};entries.set(id,entry);return()=>{if(entries.get(id)===entry)entries.delete(id)}}};

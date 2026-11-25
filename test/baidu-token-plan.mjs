@@ -128,7 +128,7 @@ try {
 
 // Render the shipped lazy card with its actual Cookie field and instructions.
 let factory
-vm.runInNewContext(readFileSync(new URL('../lib/client.plan-settings.js', import.meta.url), 'utf8'), {
+vm.runInNewContext(readFileSync(new URL('../lib/client.plan-accounts.js', import.meta.url), 'utf8'), {
   window: { __ModuleLoader__: { load: value => { factory = value.factory } } },
 })
 const el = (type, props, ...children) => ({ type, props, children })
