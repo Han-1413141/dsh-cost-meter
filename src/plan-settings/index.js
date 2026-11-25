@@ -8,7 +8,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-account
       if (typeof source?.keyVar === 'string' && source.keyVar.length > 0) return source.keyVar
       if (source?.type === 'antigravity-manager') return null
       const stem = String(source?.id ?? '').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'GATEWAY'
-      const prefix = 'CLIPROXYAPI_MANAGEMENT_KEY_' + stem
+      const prefix = (source?.type === 'magpie' ? 'MAGPIE_GATEWAY_KEY_' : 'CLIPROXYAPI_MANAGEMENT_KEY_') + stem
       return Object.keys(status ?? {}).find(name => name === prefix || name.startsWith(prefix + '_')) ?? prefix
     }
     /** 单张网关来源卡片(可多实例:标题行有开关与删除,其余配置收在展开区)。 */
