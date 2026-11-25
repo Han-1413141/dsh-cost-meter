@@ -197,6 +197,18 @@ for (const [provider, model, time, expected, currency] of promoCases) {
   near(tierFor(back.entry, at, peak).cacheMiss, expected)
   near(client.tierFor(client.normalizeClientPrice(front.entry), at, peak).cacheMiss, expected)
 }
+for (const [model, at, usd, cny] of [
+  ['hy4', '2026-12-31T15:59:59Z', .417, 3], ['hy4', '2026-12-31T16:00:00Z', .834, 6],
+  ['hy4-flash', '2026-11-30T03:59:59Z', .035, .25], ['hy4-flash', '2026-11-30T04:00:00Z', .07, .5],
+]) {
+  for (const [currency, expected] of [['USD', usd], ['CNY', cny]]) {
+    const prices = { ...config.prices, currency }
+    const back = providerPriceEntryFor('tencent', model, prices)
+    const front = client.resolveClientPrice('tencent', model, { ...parsedConfig, prices })
+    near(tierFor(back.entry, Date.parse(at), peak).cacheMiss, expected)
+    near(client.tierFor(client.normalizeClientPrice(front.entry), Date.parse(at), peak).cacheMiss, expected)
+  }
+}
 const novConfig = { prices: { providers: { google: { models: { 'gemini-4-carbon': manual, 'gemini-4-neon': { unpriced: true } } } } } }
 upgradeNovemberProviderPrices(novConfig)
 assert.deepEqual(novConfig.prices.providers.google.models['gemini-4-carbon'], manual)

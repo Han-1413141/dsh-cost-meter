@@ -1684,9 +1684,25 @@
           "cny": {
             "cacheMiss": 6,
             "cacheHit": 0.3,
-            "output": 18
+            "output": 18,
+            "rateHistory": [
+              {
+                "before": "2027-01-01T00:00:00+08:00",
+                "cacheMiss": 3,
+                "cacheHit": 0.15,
+                "output": 9
+              }
+            ]
           },
-          "notes": "Published list prices. Separate account or provisioned-throughput discounts are outside these rates."
+          "notes": "Launch discount is 50% of USD and mainland CNY list prices until the dated cutover. Mainland source: https://cloud.tencent.com/document/product/1823/130055",
+          "rateHistory": [
+            {
+              "before": "2027-01-01T00:00:00+08:00",
+              "cacheMiss": 0.417,
+              "cacheHit": 0.021,
+              "output": 1.2505
+            }
+          ]
         },
         "hy4-flash": {
           "input": 0.07,
@@ -1703,7 +1719,20 @@
               "output": 0.1405
             }
           ],
-          "notes": "Singapore list rate; 50% launch discount ends November 30 at noon Beijing time. Separate mainland list: CNY 0.5 input, 2 output, 0.02 cache read."
+          "notes": "Launch discount is 50% of USD and mainland CNY list prices until the dated cutover. Mainland source: https://cloud.tencent.com/document/product/1823/130055",
+          "cny": {
+            "cacheMiss": 0.5,
+            "cacheHit": 0.02,
+            "output": 2,
+            "rateHistory": [
+              {
+                "before": "2026-11-30T12:00:00+08:00",
+                "cacheMiss": 0.25,
+                "cacheHit": 0.01,
+                "output": 1
+              }
+            ]
+          }
         }
       }
     },

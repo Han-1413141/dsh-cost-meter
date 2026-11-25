@@ -24,7 +24,10 @@ for(const [p,m,input,read,output] of [
 assert.deepEqual([quote('moonshot','kimi-k3.1-pro','CNY').entry.cacheMiss,quote('moonshot','kimi-k3.1-pro-highspeed','CNY').entry.output],[13,136])
 assert.equal(quote('moonshot','kimi-for-coding').priced,false)
 assert.equal(quote('custom-relay','beam-free').priced,false)
-assert.equal(quote('opencode-zen','kimi-k3.1-pro').priced,false,'Go listing cannot establish a Zen rate')
+const goOnly = structuredClone(config.prices)
+delete goOnly.providers['opencode-zen'].models['kimi-k3.1-pro']
+assert.equal(providerPriceEntryFor('opencode-zen','kimi-k3.1-pro',goOnly).priced,false,'Go listing cannot establish a Zen rate')
+assert.equal(quote('opencode-zen','kimi-k3.1-pro').entry.cacheMiss,2,'new Zen listing has its own published rate')
 assert.equal(quote('opencode-zen','gpt-6.1-sol').entry.cacheHit,.1)
 const old={prices:{providers:structuredClone(before)}}
 const custom={input:9,output:90,notes:'manual'}
