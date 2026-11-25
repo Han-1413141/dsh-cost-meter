@@ -107,7 +107,7 @@
         el('div', { className: 'cm-buttons' },
           el('button', { className: 'cm-btn small', onClick: () => addGateway(), disabled: sources.length >= 4 }, t('gatewaySourceAdd')),
           el('button', { className: 'cm-btn small', onClick: () => addGateway('antigravity-manager'), disabled: sources.length >= 4 }, t('managerQuotaAdd')),
-          el('button', { className: 'cm-btn small', onClick: () => addGateway('magpie'), disabled: sources.length >= 4 || sources.some(source => source.type === 'magpie') }, t('magpieQuotaAdd')),
+          el('button', { className: 'cm-btn small', onClick: () => addGateway('magpie'), disabled: sources.length >= 4 || sources.some(source => source.type === 'magpie') }, resolveLocale(config) === 'en' ? 'Add Magpie gateway' : '添加 Magpie 网关'),
           el('button', { className: 'cm-btn small', onClick: () => addGateway('agy-link'), disabled: sources.length >= 4 || sources.some(source => source.type === 'agy-link') }, t('agyLinkQuotaAdd')),
           el('button', { className: 'cm-btn small', onClick: () => addGateway('subscriptions'), disabled: sources.length >= 4 || sources.some(source => source.type === 'subscriptions') }, t('subscriptionsQuotaAdd')),
           el('button', { className: 'cm-btn small', disabled: entries.length >= 8,

@@ -20,9 +20,9 @@ Management Key 存入 DSH 凭据库，账号邮箱在界面脱敏。非本机来
 
 ### Magpie 网关
 
-在“费用 → 额度”选择“添加 Magpie 网关”。如果本机装了 `dsh-magpie-connector`，可以直接留空地址与凭据：插件会借用连接器已配置的线路（取第一条，或与所填地址匹配的那条）和它自己保存的 Key。也可以手填地址，例如 `https://magpie.abworks.cn/v1`，或局域网地址（例如 `http://100.88.187.27:3425`），此时把主机与端口加入凭据白名单，并启用 `allowInsecureHttp`。保存后展开卡片、点“编辑凭据”填入网关 Key。
+在「费用 → 额度」添加并启用 Magpie 网关。已配置 `dsh-magpie-connector` 时，地址留空会使用连接器的第一条有地址的线路及其凭据。手动指定线路时，填写完整地址（例如 `https://magpie.abworks.cn/v1`），并将远程主机及端口加入白名单。保存后可在卡片的「编辑凭据」中填写该地址的 Key，也可沿用连接器中地址完全相同的线路凭据。使用非本机 HTTP 地址时还须勾选允许明文 HTTP。Cloudflare Access 线路使用连接器中已保存的 Access 凭据并要求 HTTPS。
 
-插件通过 `GET <地址>/magpie/quotas/cards` 读取该 Key 可见的全部卡片，按 `provider` 自动分组：每个 provider 或账号一张卡片，显示各窗口（如 5 小时、周、月）的已用百分比、上游给出的重置时间、套餐名与剩余额度。无需预先把提供商名单写死，网关新增上游后会自动出现；没有窗口数据的卡片标记为未知。最多展示 16 张卡片，账号标识沿用同一套脱敏规则。请求只读且不跟随重定向。
+插件通过 `GET <地址>/magpie/quotas/cards` 读取该 Key 可见的全部卡片，按 `provider` 自动分组：每个 provider 或账号一张卡片，显示各窗口（如 5 小时、周、月）的已用百分比、上游给出的重置时间、套餐名与剩余额度。无需预先把提供商名单写死，网关新增上游后会自动出现；没有窗口和余额数据的卡片标记为未知。最多展示 16 张卡片，账号标识沿用同一套脱敏规则。请求只读且不跟随重定向。
 
 ## English
 
@@ -42,6 +42,6 @@ The plugin reads cached quotas with `GET /api/accounts`. Cards show grouped wind
 
 ### Magpie gateway
 
-Under **Cost → Quotas**, select **Add Magpie gateway**. If `dsh-magpie-connector` is installed, leave both the address and the credential empty: the plugin borrows the connector’s configured line (the first one, or the one matching a given address) and the key it already stores. You can also type an address yourself, such as `https://magpie.abworks.cn/v1`, or a LAN address such as `http://100.88.187.27:3425` also works — add its host and port to the credential allowlist and enable `allowInsecureHttp`. After saving, expand the card and use **Edit credential** to enter the gateway key.
+Under **Cost → Quotas**, add and enable a Magpie gateway. Leave the address blank to use the first configured address and its credentials from `dsh-magpie-connector`. For a specific gateway, enter its full address (for example, `https://magpie.abworks.cn/v1`) and allowlist its remote host and port. Save the source and use **Edit credential** to enter its key, or reuse the connector credentials for an exact address match. Non-loopback HTTP also requires enabling insecure HTTP. Cloudflare Access lines require HTTPS and the Access credentials configured in the connector.
 
-The plugin reads every card the key can see from `GET <address>/magpie/quotas/cards` and groups them by `provider`: one card per provider or account, showing the used percentage of each window (5-hour, weekly, monthly and so on), the upstream reset time, the plan name and remaining credits. No provider list has to be hard-coded — new upstreams appear automatically once the gateway reports them, and cards without window data are marked unknown. Up to 16 cards are shown, with the same account masking rules. Requests are read-only and do not follow redirects.
+The plugin reads every card the key can see from `GET <address>/magpie/quotas/cards` and groups them by `provider`: one card per provider or account, showing the used percentage of each window (5-hour, weekly, monthly and so on), the upstream reset time, the plan name and remaining credits. No provider list has to be hard-coded — new upstreams appear automatically once the gateway reports them, and cards without readings or balances are marked unknown. Up to 16 cards are shown, with the same account masking rules. Requests are read-only and do not follow redirects.

@@ -6,9 +6,9 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-account
     const { GoQuotaCard, sortQuotaCards, CODING_PLAN_ROWS, GATEWAY_PROVIDERS, miniMaxRow, miniMaxResetText, GATEWAY_PROVIDER_LABELS, useQuotaRefresh, miniMaxWindowsOf, MiniMaxPlanCard, barDirectionOf, quotaWindowRow, codingPlanWindowLabel, codingPlanWindowEntries, numInput, CredentialField, QuotaCard, resolveLocale, formatMoneyUsd, formatBalanceMoney, quotaPlacementValue, quotaPlacementPatch, quotaPlacementOptions, displayOptions, BalanceBar, segmentsForCustomBalance, customBalanceUnitOf, customBalanceDetailText, formatCustomBalanceMoney, resolveCustomBalanceLabel } = helpers
     const gatewayVarOf = (source, status) => {
       if (typeof source?.keyVar === 'string' && source.keyVar.length > 0) return source.keyVar
-      if (source?.type === 'antigravity-manager') return null
+      if (['magpie', 'antigravity-manager'].includes(source?.type)) return null
       const stem = String(source?.id ?? '').toUpperCase().replace(/[^A-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'GATEWAY'
-      const prefix = (source?.type === 'magpie' ? 'MAGPIE_GATEWAY_KEY_' : 'CLIPROXYAPI_MANAGEMENT_KEY_') + stem
+      const prefix = 'CLIPROXYAPI_MANAGEMENT_KEY_' + stem
       return Object.keys(status ?? {}).find(name => name === prefix || name.startsWith(prefix + '_')) ?? prefix
     }
     /** 单张网关来源卡片(可多实例:标题行有开关与删除,其余配置收在展开区)。 */
@@ -106,6 +106,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-account
       const patch = value => write(sources.map((x, i) => i === index ? { ...x, ...value } : x))
       const field = (label, value, onChange) => el('div', { className: 'cm-field' }, el('label', null, label), el('input', { className: 'cm-input', 'aria-label': label, value: value ?? '', onChange }))
       const windowRow = (window, i) => {
+        if (window?.reading) return el('div', { key: i, className: 'cm-mm-row wide' }, window.label + ' · ' + window.reading)
         const view = miniMaxRow(window?.label || window?.id || t('gatewaySourceUnknown'), window, agyLink ? 'remaining' : barDirectionOf(config, 'plan'), t)
         return el(Fragment, { key: window?.id || i }, view.row, window?.resetsAt ? el('div', { className: 'cm-note' }, miniMaxResetText(window, t)) : null)
       }
@@ -127,10 +128,10 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-account
             !clientOnly && el('label', { className: 'cm-check' },
               el('input', { type: 'checkbox', checked: s.allowInsecureHttp === true, onChange: e => patch({ allowInsecureHttp: e.target.checked }) }),
               el('span', null, t('customBalanceHttp'))),
-          !clientOnly && el('label', { className: 'cm-check' },
+          !clientOnly && s.type !== 'magpie' && el('label', { className: 'cm-check' },
             el('input', { type: 'checkbox', checked: s.antigravityOnlyGemini === true, onChange: e => patch({ antigravityOnlyGemini: e.target.checked }) }),
             el('span', null, t('gatewayOnlyGemini')))),
-          varName ? el('div', { className: 'cm-field' }, el('label', null, t(s.type === 'antigravity-manager' ? 'managerCredential' : 'gatewaySourceCredential')), el(CredentialField, { target: 'customVar:' + varName, configured: state.customVarStatus?.[varName]?.configured === true, source: state.customVarStatus?.[varName]?.source ?? '', t, api, placeholder: varName })) : !clientOnly && el('p', { className: 'cm-note' }, t('managerSaveFirst')),
+          s.type === 'magpie' && !s.baseURL ? el('p', { className: 'cm-note' }, resolveLocale(config) === 'en' ? 'Using the first configured Magpie connector line and its credentials.' : '地址留空时使用 Magpie 连接器的第一条已配置线路及其凭据。') : varName ? el('div', { className: 'cm-field' }, el('label', null, t(s.type === 'antigravity-manager' ? 'managerCredential' : 'gatewaySourceCredential')), el(CredentialField, { target: 'customVar:' + varName, configured: state.customVarStatus?.[varName]?.configured === true, source: state.customVarStatus?.[varName]?.source ?? '', t, api, placeholder: varName })) : !clientOnly && el('p', { className: 'cm-note' }, t('managerSaveFirst')),
           live.unsupportedProviders.length > 0 ? el('div', { className: 'cm-note' }, t('gatewaySourceUnsupported') + ': ' + live.unsupportedProviders.join(', ')) : null,
           live.accounts.length > 0 ? live.accounts.map(account) : ['ok', 'partial'].includes(live.status) ? el('div', { className: 'cm-bal-line' }, t('gatewaySourceNoAccounts')) : null),
         onToggle: value => patch({ enabled: value }),
