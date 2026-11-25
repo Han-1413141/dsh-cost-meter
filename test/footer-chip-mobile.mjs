@@ -3,6 +3,7 @@ import vm from 'node:vm'
 import { readFileSync, readdirSync } from 'node:fs'
 import { sanitizeConfig, applyConfigPatch, zeroDay } from '../lib/store.js'
 import { stateSchema } from '../lib/typert.host.js'
+import { __testProjection } from '../lib/index.js'
 
 // 1. Config / schema validation for opt-in sidebarStyle: 'entry' (default stays 'standard')
 const defaults = sanitizeConfig({})
@@ -279,4 +280,37 @@ assert.match(overview.props.className, /cm-magpie-overview/)
 assert.equal(overview.children[0].children[0].props.className, 'cm-magpie-list')
 assert.equal(overview.children[0].children[1].props.className, 'cm-magpie-pinned')
 
-console.log('[ok] mobile-only footer chip, desktop immunity, sibling recovery, entry opt-in, and popover contract')
+// Exercise the route projection through the real root footer and its built popover chunk.
+const projection = __testProjection.makeCostUsageProjection({ config: defaults })
+const selection = { provider: 'dsh-magpie-connector-routing', model: 'group/team' }
+const responseEvent = provider => ({ type: 'assistant/message', data: { message: { source: {
+  ...selection, replayState: { response: { kind: 'dsh-magpie-connector-pi', version: 1,
+    ...(provider ? { magpieProvider: provider } : {}) } },
+} } } })
+let routeState = projection.init()
+const magpieSource = { id: 'magpie', type: 'magpie', label: 'Magpie', display: 'both' }
+const routeEntryState = { ...entryState, config: { ...entryState.config, sidebarMagpieOverview: true,
+  gatewayQuotas: { sources: [magpieSource] } },
+  gatewayQuotas: [{ id: magpieSource.id, status: 'ok', accounts: [codex, ...wb] }] }
+const renderRoutedOverview = provider => {
+  routeState = projection.apply(routeState, responseEvent(provider))
+  const costUsage = projection.wire.viewSchema.parse(projection.wire.view(routeState))
+  const sessionList = { byId: { routed: { id: 'routed', retainedBy: { mainView: 1 } } },
+    projectionsBySession: { routed: { values: { modelSelection: { next: selection }, costUsage } } } }
+  stateOverrides = []
+  const footer = core.SidebarFooter({ wide: true, useCost: () => ({ state: routeEntryState }),
+    useSessions: pick => pick(sessionList) })
+  stateOverrides = [null, true, true, false]
+  return mountedChip(footer.props).children[1].children[1].children[0].children[1]
+}
+const workbuddyPin = renderRoutedOverview('workbuddy')
+assert.equal(workbuddyPin.props.className, 'cm-magpie-pinned')
+assert.deepEqual(Array.from(workbuddyPin.children[1].props.snapshot.accounts), wb)
+const codexPin = renderRoutedOverview('codex')
+assert.equal(codexPin.props.className, 'cm-magpie-pinned')
+assert.deepEqual(Array.from(codexPin.children[1].props.snapshot.accounts), [codex])
+const unresolvedRoute = renderRoutedOverview(undefined)
+assert.equal(unresolvedRoute.props.role, 'status')
+assert.match(unresolvedRoute.children[0], /未确认|unavailable/)
+
+console.log('[ok] mobile-only footer chip, desktop immunity, entry opt-in, and routed provider overview')
