@@ -1127,7 +1127,7 @@
     function GoQuotaCard(props) {
       const { state, api, t, draft, setDraft } = props
       const [open, setOpen] = useState(false)
-      const goQuota = state.goQuota
+      const goQuota = state.goQuota ?? {}
       const config = state.config
       const enabled = draft?.goQuota?.enabled ?? config.goQuota?.enabled ?? true
       const setGoQuota = (field, value) => {
