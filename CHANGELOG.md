@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- **额度文案。** 侧栏卡片、入口浮层和设置页遇到供应商额度接口返回的常见固定英文短语（如 Credits、Extra credits、Total credits、Add-on credits、Image generation、Unknown、7 days）时，在中文界面按精确整串匹配显示为中文；认不出的自定义标签继续原样显示，英文界面保持原文。感谢 @abworks-dev 提出并实现精确映射方案。[PR #604](https://github.com/Han-1413141/dsh-cost-meter/pull/604)
+
 ## [1.9.93] - 2026-11-26
 
 - **历史会话读取。** 修复启动回填逐个会话重复扫描整个目录的问题，并复用侧栏的会话目录缓存。在 DSH 0.2.2-rc.5 的 256 个压缩会话测试中，完整读取所有会话共读取 256 次文件头。感谢 @sigmaraye 提供 CPU 采样和插件启停对照。[#597](https://github.com/Han-1413141/dsh-cost-meter/issues/597)

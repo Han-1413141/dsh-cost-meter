@@ -22,7 +22,7 @@ window.__ModuleLoader__.load({
       const windows = (wins, provider) => {
         const entries = (h.codingPlanWindowEntries ? h.codingPlanWindowEntries(wins, provider) : Object.entries(wins ?? {})).filter(([, win]) => win != null)
         return entries.length ? el('div', { className: 'cm-go-list' }, entries.map(([name, win]) =>
-          h.quotaWindowRow(t, (win.label || h.codingPlanWindowLabel(name === 'five' ? '5h' : name, t)) + (typeof win.percent === 'number' ? text(' · 剩余', ' · remaining') : ''), win, 'remaining', false, name))) : note(t('codingPlanNotQueried'))
+          h.quotaWindowRow(t, (h.quotaLabel(win.label, t) || h.codingPlanWindowLabel(name === 'five' ? '5h' : name, t)) + (typeof win.percent === 'number' ? text(' · 剩余', ' · remaining') : ''), win, 'remaining', false, name))) : note(t('codingPlanNotQueried'))
       }
       const cards = []
       if (config.balance?.display !== 'off' && config.hideOfficialBalance !== true) {
@@ -55,12 +55,12 @@ window.__ModuleLoader__.load({
         if (!source.enabled || source.display === 'off') continue
         const live = state.gatewayQuotas?.find(item => item.id === source.id)
         const creditRow = (value, key) => value ? el('p', { key, className: 'cm-note cm-num' },
-          (value.label || value.unit || t('credits')) + ' · ' + text('剩余 ', 'Remaining ') + (value.remaining ?? '—') + ' / ' + (value.limit ?? '—')) : null
+          (h.quotaLabel(value.label, t) || h.quotaLabel(value.unit, t) || t('credits')) + ' · ' + text('剩余 ', 'Remaining ') + (value.remaining ?? '—') + ' / ' + (value.limit ?? '—')) : null
         cards.push(section('gateway-' + source.id, source.label || source.id, status(live,
           live?.accounts?.length ? live.accounts.map((account, i) => el('div', { key: account.id || i },
             el('h4', { className: 'cm-h' }, account.label || account.provider),
             account.message ? note(account.message) : null,
-            windows(Object.fromEntries((account.windows ?? []).map((win, j) => [win.id || j, win.reading ? { ...win, text: win.reading, percent: undefined } : win]))),
+            windows(Object.fromEntries((account.windows ?? []).map((win, j) => [win.id || j, win.reading ? { ...win, text: h.quotaLabel(win.reading, t), percent: undefined } : win]))),
             creditRow(account.credits), (account.credits?.packages ?? []).map((pkg, j) => creditRow(pkg, pkg.id || j)))) : note(t('gatewaySourceNoAccounts')))))
       }
       return el('div', { className: 'cm-section', 'data-settings-overview': true },

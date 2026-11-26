@@ -3404,15 +3404,15 @@
         if (grouped) rows.push({ name: account.label || account.id, heading: true })
         for (const win of account.windows) {
           if (rows.length >= maxRows) break
-          const name = prefix(account) + (win.label || codingPlanWindowLabel(win.id, t))
-          rows.push(win.reading ? { name, text: win.reading } : { win, name, view: miniMaxRow(name, win, direction, t) })
+          const name = prefix(account) + (quotaLabel(win.label, t) || codingPlanWindowLabel(win.id, t))
+          rows.push(win.reading ? { name, text: quotaLabel(win.reading, t) } : { win, name, view: miniMaxRow(name, win, direction, t) })
         }
         if (account.windows.length === 0 && account.credits != null) {
           const c = account.credits
           const creditText = c.used == null && c.limit == null
             ? (c.remaining != null ? (c.unit === 'USD' ? '$' + c.remaining : String(c.remaining)) : (account.plan || '—'))
             : (c.used ?? '—') + ' / ' + (c.limit ?? '—')
-          rows.push({ win: null, name: prefix(account) + (c.unit || t('credits')), text: creditText })
+          rows.push({ win: null, name: prefix(account) + (quotaLabel(c.unit, t) || t('credits')), text: creditText })
         }
       }
       if (rows.length === 0) rows.push({ name: t('gatewayQuotaEmpty'), text: '—' })

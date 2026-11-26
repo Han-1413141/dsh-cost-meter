@@ -437,6 +437,11 @@ window.__ModuleLoader__.load({
         unknownError: '未知错误',
         balance: '余额',
         credits: '积分', package: '套餐',
+        // 供应商额度接口常见的固定英文短语：仅整串命中时由 quotaLabel 替换，未命中的自定义标签保持原文。
+        'gw:credits': '积分', 'gw:extra credits': '额外积分', 'gw:total credits': '总积分', 'gw:add-on credits': '附加积分',
+        'gw:add-on remaining': '附加剩余', 'gw:daily credits': '每日积分', 'gw:monthly credits': '月度积分',
+        'gw:image generation': '图像生成', 'gw:unknown': '未知', 'gw:unlimited': '无限', 'gw:free': '免费',
+        'gw:trial': '试用', 'gw:7 days': '7 天', 'gw:30 days': '30 天',
         officialBalance: 'DeepSeek 余额',
         quotaComposer: '输入框上方',
         quotaSidebarSettings: '侧栏和设置页',
@@ -1478,6 +1483,17 @@ window.__ModuleLoader__.load({
       const value = typeof config === 'string' ? config : config?.locale
       if (value === 'zh' || value === 'en') return value
       return supportedLocale(config?.activeLocale) || detectBrowserLocale()
+    }
+
+    /**
+     * 供应商额度里的固定英文短语做精确翻译：整串(大小写不敏感、去首尾空白)命中 'gw:' 词条才替换，
+     * 认不出的自定义标签返回原文；英文界面无 'gw:' 词条，t() 回落为键本身，自然保持原样。
+     */
+    function quotaLabel(text, t) {
+      if (typeof text !== 'string' || !text) return text
+      const key = 'gw:' + text.trim().toLowerCase()
+      const out = t(key)
+      return out === key ? text : out
     }
 
     /** 构造按当前语言取文案的函数 t(key, vars)。 */
