@@ -436,6 +436,7 @@ window.__ModuleLoader__.load({
         balanceQueryFailed: '余额查询失败:{message}',
         unknownError: '未知错误',
         balance: '余额',
+        credits: '积分', package: '套餐',
         officialBalance: 'DeepSeek 余额',
         quotaComposer: '输入框上方',
         quotaSidebarSettings: '侧栏和设置页',

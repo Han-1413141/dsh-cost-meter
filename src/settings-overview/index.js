@@ -55,7 +55,7 @@ window.__ModuleLoader__.load({
         if (!source.enabled || source.display === 'off') continue
         const live = state.gatewayQuotas?.find(item => item.id === source.id)
         const creditRow = (value, key) => value ? el('p', { key, className: 'cm-note cm-num' },
-          (value.label || value.unit || 'Credits') + ' · ' + text('剩余 ', 'Remaining ') + (value.remaining ?? '—') + ' / ' + (value.limit ?? '—')) : null
+          (value.label || value.unit || t('credits')) + ' · ' + text('剩余 ', 'Remaining ') + (value.remaining ?? '—') + ' / ' + (value.limit ?? '—')) : null
         cards.push(section('gateway-' + source.id, source.label || source.id, status(live,
           live?.accounts?.length ? live.accounts.map((account, i) => el('div', { key: account.id || i },
             el('h4', { className: 'cm-h' }, account.label || account.provider),

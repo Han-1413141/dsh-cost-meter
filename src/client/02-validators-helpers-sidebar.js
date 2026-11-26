@@ -408,7 +408,7 @@
       const s0 = (s, d = '') => (typeof s === 'string' ? s : d)
       const n = x => numOrNull(x)
       const windowOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { id: s0(x.id), label: s0(x.label), reading: s0(x.reading), ...(n(x.percent) === null ? {} : { percent: n(x.percent) }), resetsAt: s0(x.resetsAt), periodHours: n(x.periodHours), scope: s0(x.scope) } : null
-      const creditsOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { unit: s0(x.unit, 'credits'), used: n(x.used), remaining: n(x.remaining), limit: n(x.limit), fetchedAt: s0(x.fetchedAt), packages: Array.isArray(x.packages) ? x.packages.filter(p => p !== null && typeof p === 'object' && !Array.isArray(p)).map(p => ({ id: s0(p.id), label: s0(p.label), used: n(p.used), remaining: n(p.remaining), limit: n(p.limit), startsAt: s0(p.startsAt), resetsAt: s0(p.resetsAt) })) : [] } : undefined
+      const creditsOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { unit: s0(x.unit), used: n(x.used), remaining: n(x.remaining), limit: n(x.limit), fetchedAt: s0(x.fetchedAt), packages: Array.isArray(x.packages) ? x.packages.filter(p => p !== null && typeof p === 'object' && !Array.isArray(p)).map(p => ({ id: s0(p.id), label: s0(p.label), used: n(p.used), remaining: n(p.remaining), limit: n(p.limit), startsAt: s0(p.startsAt), resetsAt: s0(p.resetsAt) })) : [] } : undefined
       return { browserAccessDenied: v.browserAccessDenied === true, id: s0(v.id), type: oneOf(v.type, ['agy-link', 'subscriptions', 'antigravity-manager', 'magpie'], 'cliproxyapi'), label: s0(v.label), status: gatewaySourceStatuses.has(v.status) ? v.status : 'error', message: s0(v.message), fetchedAt: n(v.fetchedAt) ?? 0, attemptedAt: n(v.attemptedAt) ?? 0, serverVersion: s0(v.serverVersion), keyConfigured: v.keyConfigured === true, keySource: s0(v.keySource, 'none'), accounts: Array.isArray(v.accounts) ? v.accounts.filter(a => a !== null && typeof a === 'object' && !Array.isArray(a)).slice(0, 64).map(a => ({ id: s0(a.id), provider: s0(a.provider, 'unknown'), label: s0(a.label, 'unknown'), status: gatewayAccountStatuses.has(a.status) ? a.status : 'unknown', message: s0(a.message), plan: s0(a.plan), windows: Array.isArray(a.windows) ? a.windows.map(windowOf).filter(Boolean) : [], credits: creditsOf(a.credits) })) : [], unsupportedProviders: Array.isArray(v.unsupportedProviders) ? v.unsupportedProviders.filter(x => typeof x === 'string').slice(0, 32) : [] }
     }
     function parsePlanStats(v) {
@@ -3389,7 +3389,7 @@
         if (grouped) rows.push({ name: account.label || account.id, heading: true })
         for (const win of account.windows) {
           if (rows.length >= maxRows) break
-          const name = prefix(account) + (win.label || win.id || t('gatewaySourceUnknown'))
+          const name = prefix(account) + (win.label || codingPlanWindowLabel(win.id, t))
           rows.push(win.reading ? { name, text: win.reading } : { win, name, view: miniMaxRow(name, win, direction, t) })
         }
         if (account.windows.length === 0 && account.credits != null) {
@@ -3397,7 +3397,7 @@
           const creditText = c.used == null && c.limit == null
             ? (c.remaining != null ? (c.unit === 'USD' ? '$' + c.remaining : String(c.remaining)) : (account.plan || '—'))
             : (c.used ?? '—') + ' / ' + (c.limit ?? '—')
-          rows.push({ win: null, name: prefix(account) + (c.unit || 'credits'), text: creditText })
+          rows.push({ win: null, name: prefix(account) + (c.unit || t('credits')), text: creditText })
         }
       }
       if (rows.length === 0) rows.push({ name: t('gatewayQuotaEmpty'), text: '—' })

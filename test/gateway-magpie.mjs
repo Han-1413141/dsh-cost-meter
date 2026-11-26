@@ -187,10 +187,15 @@ try {
   const rawCards = await queryGatewayQuota(ctx, source, { fetchImpl: async () => json({ data: [
     { provider: 'deepseek', balance: '¥42.50', windows: [{ name: 'Chat', unlimited: true }] },
     { provider: 'claude', error: 'private upstream detail' },
+    { provider: 'unitless', credits: { remaining: 5 } },
   ] }) })
   gatewayState.parse({ gatewayQuotas: [rawCards] })
   assert.equal(rawCards.accounts[0].windows[0].reading, '∞')
   assert.equal(rawCards.accounts[0].windows[1].reading, '¥42.50')
+  // 余额窗口与缺失单位不再在服务端写死英文，交给客户端按 locale 套词条。
+  assert.equal(rawCards.accounts[0].windows[1].label, '', '余额窗口标签留空由客户端本地化')
+  assert.equal(rawCards.accounts[0].windows[1].scope, 'balance')
+  assert.equal(rawCards.accounts.find(row => row.provider === 'unitless').credits.unit, '', '缺失的积分单位不回落为硬编码英文')
   assert.equal(rawCards.accounts[1].status, 'error')
   assert.ok(!JSON.stringify(rawCards).includes('private upstream detail'))
   process.env.DSH_HOME = home
