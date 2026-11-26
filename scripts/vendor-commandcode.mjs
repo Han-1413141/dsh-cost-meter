@@ -16,6 +16,7 @@ for (const name of ['LICENSE', 'NOTICE']) await copyFile(join(upstream, name), j
 const entries = {
   protocol: `export {CommandCodeAdapter} from './src/adapter.ts'
 export {CommandCodeAccountPool,accountUsable} from './src/accounts.ts'
+export {assertUsableApiKey} from './src/api-key.ts'
 export {KNOWN_EFFORTS,KNOWN_IMAGE_MODELS,KNOWN_PLANS,PLAN_ORDER,dealLabel,peakPricingLabel} from './src/capabilities.ts'`,
   search: "export {CommandCodeSearchProvider} from './src/web-search.ts'",
 }

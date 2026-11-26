@@ -1700,6 +1700,11 @@
           setEditing(false)
           setMsg({ kind: 'ok', text: result?.message ?? t('credentialSave') })
         } catch (error) {
+          // Restore only the original, still-mounted password field for an explicit retry.
+          if (input.isConnected && input.name === 'cm-credential-' + target) {
+            input.value = value
+            setHasValue(true)
+          }
           setMsg({ kind: 'err', text: String(error?.message ?? error) })
         } finally {
           pending.current = false

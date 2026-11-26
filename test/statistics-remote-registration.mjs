@@ -56,13 +56,18 @@ const statistics = moduleFrom(pluginSource('client.statistics.js'), () => React)
 const catalog = baseline ? null : moduleFrom(pluginSource('client.openrouter.js'), () => React)
 const pricing = baseline ? null : moduleFrom(pluginSource('client.pricing.js'), () => React)
 const sessionList = baseline ? null : moduleFrom(pluginSource('client.session-list.js'), () => React)
+const commandCode = baseline ? null : moduleFrom(pluginSource('client.commandcode.js'), () => React)
+const chunks = new Map([
+  ['./client.statistics.js', statistics], ['./client.openrouter.js', catalog], ['./client.pricing.js', pricing],
+  ['./client.session-list.js', sessionList], ['./client.commandcode.js', commandCode],
+])
 let loadCalls = 0, failLoad = false
 const requireMain = id => id === 'react' ? React : {}
 requireMain.async = async id => {
-  assert.ok(['./client.statistics.js', './client.openrouter.js', './client.pricing.js', './client.session-list.js'].includes(id)); loadCalls++
+  assert.ok(chunks.has(id), 'unexpected chunk ' + id)
+  loadCalls++
   if (failLoad) { failLoad = false; throw new Error('synthetic chunk load failure') }
-  if (id === './client.session-list.js') return sessionList
-  return id === './client.statistics.js' ? statistics : id === './client.pricing.js' ? pricing : catalog
+  return chunks.get(id)
 }
 const main = moduleFrom(pluginSource('client.js'), requireMain)
 const client = new Context()
@@ -81,6 +86,9 @@ class Connection extends Service {
         }
         if (endpoint === 'costMeter/updateConfig') { state.config = applyConfigPatch(state.config, payload.args.patch).config; return { ok: true, value: state } }
         if (endpoint === 'costMeter/billingStorage') return { ok: true, value: await manageBillionStorage(ledger.path, payload.args.options) }
+        if (endpoint === 'costMeter/commandCodeRuntime') return { ok: true, value: {
+          available: false, status: 'disabled', servingAccountId: null, models: [], health: {}, searchProviders: [],
+        } }
         if (endpoint === 'costMeter/getOpenRouterCatalog') return { ok: true, value: { fetchedAt: '2026-10-09T05:00:00Z', stale: false, error: '', models: [] } }
         if (endpoint === 'costMeter/getRepricingHistory') return { ok: true, value: [] }
         if (endpoint === 'costMeter/getPriceCatalog') return { ok: true, value: buildPriceCatalog() }
@@ -234,16 +242,26 @@ try {
     await new Promise(resolve => setImmediate(resolve))
     assert.ok(registrations.has('sidebar.workspaces.session.row.action:cost-meter-session-list'), 'enabling amounts mounts the shipped lazy session list')
     assert.equal((await client.get('remote.costMeter').getSessionListCosts({ sessionIds: ['selected'], period: 'total' })).value.length, 0)
+    const hasCommandCodeRuntime = () => client.typert.remotes.list().some(d => d.method === 'commandCodeRuntime')
+    assert.equal(hasCommandCodeRuntime(), false, 'CommandCode runtime RPC stays lazy until the provider settings open')
+    const [Provider, sameProvider] = await Promise.all([first.api.loadCommandCode(), first.api.loadCommandCode()])
+    assert.equal(Provider, sameProvider, 'both provider settings entries share the same mount')
+    const runtimeOptions = { refresh: false, modelAccountId: 'default' }
+    const providerRpc = Provider({ state }).props.remote
+    assert.equal((await providerRpc.commandCodeRuntime(runtimeOptions)).value.status, 'disabled')
+    assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))), ['costMeter/commandCodeRuntime', { options: runtimeOptions }])
     const expectedMethods = TYPERT.invocations.filter(d => d.namespace === 'costMeter').map(d => d.method).sort()
     const actualMethods = Array.from(client.typert.remotes.list().filter(d => d.namespace === 'costMeter'), d => d.method).sort()
-    assert.deepEqual(actualMethods, expectedMethods, 'all main and statistics methods coexist exactly once')
+    assert.deepEqual(actualMethods, expectedMethods, 'main and all mounted lazy methods coexist exactly once')
     assert.equal(new Set(actualMethods).size, actualMethods.length, 'no duplicate methods in the real registry')
     await first.fiber.dispose()
-    assert.equal(client.typert.remotes.list().filter(d => d.namespace === 'costMeter').length, 0, 'unload withdraws both contributions')
+    assert.equal(client.typert.remotes.list().filter(d => d.namespace === 'costMeter').length, 0, 'unload withdraws all contributions')
     assert.equal(timers.size, 0)
     assert.equal([...listeners.values()].reduce((sum, rows) => sum + rows.size, 0), 0, 'unload removes lazy activation listeners')
     state.config.sessionListCosts = false
     const second = await activate()
+    assert.equal(hasCommandCodeRuntime(), false, 'reactivation starts without the previous provider mount')
+    assert.equal(typeof await second.api.loadCommandCode(), 'function')
     const Reopened = await second.api.loadStatistics()
     assert.equal(typeof await second.api.loadPricing(), 'function', 'pricing contribution supports plugin reload')
     assert.equal(typeof Reopened, 'function', 'same client modules can be mounted again after plugin reload')

@@ -27,8 +27,9 @@ jobs:
       - run: npm install -g pnpm && pnpm install --frozen-lockfile
       - name: Exercise native inference and account rotation in DSH
         run: |
-          npm install --prefix .tmp-commandcode-host --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh-llm@0.2.2-rc.5 @deepseek-ai/dsh-web@0.2.2-rc.5
+          npm install --prefix .tmp-commandcode-host --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh-llm@0.2.2-rc.5 @deepseek-ai/dsh-web@0.2.2-rc.5 @deepseek-ai/dsh-settings@0.2.2-rc.5
           node test/commandcode-provider-engine.mjs .tmp-commandcode-host/package.json
+          node test/commandcode-meter-host.mjs .tmp-commandcode-host/package.json
 
   client-chunk-compatibility:
     runs-on: ubuntu-latest
