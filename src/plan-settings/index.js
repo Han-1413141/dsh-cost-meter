@@ -198,7 +198,10 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-account
         setBusy(true); setError('')
         try {
           const targets = source === 'codingPlans.volcengine' ? [source + '.ak', source + '.sk'] : [source]
-          for (const key of targets) await api.clearCredential(key + '@' + group.selected)
+          for (const key of targets) {
+            const result = await api.clearCredential(key + '@' + group.selected)
+            if (result?.ok === false) throw Error(result.message || text('清除凭据失败', 'Could not clear credential'))
+          }
           const accounts = group.accounts.filter(row => row.id !== group.selected)
           change({ ...group, selected: source === 'balance' ? accounts[0]?.id ?? 'default' : 'default', accounts, ...(group.displayed ? { displayed: group.displayed.filter(id => id !== group.selected) } : {}) })
         } catch (e) { setError(String(e?.message ?? e)) }
@@ -355,7 +358,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-account
         el('strong', null, row.accountLabel), ' ',
         el('button', { type: 'button', className: 'cm-btn small', disabled: busy, onClick: refresh }, t('refreshCodingPlan')),
         row.status === 'ok' ? codingPlanWindowEntries(row.windows, planId).map(([name, win]) =>
-          quotaWindowRow(t, codingPlanWindowLabel(name, t), win, barDirectionOf(config, 'plan'), false, name))
+          quotaWindowRow(t, codingPlanWindowLabel(name, t), win, barDirectionOf(config, planId === 'go' ? 'go' : 'plan'), false, name))
           : el('p', { className: 'cm-note' }, row.message || t('codingPlanNotQueried')),
         msg?.text && el('p', { className: 'cm-note' }, msg.text))
     }

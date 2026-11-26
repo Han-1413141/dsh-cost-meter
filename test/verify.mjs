@@ -1691,6 +1691,11 @@ vm.runInNewContext(readFileSync(new URL('../lib/client.session-list.js', import.
   window: { __ModuleLoader__: { load: value => { sessionListFactory = value.factory } } },
 })
 descriptors.push(...sessionListFactory(() => ({})).CONTRIBUTION.descriptors)
+let commandCodeFactory
+vm.runInNewContext(readFileSync(new URL('../lib/client.commandcode.js', import.meta.url), 'utf8'), {
+  window: { __ModuleLoader__: { load: value => { commandCodeFactory = value.factory } } },
+})
+descriptors.push(...commandCodeFactory(() => ({})).CONTRIBUTION.descriptors)
 const clientMethods = Array.from(descriptors, d => d.method).sort()
 const serverMethods = TYPERT.invocations.map(i => i.method).sort()
 assert.deepEqual(clientMethods, serverMethods, '客户端 descriptor 与服务端 typert 清单方法一一对齐')
@@ -3590,13 +3595,13 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
   for (const { tag, script, wantOk, wantStatus, wantCalls, wantPercent } of scenarios) {
     const home = mkHome(tag)
     let calls = 0
-    let sawBrowserUa = false
+    let sawProductUa = false
     globalThis.fetch = async (url, init = {}) => {
       // Background price refreshes must not consume the Go quota retry script.
-      if (String(url) !== 'https://opencode.ai/zen/go/v1/usage') return prevFetch(url, init)
+      if (String(url) !== 'https://opencode.ai/inference/go/v1/usage') return prevFetch(url, init)
       const step = script[Math.min(calls, script.length - 1)]
       calls += 1
-      if (init.headers?.['user-agent']?.includes('Mozilla/5.0')) sawBrowserUa = true
+      if (init.headers?.['user-agent']?.startsWith('dsh-cost-meter')) sawProductUa = true
       if (step === null) {
         const error = new TypeError('fetch failed')
         error.cause = { code: 'ECONNRESET' }
@@ -3622,7 +3627,7 @@ console.log('[ok] OpenRouter/SiliconFlow/CommandCode 解析器与白名单通过
       assert.equal(res.state.goQuota.rolling.percent, wantPercent, 'retry:rolling 用量百分比')
       assert.equal(res.state.goQuota.monthly.percent, 7.25, 'retry:monthly 用量百分比')
     }
-    assert.equal(sawBrowserUa, true, tag + ':浏览器 UA 头保留(Cloudflare error 1010 防护)')
+    assert.equal(sawProductUa, true, tag + ':额度请求使用插件标识')
     await removeFixture(home, { recursive: true, force: true })
   }
   globalThis.fetch = prevFetch
@@ -6959,6 +6964,7 @@ await import('./cache-lifecycle.mjs')
 await import('./core-boundaries.mjs')
 await import('./go-credentials.mjs')
 await import('./go-authentication.mjs')
+await import('./commandcode-auth.mjs')
 await import('./commandcode-monthly.mjs')
 await import('./model-labels.mjs')
 await import('./session-list-costs.mjs')

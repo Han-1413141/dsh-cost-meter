@@ -599,8 +599,22 @@ assert.equal(follow.storage.get('cm.gw.magpie'), 'a')
 sessionList.byId = { cx: row('cx') }
 footer.render()
 const codexCard = entryCard()
-assert.notEqual(codexCard.props.key, view.props.key, 'changing sessions resets the manual selection')
+assert.equal(codexCard.props.key, 'gateway:magpie', 'the display order and icon view use the stable source ID')
+assert.notEqual(codexCard.props.sessionId, view.props.sessionId)
+followed.render(codexCard.props)
+assert.match(textOf(followed.tree), /★.*window-a/, 'manual choice from the previous session does not override the new one')
 assert.equal(codexCard.props.focusProvider, 'codex')
+sessionList.projectionsBySession.cx.values.modelSelection.next = { provider: 'llm-dsh-magpie-connector-workbuddy-global', model: 'unprefixed' }
+footer.render()
+assert.equal(entryCard().props.focusProvider, 'workbuddy', 'overview and single card both receive the gateway provider ID for a direct connector')
+sessionList.projectionsBySession.cx.values.modelSelection.next = { provider: 'unrelated', model: 'workbuddy/model' }
+footer.render()
+const unmatched = entryCard()
+assert.equal(unmatched.props.focusProvider, undefined, 'another provider may use the same model namespace')
+followed.render(unmatched.props)
+nodes(followed.tree).find(node => node.props.className === 'cm-gw-switcher').props.onClick({ stopPropagation() {} })
+await follow.flush()
+assert.equal(follow.storage.get('cm.gw.magpie'), 'a', 'unmatched sessions keep manual choices local while following is on')
 for (const alias of ['group', 'auto']) {
   sessionList.byId = { routed: row('routed') }
   sessionList.projectionsBySession.routed = modelProjection(alias)

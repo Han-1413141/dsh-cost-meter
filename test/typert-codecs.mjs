@@ -35,6 +35,11 @@ vm.runInNewContext(readFileSync(new URL('../lib/client.pricing.js', import.meta.
   window: { __ModuleLoader__: { load: value => { pricingFactory = value.factory } } },
 })
 contribution.descriptors.push(...pricingFactory(() => ({})).CONTRIBUTION.descriptors)
+let commandCodeFactory
+vm.runInNewContext(readFileSync(new URL('../lib/client.commandcode.js', import.meta.url), 'utf8'), {
+  window: { __ModuleLoader__: { load: module => { commandCodeFactory = module.factory } } },
+})
+contribution.descriptors.push(...commandCodeFactory(() => ({})).CONTRIBUTION.descriptors)
 export const CLIENT_CONTRIBUTION = contribution
 let listFactory
 vm.runInNewContext(readFileSync(new URL('../lib/client.session-list.js', import.meta.url), 'utf8'), {

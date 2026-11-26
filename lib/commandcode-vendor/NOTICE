@@ -1,0 +1,10 @@
+dsh-commandcode-provider
+Copyright (c) 2026 Mars-Sea
+
+This software incorporates portions ported from pi-commandcode-provider
+(Copyright (c) 2025 Pat Woz), licensed under the MIT License, which
+reverse-engineered the Command Code Provider API.
+
+Command Code is a product of Command Code, Inc.; this project is not
+affiliated with or endorsed by it, and your use of the Command Code service
+is governed by Command Code's own terms.

@@ -17,6 +17,19 @@ env:
   DSH_PIN: 0.2.0-rc.2
 
 jobs:
+  commandcode-provider:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npm install -g pnpm && pnpm install --frozen-lockfile
+      - name: Exercise native inference and account rotation in DSH
+        run: |
+          npm install --prefix .tmp-commandcode-host --ignore-scripts --no-audit --no-fund @deepseek-ai/dsh-llm@0.2.2-rc.5 @deepseek-ai/dsh-web@0.2.2-rc.5
+          node test/commandcode-provider-engine.mjs .tmp-commandcode-host/package.json
+
   client-chunk-compatibility:
     runs-on: ubuntu-latest
     steps:
@@ -171,6 +184,7 @@ jobs:
           node test/session-costs-browser.mjs
           node test/billing-export-browser.mjs
           node test/query-accounts-browser.mjs
+          node test/commandcode-settings-browser.mjs
           node test/display-settings-browser.mjs --quick-hide-only
           node test/display-settings-browser.mjs --plan-amounts-only
           node test/display-settings-browser.mjs --balance-source-only

@@ -136,6 +136,7 @@
         for (const id of Object.keys(v.prices.models)) models[id] = parsePrice(v.prices.models[id], path + '.prices.models.' + id)
       }
       return {
+        commandCodeProvider: v.commandCodeProvider ?? {},
         queryAccounts: v.queryAccounts && typeof v.queryAccounts === 'object' ? v.queryAccounts : {},
         locale: v.locale === 'zh' || v.locale === 'en' || v.locale === 'auto' ? v.locale : 'auto',
         position: v.position === 'header' || v.position === 'off' ? v.position : 'dock',
@@ -148,7 +149,8 @@
         hideTodayCost: v.hideTodayCost === true,
         sessionListCostPeriod: v.sessionListCostPeriod === 'today' ? 'today' : 'total',
         modelStatistics: v.modelStatistics ?? {},
-        ...mapFields(v, ['hideSessionCostHeader', 'hideSessionCostDock', 'hideTurnCost', 'followSkinTransparency', 'sidebarTodayBalanceInline', 'sessionListCosts', 'hideBudget', 'sessionCostCompact', 'contextCostsEnabled', 'contextCostsPromptSeen', 'showTotalWithPlan', 'sidebarSimple', 'sidebarFocusProvider', 'sidebarMagpieOverview', 'codexQuotaEnabled', 'codexCompatPromptDismissed', 'includeSubagentCost', 'peakEnabled', 'peakAlertWebNotify'], value => value === true),
+        ...mapFields(v, ['hideSessionCostHeader', 'hideSessionCostDock', 'hideTurnCost', 'followSkinTransparency', 'sidebarTodayBalanceInline', 'sessionListCosts', 'hideBudget', 'sessionCostCompact', 'contextCostsEnabled', 'contextCostsPromptSeen', 'showTotalWithPlan', 'sidebarSimple', 'sidebarMagpieOverview', 'codexQuotaEnabled', 'codexCompatPromptDismissed', 'includeSubagentCost', 'peakEnabled', 'peakAlertWebNotify'], value => value === true),
+        sidebarFocusProvider: v.sidebarFocusProvider !== false,
         sidebarTodayMetric: ['tokens', 'both'].includes(v.sidebarTodayMetric) ? v.sidebarTodayMetric : 'cost',
         sidebarTextOnly: v.sidebarTextOnly === true,
         localSavings: v.localSavings,
@@ -371,6 +373,7 @@
       if (v === null || v === undefined) return null
       if (typeof v !== 'object' || Array.isArray(v)) fail(path, 'object')
       return {
+        status: v.status,
         percent: num0(v.percent),
         resetsAt: typeof v.resetsAt === 'string' ? v.resetsAt : '',
       }
@@ -378,6 +381,8 @@
     function parseGoQuota(v, path) {
       return {
         ...parseSnapshotStatus(v, path),
+        keyConfigured: v.keyConfigured === true, keySource: v.keySource, keyRef: v.keyRef,
+        routeConfigured: v.routeConfigured === true, lastSuccessAt: num0(v.lastSuccessAt ?? (v.status === 'ok' ? v.fetchedAt : 0)),
         accountLabel: v.accountLabel, accountQuotas: Array.isArray(v.accountQuotas) ? v.accountQuotas : [],
         rolling: parseGoWindow(v.rolling, path + '.rolling'),
         weekly: parseGoWindow(v.weekly, path + '.weekly'),
@@ -469,7 +474,7 @@
         localSavings: v.localSavings,
         balance: v.balance == null ? EMPTY_BAL : parseBalance(v.balance, path + '.balance'),
         balanceAccounts: Array.isArray(v.balanceAccounts) ? v.balanceAccounts.slice(0, 11).map(row => ({ ...parseBalance(row, path + '.balanceAccounts'), id: needStr(row.id, path), label: needStr(row.label, path) })) : [],
-        goQuota: v.goQuota == null ? EMPTY_GO : parseGoQuota(v.goQuota, path + '.goQuota'),
+        goQuota: v.goQuota == null ? EMPTY_GO : parseGoQuota({ keyConfigured: v.config?.goQuota?.keyConfigured, keySource: v.config?.goQuota?.keySource, ...v.goQuota }, path + '.goQuota'),
         customBalance: v.customBalance == null ? emptyCustomSnapshot() : parseCustomBalance(v.customBalance, path + '.customBalance'),
         // 多配置形态(v1.7.0,issue #79):全部条目快照;缺失/畸形回落空数组
         // (旧宿主快照),渲染退化为旧单条 customBalance 镜像。
@@ -508,6 +513,7 @@
         // 客户端据此沿用上一份,并按同一版本号回传以避免重复下发。
         pricesRev: typeof v.pricesRev === 'string' ? v.pricesRev : undefined,
         modelLabels: Object.fromEntries(Object.entries(v.modelLabels ?? {}).filter(([, label]) => typeof label === 'string')),
+        commandCodeSettingsNs: v.commandCodeSettingsNs,
         modelDirectory: v.modelDirectory,
         reconcile: v.reconcile == null ? undefined : { ok: v.reconcile.ok === true, message: typeof v.reconcile.message === 'string' ? v.reconcile.message : '',
           ...(typeof v.reconcile.searchMessage === 'string' ? { searchMessage: v.reconcile.searchMessage, balanceMessage: String(v.reconcile.balanceMessage ?? '') } : {}) },
@@ -711,6 +717,8 @@
           ],
           result: strictCodec('TopSessions', topSessionsCodec),
         },
+        { method: 'commandCodeAuth', parameters: [rpcParam('request', 'CommandCodeAuthQuery', patchCodec)],
+          result: strictCodec('CommandCodeAuthState', dayCodec) },
         {
           // 写入一枚密钥到 DSH 凭据库(v1.6.8):与服务端 typert 清单一一对应。
           method: 'setCredential',
@@ -1670,21 +1678,25 @@
      * 注意:本组件在 return 之前无条件调用全部 Hook(项目有 Hook 顺序门禁扫描)。
      */
     function CredentialField({ target, configured, source, t, api, placeholder, disabled }) {
-      const [text, setText] = useState('')
+      const [hasValue, setHasValue] = useState(false)
       const [editing, setEditing] = useState(false)
       const [busy, setBusy] = useState(false)
       const [msg, setMsg] = useState(null)
       const pending = useRef(false)
       const blocked = disabled === true || busy
-      const save = async () => {
-        const value = text.trim()
+      const save = async event => {
+        event.preventDefault()
+        const input = event.currentTarget.elements.namedItem('cm-credential-' + target)
+        const value = input.value.trim()
         if (value.length === 0 || blocked || pending.current) return
+        input.value = ''
+        setHasValue(false)
         pending.current = true
         setBusy(true)
         setMsg(null)
         try {
           const result = await api.setCredential(target, value)
-          setText('')
+          if (result?.ok === false) throw new Error(result.message || t('unknownError'))
           setEditing(false)
           setMsg({ kind: 'ok', text: result?.message ?? t('credentialSave') })
         } catch (error) {
@@ -1701,7 +1713,8 @@
         setMsg(null)
         try {
           const result = await api.clearCredential(target)
-          setText('')
+          if (result?.ok === false) throw new Error(result.message || t('unknownError'))
+          setHasValue(false)
           setEditing(false)
           setMsg({ kind: 'ok', text: result?.message ?? t('credentialClear') })
         } catch (error) {
@@ -1711,32 +1724,32 @@
           setBusy(false)
         }
       }
-      const cancel = () => { setText(''); setEditing(false) }
+      const cancel = () => { setHasValue(false); setEditing(false) }
       const clearButton = configured === true
         ? el('button', { className: 'cm-btn small', type: 'button', onClick: clear, disabled: blocked }, t('credentialClear'))
         : null
       // 浏览器可能忽略 password 的 autocomplete=off，并把前一个文本框当用户名。
       // 概览打开时不挂载密码框；明确编辑后使用独立 form，避免串到宿主会话搜索。
       return el('div', { className: 'cm-field' },
-        editing ? el('form', { className: 'cm-field', autoComplete: 'off', onSubmit: event => { event.preventDefault(); void save() } },
+        editing ? el('form', { className: 'cm-field', autoComplete: 'off', onSubmit: save },
         el('input', {
           className: 'cm-input',
           type: 'password',
           name: 'cm-credential-' + target,
           autoFocus: true,
-          value: text,
+          defaultValue: '',
           placeholder: typeof placeholder === 'string' ? placeholder : '',
           disabled: blocked,
           autoComplete: 'new-password',
           'data-lpignore': 'true', 'data-1p-ignore': 'true', 'data-bwignore': 'true',
           'aria-label': t('credentialInputHint'),
-          onChange: event => setText(event.target.value),
+          onChange: event => setHasValue(Boolean(event.target.value.trim())),
         }),
         el('div', { className: 'cm-buttons' },
           el('button', {
             className: 'cm-btn small',
             type: 'submit',
-            disabled: blocked || text.trim().length === 0,
+            disabled: blocked || !hasValue,
           }, busy ? t('credentialSaving') : t('credentialSave')),
           el('button', { className: 'cm-btn small', type: 'button', onClick: cancel, disabled: busy }, t('cancel')), clearButton))
           : el('div', { className: 'cm-buttons' },
@@ -2843,7 +2856,7 @@
       // 条形方向(issue #67):默认已用方向;剩余方向时填充与标签显示剩余%。
       const barView = simpleBarByDirection(pct, barDirectionOf(config, 'go'))
       return {
-        level: pct >= 100 ? 'over' : pct >= 80 ? 'warn' : 'ok',
+        level: pct >= 100 || [mainKey, ...others].some(k => goQuota[k]?.status === 'rate-limited') ? 'over' : pct >= 80 ? 'warn' : 'ok',
         rail: barView.label === null ? '—' : Math.round(barView.label) + '%',
         body: el(Fragment, null,
           el('div', { className: 'cm-bbox-head' },
@@ -2865,7 +2878,7 @@
       return ['rolling', 'weekly', 'monthly'].map((key, i) => {
         const win = go?.[key], pct = typeof win?.percent === 'number' && Number.isFinite(win.percent) ? Math.max(0, Math.min(100, win.percent)) : null
         const reset = win?.resetsAt && Number.isFinite(Date.parse(win.resetsAt)) ? ' · ' + t('goResetAt', { time: new Date(win.resetsAt).toLocaleString() }) : ''
-        return t(['goWindowRolling', 'goWindowWeekly', 'goWindowMonthly'][i]) + ': ' + (pct === null ? '—' : quotaValueText(simpleBarByDirection(pct, direction).label, direction, t)) + reset
+        return t(['goWindowRolling', 'goWindowWeekly', 'goWindowMonthly'][i]) + ': ' + (pct === null ? '—' : quotaValueText(simpleBarByDirection(pct, direction).label, direction, t)) + (win?.status === 'rate-limited' ? ' · ' + t('goLimited') : '') + reset
       }).concat(go?.fetchedAt > 0 ? t('goQuotaFetchedAt', { time: new Date(go.fetchedAt).toLocaleTimeString() }) : []).join('\n')
     }
 
@@ -3350,7 +3363,7 @@
       try { window.localStorage?.setItem?.('cm.gw.' + id, accountId) } catch {}
     }
 
-    const gwFocusKey = raw => String(raw || '').toLowerCase().replace(/^(?:dsh-)?magpie(?:-connector)?-/, '')
+    const gwFocusKey = raw => String(raw || '').toLowerCase().replace(/^(?:llm-)?(?:dsh-)?magpie(?:-connector)?-/, '')
 
     // ── 网关(CLIProxyAPI)额度侧边栏卡片(issue #96)─────────────────────────
     // 此前 display=sidebar/both 是未接线开关:宿主每刷新周期正常下发 state.gatewayQuotas,
@@ -3364,7 +3377,9 @@
       const { source, snapshot, state, wide, api, focusProvider, grouped, routePending } = props
       const t = makeT(resolveLocale(state.config))
       const [manual, setManual] = useState(null)
-      const manualId = manual?.source === source.id ? manual.id : null
+      const scope = props.sessionId
+      const manualId = manual?.source === source.id && manual.sessionId === scope && manual.provider === focusProvider ? manual.id : null
+      if (manual && !manualId) setManual(null)
       const refresh = useClickRefresh(api ? () => api.refreshGatewayQuota(source.id) : null)
       const agyLink = source.type === 'agy-link'
       const direction = agyLink ? 'remaining' : barDirectionOf(state.config, 'plan')
@@ -3372,12 +3387,7 @@
       const multi = !grouped && snapshot.accounts.length > 1
       const selectedIdx = snapshot.accounts.findIndex(a => a.id === (manualId ?? readGatewayAccountLS(source.id)))
       const manualIdx = manualId ? selectedIdx : -1
-      const focusKey = state.config?.sidebarFocusProvider !== false && focusProvider ? gwFocusKey(focusProvider) : ''
-      let focusIdx = focusKey ? snapshot.accounts.findIndex(a => gwFocusKey(a.provider) === focusKey) : -1
-      if (focusKey && focusIdx < 0) focusIdx = snapshot.accounts.findIndex(a => {
-        const provider = gwFocusKey(a.provider)
-        return provider && (provider.startsWith(focusKey + '-') || focusKey.startsWith(provider + '-'))
-      })
+      const focusIdx = focusProvider ? snapshot.accounts.findIndex(a => a.provider === focusProvider) : -1
       const activeIdx = manualIdx >= 0 ? manualIdx : focusIdx >= 0 ? focusIdx : selectedIdx >= 0 ? selectedIdx : Math.max(0, snapshot.accounts.findIndex(a => a.windows.length > 0 || a.credits != null))
       const currentAccount = snapshot.accounts[activeIdx] ?? snapshot.accounts[0]
       const currentAccountName = currentAccount?.label || currentAccount?.id || ''
@@ -3423,8 +3433,8 @@
           e.stopPropagation()
           e.preventDefault?.()
           const next = snapshot.accounts[(activeIdx + 1) % snapshot.accounts.length]
-          if (focusIdx < 0) writeGatewayAccountLS(source.id, next.id)
-          setManual({ source: source.id, id: next.id })
+          if (!scope) writeGatewayAccountLS(source.id, next.id)
+          setManual({ source: source.id, sessionId: scope, provider: focusProvider, id: next.id })
         }
       }
 
@@ -3467,15 +3477,19 @@
         if (source.enabled === false || (source.display !== 'sidebar' && source.display !== 'both')) continue
         const live = snaps.find(q => q.id === source.id)
         if (!live || (live.status !== 'ok' && live.status !== 'partial' && live.status !== 'stale') || live.accounts.length === 0) continue
-        const follow = config.sidebarFocusProvider !== false && session
-        // Magpie routing aliases can share one provider ID across distinct owners.
-        const owner = source.type === 'magpie' && follow?.model?.match(/^([^/]+)\//)?.[1]
-        const routed = (owner === 'group' || owner === 'auto') && gwFocusKey(follow?.provider) === 'routing'
-        const actual = follow?.route?.requestedModel === follow?.model ? follow?.route?.provider : undefined
-        const routePending = routed && !live.accounts.some(a => a.provider === actual)
-        const focusProvider = routed ? (routePending ? undefined : actual) : live.accounts.some(a => a.provider === owner) ? owner : follow?.provider
-        const key = 'gateway:' + [source.id, follow?.id, focusProvider].filter(Boolean).join(':')
-        nodes.push(el(GatewayQuotaBox, { key, source, snapshot: live, state, wide, api, focusProvider, routePending }))
+        const follow = source.type === 'magpie' && config.sidebarFocusProvider !== false && session
+        const direct = gwFocusKey(follow?.provider)
+        const owner = direct === 'routing' && follow?.model?.split('/')[0]
+        const routed = owner === 'group' || owner === 'auto'
+        const actual = follow?.route?.requestedModel === follow?.model && follow?.route?.provider
+        const target = gwFocusKey(routed ? actual : owner || direct)
+        let match = target && live.accounts.find(a => gwFocusKey(a.provider) === target)
+        if (!match && target && !routed) match = live.accounts.find(a => {
+          const provider = gwFocusKey(a.provider)
+          return provider && (provider.startsWith(target + '-') || target.startsWith(provider + '-'))
+        })
+        nodes.push(el(GatewayQuotaBox, { key: 'gateway:' + source.id, source, snapshot: live, state, wide, api,
+          focusProvider: match?.provider, sessionId: follow?.id, routePending: routed && !match }))
       }
       return nodes
     }
@@ -3842,7 +3856,8 @@
     const loadFooterChip = () => footerChipPage ??= require.async('./client.footer-chip.js').then(module => module.mount({ WalletIcon, gatewayLabels: GATEWAY_PROVIDER_LABELS })).catch(error => { footerChipPage = null; throw error })
 
     // Root slots read the same session list as dsh-quota. Older hosts expose current.
-    const visibleSessionId = list => Object.values(list.byId ?? {}).find(row => row?.retainedBy?.mainView > 0)?.id ?? list.current
+    const visibleSessionId = list => list.byId?.[list.current]?.retainedBy?.mainView > 0 ? list.current
+      : Object.values(list.byId ?? {}).find(row => row?.retainedBy?.mainView > 0)?.id ?? list.current
 
     function SidebarFooter(props) {
       const botTarget = useBotFooterTarget()
@@ -3858,11 +3873,11 @@
       useProjectionRefresh(props, projectionUsage)
       const id = props.useSessions?.(visibleSessionId)
       const model = props.useSessions?.(list => {
-        const selection = list.projectionsBySession?.[visibleSessionId(list)]?.values?.modelSelection
+        const selection = list.projectionsBySession?.[id]?.values?.modelSelection
         return selection?.next ?? selection?.lastUsed
       })
       const sp = model?.provider ?? projectionUsage?.provider
-      const route = props.useSessions?.(list => list.projectionsBySession?.[visibleSessionId(list)]?.values?.costUsage?.magpieRoute)
+      const route = props.useSessions?.(list => list.projectionsBySession?.[id]?.values?.costUsage?.magpieRoute)
       const session = id && { id, ...model, route }
       const current = costStore?.state
       const state = current ? { ...current, config: peakConfigForState(current, sp) } : null

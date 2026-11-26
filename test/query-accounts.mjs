@@ -97,8 +97,11 @@ try {
     requests.push({ url: String(url), key })
     if (gate && key === 'KEY-A') { const current = gate; gate = null; current.started = true; current.signal = init.signal; await current.promise }
     const amount = key === 'KEY-A' ? 11 : key === 'KEY-B' ? 22 : 33
-    if (String(url).endsWith('/zen/go/v1/usage')) return Response.json({ usage: { rolling: { percent: amount, resetsAt: '' } } })
+    if (String(url).endsWith('/inference/go/v1/usage')) return Response.json({ usage: { rolling: { percent: amount, resetsAt: '' } } })
     if (String(url).endsWith('/api/monitor/usage/quota/limit')) return Response.json({ data: { limits: [{ type: 'TOKENS_LIMIT', unit: 3, percentage: amount }] } })
+    if (String(url).endsWith('/alpha/billing/credits')) return Response.json({ credits: { monthlyCredits: amount } })
+    if (String(url).endsWith('/alpha/billing/subscriptions')) return Response.json({ data: { planId: 'pro' } })
+    if (String(url).endsWith('/alpha/usage/summary')) return Response.json({})
     if (String(url).startsWith('https://openrouter.ai/')) return Response.json({ data: { total_credits: 100, total_usage: amount } })
     assert.equal(url, 'https://api.deepseek.com/user/balance', 'only the expected quota endpoint is used')
     return Response.json({ is_available: true, balance_infos: [{ currency: 'USD', total_balance: String(amount), granted_balance: '0', topped_up_balance: String(amount) }] })
@@ -121,6 +124,25 @@ try {
   await api.updateConfig({ locale: 'en', queryAccounts: { [zai]: { ...oldGroup, displayed: [] } } })
   assert.deepEqual((await api.getState()).codingPlans.zai.accountQuotas ?? [], [], 'keep intentionally hidden accounts hidden')
   assert.ok(!(await api.refreshCodingPlan('zai@default')).ok)
+  // The serving account may be hidden on the quota card, or the card may be disabled.
+  const commandSource = 'codingPlans.commandcode'
+  await api.updateConfig({ queryAccounts: { [commandSource]: { ...group(a), displayed: [a] } },
+    commandCodeProvider: { modelNames: { model1: 'Custom model' } } })
+  values.set(queryAccountTarget(config, commandSource + '@' + b, secretRefOf).ref, 'KEY-B')
+  const command = await api.commandCodeRuntime({ quotaAccountId: b })
+  assert.equal(command.quota.accountId, b)
+  assert.equal(command.quota.credits, 22)
+  assert.equal(command.quota.plan, 'pro')
+  assert.ok(!JSON.stringify(command).includes('KEY-B'))
+  await assert.rejects(api.commandCodeRuntime({ quotaAccountId: 'missing1' }))
+  const updated = await api.updateConfig({ commandCodeProvider: { favorites: ['model1'] } })
+  assert.deepEqual(updated.config.commandCodeProvider.modelNames, {}, 'removed model overrides stay removed')
+  await api.updateConfig({ commandCodeProvider: { preferredAccount: b, inferenceAccounts: [a, b], modelAccounts: { model1: b } } })
+  const afterRemoval = await api.updateConfig({ queryAccounts: { [commandSource]: { selected: a, displayed: [a], accounts: [group(a).accounts[0]] } } })
+  assert.deepEqual(afterRemoval.config.commandCodeProvider.inferenceAccounts, [a])
+  assert.equal(afterRemoval.config.commandCodeProvider.preferredAccount, '')
+  assert.deepEqual(afterRemoval.config.commandCodeProvider.modelAccounts, {})
+  await assert.rejects(api.updateConfig({ commandCodeProvider: { apiKey: 'DO-NOT-PERSIST' } }))
   await api.updateConfig({ queryAccounts: { balance: group(a), 'codingPlans.openrouter': group(a) } })
   for (const target of ['balance', 'codingPlans.openrouter']) {
     assert.equal((await api.setCredential(target + '@' + a, 'KEY-A')).ok, true)

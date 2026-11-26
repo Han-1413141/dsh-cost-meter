@@ -60,7 +60,7 @@ window.__ModuleLoader__.load({
           live?.accounts?.length ? live.accounts.map((account, i) => el('div', { key: account.id || i },
             el('h4', { className: 'cm-h' }, account.label || account.provider),
             account.message ? note(account.message) : null,
-            windows(Object.fromEntries((account.windows ?? []).map((win, j) => [win.id || j, win]))),
+            windows(Object.fromEntries((account.windows ?? []).map((win, j) => [win.id || j, win.reading ? { ...win, text: win.reading, percent: undefined } : win]))),
             creditRow(account.credits), (account.credits?.packages ?? []).map((pkg, j) => creditRow(pkg, pkg.id || j)))) : note(t('gatewaySourceNoAccounts')))))
       }
       return el('div', { className: 'cm-section', 'data-settings-overview': true },

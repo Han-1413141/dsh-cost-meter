@@ -37,7 +37,7 @@ try {
   peer = { id: 'cm-go-host-owner', ctx: host, principal: { kind: 'owner' }, signal: lifetime.signal, interactions: 'none', dispose: async () => lifetime.abort() }
   const invoke = (method, args = {}) => host.typertGateway.invoke({ namespace: 'costMeter', method, args, ...(RemoteAccess ? { peer } : {}) })
   globalThis.fetch = async (url, init = {}) => {
-    assert.equal(url, 'https://opencode.ai/zen/go/v1/usage'); assert.equal(init.method ?? 'GET', 'GET')
+    assert.equal(url, 'https://opencode.ai/inference/go/v1/usage'); assert.equal(init.method ?? 'GET', 'GET')
     calls.push(init.headers.authorization)
     if (mode === '401') return Response.json({ error: { type: 'AuthError' } }, { status: 401 })
     assert.equal(init.headers.authorization, 'Bearer ' + token)

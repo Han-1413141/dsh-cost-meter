@@ -337,6 +337,17 @@ go.tree.props.onToggleOpen(); await e.flush()
 assert.ok(go.tree.props.configNode)
 assert.equal(go.tree.props.open, true)
 const goSettings = e.ui.GoQuotaSettings(go.tree.props.configNode.props)
+const connection = cards().find(card => card.props.key === 'go').props.connection
+const goProfile = { keyConfigured: true, keySource: 'file', keyRef: 'MY_GO_ROUTE', routeConfigured: true, lastSuccessAt: 1720000000000 }
+for (const locale of ['en', 'zh']) {
+  const render = goQuota => connection.type({ state: { config: { locale }, goQuota } })
+  const connected = render(goProfile)
+  assert.match(textOf(connected), /MY_GO_ROUTE/)
+  assert.ok(nodes(connected).some(n => n.type === 'a' && n.props.href.startsWith('https://opencode.ai/docs/')))
+  assert.match(textOf(connected), /Extra Usage/)
+  assert.match(textOf(render({})), locale === 'en' ? /add a Go provider/ : /添加 Go 提供商/)
+  assert.match(textOf(e.ui.quotaWindowRow(e.ui.makeT(locale), 'weekly', { percent: 95, status: 'rate-limited' }, 'used', true)), locale === 'en' ? /Limit reached/ : /已达限额/)
+}
 for (const select of nodes(goSettings).filter(n => n.type === 'select')) {
   const options = nodes(select).filter(n => n.type === 'option')
   assert.ok(options.every(n => n.props.key), 'Go 选项具有 React 列表标识')
@@ -505,18 +516,22 @@ for (const locale of ['zh', 'en']) {
   assert.equal(password().props.autoComplete, 'new-password')
   assert.equal(password().props.name, 'cm-credential-balance')
   assert.ok(nodes(field.tree).some(node => node.type === 'form'), 'credential belongs to its own form')
-  assert.equal(password().props.value, '', 'stored key is never filled back into the input')
+  assert.equal(password().props.defaultValue, '', 'stored key is never filled back into the input')
   password().props.onChange({ target: { value: 'TEST_CANCELLED_KEY' } }); await env.flush()
   await btn(field.tree, t('cancel')).props.onClick(); await env.flush()
   assert.equal(password(), undefined)
   assert.deepEqual(calls, [], 'opening, typing and cancelling do not save a credential')
   await btn(field.tree, t('credentialEdit')).props.onClick(); await env.flush()
-  assert.equal(password().props.value, '', 'cancelled secret is purged')
+  assert.equal(password().props.defaultValue, '', 'cancelled secret is purged')
   password().props.onChange({ target: { value: 'TEST_BALANCE_UI_KEY' } }); await env.flush()
   const form = nodes(field.tree).find(node => node.type === 'form')
   let prevented = 0
-  form.props.onSubmit({ preventDefault() { prevented++ } })
-  form.props.onSubmit({ preventDefault() { prevented++ } })
+  const entered = { value: 'TEST_BALANCE_UI_KEY' }
+  const submit = { preventDefault() { prevented++; }, currentTarget: { elements: { namedItem: () => entered } } }
+  assert.equal(password().props.value, undefined, 'the typed key is not copied into React props')
+  form.props.onSubmit(submit)
+  form.props.onSubmit(submit)
+  assert.equal(entered.value, '', 'the input is cleared before the credential RPC completes')
   await env.flush()
   assert.equal(prevented, 2)
   assert.equal(password(), undefined, 'successful save removes and purges the password editor')

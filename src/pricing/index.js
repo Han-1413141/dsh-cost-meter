@@ -308,7 +308,7 @@ window.__ModuleLoader__.load({
       return el('div', { className: 'cm-rate-field' }, el('span', null, title),
         el('div', { className: 'cm-rate-input' }, el('span', { className: 'cm-custom-amount' },
           el('span', { 'aria-hidden': true }, currency === 'CNY' ? '¥' : '$'),
-          el(priceEditor.PriceInput, { value: number, entry: value, path, plain: true, t, label,
+          el(PriceInput, { value: number, entry: value, factor, plain: true, t, label,
             emptyMode: optional ? 'clear' : 'ignore',
             placeholder: field === 'cacheWrite' ? (locale === 'en' ? 'Cached input rate' : '跟随缓存读取') : field === 'reasoning' ? (locale === 'en' ? 'Included in output' : '含在输出中') : '0', onCommit: commit })),
           el('span', { className: 'cm-rate-times', 'aria-hidden': true }, '×'),
@@ -588,14 +588,215 @@ window.__ModuleLoader__.load({
       return el('svg', { className: 'cm-pricing-chevron ' + className + (open ? ' is-open' : ''), width: 16, height: 16, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true }, el('path', { d: 'm9 5 7 7-7 7' }))
     }
 
-    function Catalog({ state, draft, setDraft, t, locale, rpc, renderEditor, vendorLabels, priceEditor }) {
+    function PriceInput({ value, entry, factor, emptyMode, placeholder, label, title, t, onCommit, plain = false }) {
+      const formatted = value == null ? '' : String(value) + (!plain && (entry.multiplier !== undefined || entry.separateMultipliers) ? ' × ' + factor : '')
+      const [text, setText] = useState(formatted), [invalid, setInvalid] = useState(false)
+      const dirty = useRef(false)
+      useEffect(() => { if (!dirty.current) setText(formatted) }, [formatted])
+      const commit = () => {
+        if (!dirty.current) return
+        const parts = text.trim().split(/\s*[×*xX]\s*/)
+        const number = /^[+]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i
+        if (text.trim() === '') {
+          dirty.current = false; setInvalid(false)
+          if (emptyMode === 'clear') onCommit(null)
+          else setText(formatted)
+          return
+        }
+        if (parts.length > 2 || !parts.every(part => number.test(part) && Number.isFinite(Number(part)))
+          || !Number.isFinite(Number(parts[0]) * (parts.length === 2 ? Number(parts[1]) : factor))) { setInvalid(true); return }
+        dirty.current = false; setInvalid(false)
+        setText(String(Number(parts[0])) + (!plain && (entry.multiplier !== undefined || entry.separateMultipliers || parts.length === 2) ? ' × ' + (parts.length === 2 ? Number(parts[1]) : factor) : ''))
+        onCommit(Number(parts[0]), parts.length === 2 ? Number(parts[1]) : undefined)
+      }
+      return el('input', { className: 'cm-input narrow', type: 'text', value: text,
+        placeholder, 'aria-label': label, 'aria-invalid': invalid,
+        title: invalid ? t('priceMultiplyInvalid') : [title, plain ? '' : t(entry.separateMultipliers ? 'priceMultiplySingle' : 'priceMultiplyAll'), value == null ? '' : '= ' + Number((value * factor).toPrecision(12))].filter(Boolean).join(' · '),
+        onChange: event => { dirty.current = true; setText(event.target.value); setInvalid(false) }, onBlur: commit,
+        onKeyDown: event => {
+          if (event.key === 'Enter') { event.preventDefault(); commit() }
+          if (event.key === 'Escape') { event.stopPropagation(); dirty.current = false; setInvalid(false); setText(formatted) }
+        } })
+    }
+    function setPriceFactor(entry, path, factor) {
+      if (factor !== undefined) {
+        if (entry.separateMultipliers) entry.multipliers = { ...entry.multipliers, [path]: factor }
+        else entry.multiplier = factor
+      }
+    }
+    function priceInput(priceEditor, entry, tier, path, field, label, t, commit, fallback = 0) {
+      const write = field === 'cacheWrite'
+      const value = tier?.[field] ?? (field === 'cacheMiss' ? tier?.input : field === 'cacheHit' ? tier?.cachedInput : undefined) ?? null
+      const fieldLabel = t({ cacheHit: 'flatCached', cacheMiss: 'flatInput', cacheWrite: 'flatCacheWrite', output: 'flatOutput' }[field])
+      return el('label', { className: 'cm-price-cell' }, el('span', { className: 'cm-price-cell-label' }, fieldLabel), el(PriceInput, { entry, value, path: path + '.' + field, factor: priceEditor.priceFactor(entry, path + '.' + field), t,
+        emptyMode: write || !['base', 'cny'].includes(path) ? 'clear' : 'ignore',
+        placeholder: write ? String(tier?.cacheHit ?? tier?.cachedInput ?? tier?.cacheMiss ?? tier?.input ?? fallback) : undefined,
+        label: label + ' · ' + fieldLabel,
+        title: write ? t('cacheWriteFallback') : undefined, onCommit: commit }))
+    }
+    function multiplierOptions(entry, t, onChange) {
+      return el('div', { className: 'cm-price-multiplier' },
+        el('label', null, el('input', { type: 'checkbox', checked: entry.separateMultipliers === true, onChange: event => onChange(event.target.checked) }), t('priceMultiplySeparate')),
+        el('span', { title: t(entry.separateMultipliers ? 'priceMultiplySingle' : 'priceMultiplyAll') }, t('priceMultiplyHint')))
+    }
+
+    function PriceCard(props) {
+      const { modelId, entry: rawEntry, isDefault, draft, setDraft, t, priceEditor } = props
+      const { priceAt, normalizeClientTier } = priceEditor
+      const entry = priceAt(rawEntry)
+      const editablePrice = raw => {
+        const next = { ...priceAt(raw) }
+        if (Array.isArray(raw.rateHistory)) {
+          const past = raw.rateHistory.filter(period => Date.parse(period.before) <= Date.now())
+          if (past.length > 0) next.rateHistory = past
+          else delete next.rateHistory
+        }
+        return next
+      }
+      const write = next => {
+        const prices = isDefault ? { ...draft.prices, default: next }
+          : { ...draft.prices, models: { ...draft.prices.models, [modelId]: next } }
+        setDraft({ ...draft, prices })
+      }
+      const setTier = (tierKey, field, value, factor) => {
+        const raw = isDefault ? draft.prices.default : draft.prices.models[modelId]
+        const next = editablePrice(raw ?? { cacheHit: 0, cacheMiss: 0, output: 0 })
+        const tier = tierKey === 'base' ? next : { ...(next[tierKey] ?? (value === null ? {} : normalizeClientTier(next))) }
+        // 可选写入价清空后恢复读取价；显式 0 保留。基础价其余三项忽略清空。
+        if (value === null) delete tier[field]
+        else tier[field] = Math.max(0, value)
+        if (tierKey !== 'base') {
+          if (Object.keys(tier).length) next[tierKey] = tier
+          else delete next[tierKey]
+        }
+        setPriceFactor(next, tierKey + '.' + field, factor)
+        write(next)
+      }
+      const remove = () => {
+        const models = { ...draft.prices.models }
+        delete models[modelId]
+        setDraft({ ...draft, prices: { ...draft.prices, models } })
+      }
+      const tierRow = (label, tierKey) => {
+        const tier = tierKey === 'base' ? entry : entry[tierKey] ?? null
+        return el('div', { className: 'cm-price-row', key: tierKey },
+          el('span', null, label),
+          ...['cacheMiss', 'cacheHit', 'cacheWrite', 'output'].map(field => el(Fragment, { key: field },
+            priceInput(priceEditor, entry, tier, tierKey, field, label, t, (v, factor) => setTier(tierKey, field, v, factor), entry.cacheHit))))
+      }
+      return el('div', { className: 'cm-price-card' },
+        el('div', { className: 'cm-price-head' },
+          el('span', { className: 'cm-price-name' }, modelId),
+          el('span', { className: 'cm-price-unit' }, draft.prices.currency ?? 'USD'),
+          el(Fragment, null,
+            entry?.legacy === true ? el('span', { className: 'cm-price-legacy' }, t('legacyModel')) : null,
+            isDefault ? el('span', { className: 'cm-price-legacy' }, t('defaultFallback')) : null,
+            isDefault ? null : el('button', { className: 'cm-btn small danger', onClick: remove }, t('remove')))),
+        // 与第三方价格卡一样，分别编辑输入、缓存读写与输出。
+        el('div', { className: 'cm-price-row cm-price-columns' },
+          el('span', null, ''),
+          el('span', null, t('flatInput')), el('span', null, t('flatCached')), el('span', null, t('flatCacheWrite')), el('span', null, t('flatOutput'))),
+        tierRow(t('tierBase'), 'base'),
+        tierRow(t('tierOffPeak'), 'offPeak'),
+        tierRow(t('tierPeak'), 'peak'),
+        multiplierOptions(entry, t, separate => write({ ...rawEntry, separateMultipliers: separate, multipliers: {} })),
+        Array.isArray(rawEntry?.rateHistory) && rawEntry.rateHistory.length > 0
+          ? el('p', { className: 'cm-note' }, t('datedPriceNote')) : null)
+    }
+
+    // ── 厂商展示名(价格表分组标题用) ────────────────────────────────────
+
+    const CATALOG_VENDOR_LABELS = {
+      deepseek: 'DeepSeek', stepfun: 'StepFun', openai: 'OpenAI', anthropic: 'Anthropic', google: 'Google Gemini',
+      moonshot: 'Moonshot (Kimi)', 'z-ai': 'Z.ai / 智谱', xai: 'xAI', alibaba: '阿里云百炼',
+      minimax: 'MiniMax', tencent: '腾讯混元', xiaomi: '小米', upstage: 'Upstage', nvidia: 'NVIDIA', mistral: 'Mistral',
+      meta: 'Meta', meituan: '美团 LongCat', 'opencode-go': 'OpenCode Go',
+    }
+
+    /** 已挂载的第三方模型价格卡(与 DeepSeek 卡片同区展示,可编辑/取消挂载)。
+     *  OpenRouter 条目若价格已偏离同步基线,标注「已自定义」并提供交回自动同步的入口。
+     *  锁定判定由宿主下发(state.priceLockIds,与刷新跳过覆盖同源),前端不自行推断。 */
+    function ProviderPriceCard(props) {
+      const { provider, modelId, entry, draft, setDraft, t, api, lockedIds, releaseDisabled, priceEditor } = props
+      const locked = Array.isArray(lockedIds) && lockedIds.includes(modelId)
+      const [releasing, setReleasing] = useState(false), [lockError, setLockError] = useState('')
+      const releaseLock = async () => {
+        if (releasing || releaseDisabled) return
+        setReleasing(true); setLockError('')
+        try { await api.releasePriceLock(modelId) }
+        catch (error) { setLockError(String(error.message ?? error)) }
+        finally { setReleasing(false) }
+      }
+      const writeModels = models => {
+        const providers = { ...(draft.prices.providers ?? {}) }
+        const table = providers[provider] ?? {}
+        providers[provider] = { ...table, models }
+        setDraft({ ...draft, prices: { ...draft.prices, providers } })
+      }
+      const setNum = (field, value, factor) => {
+        if (draft === null) return
+        const models = { ...((draft.prices.providers ?? {})[provider]?.models ?? {}) }
+        models[modelId] = { ...(models[modelId] ?? {}), [field]: Math.max(0, value) }
+        if (value === null) delete models[modelId][field]
+        // Canonical aliases may be present in imported price tables.
+        if (field === 'input') delete models[modelId].cacheMiss
+        if (field === 'cachedInput') { delete models[modelId].cacheHit; delete models[modelId].cacheRead }
+        setPriceFactor(models[modelId], 'base.' + ({ input: 'cacheMiss', cachedInput: 'cacheHit' }[field] ?? field), factor)
+        writeModels(models)
+      }
+      const setCny = (field, value, factor) => {
+        if (draft === null) return
+        const models = { ...((draft.prices.providers ?? {})[provider]?.models ?? {}) }
+        const current = models[modelId] ?? {}
+        models[modelId] = { ...current, cny: { ...current.cny, [field]: Math.max(0, value) } }
+        if (value === null) delete models[modelId].cny[field]
+        setPriceFactor(models[modelId], 'cny.' + field, factor)
+        writeModels(models)
+      }
+      const remove = () => {
+        if (draft === null) return
+        const models = { ...((draft.prices.providers ?? {})[provider]?.models ?? {}) }
+        delete models[modelId]
+        writeModels(models)
+      }
+      return el('div', { className: 'cm-price-card' },
+        el('div', { className: 'cm-price-head' },
+          el('span', { className: 'cm-price-name' }, modelId),
+          el('span', { className: 'cm-price-unit' }, entry.cny ? 'USD / CNY' : 'USD'),
+          el(Fragment, null,
+            entry?.unpriced === true ? el('span', { className: 'cm-price-legacy' }, t('catalogUnpriced')) : null,
+            locked ? el('span', { className: 'cm-price-locked', title: t('priceLockHint') }, t('priceLockBadge')) : null,
+            locked && typeof api?.releasePriceLock === 'function'
+              ? el('button', { className: 'cm-btn small', disabled: releasing || releaseDisabled, onClick: releaseLock }, t('priceLockRelease'))
+              : null,
+            el('button', { className: 'cm-btn small danger', onClick: remove }, t('unmountBtn')))),
+        lockError ? el('p', { className: 'cm-err', role: 'alert' }, lockError) : null,
+        entry?.unpriced === true
+          ? null
+          : el(Fragment, null,
+            el('div', { className: 'cm-price-row cm-price-columns' },
+              el('span', null, ''),
+              el('span', null, t('flatInput')), el('span', null, t('flatCached')), el('span', null, t('flatCacheWrite')), el('span', null, t('flatOutput'))),
+            el('div', { className: 'cm-price-row' },
+              el('span', null, 'USD'),
+              // 第三方三桶为必填计价结构:清空不提交(保留原值),避免误清成 0 价免费。
+              ...['cacheMiss', 'cacheHit', 'cacheWrite', 'output'].map(field => el(Fragment, { key: field },
+                priceInput(priceEditor, entry, entry, 'base', field, 'USD', t, (v, factor) => setNum({ cacheMiss: 'input', cacheHit: 'cachedInput' }[field] ?? field, v, factor))))),
+            entry?.cny ? el('div', { className: 'cm-price-row' },
+              el('span', null, 'CNY'),
+              ...['cacheMiss', 'cacheHit', 'cacheWrite', 'output'].map(field => el(Fragment, { key: field },
+                priceInput(priceEditor, entry, entry.cny, 'cny', field, 'CNY', t, (v, factor) => setCny(field, v, factor))))) : null,
+            multiplierOptions(entry, t, separate => writeModels({ ...draft.prices.providers[provider].models, [modelId]: { ...entry, separateMultipliers: separate, multipliers: {} } }))))
+    }
+
+    function Catalog({ state, draft, setDraft, t, locale, rpc, api, hasUnsavedChanges, priceEditor }) {
       const en = locale === 'en'
       const [query, setQuery] = useState(''), [vendor, setVendor] = useState(''), [open, setOpen] = useState({}), [limits, setLimits] = useState({}), [editing, setEditing] = useState(null), [newModel, setNewModel] = useState('')
       const prices = draft?.prices ?? state.config.prices
       const tables = useMemo(() => ({ ...prices.providers, deepseek: { models: { ...prices.models, __default__: prices.default } } }), [prices.models, prices.default, prices.providers])
       const vendors = Object.keys(tables).filter(id => Object.keys(tables[id]?.models ?? {}).length).sort((a, b) => a === b ? 0 : a === 'deepseek' ? -1 : b === 'deepseek' ? 1 : a.localeCompare(b))
       const words = query.toLowerCase().trim().split(/\s+/).filter(Boolean)
-      const groups = vendors.filter(id => !vendor || vendor === id).map(id => ({ id, ids: Object.keys(tables[id].models).filter(model => words.every(word => (id + ' ' + (vendorLabels[id] ?? '') + ' ' + (model === '__default__' ? t('defaultModelId') : model)).toLowerCase().includes(word))).sort((a, b) => a === b ? 0 : a === '__default__' ? 1 : b === '__default__' ? -1 : a.localeCompare(b)) })).filter(group => group.ids.length)
+      const groups = vendors.filter(id => !vendor || vendor === id).map(id => ({ id, ids: Object.keys(tables[id].models).filter(model => words.every(word => (id + ' ' + (CATALOG_VENDOR_LABELS[id] ?? '') + ' ' + (model === '__default__' ? t('defaultModelId') : model)).toLowerCase().includes(word))).sort((a, b) => a === b ? 0 : a === '__default__' ? 1 : b === '__default__' ? -1 : a.localeCompare(b)) })).filter(group => group.ids.length)
       const total = groups.reduce((sum, group) => sum + group.ids.length, 0)
       const changeQuery = value => { setQuery(value); setLimits({}); setOpen({}) }
       const addModel = () => {
@@ -608,7 +809,7 @@ window.__ModuleLoader__.load({
         el('p', { className: 'cm-note' }, en ? 'Base rates include multipliers. Open a model to edit rates, currencies and peak/off-peak tiers.' : '列表展示含倍率的基础单价。点开模型可编辑币种、单价和峰谷档位。'),
         el('div', { className: 'cm-catalog-toolbar' },
           el('input', { type: 'search', className: 'cm-input', value: query, 'aria-label': en ? 'Search mounted prices' : '搜索已挂载价格', placeholder: en ? 'Search models or providers…' : '搜索模型或厂商…', onChange: event => changeQuery(event.target.value), onKeyDown: event => { if (event.key === 'Escape') { changeQuery(''); event.stopPropagation() } } }),
-          el('select', { className: 'cm-input', value: vendor, 'aria-label': en ? 'Filter price provider' : '筛选价格厂商', onChange: event => { setVendor(event.target.value); setLimits({}); setOpen({}) } }, el('option', { value: '' }, en ? 'All providers' : '全部厂商'), ...vendors.map(id => el('option', { key: id, value: id }, vendorLabels[id] ?? id))),
+          el('select', { className: 'cm-input', value: vendor, 'aria-label': en ? 'Filter price provider' : '筛选价格厂商', onChange: event => { setVendor(event.target.value); setLimits({}); setOpen({}) } }, el('option', { value: '' }, en ? 'All providers' : '全部厂商'), ...vendors.map(id => el('option', { key: id, value: id }, CATALOG_VENDOR_LABELS[id] ?? id))),
           el('span', { className: 'cm-note', role: 'status' }, en ? `${total} models` : `${total} 个模型`)),
         ...groups.map(({ id, ids }) => {
           const expanded = open[id] ?? (id === 'deepseek' || words.length > 0 || vendor === id)
@@ -616,7 +817,7 @@ window.__ModuleLoader__.load({
           const units = [...new Set(ids.map(model => tables[id].models[model]?.currency ?? tableCurrency))].join(' / ')
           return el('section', { key: id, className: 'cm-catalog-group' },
             el('button', { type: 'button', className: 'cm-catalog-vendor cm-vendor-toggle', 'aria-expanded': expanded, onClick: () => setOpen(value => ({ ...value, [id]: !expanded })) },
-              el('span', null, el(Chevron, { className: 'cm-catalog-caret', open: expanded }), vendorLabels[id] ?? id, el('small', null, ids.length)),
+              el('span', null, el(Chevron, { className: 'cm-catalog-caret', open: expanded }), CATALOG_VENDOR_LABELS[id] ?? id, el('small', null, ids.length)),
               el('span', { className: 'cm-catalog-unit' }, units + (en ? ' / 1M tokens' : ' / 百万 Token'))),
             expanded ? el('div', { className: 'cm-catalog-list' },
               el('div', { className: 'cm-catalog-columns', 'aria-hidden': true }, ...[en ? 'Model' : '模型', en ? 'Input' : '输入', en ? 'Cached input' : '缓存读取', en ? 'Output' : '输出', ''].map((text, i) => el('span', { key: i }, text))),
@@ -629,7 +830,10 @@ window.__ModuleLoader__.load({
                   el('button', { type: 'button', className: 'cm-catalog-model', 'aria-label': name + (en ? ' · Edit price' : ' · 编辑价格'), 'aria-expanded': active, onClick: () => setEditing(active ? null : key) },
                     el('span', { className: 'cm-catalog-model-name' }, el('strong', null, name), variants ? el('small', null, variants) : null),
                     el(RateSummary, { entry, currency, priceEditor, locale }), el(Chevron, { className: 'cm-catalog-edit-caret', open: active })),
-                  active ? el('div', { className: 'cm-catalog-editor' }, renderEditor(id, model, entry),
+                  active ? el('div', { className: 'cm-catalog-editor' }, id === 'deepseek'
+                    ? el(PriceCard, { modelId: name, entry, isDefault: model === '__default__', draft, setDraft, t, priceEditor })
+                    : el(ProviderPriceCard, { provider: id, modelId: model, entry, draft, setDraft, t, api, priceEditor,
+                      lockedIds: id === 'openrouter' ? state.priceLockIds ?? [] : [], releaseDisabled: id === 'openrouter' && hasUnsavedChanges() }),
                     el(PeakPriceEditor, { value: entry, locale, t, priceEditor, label: name, currency, defaults: prices.providers?.[id]?.peakWindows ?? draft.peakWindows, onChange: value => {
                       const next = id === 'deepseek' ? { ...prices, ...(model === '__default__' ? { default: value } : { models: { ...prices.models, [model]: value } }) }
                         : { ...prices, providers: { ...prices.providers, [id]: { ...prices.providers[id], models: { ...prices.providers[id].models, [model]: value } } } }

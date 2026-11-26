@@ -11,6 +11,10 @@ const loadingTimer = setTimeout(releaseLoading, 0)
 loadingTimer.unref?.()
 
 export const name = 'cost-meter'
+// SettingsForms lists only plugin entries with a volatile schema. This empty
+// object gives the Models page a visible provider row. All editable settings
+// and credentials continue to use the same Cost Meter service as the Cost page.
+export const Config = plugin.Config
 export function apply(ctx) {
   clearTimeout(loadingTimer)
   try { return plugin.apply(ctx) }
