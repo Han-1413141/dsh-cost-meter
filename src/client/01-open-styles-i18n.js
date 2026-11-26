@@ -636,7 +636,7 @@ window.__ModuleLoader__.load({
         quotaRefreshReady: '启用并保存显示位置后可刷新',
         quotaRemove: '删除',
         translateGatewayQuotaLabels: '翻译供应商额度标签',
-        translateGatewayQuotaLabelsHint: '在中文界面翻译「总积分」「附加积分」等常见额度标签。',
+        translateGatewayQuotaLabelsHint: 'DSH 和插件都使用中文时，翻译「总积分」「附加积分」等额度标签。',
         quotaSectionNote: '勾选启用后会排到最上面;点名称可展开该项自己的配置。自定义余额最多 8 条,网关来源最多 4 条。',
         goQuotaDisabledNote: '开启后读取 OpenCode Go 的滚动 5 小时、周、月额度,显示在侧栏、设置页及右下角;无订阅时提示原因。',
         cornerLabel: '右下角显示(dock)',
@@ -1153,7 +1153,7 @@ window.__ModuleLoader__.load({
         quotaRefreshReady: 'Enable and save a display position to refresh',
         quotaRemove: 'Remove',
         translateGatewayQuotaLabels: 'Translate provider quota labels',
-        translateGatewayQuotaLabelsHint: 'Translate labels such as Total credits and Add-on credits in the Chinese interface.',
+        translateGatewayQuotaLabelsHint: 'Translate supported quota labels when both DSH and the plugin use Chinese.',
         quotaSectionNote: 'Enabled items move to the top; click a name to expand its own settings. Up to 8 custom balances and 4 gateway sources.',
         goQuotaDisabledNote: 'Enable OpenCode Go rolling 5h, weekly and monthly quotas in the sidebar, Settings and bottom-right corner. Missing subscriptions show a reason.',
         cornerLabel: 'Bottom-right (dock) display',
@@ -1488,9 +1488,9 @@ window.__ModuleLoader__.load({
       return supportedLocale(config?.activeLocale) || detectBrowserLocale()
     }
 
-    // 中文词典收录固定短语，关闭翻译或未整串命中时保留原文。
-    function quotaLabel(text, t, translate) {
-      if (translate === false || typeof text !== 'string' || !text) return text
+    // DSH 为英文时保留原文，即使插件文案被显式设为中文。
+    function quotaLabel(text, t, translate, hostLocale) {
+      if (translate === false || supportedLocale(hostLocale) === 'en' || typeof text !== 'string' || !text) return text
       const key = 'gw:' + text.trim().toLowerCase()
       const out = t(key)
       return out === key ? text : out

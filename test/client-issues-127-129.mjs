@@ -581,7 +581,7 @@ const translatedAccount = {
   ],
 }
 const translationProps = { ...gatewayProps(), snapshot: { accounts: [translatedAccount] },
-  state: { config: { ...config, locale: 'zh' } } }
+  state: { config: { ...config, locale: 'zh', activeLocale: 'zh' } } }
 const translationText = () => textOf(card.tree)
 card.render(translationProps)
 for (const label of ['总积分', '附加积分', '0 credits left', '7 days', 'Custom credits', 'Credits']) {
@@ -591,9 +591,11 @@ card.render({ ...translationProps, wide: false,
   state: { config: { ...translationProps.state.config, translateGatewayQuotaLabels: false } } })
 assert.match(textOf(tipOf(card.tree)), /TOTAL CREDITS/)
 assert.doesNotMatch(textOf(tipOf(card.tree)), /总积分|附加积分/)
-card.render({ ...translationProps, state: { config: { ...translationProps.state.config, locale: 'en' } } })
-assert.match(translationText(), /Add-on credits/)
-assert.doesNotMatch(translationText(), /总积分|附加积分/)
+for (const locales of [{ locale: 'zh', activeLocale: 'en-US' }, { locale: 'en', activeLocale: 'zh' }, { locale: 'auto', activeLocale: 'en' }]) {
+  card.render({ ...translationProps, state: { config: { ...translationProps.state.config, ...locales } } })
+  assert.match(translationText(), /Add-on credits/)
+  assert.doesNotMatch(translationText(), /总积分|附加积分/)
+}
 card.dispose(); gateway.dispose()
 
 // The root footer has useSessions but no session-scoped useProjection.
