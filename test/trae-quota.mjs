@@ -27,24 +27,20 @@ assert.ok(applyConfigPatch(base, { codingPlans: { trae: { editionScope: 'invalid
 assert.deepEqual(applyConfigPatch(base, { codingPlans: { trae: { editionScope: 'enterprise' } } }).errors, [])
 
 // 3. Spin up real loopback mock server matching dsh-connect-trae routes
+const json = (value, status = 200) => ({
+  status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(value),
+})
+const notFound = json({ error: 'not found' }, 404)
 let routes = new Map()
 let hits = []
 const server = createServer((req, res) => {
   hits.push(req.url)
-  const handler = routes.get(req.url)
-  if (!handler) {
-    res.writeHead(404, { 'content-type': 'application/json' })
-    res.end(JSON.stringify({ error: 'not found' }))
-    return
-  }
-  handler(req, res)
+  const reply = routes.get(req.url) ?? notFound
+  res.writeHead(reply.status, reply.headers)
+  res.end(reply.body)
 })
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 const origin = `http://127.0.0.1:${server.address().port}`
-const json = (body, status = 200) => (_req, res) => {
-  res.writeHead(status, { 'content-type': 'application/json' })
-  res.end(JSON.stringify(body))
-}
 
 try {
   // 3a. CN signed-in with decimals, small percent (<1% must NOT be multiplied x100!), device-only check-in, expiry, multi-account credits
@@ -191,10 +187,7 @@ try {
 
   // 3e. 3xx redirect refused -> treated as failed, not followed
   routes = new Map(Object.entries({
-    '/plugins/dsh-connect-trae/usage?region=cn': (_req, res) => {
-      res.writeHead(302, { location: 'https://evil.example/' })
-      res.end()
-    },
+    '/plugins/dsh-connect-trae/usage?region=cn': { status: 302, headers: { location: 'https://evil.example/' }, body: '' },
   }))
   await assert.rejects(
     () => fetchTraeQuota(origin, { editionScope: 'cn' }, { locale: 'en' }),
