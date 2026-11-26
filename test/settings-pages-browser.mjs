@@ -100,7 +100,7 @@ window.checkPlanTableScroll = async () => {
   return measurements;
 };
 window.runChecks=async()=>{const result=document.getElementById('result');result.textContent='Running';try{
-state={...state,config:{...state.config,locale:'zh',showTotalWithPlan:false}};emit();render('settings');await settle();
+state={...state,config:{...state.config,locale:'zh',activeLocale:'zh',showTotalWithPlan:false}};emit();render('settings');await settle();
 const tabs=()=>[...document.querySelectorAll('#root .cm-tabs [role=tab]')].map(n=>n.textContent).join('|');const settingsTabs=tabs();check(settingsTabs.includes('显示')&&settingsTabs.includes('价格'),'full settings tabs present');
 await window.checkPlanTableScroll();
 const before=window.fixtureWrites;document.querySelector('#root .cm-cards-toggle input').click();await settle();await settle();check(state.config.showTotalWithPlan===true&&window.fixtureWrites===before+1,'settings saves exactly once');
@@ -121,6 +121,11 @@ gatewayCard().querySelector('.cm-collapse-h').click();
 await settle();
 check(gatewayCard().textContent.includes('总积分 · 7 days') && gatewayCard().textContent.includes('附加积分')
   && gatewayCard().textContent.includes('Credits'), 'quota settings translate selected phrases only');
+state={...state,config:{...state.config,activeLocale:'en'}};emit();await settle();
+check(gatewayCard().textContent.includes('Total credits · 7 days') && gatewayCard().textContent.includes('Add-on credits'),
+  'English DSH keeps quota labels in English even with Chinese plugin settings');
+state={...state,config:{...state.config,activeLocale:'zh'}};emit();await settle();
+check(gatewayCard().textContent.includes('总积分'), 'settings restore translations when DSH switches back to Chinese');
 const translationWrites = window.fixtureWrites;
 translationSwitch().click();
 await settle();
@@ -136,6 +141,10 @@ translationSwitch().click();await settle();
 check(state.config.translateGatewayQuotaLabels === true, 'translation can be enabled again');
 render('future');await settle();await settle();const writes=window.fixtureWrites;
 check(panel().textContent.includes('总积分') && panel().textContent.includes('附加积分'), 'overview uses the restored translation choice');
+state={...state,config:{...state.config,activeLocale:'en'}};emit();await settle();
+check(panel().textContent.includes('余额与额度') && panel().textContent.includes('Total credits') && panel().textContent.includes('Add-on credits'),
+  'English DSH keeps supplier labels in English without changing the Chinese plugin interface');
+state={...state,config:{...state.config,activeLocale:'zh'}};emit();await settle();
 check(!!panel(),'future overview mounts');check(!panel().querySelector('input,select,textarea,button,[contenteditable=true]'),'read-only page has no edit or action controls');
 check(panel().textContent.includes('76%')&&panel().textContent.includes('60%'),'remaining quota is correctly converted');
 check(panel().textContent.includes('12 Credits')&&panel().textContent.includes('125 / 200'),'custom balance and partial gateway credits retained');

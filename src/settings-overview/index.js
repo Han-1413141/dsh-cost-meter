@@ -51,7 +51,7 @@ window.__ModuleLoader__.load({
         cards.push(section('custom-' + index, (locale === 'en' ? entry.labelEn || entry.label : entry.label) || t('customBalanceTitle'), status(live,
           el('div', { className: 'cm-card-value cm-num' }, live?.remaining == null ? '—' : h.formatCustomBalanceMoney(live.remaining, config, live, entry)))))
       })
-      const labelOf = value => h.quotaLabel(value, t, config.translateGatewayQuotaLabels)
+      const labelOf = value => h.quotaLabel(value, t, config.translateGatewayQuotaLabels, config.activeLocale)
       for (const source of config.gatewayQuotas?.sources ?? []) {
         if (!source.enabled || source.display === 'off') continue
         const live = state.gatewayQuotas?.find(item => item.id === source.id)

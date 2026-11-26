@@ -90,7 +90,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-account
       const { state, api, t, draft, setDraft, index } = props
       const config = state.config
       const base = draft ?? config
-      const labelOf = value => quotaLabel(value, t, base.translateGatewayQuotaLabels)
+      const labelOf = value => quotaLabel(value, t, base.translateGatewayQuotaLabels, config.activeLocale)
       const sources = base.gatewayQuotas?.sources ?? []
       const s = sources[index] ?? {}
       const snapshots = Array.isArray(state.gatewayQuotas) ? state.gatewayQuotas : []

@@ -3382,7 +3382,7 @@
       const hoverProps = useQuotaHoverRefresh()
       const { source, snapshot, state, wide, api, focusProvider, grouped, routePending } = props
       const t = makeT(resolveLocale(state.config))
-      const labelOf = value => quotaLabel(value, t, state.config.translateGatewayQuotaLabels)
+      const labelOf = value => quotaLabel(value, t, state.config.translateGatewayQuotaLabels, state.config.activeLocale)
       const [manual, setManual] = useState(null)
       const scope = props.sessionId
       const manualId = manual?.source === source.id && manual.sessionId === scope && manual.provider === focusProvider ? manual.id : null

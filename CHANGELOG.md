@@ -1,8 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [1.9.94] - 2026-11-26
 
-- **额度文案。** 「设置 → 费用 → 额度」新增「翻译供应商额度标签」，默认开启。中文界面的网关额度卡片、入口浮层、额度设置和费用总览会翻译 Total credits、Add-on credits 等固定短语。Credits、7 days、动态读数及未收录的自定义标签照常显示原文。感谢 @abworks-dev 提出并实现精确映射方案。[PR #604](https://github.com/Han-1413141/dsh-cost-meter/pull/604)
+- **额度文案。** 「设置 → 费用 → 额度」新增「翻译供应商额度标签」，默认开启。DSH 和插件都使用中文时，侧栏额度卡、入口浮层、额度设置和费用总览会翻译 Total credits、Add-on credits 等固定短语。任一方使用英语时，供应商标签保留原文。Credits、7 days、动态读数和自定义标签沿用原文。感谢 @abworks-dev 提出并实现固定短语精确匹配，并复核额度卡片的构建产物。[PR #604](https://github.com/Han-1413141/dsh-cost-meter/pull/604)
 
 ## [1.9.93] - 2026-11-26
 
