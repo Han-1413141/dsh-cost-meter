@@ -572,6 +572,28 @@ assert.deepEqual(await invokeSwitch(' '), { stopped: true, prevented: true })
 assert.equal(gateway.storage.get('cm.gw.source-b'), 'b')
 assert.equal(refreshes, 0, '鼠标/Enter/Space切账号均不触发外层额度刷新')
 assert.equal(gateway.storage.get('cm.gw.source-a'), 'a', '切换来源不覆盖其他来源的选择')
+const translatedAccount = {
+  ...a,
+  windows: [
+    { id: 'total', label: ' TOTAL CREDITS ', reading: '0 credits left' },
+    { id: 'addon', label: 'Add-on credits', reading: '7 days' },
+    { id: 'custom', label: 'Custom credits', reading: 'Credits' },
+  ],
+}
+const translationProps = { ...gatewayProps(), snapshot: { accounts: [translatedAccount] },
+  state: { config: { ...config, locale: 'zh' } } }
+const translationText = () => textOf(card.tree)
+card.render(translationProps)
+for (const label of ['总积分', '附加积分', '0 credits left', '7 days', 'Custom credits', 'Credits']) {
+  assert.ok(translationText().includes(label), 'sidebar quota label: ' + label)
+}
+card.render({ ...translationProps, wide: false,
+  state: { config: { ...translationProps.state.config, translateGatewayQuotaLabels: false } } })
+assert.match(textOf(tipOf(card.tree)), /TOTAL CREDITS/)
+assert.doesNotMatch(textOf(tipOf(card.tree)), /总积分|附加积分/)
+card.render({ ...translationProps, state: { config: { ...translationProps.state.config, locale: 'en' } } })
+assert.match(translationText(), /Add-on credits/)
+assert.doesNotMatch(translationText(), /总积分|附加积分/)
 card.dispose(); gateway.dispose()
 
 // The root footer has useSessions but no session-scoped useProjection.

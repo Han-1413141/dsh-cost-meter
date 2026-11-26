@@ -437,11 +437,10 @@ window.__ModuleLoader__.load({
         unknownError: '未知错误',
         balance: '余额',
         credits: '积分', package: '套餐',
-        // 供应商额度接口常见的固定英文短语：仅整串命中时由 quotaLabel 替换，未命中的自定义标签保持原文。
-        'gw:credits': '积分', 'gw:extra credits': '额外积分', 'gw:total credits': '总积分', 'gw:add-on credits': '附加积分',
-        'gw:add-on remaining': '附加剩余', 'gw:daily credits': '每日积分', 'gw:monthly credits': '月度积分',
-        'gw:image generation': '图像生成', 'gw:unknown': '未知', 'gw:unlimited': '无限', 'gw:free': '免费',
-        'gw:trial': '试用', 'gw:7 days': '7 天', 'gw:30 days': '30 天',
+        // 只收录能帮助区分额度类别的固定短语，Credits 等常见单位沿用原文。
+        'gw:extra credits': '额外积分', 'gw:total credits': '总积分', 'gw:add-on credits': '附加积分',
+        'gw:add-on remaining': '剩余附加额度', 'gw:daily credits': '每日积分', 'gw:monthly credits': '月度积分',
+        'gw:image generation': '图像生成',
         officialBalance: 'DeepSeek 余额',
         quotaComposer: '输入框上方',
         quotaSidebarSettings: '侧栏和设置页',
@@ -636,6 +635,8 @@ window.__ModuleLoader__.load({
         quotaEnableFirst: '先勾选启用这一项',
         quotaRefreshReady: '启用并保存显示位置后可刷新',
         quotaRemove: '删除',
+        translateGatewayQuotaLabels: '翻译供应商额度标签',
+        translateGatewayQuotaLabelsHint: '在中文界面翻译「总积分」「附加积分」等常见额度标签。',
         quotaSectionNote: '勾选启用后会排到最上面;点名称可展开该项自己的配置。自定义余额最多 8 条,网关来源最多 4 条。',
         goQuotaDisabledNote: '开启后读取 OpenCode Go 的滚动 5 小时、周、月额度,显示在侧栏、设置页及右下角;无订阅时提示原因。',
         cornerLabel: '右下角显示(dock)',
@@ -1151,6 +1152,8 @@ window.__ModuleLoader__.load({
         quotaEnableFirst: 'Enable this item first',
         quotaRefreshReady: 'Enable and save a display position to refresh',
         quotaRemove: 'Remove',
+        translateGatewayQuotaLabels: 'Translate provider quota labels',
+        translateGatewayQuotaLabelsHint: 'Translate labels such as Total credits and Add-on credits in the Chinese interface.',
         quotaSectionNote: 'Enabled items move to the top; click a name to expand its own settings. Up to 8 custom balances and 4 gateway sources.',
         goQuotaDisabledNote: 'Enable OpenCode Go rolling 5h, weekly and monthly quotas in the sidebar, Settings and bottom-right corner. Missing subscriptions show a reason.',
         cornerLabel: 'Bottom-right (dock) display',
@@ -1485,12 +1488,9 @@ window.__ModuleLoader__.load({
       return supportedLocale(config?.activeLocale) || detectBrowserLocale()
     }
 
-    /**
-     * 供应商额度里的固定英文短语做精确翻译：整串(大小写不敏感、去首尾空白)命中 'gw:' 词条才替换，
-     * 认不出的自定义标签返回原文；英文界面无 'gw:' 词条，t() 回落为键本身，自然保持原样。
-     */
-    function quotaLabel(text, t) {
-      if (typeof text !== 'string' || !text) return text
+    // 中文词典收录固定短语，关闭翻译或未整串命中时保留原文。
+    function quotaLabel(text, t, translate) {
+      if (translate === false || typeof text !== 'string' || !text) return text
       const key = 'gw:' + text.trim().toLowerCase()
       const out = t(key)
       return out === key ? text : out

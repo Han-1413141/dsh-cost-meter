@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- **额度文案。** 侧栏卡片、入口浮层和设置页遇到供应商额度接口返回的常见固定英文短语（如 Credits、Extra credits、Total credits、Add-on credits、Image generation、Unknown、7 days）时，在中文界面按精确整串匹配显示为中文；认不出的自定义标签继续原样显示，英文界面保持原文。感谢 @abworks-dev 提出并实现精确映射方案。[PR #604](https://github.com/Han-1413141/dsh-cost-meter/pull/604)
+- **额度文案。** 「设置 → 费用 → 额度」新增「翻译供应商额度标签」，默认开启。中文界面的网关额度卡片、入口浮层、额度设置和费用总览会翻译 Total credits、Add-on credits 等固定短语。Credits、7 days、动态读数及未收录的自定义标签照常显示原文。感谢 @abworks-dev 提出并实现精确映射方案。[PR #604](https://github.com/Han-1413141/dsh-cost-meter/pull/604)
 
 ## [1.9.93] - 2026-11-26
 

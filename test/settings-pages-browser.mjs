@@ -25,8 +25,11 @@ const state = { config, today: day, month: { ...day, cost: 28, apiCost: 18 }, to
   codingPlans: { minimax: { status: 'ok', fetchedAt: Date.parse('2026-10-23T10:00:00+08:00'), windows: { fiveHour: { percent: 24 }, weekly: { percent: 40 } } },
     opendesign: { status: 'error', message: '示例查询失败，请在插件页检查连接。', windows: {} } },
   customBalances: [{ index: 0, status: 'ok', remaining: 12, unit: 'CREDITS' }],
-  gatewayQuotas: [{ id: 'demo', status: 'partial', message: '一个示例账户查询失败。', accounts: [
-    { id: 'ok', label: '示例账户', status: 'ok', windows: [{ id: 'weekly', percent: 25 }, { id: 'balance', label: '', reading: '42.75 USD' }], credits: { remaining: 125, limit: 200, unit: 'Credits' } },
+  gatewayQuotas: [{ id: 'demo', status: 'partial', message: '一个示例账户查询失败。', unsupportedProviders: [], accounts: [
+    { id: 'ok', label: '示例账户', provider: 'codex', status: 'ok', windows: [
+      { id: 'weekly', percent: 25 }, { id: 'balance', label: '', reading: '42.75 USD' },
+      { id: 'total', label: 'Total credits', reading: '7 days' }],
+      credits: { remaining: 125, limit: 200, unit: 'Credits', packages: [{ id: 'addon', label: 'Add-on credits', remaining: 20, limit: 50 }] } },
     { id: 'error', label: '失败账户', status: 'error', message: '示例连接失败。', windows: [] },
   ] }] }
 const client = readdirSync(join(root, 'src/client')).filter(name => name.endsWith('.js')).sort().map(name => readFileSync(join(root, 'src/client', name), 'utf8')).join('')
@@ -35,7 +38,9 @@ const chunks = ['billing-storage', 'settings-overview', 'statistics', 'community
 const code = `import React from ${literal(req.resolve('react'))};import{createRoot}from ${literal(req.resolve('react-dom/client'))};
 const el=React.createElement,modules={};window.fixtureErrors=[];window.fixtureWrites=0;
 window.addEventListener('error',e=>window.fixtureErrors.push(e.message));window.addEventListener('unhandledrejection',e=>window.fixtureErrors.push(String(e.reason)));
-window.__ModuleLoader__={load:module=>{modules[module.chunk??'main']=module.factory(name=>name==='react'?React:{Tooltip:({children})=>children})}};
+const requireModule = name => name === 'react' ? React : { Tooltip: ({ children }) => children };
+requireModule.async = async name => modules[name.slice(2)];
+window.__ModuleLoader__ = { load: module => { modules[module.chunk ?? 'main'] = module.factory(requireModule) } };
 ${client}
 ${chunks}
 let state=${literal(state)},snapshot={status:'ready',state,locale:'zh'},listeners=new Set();
@@ -102,7 +107,35 @@ const before=window.fixtureWrites;document.querySelector('#root .cm-cards-toggle
 render('plugin');await settle();check(tabs()===settingsTabs,'both pages share all tabs');check(document.querySelector('#root .cm-cards-toggle input').checked,'plugin sees saved setting');
 document.querySelector('#root .cm-cards-toggle input').click();await settle();await settle();check(!state.config.showTotalWithPlan,'plugin saves configuration');
 render('settings');await settle();check(!document.querySelector('#root .cm-cards-toggle input').checked,'settings sees plugin save');
-render('future');await settle();await settle();const writes=window.fixtureWrites;const panel=()=>document.querySelector('#root [data-settings-overview]');
+const openQuotas = async () => {
+  [...document.querySelectorAll('#root [role=tab]')].find(tab => tab.textContent === '额度').click();
+  await settle();
+};
+const translationSwitch = () => [...document.querySelectorAll('#root label.cm-check')]
+  .find(label => label.textContent === '翻译供应商额度标签')?.querySelector('input');
+const gatewayCard = () => [...document.querySelectorAll('#root .cm-quota-card')]
+  .find(card => card.querySelector('.cm-quota-name')?.textContent.includes('示例网关'));
+await openQuotas();
+check(translationSwitch()?.checked, 'quota translation is enabled by default');
+gatewayCard().querySelector('.cm-collapse-h').click();
+await settle();
+check(gatewayCard().textContent.includes('总积分 · 7 days') && gatewayCard().textContent.includes('附加积分')
+  && gatewayCard().textContent.includes('Credits'), 'quota settings translate selected phrases only');
+const translationWrites = window.fixtureWrites;
+translationSwitch().click();
+await settle();
+check(state.config.translateGatewayQuotaLabels === false && window.fixtureWrites === translationWrites + 1, 'translation choice saves exactly once');
+check(gatewayCard().textContent.includes('Total credits · 7 days') && gatewayCard().textContent.includes('Add-on credits'), 'quota settings show the original labels when disabled');
+render('plugin');await settle();await openQuotas();
+check(translationSwitch()?.checked === false, 'plugin settings use the same saved translation choice');
+render('future');await settle();await settle();
+const panel=()=>document.querySelector('#root [data-settings-overview]');
+check(panel().textContent.includes('Total credits') && panel().textContent.includes('Add-on credits'), 'overview uses the saved opt-out');
+render('settings');await settle();await openQuotas();
+translationSwitch().click();await settle();
+check(state.config.translateGatewayQuotaLabels === true, 'translation can be enabled again');
+render('future');await settle();await settle();const writes=window.fixtureWrites;
+check(panel().textContent.includes('总积分') && panel().textContent.includes('附加积分'), 'overview uses the restored translation choice');
 check(!!panel(),'future overview mounts');check(!panel().querySelector('input,select,textarea,button,[contenteditable=true]'),'read-only page has no edit or action controls');
 check(panel().textContent.includes('76%')&&panel().textContent.includes('60%'),'remaining quota is correctly converted');
 check(panel().textContent.includes('12 Credits')&&panel().textContent.includes('125 / 200'),'custom balance and partial gateway credits retained');
@@ -112,7 +145,7 @@ check(panel().querySelector('.cm-card-value').textContent==='¥21','saved API-on
 state={...state,today:{...state.today,apiCost:5},codingPlans:{...state.codingPlans,minimax:{...state.codingPlans.minimax,windows:{fiveHour:{percent:30}}}}};emit();await settle();
 check(panel().querySelector('.cm-card-value').textContent==='¥35'&&panel().textContent.includes('70%'),'live snapshots update cost and quota');
 snapshot={...snapshot,status:'error',error:'Synthetic snapshot error'};emit();await settle();check(panel().textContent.includes('Synthetic snapshot error'),'stale snapshot error retained');
-snapshot={...snapshot,status:'ready',error:null};state={...state,config:{...state.config,locale:'en'}};emit();await settle();check(panel().textContent.includes('Balances and quotas'),'language changes live');
+snapshot={...snapshot,status:'ready',error:null};state={...state,config:{...state.config,locale:'en'}};emit();await settle();check(panel().textContent.includes('Balances and quotas') && panel().textContent.includes('Total credits'),'language changes live and English keeps the original quota labels');
 const sizes=[];for(const width of [960,560,360]){document.getElementById('root').style.width=width+'px';await settle();check(document.getElementById('root').scrollWidth<=document.getElementById('root').clientWidth+1,'no overflow at '+width);sizes.push(width)}
 state={...state,config:{...state.config,locale:'zh'}};emit();document.getElementById('root').style.width='';await settle();check(window.fixtureWrites===writes,'display page and live updates never save');check(!window.fixtureErrors.length,window.fixtureErrors.join(';'));
 result.textContent='PASS: 双入口配置同步；展示页无编辑控件；费用/额度实时更新；错误提示；中英文；960/560/360px。';

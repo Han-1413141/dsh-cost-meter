@@ -182,6 +182,16 @@ try {
   const saved = applyConfigPatch(sanitizeConfig({}), { gatewayQuotas: { sources: [connectorSource] } })
   assert.deepEqual(saved.errors, [])
   assert.equal(sanitizeConfig(saved.config).gatewayQuotas.sources[0].id, connectorSource.id)
+  const quotaLabelState = stateSchema.pick({ config: true })
+  const legacyConfig = sanitizeConfig({})
+  assert.equal(legacyConfig.translateGatewayQuotaLabels, true)
+  delete legacyConfig.translateGatewayQuotaLabels
+  const translationOff = applyConfigPatch(legacyConfig, { translateGatewayQuotaLabels: false })
+  assert.deepEqual(translationOff.errors, [])
+  assert.equal(sanitizeConfig(translationOff.config).translateGatewayQuotaLabels, false)
+  assert.equal(quotaLabelState.parse({ config: translationOff.config }).config.translateGatewayQuotaLabels, false)
+  assert.ok(applyConfigPatch(legacyConfig, { translateGatewayQuotaLabels: 'false' }).errors.length)
+
   const gatewayState = stateSchema.pick({ gatewayQuotas: true })
   gatewayState.parse({ gatewayQuotas: [result] })
   const rawCards = await queryGatewayQuota(ctx, source, { fetchImpl: async () => json({ data: [

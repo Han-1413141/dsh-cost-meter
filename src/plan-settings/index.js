@@ -3,7 +3,7 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-account
   const { createElement: el, useState, useEffect, useRef, Fragment } = require('react')
   const subscriptionCatalog = /* SUBSCRIPTION_CATALOG_SOURCE */ {}
   return { mount(helpers) {
-    const { GoQuotaCard, sortQuotaCards, CODING_PLAN_ROWS, GATEWAY_PROVIDERS, miniMaxRow, miniMaxResetText, GATEWAY_PROVIDER_LABELS, useQuotaRefresh, miniMaxWindowsOf, MiniMaxPlanCard, barDirectionOf, quotaWindowRow, codingPlanWindowLabel, codingPlanWindowEntries, numInput, CredentialField, QuotaCard, resolveLocale, formatMoneyUsd, formatBalanceMoney, quotaPlacementValue, quotaPlacementPatch, quotaPlacementOptions, displayOptions, BalanceBar, segmentsForCustomBalance, customBalanceUnitOf, customBalanceDetailText, formatCustomBalanceMoney, resolveCustomBalanceLabel } = helpers
+    const { GoQuotaCard, sortQuotaCards, CODING_PLAN_ROWS, GATEWAY_PROVIDERS, miniMaxRow, miniMaxResetText, GATEWAY_PROVIDER_LABELS, useQuotaRefresh, miniMaxWindowsOf, MiniMaxPlanCard, barDirectionOf, quotaWindowRow, codingPlanWindowLabel, quotaLabel, codingPlanWindowEntries, numInput, CredentialField, QuotaCard, resolveLocale, formatMoneyUsd, formatBalanceMoney, quotaPlacementValue, quotaPlacementPatch, quotaPlacementOptions, displayOptions, BalanceBar, segmentsForCustomBalance, customBalanceUnitOf, customBalanceDetailText, formatCustomBalanceMoney, resolveCustomBalanceLabel } = helpers
     const gatewayVarOf = (source, status) => {
       if (typeof source?.keyVar === 'string' && source.keyVar.length > 0) return source.keyVar
       if (['magpie', 'antigravity-manager'].includes(source?.type)) return null
@@ -87,9 +87,10 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-account
     }
 
     function GatewayQuotaCard(props) {
-      const { state, api, t, quotaLabel, draft, setDraft, index } = props
+      const { state, api, t, draft, setDraft, index } = props
       const config = state.config
       const base = draft ?? config
+      const labelOf = value => quotaLabel(value, t, base.translateGatewayQuotaLabels)
       const sources = base.gatewayQuotas?.sources ?? []
       const s = sources[index] ?? {}
       const snapshots = Array.isArray(state.gatewayQuotas) ? state.gatewayQuotas : []
@@ -106,14 +107,14 @@ window.__ModuleLoader__.load({ id: 'dsh-cost-meter', chunk: 'client.plan-account
       const patch = value => write(sources.map((x, i) => i === index ? { ...x, ...value } : x))
       const field = (label, value, onChange) => el('div', { className: 'cm-field' }, el('label', null, label), el('input', { className: 'cm-input', 'aria-label': label, value: value ?? '', onChange }))
       const windowRow = (window, i) => {
-        const label = quotaLabel(window?.label, t) || codingPlanWindowLabel(window?.id || '', t) || t('gatewaySourceUnknown')
-        if (window?.reading) return el('div', { key: i, className: 'cm-mm-row wide' }, label + ' · ' + quotaLabel(window.reading, t))
+        const label = labelOf(window?.label) || codingPlanWindowLabel(window?.id || '', t) || t('gatewaySourceUnknown')
+        if (window?.reading) return el('div', { key: i, className: 'cm-mm-row wide' }, label + ' · ' + labelOf(window.reading))
         const view = miniMaxRow(label, window, agyLink ? 'remaining' : barDirectionOf(config, 'plan'), t)
         return el(Fragment, { key: window?.id || i }, view.row, window?.resetsAt ? el('div', { className: 'cm-note' }, miniMaxResetText(window, t)) : null)
       }
       const rem = v => t('customBalanceRemaining', { amount: v ?? '—' })
-      const pkgRow = (pkg, i) => el('div', { key: pkg.id || i, className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, quotaLabel(pkg.label, t) || t('package')), el('span', { className: 'cm-bbox-pct cm-num' }, (pkg.used ?? '—') + ' / ' + (pkg.limit ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, rem(pkg.remaining)))
-      const credits = value => value == null ? null : el(Fragment, null, el('div', { className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, quotaLabel(value.unit, t) || t('credits')), value.used == null && value.limit == null ? el('span', { className: 'cm-bbox-pct cm-num' }, value.remaining == null ? '—' : (value.unit === 'USD' ? '$' + value.remaining : rem(value.remaining))) : el(Fragment, null, el('span', { className: 'cm-bbox-pct cm-num' }, (value.used ?? '—') + ' / ' + (value.limit ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, rem(value.remaining)))), (value.packages ?? []).map(pkgRow))
+      const pkgRow = (pkg, i) => el('div', { key: pkg.id || i, className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, labelOf(pkg.label) || t('package')), el('span', { className: 'cm-bbox-pct cm-num' }, (pkg.used ?? '—') + ' / ' + (pkg.limit ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, rem(pkg.remaining)))
+      const credits = value => value == null ? null : el(Fragment, null, el('div', { className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, labelOf(value.unit) || t('credits')), value.used == null && value.limit == null ? el('span', { className: 'cm-bbox-pct cm-num' }, value.remaining == null ? '—' : (value.unit === 'USD' ? '$' + value.remaining : rem(value.remaining))) : el(Fragment, null, el('span', { className: 'cm-bbox-pct cm-num' }, (value.used ?? '—') + ' / ' + (value.limit ?? '—')), el('span', { className: 'cm-bbox-pct cm-num' }, rem(value.remaining)))), (value.packages ?? []).map(pkgRow))
       const account = (a, i) => el('div', { key: a.id || i, className: 'cm-budget', style: { marginTop: '8px', padding: '10px 12px' } }, el('div', { className: 'cm-budget-head' }, el('strong', null, (GATEWAY_PROVIDER_LABELS[a.provider] ?? a.provider ?? t('gatewaySourceUnknown')) + ' · ' + (a.label || t('gatewaySourceUnknown'))), el('span', { className: 'cm-hint' }, a.status)), a.plan ? el('div', { className: 'cm-note' }, a.plan) : null, a.windows.length > 0 ? el('div', { className: 'cm-go-list' }, a.windows.map(windowRow)) : null, credits(a.credits), a.message ? el('div', { className: 'cm-note' }, a.message) : null)
       return el(QuotaCard, {
         display: s.display, onSidebar: display => patch({ display }),
