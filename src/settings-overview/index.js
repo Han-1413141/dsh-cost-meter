@@ -51,16 +51,19 @@ window.__ModuleLoader__.load({
         cards.push(section('custom-' + index, (locale === 'en' ? entry.labelEn || entry.label : entry.label) || t('customBalanceTitle'), status(live,
           el('div', { className: 'cm-card-value cm-num' }, live?.remaining == null ? '—' : h.formatCustomBalanceMoney(live.remaining, config, live, entry)))))
       })
+      const labelOf = value => h.quotaLabel(value, t, config.translateGatewayQuotaLabels)
       for (const source of config.gatewayQuotas?.sources ?? []) {
         if (!source.enabled || source.display === 'off') continue
         const live = state.gatewayQuotas?.find(item => item.id === source.id)
         const creditRow = (value, key) => value ? el('p', { key, className: 'cm-note cm-num' },
-          (value.label || value.unit || t('credits')) + ' · ' + text('剩余 ', 'Remaining ') + (value.remaining ?? '—') + ' / ' + (value.limit ?? '—')) : null
+          (labelOf(value.label) || labelOf(value.unit) || t('credits')) + ' · ' + text('剩余 ', 'Remaining ') + (value.remaining ?? '—') + ' / ' + (value.limit ?? '—')) : null
         cards.push(section('gateway-' + source.id, source.label || source.id, status(live,
           live?.accounts?.length ? live.accounts.map((account, i) => el('div', { key: account.id || i },
             el('h4', { className: 'cm-h' }, account.label || account.provider),
             account.message ? note(account.message) : null,
-            windows(Object.fromEntries((account.windows ?? []).map((win, j) => [win.id || j, win.reading ? { ...win, text: win.reading, percent: undefined } : win]))),
+            windows(Object.fromEntries((account.windows ?? []).map((win, j) => [win.id || j, {
+              ...win, label: labelOf(win.label), ...(win.reading ? { text: labelOf(win.reading), percent: undefined } : {}),
+            }]))),
             creditRow(account.credits), (account.credits?.packages ?? []).map((pkg, j) => creditRow(pkg, pkg.id || j)))) : note(t('gatewaySourceNoAccounts')))))
       }
       return el('div', { className: 'cm-section', 'data-settings-overview': true },
