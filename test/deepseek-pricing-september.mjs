@@ -18,11 +18,16 @@ let now = flashAt, factory, changedDraft
 class Clock extends Date { static now() { return now } }
 const directory = new URL('../src/client/', import.meta.url)
 const source = readdirSync(directory).filter(n => n.endsWith('.js')).sort().map(n => readFileSync(new URL(n, directory), 'utf8')).join('')
-vm.runInNewContext(source.replace('exports.apply = apply', 'exports.test = { priceAt, tierFor, normalizeClientPrice, parseConfig, resolveClientPrice, makeT, PriceCard }; exports.apply = apply'), {
+vm.runInNewContext(source.replace('exports.apply = apply', 'exports.test = { priceAt, tierFor, normalizeClientPrice, parseConfig, resolveClientPrice, makeT, priceFactor, normalizeClientTier }; exports.apply = apply'), {
   Date: Clock, navigator: { language: 'en' }, window: { __ModuleLoader__: { load: value => { factory = value.factory } }, localStorage: { getItem: () => null } },
 })
 const el = (type, props, ...children) => ({ type, props: props ?? {}, children })
 const ui = factory(name => name === 'react' ? { createElement: el, Fragment: 'fragment' } : {}).test
+const pricingSource = readFileSync(new URL('../src/pricing/index.js', import.meta.url), 'utf8')
+vm.runInNewContext(pricingSource.replace('return { mount, CONTRIBUTION }', 'return { PriceCard }'), {
+  Date: Clock, window: { __ModuleLoader__: { load: module => { factory = module.factory } } },
+})
+const { PriceCard } = factory(name => name === 'react' ? { createElement: el, Fragment: 'fragment' } : {})
 const nodes = node => Array.isArray(node) ? node.flatMap(nodes) : node && typeof node === 'object' ? [node, ...nodes(node.children ?? [])] : []
 
 for (const [currency, table, old, newOff, oldFlashPeak, oldProPeak] of [
@@ -81,7 +86,7 @@ assert.equal(priceAt(refreshed.default, flashAt - 1).cacheMiss, 0.22)
 const draft = sanitizeConfig({ prices: { ...structuredClone(DEFAULT_PRICE_TABLE_CNY), currency: 'CNY' } })
 for (const time of [proAt - 1, proAt]) {
   now = time
-  const card = ui.PriceCard({ modelId: 'deepseek-v4-pro', entry: draft.prices.models['deepseek-v4-pro'], draft,
+  const card = PriceCard({ priceEditor: ui, modelId: 'deepseek-v4-pro', entry: draft.prices.models['deepseek-v4-pro'], draft,
     setDraft: value => { changedDraft = value }, t: ui.makeT('zh') })
   const inputs = nodes(card).filter(node => node.type?.name === 'PriceInput')
   const inputPrice = inputs.find(node => node.props.path === 'base.cacheMiss')

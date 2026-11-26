@@ -157,19 +157,25 @@ for (const pattern of [/[a-z-]+:[^;{}]+;?/g, /\.cm-[a-z-]+/g, /var\(--[a-z0-9-]+
 for (const phrase of ['var(--dsw-alias-', '.cm-', 'background:', 'align-items:', 'border-radius:', 'font-size:', 'display:', 'padding:', 'justify-content:', 'margin:', 'gap:', 'font-weight:', 'line-height:', 'border:', 'min-width:', 'max-width:']) {
   cssCounts.set(phrase, compactCss.split(phrase).length - 1)
 }
+// Include recurring declaration values and selector suffixes independently of their property or component.
+for (const pattern of [/(?<=:)[^;{}]+(?=[;{}])/g, /:(?:hover|focus-visible|first-child|last-child)|\[data-[\w-]+/g, /var\(--(?:dsw-alias-[a-z]+-|cm-)/g]) {
+  for (const [phrase] of compactCss.matchAll(pattern)) {
+    if (phrase.length > 4 && !phrase.includes('~')) cssCounts.set(phrase, compactCss.split(phrase).length - 1)
+  }
+}
 const cssCandidates = [...cssCounts].filter(([, count]) => count >= 2).sort((a, b) =>
   (Buffer.byteLength(b[0]) - 2) * (b[1] - 1) - (Buffer.byteLength(a[0]) - 2) * (a[1] - 1) || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
-const cssPhrases = [], cssTokenBase = 0x0180
+const cssPhrases = [], cssTokenBase = 0x0180, cssTokenCount = 256
 // Prefer unused one-byte markers for the first phrases; preserve the exact CSS on decode.
 const cssAsciiMarkers = ['`', '|', '$', '&', '?', '@'].filter(value => !compactCss.includes(value)).join('')
-const cssTokenRange = `[${cssAsciiMarkers}${String.fromCharCode(cssTokenBase)}-${String.fromCharCode(cssTokenBase + 127)}]`
+const cssTokenRange = `[${cssAsciiMarkers}${String.fromCharCode(cssTokenBase)}-${String.fromCharCode(cssTokenBase + cssTokenCount - 1)}]`
 const cssTokenIndex = token => token.charCodeAt(0) >= cssTokenBase ? token.charCodeAt(0) - cssTokenBase : cssAsciiMarkers.indexOf(token)
 assert.ok(!new RegExp(cssTokenRange).test(compactCss), 'CSS packing markers must be unused')
 let packedCss = compactCss
 // Greedy by measured saving: each round re-counts every candidate in the already
 // packed text (earlier tokens change later counts) and takes the largest positive
 // net gain. Ties keep the deterministic candidate order above.
-while (cssPhrases.length < 128) {
+while (cssPhrases.length < cssTokenCount) {
   let best = null, bestGain = 0
   for (const [phrase] of cssCandidates) {
     const count = packedCss.split(phrase).length - 1, bytes = Buffer.byteLength(phrase)
@@ -207,7 +213,7 @@ console.log('✓ lib/client.js within DSH STORE per-file bound (262144)')
 
 // DSH 0.2.0-rc.2 package-local chunks use the host's require.async contract.
 // Each on-demand screen has readable source and a bounded runtime asset.
-for (const chunk of ['billing-storage', 'settings-overview', 'statistics', 'openrouter', 'community', 'pricing', 'display', 'codex', 'peak', 'session-list', 'sidebar-order', 'plan-settings', 'plan-accounts', 'notices', 'local-savings', 'sidebar-icons', 'agy-quota', 'trae-quota', 'subscriptions-quota', 'footer-chip']) {
+for (const chunk of ['billing-storage', 'settings-overview', 'statistics', 'commandcode', 'openrouter', 'community', 'pricing', 'display', 'codex', 'peak', 'session-list', 'sidebar-order', 'plan-settings', 'plan-accounts', 'notices', 'local-savings', 'sidebar-icons', 'agy-quota', 'trae-quota', 'subscriptions-quota', 'footer-chip']) {
   const input = chunk === 'plan-accounts' ? 'src/plan-settings/index.js'
     : chunk === 'plan-settings' ? 'src/plan-settings/legacy.js' : `src/${chunk}/index.js`
   let source = readFileSync(resolve(projectRoot, input), 'utf8')

@@ -1,3 +1,27 @@
+    function GoConnection({ state }) {
+      const quota = state.goQuota ?? {}
+      const en = resolveLocale(state.config) === 'en'
+      const group = state.config.queryAccounts?.goQuota
+      const account = group?.accounts?.find(row => row.id === group.selected)?.label || quota.accountLabel || (en ? 'Default account' : '默认账号')
+      const source = ({
+        auto: en ? 'OpenCode CLI login' : 'OpenCode CLI 登录凭据',
+        env: en ? 'Host environment variable' : '宿主环境变量',
+        legacy: en ? 'Legacy configuration' : '旧配置',
+      })[quota.keySource] || (en ? 'DSH credential store' : 'DSH 凭据库')
+      return el('fieldset', { className: 'cm-field' },
+        el('legend', null, en ? 'OpenCode Go connection' : 'OpenCode Go 连接'),
+        el('p', null, account, ' · ', quota.keyConfigured ? [source, quota.keyRef].filter(Boolean).join(' · ') : en ? 'No credential found' : '未找到凭据'),
+        el('p', null, quota.lastSuccessAt
+          ? (en ? 'Last successful quota check: ' : '上次成功查询额度：') + new Date(quota.lastSuccessAt).toLocaleString()
+          : en ? 'Quota credential has not been verified.' : '额度凭据尚未验证。'),
+        el('p', null, quota.routeConfigured
+          ? en ? 'Go model profile detected. Test inference in Models.' : '已找到 Go 模型配置，可在「模型」中测试调用。'
+          : en ? 'To use Go models, add a Go provider in DSH Models and select a model.' : '要调用 Go 模型，请在 DSH「模型」中添加 Go 提供商并选择模型。'),
+        el('p', null, en ? 'Create a personal API key in OpenCode Console → Account, then copy it to the host credential field below. ' : '在 OpenCode Console 的 Account 页面创建个人 API Key，复制到下方凭据栏后保存在 DSH 宿主。'),
+        el('a', { href: 'https://opencode.ai/docs/console/harnesses/#get-an-api-key', target: '_blank', rel: 'noopener noreferrer' }, en ? 'OpenCode setup guide' : 'OpenCode 官方配置说明'),
+        el('p', { className: 'cm-note' }, en ? 'Accounts here select which quota to query. Configure inference accounts in your model provider.' : '这里的账号用于查询额度。模型调用使用的账号在模型提供商中设置。'),
+        el('p', { className: 'cm-note' }, en ? 'When Extra Usage is enabled, Console can charge credits after a limit is reached. DSH token usage does not report that per-request charge. Check Console for actual charges.' : '开启 Extra Usage 后，达到限额的请求可扣除 Console 余额。DSH 提供的 Token 用量没有这笔扣费明细，实际支出请查看 Console。'))
+    }
     /** 额度区总装:四类来源归一成同一串卡片,已启用的排前面(顺序纯由 enabled 派生,不落盘)。 */
     function QuotasSection(props) {
       const { state, api, t, draft, setDraft } = props
@@ -91,7 +115,7 @@
       ]
       const cardOf = item => {
         if (item.kind === 'plan') return el(QuotaSettingsCard, { key: item.key, planId: item.planId, labelKey: item.labelKey, targeted: item.planId === props.targetPlan, state, api, t, draft, setDraft })
-        if (item.kind === 'go') return el(GoQuotaCard, { key: item.key, state, api, t, draft, setDraft, accountRows: state.goQuota?.accountQuotas?.map(row => el(AccountQuotaRow, { key: row.accountId, row, planId: 'go', api, t, config })) })
+        if (item.kind === 'go') return el(GoQuotaCard, { key: item.key, connection: el(GoConnection, { state }), state, api, t, draft, setDraft, accountRows: state.goQuota?.accountQuotas?.map(row => el(AccountQuotaRow, { key: row.accountId, row, planId: 'go', api, t, config })) })
         if (item.kind === 'gateway') return el(QuotaSettingsCard, { key: item.key, mode: 'gateway', index: item.index, state, api, t, draft, setDraft, onRemove: () => removeGateway(item.index) })
         return el(CustomBalanceEntryPanel, {
           key: item.key, state, api, t, entry: entries[item.index], index: item.index, canRemove: true,

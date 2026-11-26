@@ -50,6 +50,12 @@ assert.equal(nodes(inspect('balance')).some(node => node.children.includes('bala
 control(inspect('balance'), 'balanceBudgetCapLabel').props.onChange(null)
 assert.equal(config.balance.budgetCap, null)
 config.balance.showProgressBar = false
+const sidebarWideOptions = ['today-balance-inline', 'sidebar-text-only', 'sidebar-focus-provider', 'sidebar-magpie-overview']
+assert.equal(config.sidebarMagpieOverview, false)
+for (const checked of [true, false]) {
+  control(inspect('plan'), 'Show all Magpie providers in the entry popover').props.onChange({ target: { checked } })
+  assert.equal(config.sidebarMagpieOverview, checked)
+}
 const textOnly = 'Hide progress bars, show compact text'
 control(inspect('plan'), textOnly).props.onChange({ target: { checked: true } })
 assert.equal(config.sidebarTextOnly, true)
@@ -65,7 +71,7 @@ assert.equal(config.codingPlans.minimax.display, 'sidebar')
 assert.equal(config.codingPlans.minimax.enabled, false, 'display changes never enable a quota query')
 assert.equal(JSON.stringify(config.codingPlans.kimi), initial, 'another account is unchanged')
 tree = inspect('plan')
-assert.equal(nodes(tree).filter(node => node.props.role === 'switch' && !['today-balance-inline', 'sidebar-text-only'].includes(node.props['data-display-option'])).length, 1, 'one explicit visibility switch precedes the component controls')
+assert.equal(nodes(tree).filter(node => node.props.role === 'switch' && !sidebarWideOptions.includes(node.props['data-display-option'])).length, 1, 'one explicit visibility switch precedes the component controls')
 assert.ok(!control(tree, 'Placement').children.some(node => node.props?.value === 'off'), 'placement does not duplicate the visibility switch')
 control(tree, 'Placement').props.onChange({ target: { value: 'settings' } })
 assert.equal(config.codingPlans.minimax.display, 'settings', 'sidebar visibility preserves the settings card')
@@ -80,7 +86,7 @@ nodes(inspect('plan')).find(node => node.type === 'button' && node.children.incl
 assert.equal(navigated, 'kimi', 'navigation targets the selected account')
 const budget = nodes(inspect('budget'))
 assert.ok(!budget.some(node => node.type === 'span' && node.children.includes('Show today’s usage')), 'today visibility belongs to its own component')
-assert.equal(nodes(inspect('today')).filter(node => node.type === 'input' && node.props.type === 'checkbox' && !['today-balance-inline', 'sidebar-text-only'].includes(node.props['data-display-option'])).length, 2, 'today has separate cost and token format switches')
+assert.equal(nodes(inspect('today')).filter(node => node.type === 'input' && node.props.type === 'checkbox' && !sidebarWideOptions.includes(node.props['data-display-option'])).length, 2, 'today has separate cost and token format switches')
 control(inspect('today'), 'sidebarTodayTokens').props.onChange({ target: { checked: true } })
 assert.equal(config.sidebarTodayMetric, 'both')
 control(inspect('today'), 'sidebarTodayCost').props.onChange({ target: { checked: false } })
@@ -88,7 +94,7 @@ assert.equal(config.sidebarTodayMetric, 'tokens')
 assert.equal(control(inspect('today'), 'sidebarTodayTokens').props.disabled, true, 'at least one value remains visible')
 for (const selected of ['codex', 'strip-codex']) {
   const tree = inspect(selected)
-  assert.equal(nodes(tree).filter(node => node.props.role === 'switch' && !['today-balance-inline', 'sidebar-text-only'].includes(node.props['data-display-option'])).length, 1, 'Codex has one explicit query-enable switch')
+  assert.equal(nodes(tree).filter(node => node.props.role === 'switch' && !sidebarWideOptions.includes(node.props['data-display-option'])).length, 1, 'Codex has one explicit query-enable switch')
   for (const source of ['subscription', 'chatgpt']) {
     assert.ok(control(tree, 'Data source').children.some(node => node.props?.value === source))
     control(tree, 'Data source').props.onChange({ target: { value: source } })

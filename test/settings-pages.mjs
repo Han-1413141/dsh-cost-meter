@@ -7,14 +7,14 @@ const dir = new URL('../src/client/', import.meta.url)
 const source = readdirSync(dir).filter(name => name.endsWith('.js')).sort().map(name => readFileSync(new URL(name, dir), 'utf8')).join('')
 const artifact = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
 for (const [mode, code] of [['source', source], ['artifact', artifact], ['future', source.replace('const SETTINGS_DISPLAY_ONLY = false', 'const SETTINGS_DISPLAY_ONLY = true')]]) {
-  let factory, config = sanitizeConfig({ locale: 'auto', hideOfficialBalance: true }), locale = 'zh', writes = 0
-  const snapshot = () => ({ config, today: zeroDay(), month: zeroDay(), total: zeroDay(), history: [] })
+  let factory, config = sanitizeConfig({ locale: 'auto', hideOfficialBalance: true }), locale = 'zh', writes = 0, providerNs = 'cost-meter'
+  const snapshot = () => ({ config, commandCodeSettingsNs: providerNs, today: zeroDay(), month: zeroDay(), total: zeroDay(), history: [] })
   const read = async () => ({ ok: true, value: snapshot() })
   const rpc = { getLocalState: read, getState: read, updateConfig: async patch => {
     writes++; const result = applyConfigPatch(config, patch); assert.deepEqual(result.errors, []); config = result.config; return read()
   } }
   const cleanups = [], entries = new Map(), pending = new Map(), events = new Map()
-  const declared = new Set(['settings.section'])
+  const declared = new Set(['settings.section', 'settings.models.provider-card'])
   const slots = { entries: () => [], inject(name, fn) {
     if (!pending.has(name)) pending.set(name, [])
     pending.get(name).push(fn)
@@ -47,9 +47,14 @@ for (const [mode, code] of [['source', source], ['artifact', artifact], ['future
   assert.equal(settings().component === plugin.component, mode !== 'future', 'only future mode replaces the settings component')
   const a = settings().options.inject(), b = plugin.options.inject()
   assert.equal(a.api, b.api); assert.equal(a.hooks.cost, b.hooks.cost)
+  const providerCard = ns => entries.get('settings.models.provider-card:' + ns)
+  assert.equal(providerCard(providerNs).options.inject().api, a.api)
+  providerNs = 'meter-profile-entry'
   assert.equal(writes, 0, 'mounting and registering pages never writes configuration')
   await b.api.updateConfig({ showTotalWithPlan: true })
   assert.equal(a.hooks.cost.getSnapshot().state.config.showTotalWithPlan, true)
+  assert.equal(providerCard('cost-meter'), undefined)
+  assert.equal(providerCard(providerNs).options.inject().api, a.api, 'Models editor follows the host entry namespace')
   await a.api.updateConfig({ showTotalWithPlan: false })
   assert.equal(b.hooks.cost.getSnapshot().state.config.showTotalWithPlan, false)
   locale = 'en'; events.get('locale/change')()

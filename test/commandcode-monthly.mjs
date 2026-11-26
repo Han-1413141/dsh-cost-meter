@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { parseCommandCodeMonthly, queryCodingPlan } from '../lib/coding-plans.js'
 const credits = { credits: { monthlyCredits: 47.7163, purchasedCredits: 0, freeCredits: 0 }, windowLimits: { fiveHour: { used: .37, cap: 14 }, weekly: { used: 15.28, cap: 35 } } }
 const summary = { totalCost: 22.2592, periodBasis: 'billing-period', periodStart: '2026-10-03T01:26:37.000Z' }
-const subscription = { data: { currentPeriodStart: summary.periodStart, currentPeriodEnd: '2026-11-03T01:26:37.000Z' } }
+const subscription = { data: { planId: 'individual-pro', currentPeriodStart: summary.periodStart, currentPeriodEnd: '2026-11-03T01:26:37.000Z' } }
 assert.equal(parseCommandCodeMonthly(credits, summary, subscription).percent, 31.8)
 assert.equal(parseCommandCodeMonthly(credits, { ...summary, totalCost: 0 }, subscription).percent, 0)
 assert.equal(parseCommandCodeMonthly({ credits: { monthlyCredits: 0, purchasedCredits: 0, freeCredits: 0 } }, summary, subscription).percent, 100)
@@ -30,6 +30,7 @@ try {
   }
   const query = () => queryCodingPlan('commandcode', 'fixture', 'en', (_, key) => key)
   const ok = await query()
+  assert.deepEqual(ok.account, { credits: 47.7163, plan: 'individual-pro' })
   assert.equal(ok.windows.monthly.percent, 31.8)
   assert.equal(ok.windows.monthly.resetsAt, subscription.data.currentPeriodEnd)
   assert.deepEqual(calls, ['/alpha/billing/credits', '/alpha/billing/subscriptions', '/alpha/usage/summary'])

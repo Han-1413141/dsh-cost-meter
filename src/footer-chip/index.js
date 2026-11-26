@@ -16,6 +16,11 @@ window.__ModuleLoader__.load({
       '.cm-chip:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-state-business-primary));outline-offset:-2px}',
       '.cm-chip-pop{position:fixed;inset:auto;margin:0;box-sizing:border-box;width:min(264px,calc(100vw - 16px));max-height:min(70dvh,calc(100dvh - 16px));overflow:auto;overscroll-behavior:contain;padding:8px;border:1px solid var(--dsw-alias-border-l1);border-radius:12px;background:var(--cm-opaque-base,var(--dsw-alias-bg-layer-1,#fff));color:var(--dsw-alias-label-primary);box-shadow:0 8px 24px #0003;z-index:9999}',
       '.cm-chip-pop>.cm-footer-stack{width:100%;min-width:0}',
+      '.cm-chip-pop.cm-magpie-overview{display:flex;flex-direction:column;gap:8px;overflow:hidden}',
+      '.cm-magpie-list,.cm-magpie-pinned{display:flex;flex-direction:column;gap:6px;min-height:0;overflow:auto;overscroll-behavior:contain}',
+      '.cm-magpie-list>.cm-footer-stack{width:100%;min-width:0}',
+      '.cm-magpie-pinned{flex:none;max-height:min(35dvh,220px);padding:6px;border:2px solid var(--dsw-alias-state-business-primary,#4675dc);border-radius:10px}',
+      '.cm-magpie-list>.cm-bbox,.cm-magpie-pinned>.cm-bbox{flex:none;width:100%;box-sizing:border-box}',
     ].join('')
 
     function findFooterSlot(node) {
@@ -79,8 +84,35 @@ window.__ModuleLoader__.load({
       return isColumn || hasVisibleSibling(slot, hostNode) || (flexHost && flexHost !== slot && hasVisibleSibling(flexHost, hostNode))
     }
 
+    function groupMagpieCards(nodes, labels) {
+      const list = [], pinned = [], other = []
+      let routePending = false
+      for (const node of nodes) {
+        const { source, snapshot, focusProvider } = node.props
+        if (source.type !== 'magpie') { other.push(node); continue }
+        routePending ||= node.props.routePending === true
+        const groups = new Map()
+        for (const account of snapshot.accounts) {
+          const provider = account.provider
+          if (!groups.has(provider)) groups.set(provider, [])
+          groups.get(provider).push(account)
+        }
+        for (const [provider, accounts] of groups) {
+          const card = React.cloneElement(node, {
+            key: `${source.id}:${provider}`,
+            source: { ...source, label: labels[provider] ?? provider },
+            snapshot: { ...snapshot, accounts },
+            wide: true,
+            grouped: true,
+          })
+          ;(provider === focusProvider ? pinned : list).push(card)
+        }
+      }
+      return { list, pinned, other, routePending }
+    }
+
     function mount(helpers) {
-      const { WalletIcon } = helpers
+      const { WalletIcon, gatewayLabels = {} } = helpers
       return function FooterChip(props) {
         const { entryMode = false, mobile = false, wide = true, label = 'Cost card', renderCard, fallback } = props
         const [hostNode, setHostNode] = useState(null)
@@ -216,6 +248,23 @@ window.__ModuleLoader__.load({
           return React.cloneElement(fallback, { ref: setHostNode })
         }
 
+        let content, grouped = false
+        if (open && props.magpieOverview && renderCard) {
+          let groups
+          const summary = renderCard(true, nodes => {
+            groups = groupMagpieCards(nodes, gatewayLabels)
+            return groups.other
+          })
+          if (groups && (groups.list.length || groups.pinned.length)) {
+            grouped = true
+            const en = props.locale === 'en'
+            content = el(Fragment, null,
+              el('div', { className: 'cm-magpie-list', tabIndex: 0, role: 'region', 'aria-label': en ? 'Magpie quota overview' : 'Magpie 额度总览' }, summary, ...groups.list),
+              groups.pinned.length ? el('div', { className: 'cm-magpie-pinned', tabIndex: 0, role: 'region', 'aria-label': en ? 'Current session provider' : '当前会话供应商' },
+                el('span', { className: 'cm-gw-sub' }, en ? 'Current session provider' : '当前会话供应商'), ...groups.pinned)
+                : groups.routePending ? el('div', { className: 'cm-gw-sub', role: 'status' }, en ? 'Route provider unavailable' : '路由供应商未确认') : null)
+          }
+        }
         const popoverNode = open
           ? el('div', {
               ref: panelRef,
@@ -223,8 +272,8 @@ window.__ModuleLoader__.load({
               ...(usePortal ? {} : { popover: 'manual' }),
               role: 'dialog',
               'aria-label': label,
-              className: 'cm-chip-pop',
-            }, renderCard ? renderCard(true) : fallback)
+              className: 'cm-chip-pop' + (grouped ? ' cm-magpie-overview' : ''),
+            }, content ?? (renderCard ? renderCard(true) : fallback))
           : null
 
         return el(Fragment, null,
@@ -246,6 +295,6 @@ window.__ModuleLoader__.load({
       }
     }
 
-    return { mount, computeChipState, hasVisibleSibling, findFooterSlot }
+    return { mount, computeChipState, hasVisibleSibling, findFooterSlot, groupMagpieCards }
   },
 })

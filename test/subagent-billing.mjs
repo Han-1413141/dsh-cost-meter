@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { aggregateSessionCost, getSessionCost, readSessionHeaders, subagentIds } from '../lib/session-tree.js'
+import { aggregateSessionCost, getSessionCost, getSessionListCosts, readSessionHeaders, subagentIds } from '../lib/session-tree.js'
 import { Ledger, applyConfigPatch, defaultConfig, repairLedgerPricing, sanitizeConfig } from '../lib/store.js'
 import { buildPriceCatalog, DEFAULT_PROVIDER_PRICE_TABLE } from '../lib/pricing.js'
 import { sessionCostSchema, stateSchema, TYPERT } from '../lib/typert.host.js'
@@ -90,12 +90,34 @@ releaseDirectory(); await Promise.all(concurrentHeaders)
 liveHeaders.push({ header: header('new-live-child', 'root') })
 assert.ok(subagentIds('root', await readSessionHeaders(cachedContext)).has('new-live-child'))
 assert.equal(directoryReads, 1, 'recent directory is reused while live headers remain current')
+liveHeaders.pop()
+assert.ok(!subagentIds('root', await readSessionHeaders(cachedContext)).has('new-live-child'), 'detached live headers leave the overlay')
 const realNow = Date.now
 try {
   Date.now = () => realNow() + 6000
   const expired = readSessionHeaders(cachedContext)
   assert.equal(directoryReads, 2, 'expired directories are read again')
   releaseDirectory(); await expired
+} finally { Date.now = realNow }
+// #597: repeated ten-second sidebar polls receive new Cordis service wrappers.
+let corpusReads = 0
+const largeDirectory = Array.from({ length: 2185 }, (_, i) => header('session-' + i))
+const directoryService = { listSessions() { corpusReads++; return largeDirectory } }
+const wrappedDirectory = { get(name) {
+  if (name === 'sessionQuery') return new Proxy(directoryService, {
+    get: (target, key) => key === Symbol.for('cordis.original') ? target : Reflect.get(target, key),
+  })
+} }
+try {
+  const start = realNow()
+  for (let offset = 0; offset <= 120_000; offset += 10_000) {
+    Date.now = () => start + offset
+    await getSessionListCosts(ledger, wrappedDirectory, { sessionIds: ['root'], period: 'today' })
+  }
+  assert.equal(corpusReads, 1, 'sidebar polling reuses the 2185-session directory')
+  Date.now = () => start + 300_001
+  await readSessionHeaders(wrappedDirectory)
+  assert.equal(corpusReads, 2, 'external changes are eventually reconciled')
 } finally { Date.now = realNow }
 assert.deepEqual((await getSessionCost(ledger, {}, 'root')).own, on.own, '旧宿主无血缘 API 仍可展示主会话费用')
 

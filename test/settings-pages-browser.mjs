@@ -16,12 +16,17 @@ const config = sanitizeConfig({ locale: 'zh', currency: 'CNY', symbol: '¥', exc
   gatewayQuotas: { sources: [{ id: 'demo', label: '示例网关', type: 'cliproxyapi', enabled: true, display: 'settings', baseURL: 'http://127.0.0.1:8317' }] } })
 const day = { ...zeroDay('2026-10-23'), calls: 32, input: 200000, output: 30000, cacheRead: 800000, cost: 13, apiCost: 3 }
 const state = { config, today: day, month: { ...day, cost: 28, apiCost: 18 }, total: { ...day, cost: 52, apiCost: 42 }, history: [], budgetUsed: 18,
+  planStats: { providers: { minimax: { windows: { fiveHour: {
+    percent: 51, localTokens: 8700000, localCost: 240, per1Tokens: 170588, per1Cost: 4.7,
+    fullTokens: 17058823, fullCost: 470.59, method: 'sample', sampleAt: Date.parse('2026-11-26T07:30:00Z'),
+    resetsAt: '2026-11-26T12:30:00Z',
+  } } } } },
   balance: { status: 'ok', totalBalance: 123.45, grantedBalance: 0, toppedUpBalance: 123.45, currency: 'CNY', fetchedAt: Date.parse('2026-10-23T10:00:00+08:00') },
   codingPlans: { minimax: { status: 'ok', fetchedAt: Date.parse('2026-10-23T10:00:00+08:00'), windows: { fiveHour: { percent: 24 }, weekly: { percent: 40 } } },
     opendesign: { status: 'error', message: '示例查询失败，请在插件页检查连接。', windows: {} } },
   customBalances: [{ index: 0, status: 'ok', remaining: 12, unit: 'CREDITS' }],
   gatewayQuotas: [{ id: 'demo', status: 'partial', message: '一个示例账户查询失败。', accounts: [
-    { id: 'ok', label: '示例账户', status: 'ok', windows: [{ id: 'weekly', percent: 25 }], credits: { remaining: 125, limit: 200, unit: 'Credits' } },
+    { id: 'ok', label: '示例账户', status: 'ok', windows: [{ id: 'weekly', percent: 25 }, { id: 'balance', label: '', reading: '42.75 USD' }], credits: { remaining: 125, limit: 200, unit: 'Credits' } },
     { id: 'error', label: '失败账户', status: 'error', message: '示例连接失败。', windows: [] },
   ] }] }
 const client = readdirSync(join(root, 'src/client')).filter(name => name.endsWith('.js')).sort().map(name => readFileSync(join(root, 'src/client', name), 'utf8')).join('')
@@ -51,9 +56,48 @@ document.getElementById('settings').onclick=()=>render('settings');document.getE
 document.getElementById('theme').onclick=()=>{document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark'};
 document.getElementById('language').onclick=()=>{state={...state,config:{...state.config,locale:state.config.locale==='en'?'zh':'en'}};emit()};
 const settle=()=>new Promise(resolve=>setTimeout(resolve,220));const check=(value,message)=>{if(!value)throw Error(message)};
+window.checkPlanTableScroll = async () => {
+  const host = document.getElementById('root');
+  const previousStyle = host.style.cssText;
+  const measurements = [];
+  try {
+    render('settings');
+    await settle();
+    [...host.querySelectorAll('[role=tab]')].find(tab => tab.textContent === '用量').click();
+    await settle();
+    const title = [...host.querySelectorAll('.cm-collapse-h')].find(button => button.textContent.includes('满窗估算'));
+    title.click();
+    await settle();
+    const region = host.querySelector('.cm-plan-scroll');
+    const row = region?.querySelector('tbody tr');
+    check(row?.cells.length === 7 && row.cells[6].textContent.includes('采样差分'), 'populated seven-column estimate');
+    host.style.overflowY = 'auto';
+    for (const width of [560, 360]) {
+      host.style.width = width + 'px';
+      region.scrollLeft = 0;
+      const titleLeft = title.getBoundingClientRect().left;
+      const card = title.closest('.cm-budget');
+      const cardLeft = card.getBoundingClientRect().left;
+      const availableWidth = region.clientWidth;
+      check(region.scrollWidth > availableWidth, 'wide table at ' + width);
+      region.scrollLeft = region.scrollWidth;
+      host.scrollLeft = host.scrollWidth;
+      check(host.scrollLeft === 0 && host.scrollWidth <= host.clientWidth + 1, 'settings overflow at ' + width);
+      check(region.scrollLeft > 0 && row.cells[6].getBoundingClientRect().right <= region.getBoundingClientRect().right + 1, 'last column reachable at ' + width);
+      check(card.getBoundingClientRect().left === cardLeft && title.getBoundingClientRect().left === titleLeft, 'card moved at ' + width);
+      measurements.push({ width, availableWidth, tableWidth: region.scrollWidth, scrollLeft: region.scrollLeft });
+    }
+  } finally {
+    host.style.cssText = previousStyle;
+    render('settings');
+    await settle();
+  }
+  return measurements;
+};
 window.runChecks=async()=>{const result=document.getElementById('result');result.textContent='Running';try{
 state={...state,config:{...state.config,locale:'zh',showTotalWithPlan:false}};emit();render('settings');await settle();
 const tabs=()=>[...document.querySelectorAll('#root .cm-tabs [role=tab]')].map(n=>n.textContent).join('|');const settingsTabs=tabs();check(settingsTabs.includes('显示')&&settingsTabs.includes('价格'),'full settings tabs present');
+await window.checkPlanTableScroll();
 const before=window.fixtureWrites;document.querySelector('#root .cm-cards-toggle input').click();await settle();await settle();check(state.config.showTotalWithPlan===true&&window.fixtureWrites===before+1,'settings saves exactly once');
 render('plugin');await settle();check(tabs()===settingsTabs,'both pages share all tabs');check(document.querySelector('#root .cm-cards-toggle input').checked,'plugin sees saved setting');
 document.querySelector('#root .cm-cards-toggle input').click();await settle();await settle();check(!state.config.showTotalWithPlan,'plugin saves configuration');
@@ -62,6 +106,7 @@ render('future');await settle();await settle();const writes=window.fixtureWrites
 check(!!panel(),'future overview mounts');check(!panel().querySelector('input,select,textarea,button,[contenteditable=true]'),'read-only page has no edit or action controls');
 check(panel().textContent.includes('76%')&&panel().textContent.includes('60%'),'remaining quota is correctly converted');
 check(panel().textContent.includes('12 Credits')&&panel().textContent.includes('125 / 200'),'custom balance and partial gateway credits retained');
+check(panel().textContent.includes('余额42.75 USD'),'localized gateway balance preserves the upstream reading');
 check(panel().textContent.includes('示例查询失败')&&panel().textContent.includes('示例连接失败'),'query errors remain visible');
 check(panel().querySelector('.cm-card-value').textContent==='¥21','saved API-only accounting applies');
 state={...state,today:{...state.today,apiCost:5},codingPlans:{...state.codingPlans,minimax:{...state.codingPlans.minimax,windows:{fiveHour:{percent:30}}}}};emit();await settle();

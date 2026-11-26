@@ -27,30 +27,26 @@ assert.ok(applyConfigPatch(base, { codingPlans: { trae: { editionScope: 'invalid
 assert.deepEqual(applyConfigPatch(base, { codingPlans: { trae: { editionScope: 'enterprise' } } }).errors, [])
 
 // 3. Spin up real loopback mock server matching dsh-connect-trae routes
-let routes = {}
+const json = (value, status = 200) => ({
+  status, headers: { 'content-type': 'application/json' }, body: JSON.stringify(value),
+})
+const notFound = json({ error: 'not found' }, 404)
+let routes = new Map()
 let hits = []
 const server = createServer((req, res) => {
   hits.push(req.url)
-  const handler = routes[req.url]
-  if (!handler) {
-    res.writeHead(404, { 'content-type': 'application/json' })
-    res.end(JSON.stringify({ error: 'not found' }))
-    return
-  }
-  handler(req, res)
+  const reply = routes.get(req.url) ?? notFound
+  res.writeHead(reply.status, reply.headers)
+  res.end(reply.body)
 })
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve))
 const origin = `http://127.0.0.1:${server.address().port}`
-const json = (body, status = 200) => (_req, res) => {
-  res.writeHead(status, { 'content-type': 'application/json' })
-  res.end(JSON.stringify(body))
-}
 
 try {
   // 3a. CN signed-in with decimals, small percent (<1% must NOT be multiplied x100!), device-only check-in, expiry, multi-account credits
   const expiryMs = Date.now() + 2 * 24 * 3600_000
   hits = []
-  routes = {
+  routes = new Map(Object.entries({
     '/plugins/dsh-connect-trae/usage?region=cn': json({
       status: 'signed-in',
       region: 'cn',
@@ -102,7 +98,7 @@ try {
       },
       unsupportedRegion: { region: 'us', accounts: ['us-secret@example.com'] },
     }),
-  }
+  }))
 
   let transport
   vm.runInNewContext(readFileSync(new URL('../lib/client.trae-quota.js', import.meta.url), 'utf8'), {
@@ -160,21 +156,21 @@ try {
 
   // 3c. Signed-out + US unsupportedRegion object -> soft traeUnsupportedRegion error
   hits = []
-  routes = {
+  routes = new Map(Object.entries({
     '/plugins/dsh-connect-trae/usage?region=ai': json({
       status: 'signed-out',
       accounts: [],
       unsupportedRegion: { region: 'us', accounts: ['user@us.example'] },
       searched: ['C:\\Users\\secret\\trae.json'],
     }),
-  }
+  }))
   await assert.rejects(
     () => queryCodingPlan('trae', { hostOrigin: origin }, 'en', (_l, code, vars) => `${code}:${vars?.region ?? ''}`, { traeConfig: { editionScope: 'ai' } }),
     err => err.soft === true && err.message === 'traeUnsupportedRegion:US',
   )
 
   // 3d. Raw creditsError & local paths are NEVER echoed to client
-  routes = {
+  routes = new Map(Object.entries({
     '/plugins/dsh-connect-trae/usage?region=cn': json({
       status: 'signed-in',
       region: 'cn',
@@ -184,25 +180,22 @@ try {
       creditsError: 'LEAK_TOKEN_XYZ at C:\\Users\\me\\AppData\\trae\\token.json',
       searched: ['C:\\Users\\me\\secret'],
     }),
-  }
+  }))
   const redacted = await fetchTraeQuota(origin, { editionScope: 'cn' }, { locale: 'en' })
   assert.doesNotMatch(JSON.stringify(redacted), /LEAK_TOKEN_XYZ|AppData|secret/)
   assert.equal(redacted.trae.editions[0].creditsFailed, true)
 
   // 3e. 3xx redirect refused -> treated as failed, not followed
-  routes = {
-    '/plugins/dsh-connect-trae/usage?region=cn': (_req, res) => {
-      res.writeHead(302, { location: 'https://evil.example/' })
-      res.end()
-    },
-  }
+  routes = new Map(Object.entries({
+    '/plugins/dsh-connect-trae/usage?region=cn': { status: 302, headers: { location: 'https://evil.example/' }, body: '' },
+  }))
   await assert.rejects(
     () => fetchTraeQuota(origin, { editionScope: 'cn' }, { locale: 'en' }),
     err => err.code === 'traeConnectFailed',
   )
 
   // 3f. 404 everywhere -> soft traeConnectUnavailable
-  routes = {}
+  routes.clear()
   await assert.rejects(
     () => queryCodingPlan('trae', { hostOrigin: origin }, 'zh', (_l, code) => code, { traeConfig: { editionScope: 'auto' } }),
     err => err.soft === true && err.message === 'traeConnectUnavailable',

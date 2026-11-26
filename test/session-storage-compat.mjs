@@ -315,6 +315,29 @@ try {
   assert.equal(queryResult.inheritedEventCount, 2)
   assert.equal(queryResult.records[1], queryRows[0])
 
+  // #597: cold backfill must not call readSession, which lists the whole corpus on rc.5.
+  let leases = 0, coldReads = 0, listingReads = 0
+  const observationAbort = new AbortController()
+  const exact = fakeCtx({ sessionQuery: {
+    async observeSession(id, options) {
+      assert.equal(options.projectionMode, 'none')
+      coldReads++; leases++
+      if (id === 'cancelled') observationAbort.abort()
+      return { header: { id, createdAt: at, isSeeded: true }, events: queryRows, inheritedEventCount: 2,
+        [Symbol.dispose]() { leases-- } }
+    },
+    readSession() { listingReads++; throw Error('unexpected corpus scan') },
+  } })
+  const exactSource = createSessionRecordSource(exact, temp('cm-exact-reads-'), TEST_DETECT)
+  for (const id of ['one', 'two', 'three']) {
+    const records = await exactSource.readRecords(id)
+    assert.equal(records[0].id, id)
+    assert.equal(records[0].seedLength, 2)
+  }
+  await assert.rejects(readSessionRecords(exact, 'limited', { maxEvents: 1 }), /history exceeds/)
+  await assert.rejects(readSessionRecords(exact, 'cancelled', { signal: observationAbort.signal }), { name: 'AbortError' })
+  assert.deepEqual({ leases, coldReads, listingReads }, { leases: 0, coldReads: 5, listingReads: 0 })
+
   // 4.2 query 失败 → persistence 分页读取 + close。
   const persistedRows = events().map((row, index) => ({ ...row, seq: index }))
   const persistedSession = { header: { id: 'db-1', createdAt: at }, events: persistedRows, inheritedEventCount: 3, revision: 'rev-db-1' }

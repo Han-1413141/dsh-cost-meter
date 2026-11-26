@@ -136,6 +136,7 @@
         for (const id of Object.keys(v.prices.models)) models[id] = parsePrice(v.prices.models[id], path + '.prices.models.' + id)
       }
       return {
+        commandCodeProvider: v.commandCodeProvider ?? {},
         queryAccounts: v.queryAccounts && typeof v.queryAccounts === 'object' ? v.queryAccounts : {},
         locale: v.locale === 'zh' || v.locale === 'en' || v.locale === 'auto' ? v.locale : 'auto',
         position: v.position === 'header' || v.position === 'off' ? v.position : 'dock',
@@ -148,7 +149,8 @@
         hideTodayCost: v.hideTodayCost === true,
         sessionListCostPeriod: v.sessionListCostPeriod === 'today' ? 'today' : 'total',
         modelStatistics: v.modelStatistics ?? {},
-        ...mapFields(v, ['hideSessionCostHeader', 'hideSessionCostDock', 'hideTurnCost', 'followSkinTransparency', 'sidebarTodayBalanceInline', 'sessionListCosts', 'hideBudget', 'sessionCostCompact', 'contextCostsEnabled', 'contextCostsPromptSeen', 'showTotalWithPlan', 'sidebarSimple', 'codexQuotaEnabled', 'codexCompatPromptDismissed', 'includeSubagentCost', 'peakEnabled', 'peakAlertWebNotify'], value => value === true),
+        ...mapFields(v, ['hideSessionCostHeader', 'hideSessionCostDock', 'hideTurnCost', 'followSkinTransparency', 'sidebarTodayBalanceInline', 'sessionListCosts', 'hideBudget', 'sessionCostCompact', 'contextCostsEnabled', 'contextCostsPromptSeen', 'showTotalWithPlan', 'sidebarSimple', 'sidebarMagpieOverview', 'codexQuotaEnabled', 'codexCompatPromptDismissed', 'includeSubagentCost', 'peakEnabled', 'peakAlertWebNotify'], value => value === true),
+        sidebarFocusProvider: v.sidebarFocusProvider !== false,
         sidebarTodayMetric: ['tokens', 'both'].includes(v.sidebarTodayMetric) ? v.sidebarTodayMetric : 'cost',
         sidebarTextOnly: v.sidebarTextOnly === true,
         localSavings: v.localSavings,
@@ -371,6 +373,7 @@
       if (v === null || v === undefined) return null
       if (typeof v !== 'object' || Array.isArray(v)) fail(path, 'object')
       return {
+        status: v.status,
         percent: num0(v.percent),
         resetsAt: typeof v.resetsAt === 'string' ? v.resetsAt : '',
       }
@@ -378,6 +381,8 @@
     function parseGoQuota(v, path) {
       return {
         ...parseSnapshotStatus(v, path),
+        keyConfigured: v.keyConfigured === true, keySource: v.keySource, keyRef: v.keyRef,
+        routeConfigured: v.routeConfigured === true, lastSuccessAt: num0(v.lastSuccessAt ?? (v.status === 'ok' ? v.fetchedAt : 0)),
         accountLabel: v.accountLabel, accountQuotas: Array.isArray(v.accountQuotas) ? v.accountQuotas : [],
         rolling: parseGoWindow(v.rolling, path + '.rolling'),
         weekly: parseGoWindow(v.weekly, path + '.weekly'),
@@ -408,7 +413,7 @@
       const s0 = (s, d = '') => (typeof s === 'string' ? s : d)
       const n = x => numOrNull(x)
       const windowOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { id: s0(x.id), label: s0(x.label), reading: s0(x.reading), ...(n(x.percent) === null ? {} : { percent: n(x.percent) }), resetsAt: s0(x.resetsAt), periodHours: n(x.periodHours), scope: s0(x.scope) } : null
-      const creditsOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { unit: s0(x.unit, 'credits'), used: n(x.used), remaining: n(x.remaining), limit: n(x.limit), fetchedAt: s0(x.fetchedAt), packages: Array.isArray(x.packages) ? x.packages.filter(p => p !== null && typeof p === 'object' && !Array.isArray(p)).map(p => ({ id: s0(p.id), label: s0(p.label), used: n(p.used), remaining: n(p.remaining), limit: n(p.limit), startsAt: s0(p.startsAt), resetsAt: s0(p.resetsAt) })) : [] } : undefined
+      const creditsOf = x => x !== null && typeof x === 'object' && !Array.isArray(x) ? { unit: s0(x.unit), used: n(x.used), remaining: n(x.remaining), limit: n(x.limit), fetchedAt: s0(x.fetchedAt), packages: Array.isArray(x.packages) ? x.packages.filter(p => p !== null && typeof p === 'object' && !Array.isArray(p)).map(p => ({ id: s0(p.id), label: s0(p.label), used: n(p.used), remaining: n(p.remaining), limit: n(p.limit), startsAt: s0(p.startsAt), resetsAt: s0(p.resetsAt) })) : [] } : undefined
       return { browserAccessDenied: v.browserAccessDenied === true, id: s0(v.id), type: oneOf(v.type, ['agy-link', 'subscriptions', 'antigravity-manager', 'magpie'], 'cliproxyapi'), label: s0(v.label), status: gatewaySourceStatuses.has(v.status) ? v.status : 'error', message: s0(v.message), fetchedAt: n(v.fetchedAt) ?? 0, attemptedAt: n(v.attemptedAt) ?? 0, serverVersion: s0(v.serverVersion), keyConfigured: v.keyConfigured === true, keySource: s0(v.keySource, 'none'), accounts: Array.isArray(v.accounts) ? v.accounts.filter(a => a !== null && typeof a === 'object' && !Array.isArray(a)).slice(0, 64).map(a => ({ id: s0(a.id), provider: s0(a.provider, 'unknown'), label: s0(a.label, 'unknown'), status: gatewayAccountStatuses.has(a.status) ? a.status : 'unknown', message: s0(a.message), plan: s0(a.plan), windows: Array.isArray(a.windows) ? a.windows.map(windowOf).filter(Boolean) : [], credits: creditsOf(a.credits) })) : [], unsupportedProviders: Array.isArray(v.unsupportedProviders) ? v.unsupportedProviders.filter(x => typeof x === 'string').slice(0, 32) : [] }
     }
     function parsePlanStats(v) {
@@ -469,7 +474,7 @@
         localSavings: v.localSavings,
         balance: v.balance == null ? EMPTY_BAL : parseBalance(v.balance, path + '.balance'),
         balanceAccounts: Array.isArray(v.balanceAccounts) ? v.balanceAccounts.slice(0, 11).map(row => ({ ...parseBalance(row, path + '.balanceAccounts'), id: needStr(row.id, path), label: needStr(row.label, path) })) : [],
-        goQuota: v.goQuota == null ? EMPTY_GO : parseGoQuota(v.goQuota, path + '.goQuota'),
+        goQuota: v.goQuota == null ? EMPTY_GO : parseGoQuota({ keyConfigured: v.config?.goQuota?.keyConfigured, keySource: v.config?.goQuota?.keySource, ...v.goQuota }, path + '.goQuota'),
         customBalance: v.customBalance == null ? emptyCustomSnapshot() : parseCustomBalance(v.customBalance, path + '.customBalance'),
         // 多配置形态(v1.7.0,issue #79):全部条目快照;缺失/畸形回落空数组
         // (旧宿主快照),渲染退化为旧单条 customBalance 镜像。
@@ -508,6 +513,7 @@
         // 客户端据此沿用上一份,并按同一版本号回传以避免重复下发。
         pricesRev: typeof v.pricesRev === 'string' ? v.pricesRev : undefined,
         modelLabels: Object.fromEntries(Object.entries(v.modelLabels ?? {}).filter(([, label]) => typeof label === 'string')),
+        commandCodeSettingsNs: v.commandCodeSettingsNs,
         modelDirectory: v.modelDirectory,
         reconcile: v.reconcile == null ? undefined : { ok: v.reconcile.ok === true, message: typeof v.reconcile.message === 'string' ? v.reconcile.message : '',
           ...(typeof v.reconcile.searchMessage === 'string' ? { searchMessage: v.reconcile.searchMessage, balanceMessage: String(v.reconcile.balanceMessage ?? '') } : {}) },
@@ -711,6 +717,8 @@
           ],
           result: strictCodec('TopSessions', topSessionsCodec),
         },
+        { method: 'commandCodeAuth', parameters: [rpcParam('request', 'CommandCodeAuthQuery', patchCodec)],
+          result: strictCodec('CommandCodeAuthState', dayCodec) },
         {
           // 写入一枚密钥到 DSH 凭据库(v1.6.8):与服务端 typert 清单一一对应。
           method: 'setCredential',
@@ -1670,24 +1678,33 @@
      * 注意:本组件在 return 之前无条件调用全部 Hook(项目有 Hook 顺序门禁扫描)。
      */
     function CredentialField({ target, configured, source, t, api, placeholder, disabled }) {
-      const [text, setText] = useState('')
+      const [hasValue, setHasValue] = useState(false)
       const [editing, setEditing] = useState(false)
       const [busy, setBusy] = useState(false)
       const [msg, setMsg] = useState(null)
       const pending = useRef(false)
       const blocked = disabled === true || busy
-      const save = async () => {
-        const value = text.trim()
+      const save = async event => {
+        event.preventDefault()
+        const input = event.currentTarget.elements.namedItem('cm-credential-' + target)
+        const value = input.value.trim()
         if (value.length === 0 || blocked || pending.current) return
+        input.value = ''
+        setHasValue(false)
         pending.current = true
         setBusy(true)
         setMsg(null)
         try {
           const result = await api.setCredential(target, value)
-          setText('')
+          if (result?.ok === false) throw new Error(result.message || t('unknownError'))
           setEditing(false)
           setMsg({ kind: 'ok', text: result?.message ?? t('credentialSave') })
         } catch (error) {
+          // Restore only the original, still-mounted password field for an explicit retry.
+          if (input.isConnected && input.name === 'cm-credential-' + target) {
+            input.value = value
+            setHasValue(true)
+          }
           setMsg({ kind: 'err', text: String(error?.message ?? error) })
         } finally {
           pending.current = false
@@ -1701,7 +1718,8 @@
         setMsg(null)
         try {
           const result = await api.clearCredential(target)
-          setText('')
+          if (result?.ok === false) throw new Error(result.message || t('unknownError'))
+          setHasValue(false)
           setEditing(false)
           setMsg({ kind: 'ok', text: result?.message ?? t('credentialClear') })
         } catch (error) {
@@ -1711,32 +1729,32 @@
           setBusy(false)
         }
       }
-      const cancel = () => { setText(''); setEditing(false) }
+      const cancel = () => { setHasValue(false); setEditing(false) }
       const clearButton = configured === true
         ? el('button', { className: 'cm-btn small', type: 'button', onClick: clear, disabled: blocked }, t('credentialClear'))
         : null
       // 浏览器可能忽略 password 的 autocomplete=off，并把前一个文本框当用户名。
       // 概览打开时不挂载密码框；明确编辑后使用独立 form，避免串到宿主会话搜索。
       return el('div', { className: 'cm-field' },
-        editing ? el('form', { className: 'cm-field', autoComplete: 'off', onSubmit: event => { event.preventDefault(); void save() } },
+        editing ? el('form', { className: 'cm-field', autoComplete: 'off', onSubmit: save },
         el('input', {
           className: 'cm-input',
           type: 'password',
           name: 'cm-credential-' + target,
           autoFocus: true,
-          value: text,
+          defaultValue: '',
           placeholder: typeof placeholder === 'string' ? placeholder : '',
           disabled: blocked,
           autoComplete: 'new-password',
           'data-lpignore': 'true', 'data-1p-ignore': 'true', 'data-bwignore': 'true',
           'aria-label': t('credentialInputHint'),
-          onChange: event => setText(event.target.value),
+          onChange: event => setHasValue(Boolean(event.target.value.trim())),
         }),
         el('div', { className: 'cm-buttons' },
           el('button', {
             className: 'cm-btn small',
             type: 'submit',
-            disabled: blocked || text.trim().length === 0,
+            disabled: blocked || !hasValue,
           }, busy ? t('credentialSaving') : t('credentialSave')),
           el('button', { className: 'cm-btn small', type: 'button', onClick: cancel, disabled: busy }, t('cancel')), clearButton))
           : el('div', { className: 'cm-buttons' },
@@ -1764,13 +1782,9 @@
 
     function WalletIcon({ size = 16, className }) {
       return el('svg', { width: size, height: size, className, viewBox: '0 0 16 16', fill: 'none', xmlns: 'http://www.w3.org/2000/svg' },
-        el('path', {
-          d: 'M4 4H12A2 2 0 0 1 14 6V11.5A2 2 0 0 1 12 13.5H4A2 2 0 0 1 2 11.5V6A2 2 0 0 1 4 4ZM4 5.3H12A0.7 0.7 0 0 1 12.7 6V11.5A0.7 0.7 0 0 1 12 12.2H4A0.7 0.7 0 0 1 3.3 11.5V6A0.7 0.7 0 0 1 4 5.3Z',
-          fill: 'currentColor',
-          fillRule: 'evenodd',
-        }),
-        el('path', { d: 'M3.3 5.3H12.7V7.1H3.3Z', fill: 'currentColor' }),
-        el('path', { d: 'M8 2.8A1.3 1.3 0 1 0 8 5.4A1.3 1.3 0 1 0 8 2.8Z', fill: 'currentColor' }))
+        el('path', { d: 'M3 5.6A2 2 0 0 1 5 3.6H11', stroke: 'currentColor', strokeWidth: '1.3', strokeLinecap: 'round' }),
+        el('rect', { x: '3', y: '5.6', width: '10', height: '8', rx: '1.9', stroke: 'currentColor', strokeWidth: '1.3' }),
+        el('circle', { cx: '10.6', cy: '9.6', r: '0.9', fill: 'currentColor' }))
     }
 
     function costDetailsLabel(en) {
@@ -2847,7 +2861,7 @@
       // 条形方向(issue #67):默认已用方向;剩余方向时填充与标签显示剩余%。
       const barView = simpleBarByDirection(pct, barDirectionOf(config, 'go'))
       return {
-        level: pct >= 100 ? 'over' : pct >= 80 ? 'warn' : 'ok',
+        level: pct >= 100 || [mainKey, ...others].some(k => goQuota[k]?.status === 'rate-limited') ? 'over' : pct >= 80 ? 'warn' : 'ok',
         rail: barView.label === null ? '—' : Math.round(barView.label) + '%',
         body: el(Fragment, null,
           el('div', { className: 'cm-bbox-head' },
@@ -2869,7 +2883,7 @@
       return ['rolling', 'weekly', 'monthly'].map((key, i) => {
         const win = go?.[key], pct = typeof win?.percent === 'number' && Number.isFinite(win.percent) ? Math.max(0, Math.min(100, win.percent)) : null
         const reset = win?.resetsAt && Number.isFinite(Date.parse(win.resetsAt)) ? ' · ' + t('goResetAt', { time: new Date(win.resetsAt).toLocaleString() }) : ''
-        return t(['goWindowRolling', 'goWindowWeekly', 'goWindowMonthly'][i]) + ': ' + (pct === null ? '—' : quotaValueText(simpleBarByDirection(pct, direction).label, direction, t)) + reset
+        return t(['goWindowRolling', 'goWindowWeekly', 'goWindowMonthly'][i]) + ': ' + (pct === null ? '—' : quotaValueText(simpleBarByDirection(pct, direction).label, direction, t)) + (win?.status === 'rate-limited' ? ' · ' + t('goLimited') : '') + reset
       }).concat(go?.fetchedAt > 0 ? t('goQuotaFetchedAt', { time: new Date(go.fetchedAt).toLocaleTimeString() }) : []).join('\n')
     }
 
@@ -3354,6 +3368,8 @@
       try { window.localStorage?.setItem?.('cm.gw.' + id, accountId) } catch {}
     }
 
+    const gwFocusKey = raw => String(raw || '').toLowerCase().replace(/^(?:llm-)?(?:dsh-)?magpie(?:-connector)?-/, '')
+
     // ── 网关(CLIProxyAPI)额度侧边栏卡片(issue #96)─────────────────────────
     // 此前 display=sidebar/both 是未接线开关:宿主每刷新周期正常下发 state.gatewayQuotas,
     // 但侧边栏渲染路径没有任何 gateway 分支,配置侧边栏显示后什么也看不到。
@@ -3363,17 +3379,21 @@
     // 防撑爆;仅有 credits 无窗口的账号(如 WorkBuddy)退化为文本行。
     function GatewayQuotaBox(props) {
       const hoverProps = useQuotaHoverRefresh()
-      const { source, snapshot, state, wide, api } = props
+      const { source, snapshot, state, wide, api, focusProvider, grouped, routePending } = props
       const t = makeT(resolveLocale(state.config))
-      const [selection, setSelection] = useState(() => ({ source: source.id, id: readGatewayAccountLS(source.id) }))
+      const [manual, setManual] = useState(null)
+      const scope = props.sessionId
+      const manualId = manual?.source === source.id && manual.sessionId === scope && manual.provider === focusProvider ? manual.id : null
+      if (manual && !manualId) setManual(null)
       const refresh = useClickRefresh(api ? () => api.refreshGatewayQuota(source.id) : null)
       const agyLink = source.type === 'agy-link'
       const direction = agyLink ? 'remaining' : barDirectionOf(state.config, 'plan')
-      const maxRows = agyLink ? 10 : source.type === 'subscriptions' ? 6 : 4
-      const multi = snapshot.accounts.length > 1
-      const selectedId = selection.source === source.id ? selection.id : readGatewayAccountLS(source.id)
-      const selectedIdx = snapshot.accounts.findIndex(a => a.id === selectedId)
-      const activeIdx = selectedIdx >= 0 ? selectedIdx : Math.max(0, snapshot.accounts.findIndex(a => a.windows.length > 0 || a.credits != null))
+      const maxRows = grouped ? Infinity : agyLink ? 10 : source.type === 'subscriptions' ? 6 : 4
+      const multi = !grouped && snapshot.accounts.length > 1
+      const selectedIdx = snapshot.accounts.findIndex(a => a.id === (manualId ?? readGatewayAccountLS(source.id)))
+      const manualIdx = manualId ? selectedIdx : -1
+      const focusIdx = focusProvider ? snapshot.accounts.findIndex(a => a.provider === focusProvider) : -1
+      const activeIdx = manualIdx >= 0 ? manualIdx : focusIdx >= 0 ? focusIdx : selectedIdx >= 0 ? selectedIdx : Math.max(0, snapshot.accounts.findIndex(a => a.windows.length > 0 || a.credits != null))
       const currentAccount = snapshot.accounts[activeIdx] ?? snapshot.accounts[0]
       const currentAccountName = currentAccount?.label || currentAccount?.id || ''
       const prefix = account => multi && !agyLink ? (GATEWAY_PROVIDER_LABELS[account.provider] ?? account.provider) + ' · ' : ''
@@ -3381,9 +3401,10 @@
       const rows = []
       for (const account of accountsToRender) {
         if (rows.length >= maxRows) break
+        if (grouped) rows.push({ name: account.label || account.id, heading: true })
         for (const win of account.windows) {
           if (rows.length >= maxRows) break
-          const name = prefix(account) + (win.label || win.id || t('gatewaySourceUnknown'))
+          const name = prefix(account) + (win.label || codingPlanWindowLabel(win.id, t))
           rows.push(win.reading ? { name, text: win.reading } : { win, name, view: miniMaxRow(name, win, direction, t) })
         }
         if (account.windows.length === 0 && account.credits != null) {
@@ -3391,12 +3412,13 @@
           const creditText = c.used == null && c.limit == null
             ? (c.remaining != null ? (c.unit === 'USD' ? '$' + c.remaining : String(c.remaining)) : (account.plan || '—'))
             : (c.used ?? '—') + ' / ' + (c.limit ?? '—')
-          rows.push({ win: null, name: prefix(account) + (c.unit || 'credits'), text: creditText })
+          rows.push({ win: null, name: prefix(account) + (c.unit || t('credits')), text: creditText })
         }
       }
       if (rows.length === 0) rows.push({ name: t('gatewayQuotaEmpty'), text: '—' })
       const level = rows.some(r => r.view?.level === 'over') ? 'over' : rows.some(r => r.view?.level === 'warn') ? 'warn' : 'ok'
       const detailParts = rows.map(r => {
+        if (r.heading) return r.name
         if (r.text != null) return r.name + ' ' + r.text
         const reset = miniMaxResetText(r.win, t)
         return r.name + ' ' + quotaValueText(r.view.label, direction, t) + (reset ? ' · ' + reset : '')
@@ -3407,7 +3429,7 @@
         ? `${source.label || source.id} (${activeIdx + 1}/${snapshot.accounts.length} · ${currentAccountName})`
         : (source.label || source.id)
       const detail = [accHeader, ...detailParts].join('\n')
-      const bodyRows = rows.map((r, i) => r.text != null
+      const bodyRows = rows.map((r, i) => r.heading ? el('div', { key: i, className: 'cm-gw-sub' }, r.name) : r.text != null
         ? el('div', { key: i, className: 'cm-mm-row wide' }, el('span', { className: 'cm-bbox-label' }, r.name), el('span', { className: 'cm-mm-text cm-num' }, r.text))
         : el(Fragment, { key: i }, r.view.row))
 
@@ -3416,8 +3438,8 @@
           e.stopPropagation()
           e.preventDefault?.()
           const next = snapshot.accounts[(activeIdx + 1) % snapshot.accounts.length]
-          writeGatewayAccountLS(source.id, next.id)
-          setSelection({ source: source.id, id: next.id })
+          if (!scope) writeGatewayAccountLS(source.id, next.id)
+          setManual({ source: source.id, sessionId: scope, provider: focusProvider, id: next.id })
         }
       }
 
@@ -3434,14 +3456,18 @@
         ? el('div', { className: 'cm-bbox-head' }, el('div', { className: 'cm-mm-title' }, source.label || source.id), switchBtn)
         : el('div', { className: 'cm-mm-title' }, source.label || source.id)
       const accSub = multi && currentAccountName
-        ? el('div', { className: 'cm-gw-sub' }, currentAccountName)
+        ? el('div', { className: 'cm-gw-sub' }, (focusIdx >= 0 && activeIdx === focusIdx ? '★ ' : '') + currentAccountName)
         : null
 
-      const body = el(Fragment, null, titleRow, accSub, ...bodyRows)
+      const unresolved = routePending && !grouped
+      const routeLabel = resolveLocale(state.config) === 'en' ? 'Route provider unavailable' : '路由供应商未确认'
+      const body = unresolved
+        ? el(Fragment, null, el('div', { className: 'cm-mm-title' }, source.label || source.id), el('div', { className: 'cm-gw-sub' }, routeLabel))
+        : el(Fragment, null, titleRow, accSub, ...bodyRows)
       const pcts = rows.filter(r => r.view).map(r => r.view.label).filter(p => p !== null)
       const railText = pcts.length > 0 ? pcts.slice(0, 2).map(p => p + '%').join(' ') : (rows[0].text ?? '—')
-      const rail = el('div', { className: 'cm-bbox-rail cm-num' }, railText)
-      return el(Tooltip, { portal: true, label: el('span', { style: { whiteSpace: 'pre-line' } }, detail), side: 'right', delayMs: 300 },
+      const rail = el('div', { className: 'cm-bbox-rail cm-num' }, unresolved ? '—' : railText)
+      return el(Tooltip, { portal: true, label: el('span', { style: { whiteSpace: 'pre-line' } }, unresolved ? routeLabel : detail), side: 'right', delayMs: 300 },
         el('div', {
           ...hoverProps, 'data-cm-display': 'gateway', 'data-cm-source': source.id, className: 'cm-bbox cm-mm clickable' + (level === 'ok' ? '' : ' ' + level) + (wide === false ? ' rail' : '') + (refresh.busy ? ' busy' : ''),
           ...clickableRefreshProps(refresh.busy, refresh.run),
@@ -3449,14 +3475,26 @@
     }
 
     /** 侧边栏网关卡片列表:按来源配置(display/enabled)与快照状态过滤,见 GatewayQuotaBox 注释。 */
-    function gatewaySidebarCards(state, config, wide, api) {
+    function gatewaySidebarCards(state, config, wide, api, session) {
       const snaps = Array.isArray(state.gatewayQuotas) ? state.gatewayQuotas : []
       const nodes = []
       for (const source of config.gatewayQuotas?.sources ?? []) {
         if (source.enabled === false || (source.display !== 'sidebar' && source.display !== 'both')) continue
         const live = snaps.find(q => q.id === source.id)
         if (!live || (live.status !== 'ok' && live.status !== 'partial' && live.status !== 'stale') || live.accounts.length === 0) continue
-        nodes.push(el(GatewayQuotaBox, { key: 'gateway:' + source.id, source, snapshot: live, state, wide, api }))
+        const follow = source.type === 'magpie' && config.sidebarFocusProvider !== false && session
+        const direct = gwFocusKey(follow?.provider)
+        const owner = direct === 'routing' && follow?.model?.split('/')[0]
+        const routed = owner === 'group' || owner === 'auto'
+        const actual = follow?.route?.requestedModel === follow?.model && follow?.route?.provider
+        const target = gwFocusKey(routed ? actual : owner || direct)
+        let match = target && live.accounts.find(a => gwFocusKey(a.provider) === target)
+        if (!match && target && !routed) match = live.accounts.find(a => {
+          const provider = gwFocusKey(a.provider)
+          return provider && (provider.startsWith(target + '-') || target.startsWith(provider + '-'))
+        })
+        nodes.push(el(GatewayQuotaBox, { key: 'gateway:' + source.id, source, snapshot: live, state, wide, api,
+          focusProvider: match?.provider, sessionId: follow?.id, routePending: routed && !match }))
       }
       return nodes
     }
@@ -3820,7 +3858,11 @@
     }
 
     let footerChipPage
-    const loadFooterChip = () => footerChipPage ??= require.async('./client.footer-chip.js').then(module => module.mount({ WalletIcon })).catch(error => { footerChipPage = null; throw error })
+    const loadFooterChip = () => footerChipPage ??= require.async('./client.footer-chip.js').then(module => module.mount({ WalletIcon, gatewayLabels: GATEWAY_PROVIDER_LABELS })).catch(error => { footerChipPage = null; throw error })
+
+    // Root slots read the same session list as dsh-quota. Older hosts expose current.
+    const visibleSessionId = list => list.byId?.[list.current]?.retainedBy?.mainView > 0 ? list.current
+      : Object.values(list.byId ?? {}).find(row => row?.retainedBy?.mainView > 0)?.id ?? list.current
 
     function SidebarFooter(props) {
       const botTarget = useBotFooterTarget()
@@ -3834,18 +3876,26 @@
         try { projectionUsage = props.useProjection('costUsage') } catch { projectionUsage = undefined }
       }
       useProjectionRefresh(props, projectionUsage)
+      const id = props.useSessions?.(visibleSessionId)
+      const model = props.useSessions?.(list => {
+        const selection = list.projectionsBySession?.[id]?.values?.modelSelection
+        return selection?.next ?? selection?.lastUsed
+      })
+      const sp = model?.provider ?? projectionUsage?.provider
+      const route = props.useSessions?.(list => list.projectionsBySession?.[id]?.values?.costUsage?.magpieRoute)
+      const session = id && { id, ...model, route }
       const current = costStore?.state
-      const state = current ? { ...current, config: peakConfigForState(current, projectionUsage?.provider) } : null
+      const state = current ? { ...current, config: peakConfigForState(current, sp) } : null
       if (!state) return null
       if (botTarget) {
         let portal
         try { portal = require('react-dom')?.createPortal } catch {}
-        if (portal) return portal(renderSidebarFooter(state, true, props.api, false, projectionUsage?.provider), botTarget)
+        if (portal) return portal(renderSidebarFooter(state, true, props.api, false, sp, false, false, session), botTarget)
       }
       const simple = state.config?.sidebarSimple === true
       const entryMode = !simple && state.config?.sidebarStyle === 'entry'
       const explicitIcons = !simple && state.config?.sidebarStyle === 'icons'
-      const fallback = renderSidebarFooter(state, !!props.wide, props.api, false, projectionUsage?.provider, false, entryMode)
+      const fallback = renderSidebarFooter(state, !!props.wide, props.api, false, sp, false, entryMode, session)
       if (fallback && (entryMode || (mobile && !explicitIcons))) {
         return el(BillingStatistics, {
           load: loadFooterChip,
@@ -3854,7 +3904,9 @@
           mobile,
           wide: !!props.wide,
           label: makeT(resolveLocale(state.config))('sidebarChip'),
-          renderCard: cardWide => renderSidebarFooter(state, cardWide, props.api, false, projectionUsage?.provider, false, true),
+          locale: resolveLocale(state.config),
+          magpieOverview: state.config.sidebarMagpieOverview,
+          renderCard: (cardWide, filterGateways) => renderSidebarFooter(state, cardWide, props.api, false, sp, false, true, session, filterGateways),
           fallback,
         })
       }
@@ -3862,7 +3914,7 @@
     }
 
     // Shared presentation only: no store, projection or quota subscription.
-    function renderSidebarFooter(state, wide, api, preview = false, provider, examples = preview, bare = false) {
+    function renderSidebarFooter(state, wide, api, preview = false, provider, examples = preview, bare = false, session, filterGateways) {
       const config = peakConfigForState(state)
       const t = makeT(resolveLocale(config))
       const showBalance = (config.balance?.display === 'sidebar' || config.balance?.display === 'both')
@@ -3889,7 +3941,7 @@
         })
       const plansOn = sidebarPlanIds.length > 0 || Boolean(state.goQuota?.accountQuotas?.length && ['sidebar', 'both'].includes(config.goQuota?.display))
       // 网关额度侧边栏卡片(issue #96):按来源 display 门控,卡片本体见 GatewayQuotaBox。
-      const gatewayNodes = gatewaySidebarCards(state, config, wide, api)
+      const gatewayNodes = gatewaySidebarCards(state, config, wide, api, session)
       // 启用后始终保留卡片,避免未登录/接口失败时没有提示和手动重试入口。
       const codexOn = config.codexQuotaSidebar !== false && (config.codexQuotaEnabled === true || state.codexCompat?.enabled === true)
       const budgetOn = (config.budget ?? {}).enabled === true && config.hideBudget !== true
@@ -3917,7 +3969,7 @@
         : id === 'minimax'
         ? el(MiniMaxPlanBox, { key: 'plan:' + id, state, wide, api: api })
         : el(CodingPlanBox, { key: 'plan:' + id, id, state, wide, api: api })))
-      nodes.push(...gatewayNodes)
+      nodes.push(...(filterGateways ? filterGateways(gatewayNodes) : gatewayNodes))
       if (codexOn) nodes.push(el(CodexPlanBox, { key: 'codex', state, wide, api, preview }))
       if (goOk || state.goQuota?.accountQuotas?.length && ['sidebar', 'both'].includes(config.goQuota?.display)) nodes.push(el(Fragment, { key: 'go' },
         el(GoQuotaBox, { state, wide }), ...(state.goQuota?.accountQuotas ?? []).map(row => el(CodingPlanBox, { key: row.accountId, account: row, id: 'go', state, wide, api }))))

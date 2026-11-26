@@ -19,8 +19,9 @@ try {
   const storage = join(root, 'storages', 'cost-meter')
   mkdirSync(storage, { recursive: true })
   writeFileSync(join(storage, 'ledger.json'), JSON.stringify({ version: 1, config: { goQuota: { enabled: true, display: 'both' } }, days: {} }))
-  let providers = {}
-  let settingsThrows = false
+  let providers = {}, native = {}
+  let settingsThrows = false, modern = false
+  const ref = value => ({ [Symbol.for('cosmokit.volatile.write')]: true, get: () => value })
   let haveCredentials = true
   const values = new Map()
   const readRefs = []
@@ -42,9 +43,11 @@ try {
   }
   const services = {}
   apply({
-    get: n => n === 'credentials' ? (haveCredentials ? credentials : undefined) : n === 'settings' ? { get: section => {
+    get: n => n === 'credentials' ? (haveCredentials ? credentials : undefined)
+      : n === 'configEditor' && modern ? { entries: () => [{ options: { id: 'llm-pi-ai' }, fiber: { runtime: {}, state: 2, effectiveConfig: ref({ providers: ref(providers) }) } }] }
+      : n === 'settings' && modern ? { describe: () => [] } : n === 'settings' ? { get: section => {
       if (settingsThrows) throw new Error('unavailable')
-      return section === 'llm-pi-ai' ? { providers } : {}
+      return section === 'llm-pi-ai' ? { providers } : section === 'opencode-go' ? native : {}
     } } : undefined,
     provide: (n, service) => { services[n] = service }, on: () => () => {}, inject() {},
     effect: fn => { const dispose = fn(); if (typeof dispose === 'function') cleanups.push(dispose) }, logger: { info() {}, warn() {}, error() {} },
@@ -52,7 +55,7 @@ try {
   let calls = []
   globalThis.fetch = async (url, init) => {
     calls.push({ url, auth: init.headers.authorization })
-    assert.equal(url, 'https://opencode.ai/zen/go/v1/usage')
+    assert.equal(url, 'https://opencode.ai/inference/go/v1/usage')
     return { ok: true, status: 200, json: async () => ({ usage: { rolling: { percent: 1 }, weekly: { percent: 2 }, monthly: { percent: 3 } } }) }
   }
   async function refresh(expectedKey, expectedSource = 'file') {
@@ -72,7 +75,7 @@ try {
       assert.ok(!readFileSync(join(storage, 'ledger.json'), 'utf8').includes(expectedKey), '账本不保存凭据')
     } else {
       assert.equal(calls.length, 0)
-      assert.match(result.message, /opencode.ai\/zen\/go\/v1/)
+      assert.match(result.message, /opencode.ai\/inference\/go/)
     }
     return result
   }
@@ -81,7 +84,20 @@ try {
   await refresh('test-route-token')
   providers = { '任意名字': { baseURL: 'https://opencode.ai/zen/go/v1/', apiKeyEnv: 'ARBITRARY_ROUTE_KEY' } }
   values.set('ARBITRARY_ROUTE_KEY', 'test-renamed-token')
-  await refresh('test-renamed-token')
+  for (const suffix of ['', '/', '/v1', '/openai/v1', '/anthropic/v1/messages', '/google/v1beta/models/gemini:generateContent']) {
+    providers['任意名字'].baseURL = 'https://opencode.ai/inference/go' + suffix
+    const { state } = await refresh('test-renamed-token')
+    assert.equal(state.goQuota.keyRef, 'ARBITRARY_ROUTE_KEY')
+    assert.equal(state.goQuota.routeConfigured, true)
+  }
+  native = providers['任意名字']; providers = {}
+  assert.equal((await refresh('test-renamed-token')).state.goQuota.routeConfigured, true)
+  native = { ...native, apiKeyEnv: 'MISSING_PREFERRED', accounts: [{ apiKeyEnv: 'ARBITRARY_ROUTE_KEY' }] }
+  assert.equal((await refresh('test-renamed-token')).state.goQuota.keyRef, 'ARBITRARY_ROUTE_KEY')
+  modern = true
+  providers = { renamed: ref({ baseURL: ref(native.baseURL), apiKeyEnv: ref('ARBITRARY_ROUTE_KEY') }) }
+  assert.equal((await refresh('test-renamed-token')).state.goQuota.keyRef, 'ARBITRARY_ROUTE_KEY')
+  providers = { renamed: { ...native, apiKeyEnv: 'ARBITRARY_ROUTE_KEY' } }; native = {}; modern = false
   values.set('ARBITRARY_ROUTE_KEY', 'test-rotated-token')
   await refresh('test-rotated-token')
   values.set('OPENCODE_GO_API_KEY', 'test-dedicated-token')
@@ -99,11 +115,11 @@ try {
   delete process.env.ARBITRARY_ROUTE_KEY
   values.clear()
   // 不得按路由名或相似域名猜凭据，也不得使用 Zen / 代理路由的 Key。
-  for (const baseURL of ['http://opencode.ai/zen/go/v1', 'https://opencode.ai.evil.test/zen/go/v1', 'https://proxy.test/zen/go/v1', 'https://opencode.ai/zen/v1', 'https://opencode.ai/zen/go/v10', 'https://opencode.ai:8443/zen/go/v1', 'https://x@opencode.ai/zen/go/v1', 'https://opencode.ai/zen/go/v1?x=1', 'invalid']) {
+  for (const baseURL of ['https://opencode.ai/inference', 'https://opencode.ai/inference/openai/v1', 'https://opencode.ai/inference/gopher', 'https://opencode.ai/inference/go/../v1', 'http://opencode.ai/zen/go/v1', 'https://opencode.ai.evil.test/zen/go/v1', 'https://proxy.test/zen/go/v1', 'https://opencode.ai/zen/v1', 'https://opencode.ai/zen/go/v10', 'https://opencode.ai:8443/zen/go/v1', 'https://x@opencode.ai/zen/go/v1', 'https://opencode.ai/zen/go/v1?x=1', 'invalid']) {
     providers = { 'opencode-go': { baseURL, apiKeyEnv: 'ARBITRARY_ROUTE_KEY' } }
     values.set('ARBITRARY_ROUTE_KEY', 'test-unrelated-token')
     readRefs.length = 0
-    await refresh(null)
+    assert.equal((await refresh(null)).state.goQuota.routeConfigured, false)
     assert.ok(!readRefs.includes('ARBITRARY_ROUTE_KEY'), '不读取不匹配路由的凭据')
   }
   providers = { missing: { baseURL: 'https://opencode.ai/zen/go/v1', apiKeyEnv: 'MISSING_KEY' }, valid: { baseURL: 'https://opencode.ai/zen/go/v1', apiKeyEnv: 'OPENCODEGO_API_KEY' } }

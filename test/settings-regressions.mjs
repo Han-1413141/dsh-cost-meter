@@ -479,7 +479,8 @@ console.log('[ok] #282 channel-price filtering and serialized autosave races')
    current.codexCompat = missing
    const tree = section()
    assert.equal(button(tree, 'Codex'), undefined, 'no Codex tab without an installed plugin')
-   assert.equal(tabs(tree).length, 6)
+   assert.ok(button(tree, 'CommandCode'), 'CommandCode setup remains available without Codex')
+   assert.equal(tabs(tree).length, 7)
  }
  current.codexCompat = { installed: true, enabled: true }
  let tree = section()
