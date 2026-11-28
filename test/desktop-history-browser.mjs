@@ -16,12 +16,17 @@ const entries = new Map()
 const hooks = { get: name => name === 'react' ? React : {} }
 window.__ModuleLoader__ = { load: mod => { window.plugin = mod.factory(hooks.get) } }
 ${readFileSync('lib/client.js', 'utf8')}
-const state = { config: ${JSON.stringify(config)} }
+const state = { config: ${JSON.stringify(config)}, codingPlans: { opendesign: { status: 'loading' }, minimax: { status: 'loading' } } }
 window.reads = []
 let phase = 'loading'
 const remote = {
   getLocalState: () => new Promise(resolve => { window.finishLocal = () => resolve({ ok: true, value: state }) }),
-  getState: () => new Promise(() => {}),
+  getState: () => { window.waitingForMinimax = true; return new Promise(() => {}) },
+  refreshCodingPlan: (provider, force) => new Promise(resolve => { window.finishPlan = () => {
+    if (provider !== 'opendesign' || force !== false) throw Error('expected a cache-aware OpenDesign read')
+    resolve({ ok: true, value: { ok: true, state: { ...state, codingPlans: { ...state.codingPlans,
+      opendesign: { status: 'ok', windows: { weekly: { percent: 20 } } } } } } })
+  } }),
   getTurnCost: async (id, start) => {
     window.reads.push(start)
     return { ok: true, value: { found: true, cost: 1, apiCost: 1, rows: [], calls: [] } }
@@ -37,6 +42,7 @@ await plugin.apply({
 })
 const { component, option } = entries.get('cost-meter-turn')
 const props = option.inject()
+window.planPercent = () => props.hooks.cost.getSnapshot().state?.codingPlans?.opendesign?.windows?.weekly?.percent
 function useCost(pick) {
   return pick(React.useSyncExternalStore(props.hooks.cost.subscribe, props.hooks.cost.getSnapshot))
 }
@@ -62,6 +68,9 @@ try {
   await settle()
   assert.equal(await page.evaluate(() => window.reads.length), 0, 'no configuration yet')
   await page.evaluate(() => window.finishLocal())
+  await page.waitForFunction(() => !!window.finishPlan)
+  await page.evaluate(() => window.finishPlan())
+  await page.waitForFunction(() => window.waitingForMinimax && window.planPercent() === 20)
   await settle()
   for (const phase of ['cold', 'loading', 'error']) {
     await page.evaluate(phase => window.show(phase), phase)

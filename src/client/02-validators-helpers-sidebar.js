@@ -668,7 +668,7 @@
           },
         {
           method: 'refreshCodingPlan',
-          parameters: [rpcParam('provider', 'CodingPlanProvider', providerCodec)],
+          parameters: [rpcParam('provider', 'CodingPlanProvider', providerCodec), rpcParam('force', 'QuotaForce', codecOf(v => v === undefined ? undefined : needBool(v, 'force')), true)],
           },
         {
           method: 'loginCodingPlan',
