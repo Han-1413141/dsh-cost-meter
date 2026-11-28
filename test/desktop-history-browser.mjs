@@ -49,7 +49,7 @@ window.show = next => {
       turn: { start: { seq: i * 2 }, end: { seq: i * 2 + 1 } },
     })))))
 }
-show('loading')
+show('cold')
 ` }, bundle: true, write: false, platform: 'browser', format: 'esm',
 })
 const browser = await chromium.launch({ executablePath: process.env.CM_TEST_BROWSER, headless: true })
@@ -63,7 +63,12 @@ try {
   assert.equal(await page.evaluate(() => window.reads.length), 0, 'no configuration yet')
   await page.evaluate(() => window.finishLocal())
   await settle()
-  assert.equal(await page.evaluate(() => window.reads.length), 0, 'DSH is still loading history')
+  for (const phase of ['cold', 'loading', 'error']) {
+    await page.evaluate(phase => window.show(phase), phase)
+    await settle()
+    assert.equal(await page.locator('summary').count(), 0, phase + ' session has no turn fee readers')
+    assert.equal(await page.evaluate(() => window.reads.length), 0)
+  }
   await page.evaluate(() => window.show('open'))
   await page.waitForFunction(() => document.querySelector('summary')?.textContent.includes('≈'))
   const first = await page.evaluate(() => window.reads.slice())

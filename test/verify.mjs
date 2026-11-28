@@ -6358,6 +6358,8 @@ function m_costOf85(entry, tokens) {
 {
   const packed = JSON.stringify({ type: 'text-chunks', seq: 5, data: { chunks: 'x'.repeat(6000) } })
   assert.equal(parseRecordLine(packed), null, '巨长打包行被探针跳过(不解析)')
+  const message = { type: 'assistant/message', data: { stream: [{ type: 'text-chunks', texts: ['x'.repeat(6000)] }], usage: { inputTokens: 9 } } }
+  assert.deepEqual(parseRecordLine(JSON.stringify(message)), message, 'a v4 message with a packed stream retains its usage')
   assert.equal(parseRecordLine(JSON.stringify({ type: 'text-chunks', data: { chunks: 'ab' } })), null, '短打包行解析后按类型过滤')
   const good = { type: 'assistant/message', seq: 1, time: 5, data: { turn: 1, step: 1, usage: { inputTokens: 1 } } }
   assert.deepEqual(parseRecordLine(JSON.stringify(good)), good, '正常事件行解析')

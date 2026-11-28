@@ -87,6 +87,8 @@ async function checkBackend(backend) {
     assert.equal(own.rows.find(row => row.bucket === 'input').tokens, 20)
 
     if (backend === 'jsonl') {
+      let coldObservations = 0
+      ctx.provide('sessionQuery', { observeSession() { coldObservations++; throw Error('unexpected background observation') } })
       const file = listSessionLogs(sessionsRoot, new Set(['child']))[0]
       const raw = await readSessionRecordsAsync(file)
       assert.equal(raw[0].seedLength, undefined, 'on-disk v4 forks carry the boundary as an event')
@@ -100,6 +102,14 @@ async function checkBackend(backend) {
       const repaired = await importLegacyHistory(ledger, sessionsRoot)
       assert.equal(repaired.forks, 1)
       assert.equal(inputFor(JSON.parse(await readFile(repaired.backup, 'utf8')), 'child'), 120)
+      coldObservations = 0
+      const imported = new Ledger(structuredClone(config), {}, join(home, 'imported-ledger.json'))
+      try {
+        await importLegacyHistory(imported, sessionsRoot, source)
+        assert.equal(inputFor(imported, 'parent'), 100)
+        assert.equal(inputFor(imported, 'child'), 20)
+        assert.equal(coldObservations, 0, 'background billing imports must not open desktop conversations')
+      } finally { await imported.close() }
     } else {
       // Old plugin versions marked an empty JSONL scan as complete on SQLite.
       await runStartupImports(ledger, sessionsRoot, source)
