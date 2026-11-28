@@ -1622,6 +1622,13 @@
           retrySeconds = 1
           store.set({ status: 'ready', error: null, state: withCarriedPrices(state, prev.state) })
           if (prev.state === null) {
+            if (state.codingPlans?.opendesign?.status === 'loading') {
+              // Publish the workspace quota as soon as it finishes, even if
+              // another provider is still busy. A completed request stays cached.
+              const plan = await call('getOpenDesignState').catch(() => null)
+              if (!current()) return
+              if (plan) store.set({ status: 'ready', error: null, state: plan })
+            }
             const fresh = await call('getState')
             if (current()) store.set({ status: 'ready', error: null, state: withCarriedPrices(fresh, state) })
           }

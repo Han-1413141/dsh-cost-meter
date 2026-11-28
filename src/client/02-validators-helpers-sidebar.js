@@ -606,7 +606,7 @@
           }))],
           result: strictCodec('CostState', stateCodec),
         },
-        ...['getState', 'getLocalState'].map(method => ({ method, result: strictCodec('CostState', stateCodec) })),
+        ...['getState', 'getLocalState', 'getOpenDesignState'].map(method => ({ method, result: strictCodec('CostState', stateCodec) })),
         {
           method: 'billingStorage',
           parameters: [rpcParam('options', 'BillingStorageOptions', billingStorageOptionsCodec)],
@@ -1839,8 +1839,12 @@
       }
       return out
     }
+    function useSessionReady(props) {
+      const phase = props.useSession?.(session => session?.openState)
+      return phase == null || phase === 'open'
+    }
     function useSessionUsage(props) {
-      const opening = props.useSession?.(session => session?.openState) === 'loading'
+      const ready = useSessionReady(props)
       const projection = props.useProjection ? props.useProjection('costUsage') : undefined
       const state = props.useCost?.(s => s)?.state
       const config = state?.config
@@ -1850,7 +1854,7 @@
       // Subscribe to billing values, never to that object's identity.
       const projectionRevision = ['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning', 'calls', 'cost', 'apiCost'].map(key => projection?.[key] ?? '').join(':')
       useEffect(() => {
-        if (opening || !props.sessionId || !props.api?.getSessionCost) return
+        if (!ready || !props.sessionId || !props.api?.getSessionCost) return
         let active = true, pending = false
         const refresh = async () => {
           if (pending || (typeof document !== 'undefined' && document.hidden)) return
@@ -1870,7 +1874,7 @@
         const onVisible = () => { if (!document.hidden) void refresh() }
         if (typeof document !== 'undefined') document.addEventListener?.('visibilitychange', onVisible)
         return () => { active = false; if (timer !== null) clearInterval(timer); if (typeof document !== 'undefined') document.removeEventListener?.('visibilitychange', onVisible) }
-      }, [opening, props.sessionId, state?.meta?.now, projectionRevision, config?.includeSubagentCost])
+      }, [ready, props.sessionId, state?.meta?.now, projectionRevision, config?.includeSubagentCost])
       const current = snapshot && snapshot.id === props.sessionId && snapshot.include === (config?.includeSubagentCost === true) ? snapshot : null
       const saved = current?.value
       return { usage: mergeSessionUsage(projection, saved, config?.includeSubagentCost || saved && saved.subagentCount > 0, config), config,
@@ -1913,8 +1917,8 @@
       const details = useRef(null)
       const start = props.turn?.start?.seq, end = props.turn?.end?.seq
       const sessionId = props.sessionId
-      const opening = props.useSession?.(session => session?.openState) === 'loading'
-      const pricingKey = opening ? null : turnPricingKey(config)
+      const ready = useSessionReady(props)
+      const pricingKey = ready ? turnPricingKey(config) : null
       useEffect(() => {
         let active = true
         setValue(null); setError('')

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
@@ -87,6 +87,8 @@ async function checkBackend(backend) {
     assert.equal(own.rows.find(row => row.bucket === 'input').tokens, 20)
 
     if (backend === 'jsonl') {
+      let coldObservations = 0
+      ctx.provide('sessionQuery', { observeSession() { coldObservations++; throw Error('unexpected background observation') } })
       const file = listSessionLogs(sessionsRoot, new Set(['child']))[0]
       const raw = await readSessionRecordsAsync(file)
       assert.equal(raw[0].seedLength, undefined, 'on-disk v4 forks carry the boundary as an event')
@@ -100,6 +102,14 @@ async function checkBackend(backend) {
       const repaired = await importLegacyHistory(ledger, sessionsRoot)
       assert.equal(repaired.forks, 1)
       assert.equal(inputFor(JSON.parse(await readFile(repaired.backup, 'utf8')), 'child'), 120)
+      coldObservations = 0
+      const imported = new Ledger(structuredClone(config), {}, join(home, 'imported-ledger.json'))
+      try {
+        await importLegacyHistory(imported, sessionsRoot, source)
+        assert.equal(inputFor(imported, 'parent'), 100)
+        assert.equal(inputFor(imported, 'child'), 20)
+        assert.equal(coldObservations, 0, 'background billing imports must not open desktop conversations')
+      } finally { await imported.close() }
     } else {
       // Old plugin versions marked an empty JSONL scan as complete on SQLite.
       await runStartupImports(ledger, sessionsRoot, source)
@@ -128,9 +138,48 @@ async function checkBackend(backend) {
   }
 }
 
+async function checkInterruptedAppend(compression) {
+  const home = join(work, 'interrupted-' + compression), root = join(home, 'sessions')
+  process.env.DSH_HOME = home
+  await mkdir(root, { recursive: true })
+  const createHost = async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(await host('dsh-session-persistence-jsonl'), { root, compression })
+    return ctx
+  }
+  const writer = await createHost()
+  try {
+    const handle = await writer.get('sessionPersistence').create({ id: 'interrupted', version: 4, isSeeded: false, createdAt: at, cwd: home, delegationDepth: 0 })
+    try { await handle.append(parent); await handle.flush() } finally { await handle.close() }
+  } finally { await writer.fiber.dispose() }
+  const [path] = listSessionLogs(root)
+  const bytes = await readFile(path)
+  if (compression === 'zstd') await writeFile(path, bytes.subarray(0, -1))
+  else {
+    const lines = bytes.toString('utf8').split('\n')
+    const last = lines.findIndex(line => line && JSON.parse(line).type === 'assistant/message')
+    assert.ok(last > 0)
+    await writeFile(path, lines.slice(0, last + 1).join('\n'))
+  }
+  const reader = await createHost()
+  try {
+    const handle = await reader.get('sessionPersistence').open('interrupted', 'read')
+    let events
+    try { events = (await handle.read(0)).events } finally { await handle.close() }
+    const input = rows => rows.filter(row => row.type === 'assistant/message').map(row => row.data.usage.inputTokens)
+    assert.deepEqual(input(events), compression === 'zstd' ? [100] : [])
+    const source = createSessionRecordSource(reader, join(home, 'unused-default'))
+    assert.deepEqual(await source.listSessionIds(), ['interrupted'], 'use the active native storage directory')
+    assert.deepEqual(input(await source.readRecords('interrupted')), input(events))
+  } finally { await reader.fiber.dispose() }
+}
+
 try {
   await checkBackend('jsonl')
   await checkBackend('sqlite')
+  await checkInterruptedAppend('none')
+  await checkInterruptedAppend('zstd')
   const header = { type: 'session', id: 'nested', isSeeded: true, createdAt: at }
   const restart = { type: 'session/end-seed', time: at, seq: 20, data: {} }
   const nested = [header, ...parent, boundary, ...child, { ...boundary, seq: 13 }, ...turnLog(3, 14, 5), restart]

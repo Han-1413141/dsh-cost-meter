@@ -1,5 +1,10 @@
 # dsh-cost-meter 版本更新历史
 
+## v1.9.96（2026-11-28）—— Desktop 历史会话与 OpenDesign 额度刷新
+
+- **历史会话。** DSH Desktop 0.2.3 的后台账本通过宿主的 JSONL 或 SQLite 存储服务读取用量，打开长对话时无需为其他历史会话构建会话对象。异常退出后的日志恢复和分叉会话计费也使用宿主提供的记录。
+- **OpenDesign 额度。** 启动和手动刷新共享同一次查询，OpenDesign 返回后侧栏即可显示额度，即使其他套餐还在查询。连接或响应正文停滞时，查询在 15 秒后结束，可以再次刷新。感谢 @playgithub 报告 v1.9.95 在 CachyOS 上的启动延迟，并补充手动刷新时的表现。[#608](https://github.com/Han-1413141/dsh-cost-meter/issues/608)
+
 ## v1.9.95（2026-11-28）—— Desktop 历史加载与 Codex Subscription 兼容更新
 
 - **Desktop 历史加载。** 打开会话时，费用插件等待 DSH 完成历史加载，再读取会话费用。每轮费用在对应回合进入可视区域时读取。感谢 @playgithub 提供 CachyOS 上 DSH Desktop 0.2.3-alpha.2 的版本信息、OpenDesign 配置场景和停用插件后的对照结果。[#606](https://github.com/Han-1413141/dsh-cost-meter/issues/606)

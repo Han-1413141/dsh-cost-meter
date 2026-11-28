@@ -70,6 +70,17 @@ const transport = async (url, init) => {
   return Response.json(url.endsWith('/wallet/balance') ? wallet : quota)
 }
 const message = (_, code) => 'OpenDesign: ' + code
+// Some Desktop transports ignore AbortSignal while opening a connection or reading a body.
+for (const stalled of [() => new Promise(() => {}), () => new Response(new ReadableStream({}))]) {
+  const controller = new AbortController()
+  const request = queryOpenDesignQuota(key, 'en', message, { workspaceId: 'ws-1', signal: controller.signal, fetchImpl: stalled })
+  await new Promise(resolve => setImmediate(resolve))
+  controller.abort()
+  await assert.rejects(Promise.race([request, new Promise(resolve => {
+    const timer = setTimeout(resolve, 1000)
+    timer.unref()
+  })]), { name: 'AbortError' })
+}
 const result = await queryOpenDesignQuota(key, 'en', message, { workspaceId: 'ws-1', fetchImpl: transport })
 assert.equal(requests.length, 2); assert.equal(result.windows.balance.text, '$0.00'); assert.equal(result.windows.weekly.percent, 0)
 assert.equal(Object.hasOwn(result.windows.balance, 'percent'), false, 'wallet money is not a third quota window')

@@ -16,12 +16,16 @@ const entries = new Map()
 const hooks = { get: name => name === 'react' ? React : {} }
 window.__ModuleLoader__ = { load: mod => { window.plugin = mod.factory(hooks.get) } }
 ${readFileSync('lib/client.js', 'utf8')}
-const state = { config: ${JSON.stringify(config)} }
+const state = { config: ${JSON.stringify(config)}, codingPlans: { opendesign: { status: 'loading' }, minimax: { status: 'loading' } } }
 window.reads = []
 let phase = 'loading'
 const remote = {
   getLocalState: () => new Promise(resolve => { window.finishLocal = () => resolve({ ok: true, value: state }) }),
-  getState: () => new Promise(() => {}),
+  getState: () => { window.waitingForMinimax = true; return new Promise(() => {}) },
+  getOpenDesignState: () => new Promise(resolve => { window.finishPlan = () => {
+    resolve({ ok: true, value: { ...state, codingPlans: { ...state.codingPlans,
+      opendesign: { status: 'ok', windows: { weekly: { percent: 20 } } } } } })
+  } }),
   getTurnCost: async (id, start) => {
     window.reads.push(start)
     return { ok: true, value: { found: true, cost: 1, apiCost: 1, rows: [], calls: [] } }
@@ -37,6 +41,7 @@ await plugin.apply({
 })
 const { component, option } = entries.get('cost-meter-turn')
 const props = option.inject()
+window.planPercent = () => props.hooks.cost.getSnapshot().state?.codingPlans?.opendesign?.windows?.weekly?.percent
 function useCost(pick) {
   return pick(React.useSyncExternalStore(props.hooks.cost.subscribe, props.hooks.cost.getSnapshot))
 }
@@ -49,7 +54,7 @@ window.show = next => {
       turn: { start: { seq: i * 2 }, end: { seq: i * 2 + 1 } },
     })))))
 }
-show('loading')
+show('cold')
 ` }, bundle: true, write: false, platform: 'browser', format: 'esm',
 })
 const browser = await chromium.launch({ executablePath: process.env.CM_TEST_BROWSER, headless: true })
@@ -62,8 +67,16 @@ try {
   await settle()
   assert.equal(await page.evaluate(() => window.reads.length), 0, 'no configuration yet')
   await page.evaluate(() => window.finishLocal())
+  await page.waitForFunction(() => !!window.finishPlan)
+  await page.evaluate(() => window.finishPlan())
+  await page.waitForFunction(() => window.waitingForMinimax && window.planPercent() === 20)
   await settle()
-  assert.equal(await page.evaluate(() => window.reads.length), 0, 'DSH is still loading history')
+  for (const phase of ['cold', 'loading', 'error']) {
+    await page.evaluate(phase => window.show(phase), phase)
+    await settle()
+    assert.equal(await page.locator('summary').count(), 0, phase + ' session has no turn fee readers')
+    assert.equal(await page.evaluate(() => window.reads.length), 0)
+  }
   await page.evaluate(() => window.show('open'))
   await page.waitForFunction(() => document.querySelector('summary')?.textContent.includes('≈'))
   const first = await page.evaluate(() => window.reads.slice())

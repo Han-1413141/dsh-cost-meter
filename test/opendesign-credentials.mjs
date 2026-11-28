@@ -105,8 +105,26 @@ try {
   assert.equal(publicState(savedKey.state).keySource, 'file')
   assert.deepEqual(writes, [['set', credentialName]])
   assert.equal(secrets.get(credentialName), first)
-  await service.updateConfig({ codingPlans: { opendesign: { enabled: true, display: 'both', workspaceId: 'ws-first' } } })
-  let state = publicState((await service.refreshCodingPlan('opendesign')).state)
+  const startup = gate = pendingRead()
+  let state
+  try {
+    const local = await service.updateConfig({ codingPlans: { opendesign: { enabled: true, display: 'both', workspaceId: 'ws-first' } } })
+    assert.equal(publicState(local).status, 'loading')
+    const complete = service.getState()
+    const firstRead = service.getOpenDesignState()
+    const clicks = [service.refreshCodingPlan('opendesign'), service.refreshCodingPlan('opendesign')]
+    for (let i = 0; i < 100 && startup.started < 2; i++) await tick()
+    assert.equal(startup.started, 2)
+    assert.equal(await Promise.race([complete.then(() => 'ready'), new Promise(done => setTimeout(() => done('pending'), 50))]), 'pending')
+    gate = null
+    startup.release()
+    assert.equal(publicState(await complete).windows.fiveHour.percent, 25)
+    for (const result of await Promise.all(clicks)) assert.equal(publicState(result.state).windows.fiveHour.percent, 25)
+    assert.equal(publicState(await firstRead).windows.fiveHour.percent, 25)
+    assert.equal(publicState(await service.getOpenDesignState()).windows.fiveHour.percent, 25)
+    assert.equal(requests.length, 2, 'startup and concurrent manual refreshes share one quota and wallet request')
+    state = publicState(await service.getState())
+  } finally { gate = null; startup.release() }
   assert.equal(state.windows.fiveHour.percent, 25)
   assert.equal(state.windows.balance.text, '$12.5000')
   let count = requests.length
