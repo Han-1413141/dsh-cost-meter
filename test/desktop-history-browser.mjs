@@ -22,10 +22,9 @@ let phase = 'loading'
 const remote = {
   getLocalState: () => new Promise(resolve => { window.finishLocal = () => resolve({ ok: true, value: state }) }),
   getState: () => { window.waitingForMinimax = true; return new Promise(() => {}) },
-  refreshCodingPlan: (provider, force) => new Promise(resolve => { window.finishPlan = () => {
-    if (provider !== 'opendesign' || force !== false) throw Error('expected a cache-aware OpenDesign read')
-    resolve({ ok: true, value: { ok: true, state: { ...state, codingPlans: { ...state.codingPlans,
-      opendesign: { status: 'ok', windows: { weekly: { percent: 20 } } } } } } })
+  getOpenDesignState: () => new Promise(resolve => { window.finishPlan = () => {
+    resolve({ ok: true, value: { ...state, codingPlans: { ...state.codingPlans,
+      opendesign: { status: 'ok', windows: { weekly: { percent: 20 } } } } } })
   } }),
   getTurnCost: async (id, start) => {
     window.reads.push(start)

@@ -606,7 +606,7 @@
           }))],
           result: strictCodec('CostState', stateCodec),
         },
-        ...['getState', 'getLocalState'].map(method => ({ method, result: strictCodec('CostState', stateCodec) })),
+        ...['getState', 'getLocalState', 'getOpenDesignState'].map(method => ({ method, result: strictCodec('CostState', stateCodec) })),
         {
           method: 'billingStorage',
           parameters: [rpcParam('options', 'BillingStorageOptions', billingStorageOptionsCodec)],
@@ -668,7 +668,7 @@
           },
         {
           method: 'refreshCodingPlan',
-          parameters: [rpcParam('provider', 'CodingPlanProvider', providerCodec), rpcParam('force', 'QuotaForce', codecOf(v => v === undefined ? undefined : needBool(v, 'force')), true)],
+          parameters: [rpcParam('provider', 'CodingPlanProvider', providerCodec)],
           },
         {
           method: 'loginCodingPlan',
