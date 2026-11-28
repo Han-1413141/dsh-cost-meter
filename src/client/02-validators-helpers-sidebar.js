@@ -1840,6 +1840,7 @@
       return out
     }
     function useSessionUsage(props) {
+      const opening = props.useSession?.(session => session?.openState) === 'loading'
       const projection = props.useProjection ? props.useProjection('costUsage') : undefined
       const state = props.useCost?.(s => s)?.state
       const config = state?.config
@@ -1849,7 +1850,7 @@
       // Subscribe to billing values, never to that object's identity.
       const projectionRevision = ['input', 'output', 'cacheRead', 'cacheWrite', 'reasoning', 'calls', 'cost', 'apiCost'].map(key => projection?.[key] ?? '').join(':')
       useEffect(() => {
-        if (!props.sessionId || !props.api?.getSessionCost) return
+        if (opening || !props.sessionId || !props.api?.getSessionCost) return
         let active = true, pending = false
         const refresh = async () => {
           if (pending || (typeof document !== 'undefined' && document.hidden)) return
@@ -1869,7 +1870,7 @@
         const onVisible = () => { if (!document.hidden) void refresh() }
         if (typeof document !== 'undefined') document.addEventListener?.('visibilitychange', onVisible)
         return () => { active = false; if (timer !== null) clearInterval(timer); if (typeof document !== 'undefined') document.removeEventListener?.('visibilitychange', onVisible) }
-      }, [props.sessionId, state?.meta?.now, projectionRevision, config?.includeSubagentCost])
+      }, [opening, props.sessionId, state?.meta?.now, projectionRevision, config?.includeSubagentCost])
       const current = snapshot && snapshot.id === props.sessionId && snapshot.include === (config?.includeSubagentCost === true) ? snapshot : null
       const saved = current?.value
       return { usage: mergeSessionUsage(projection, saved, config?.includeSubagentCost || saved && saved.subagentCount > 0, config), config,
@@ -1909,17 +1910,32 @@
       const config = props.useCost?.(s => s)?.state?.config
       const [value, setValue] = useState(null)
       const [error, setError] = useState('')
+      const details = useRef(null)
       const start = props.turn?.start?.seq, end = props.turn?.end?.seq
       const sessionId = props.sessionId
-      const pricingKey = JSON.stringify([config?.prices, config?.priceOverrides, config?.priceMatch, config?.planBilling, config?.codingPlans, config?.goQuota?.enabled, config?.peakEnabled, config?.peakEffectiveAt, config?.peakWindows, config?.peakHolidays, config?.exchangeRate])
+      const opening = props.useSession?.(session => session?.openState) === 'loading'
+      const pricingKey = opening ? null : turnPricingKey(config)
       useEffect(() => {
         let active = true
         setValue(null); setError('')
-        if (config?.hideTurnCost || !sessionId || start == null || end == null) return
-        props.api.getTurnCost(sessionId, start, end).then(v => { if (active) setValue(v) }, e => { if (active) setError(String(e.message ?? e)) })
-        return () => { active = false }
-      }, [sessionId, start, end, pricingKey, config?.hideTurnCost])
-      if (!config || config.hideTurnCost || start == null || end == null) return null
+        if (pricingKey === null || !sessionId || start == null || end == null) return
+        const read = () => props.api.getTurnCost(sessionId, start, end).then(v => {
+          if (active) setValue(v)
+        }, e => { if (active) setError(String(e.message ?? e)) })
+        // Desktop restores many turn slots together. Only read history for a visible summary.
+        let observer
+        if (typeof IntersectionObserver === 'function' && details.current) {
+          observer = new IntersectionObserver(entries => {
+            if (!active || !observer || !entries.some(entry => entry.isIntersecting)) return
+            observer.disconnect()
+            observer = null
+            void read()
+          })
+          observer.observe(details.current)
+        } else void read()
+        return () => { active = false; observer?.disconnect() }
+      }, [sessionId, start, end, pricingKey])
+      if (pricingKey === null || start == null || end == null) return null
       const en = resolveLocale(config) === 'en'
       const names = en ? { input: 'Input', output: 'Output', cacheRead: 'Cache read', cacheWrite: 'Cache write', reasoning: 'Reasoning' } : { input: '输入', output: '输出', cacheRead: '缓存读取', cacheWrite: '缓存写入', reasoning: '推理' }
       const money = n => {
@@ -1934,7 +1950,7 @@
       const rowView = (row, i) => el('div', { key: i, style: { marginBottom: 4, overflowWrap: 'anywhere' } },
         prettyProviderKey(row.provider + ':' + row.model) + ' · ' + (names[row.bucket] || (row.bucket === 'fetchRequests' ? (en ? 'Fetch requests' : '抓取请求') : (en ? 'Search requests' : '搜索请求'))) + (row.plan ? ' (Plan)' : '') + ': ' + (row.requests ? row.requests + (en ? ' requests' : ' 次') : row.tokens.toLocaleString()) + ' × ' + (row.priced ? unitPrice(row.rate) : '?') + (row.requests ? ' ≈ ' : ' / 1,000,000 ≈ ') + (row.priced ? money(row.cost) : '?'),
         !row.priced ? (en ? ' (price unavailable)' : '（未配置价格）') : row.bucket === 'reasoning' && row.rate === 0 ? (en ? ' (no separate charge)' : '（不单独收费）') : '')
-      return el('details', { className: 'cm-note', style: { fontSize: 12, marginTop: 6 } },
+      return el('details', { ref: details, className: 'cm-note', style: { fontSize: 12, marginTop: 6 } },
         el('summary', { style: { cursor: 'pointer' }, title: en ? 'Calls in this session and turn. Find team and subagent totals in session billing details.' : '本轮费用按当前会话的调用估算。团队和子代理费用见会话账单明细。' }, en ? 'Turn cost' : '本轮费用', value?.found ? ' ≈ ' + money(displayCostOf(value, config)) + (value.rows.some(r => !r.priced) ? (en ? ' + unpriced usage' : ' + 未定价用量') : '') : value?.inherited ? (en ? ' · inherited history' : ' · 继承历史') : error ? ' ⚠' : ''),
         error ? el('div', { role: 'alert' }, error) : !value ? (en ? 'Loading…' : '加载中…') : !value.found ? value.inherited ? (en ? 'Inherited usage is not billed again in this conversation.' : '继承的历史用量不在本会话重复计费。') : (en ? 'Complete usage records unavailable' : '没有完整用量记录') :
           el(Fragment, null, el('p', null, en ? 'Estimated from this session’s calls in this turn, at rates per 1M tokens. Team calls are listed in session billing details.' : '按当前会话本轮的调用估算，单价单位为每百万 Token。团队成员的调用列在会话账单明细中。'),

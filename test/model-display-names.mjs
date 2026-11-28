@@ -13,7 +13,7 @@ const el = (type, props, ...children) => ({ type, props: props ?? {}, children }
 vm.runInNewContext(source.replace('exports.apply = apply', 'exports.test = { prettyProviderKey, TurnCost }; exports.apply = apply'), {
   navigator: { language: 'zh' }, window: { __ModuleLoader__: { load: module => { factory = module.factory } } },
 })
-const ui = factory(name => name === 'react' ? { createElement: el, Fragment: 'fragment', useEffect() {}, useState: () => [stateIndex++ === 0 ? value : '', () => {}] } : {}).test
+const ui = factory(name => name === 'react' ? { createElement: el, Fragment: 'fragment', useEffect() {}, useRef: () => ({ current: null }), useState: () => [stateIndex++ === 0 ? value : '', () => {}] } : {}).test
 const stats = readFileSync(new URL('../src/statistics/index.js', import.meta.url), 'utf8')
 const modelLabels = () => ({ 'qoder-global:dfmodel': 'Qoder Global:DeepSeek-Flash' })
 const statisticsLabel = vm.runInNewContext(stats.match(/const prettyProviderKey = [^\n]+/)[0] + '\nprettyProviderKey', { modelLabels })
