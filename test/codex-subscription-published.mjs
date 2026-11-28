@@ -38,7 +38,7 @@ const constant = name => {
   assert.ok(node, 'upstream constant ' + name)
   return 'const ' + source.slice(node.start, node.end) + ';'
 }
-const selected = ['version', 'http-failure', 'credit-expiry', 'quota-cadence', 'shared-request', 'usage', 'rpc-contract', 'subscription-transport'].map(region).join('\n')
+const selected = ['version', 'http-failure', 'credit-expiry', 'quota-cadence', 'shared-request', 'account-transition', 'usage', 'rpc-contract', 'subscription-transport'].map(region).join('\n')
 const hasAccessFailureMessages = selected.includes('isAccessFailureMessage')
 const requireHost = createRequire(join(resolve(process.env.DSH_TEST_NODE_MODULES), '__codex_published.cjs'))
 const { clientRequestSchema, HostConnectionService } = await import(pathToFileURL(requireHost.resolve('@deepseek-ai/dsh-client-connection')).href)

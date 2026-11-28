@@ -1507,3 +1507,15 @@ window.__ModuleLoader__.load({
     }
 
     const PERIOD_KEYS = { day: 'periodDay', month: 'periodMonth', all: 'periodAll', custom: 'periodCustomRange' }
+
+    // All mounted turns share a configuration snapshot. Compute the billing inputs once per snapshot.
+    const turnPricingKeys = new WeakMap()
+    function turnPricingKey(config) {
+      if (!config || config.hideTurnCost) return null
+      if (!turnPricingKeys.has(config)) {
+        turnPricingKeys.set(config, JSON.stringify([config.prices, config.priceOverrides, config.priceMatch, config.planBilling,
+          config.codingPlans, config.goQuota?.enabled, config.peakEnabled, config.peakEffectiveAt, config.peakWindows,
+          config.peakHolidays, config.currency, config.exchangeRate]))
+      }
+      return turnPricingKeys.get(config)
+    }

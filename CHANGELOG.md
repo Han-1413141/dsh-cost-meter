@@ -1,5 +1,10 @@
 # Changelog
 
+## [1.9.95] - 2026-11-28
+
+- **Desktop 历史加载。** 打开会话时，费用插件等待 DSH 完成历史加载，再读取会话费用。每轮费用在对应回合进入可视区域时读取。感谢 @playgithub 提供 CachyOS 上 DSH Desktop 0.2.3-alpha.2 的版本信息、OpenDesign 配置场景和停用插件后的对照结果。[#606](https://github.com/Han-1413141/dsh-cost-meter/issues/606)
+- **Codex Subscription。** 已验证 3.2.33 和 3.2.35 的额度读取、强制刷新、账号切换和授权失效恢复，兼容性监控基线更新至 3.2.35。[#602](https://github.com/Han-1413141/dsh-cost-meter/issues/602)
+
 ## [1.9.94] - 2026-11-26
 
 - **额度文案。** 「设置 → 费用 → 额度」新增「翻译供应商额度标签」，默认开启。DSH 和插件都使用中文时，侧栏额度卡、入口浮层、额度设置和费用总览会翻译 Total credits、Add-on credits 等固定短语。任一方使用英语时，供应商标签保留原文。Credits、7 days、动态读数和自定义标签沿用原文。感谢 @abworks-dev 提出并实现固定短语精确匹配，并复核额度卡片的构建产物。[PR #604](https://github.com/Han-1413141/dsh-cost-meter/pull/604)

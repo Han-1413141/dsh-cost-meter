@@ -149,6 +149,19 @@ for (const locale of ['en', 'zh']) {
   assert.match(textOf(unavailable.tree), locale === 'en' ? /This session \$5/ : /本会话 \$5/, 'a legacy host can still fall back to its projection')
   dock.dispose(); zero.dispose(); unavailable.dispose()
 }
+// The DSH conversation is waiting for history. The dock can ask for its ledger after open.
+{
+  let phase = 'loading', reads = 0
+  const dock = e.mount(e.ui.DockLine, { sessionId: 'restoring', useProjection: () => null,
+    useSession: pick => pick({ openState: phase }), useCost: pick => pick({ state: { config } }),
+    api: { getSessionCost: async () => { reads++; return snapshot(usage(0, 0, 0)) } } })
+  assert.equal(reads, 0)
+  phase = 'open'
+  dock.render()
+  await e.flush()
+  assert.equal(reads, 1)
+  dock.dispose()
+}
 // #205: show exact bucket arithmetic, keep Plan separate and reject stale replies.
 {
   const requests = []
